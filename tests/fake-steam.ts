@@ -24,15 +24,22 @@ export interface FakePopupWindow {
   closed: boolean;
   innerWidth: number;
   innerHeight: number;
+  addEventListener: Document['addEventListener'];
+  removeEventListener: Document['removeEventListener'];
 }
 
 /** A popup window backed by its own document (jsdom environment, or pass a jsdom window's implementation). */
-export const fakePopupWindow = (impl: DOMImplementation = document.implementation): FakePopupWindow => ({
-  document: impl.createHTMLDocument('SteamVR - Keyboard'),
-  closed: false,
-  innerWidth: 854,
-  innerHeight: 280,
-});
+export const fakePopupWindow = (impl: DOMImplementation = document.implementation): FakePopupWindow => {
+  const doc = impl.createHTMLDocument('SteamVR - Keyboard');
+  return {
+    document: doc,
+    closed: false,
+    innerWidth: 854,
+    innerHeight: 280,
+    addEventListener: doc.addEventListener.bind(doc),
+    removeEventListener: doc.removeEventListener.bind(doc),
+  };
+};
 
 /** A fake webpack chunk registry exposing one module with a VRKeyboardStatus store. */
 export const fakeWebpack = (getStatus: () => VRKeyboardStatus) => {

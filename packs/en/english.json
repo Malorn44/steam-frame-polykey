@@ -1,0 +1,10 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "en/english",
+ "name": "English",
+ "language": "en",
+ "layout": "en/qwerty",
+ "composer": "direct"
+}

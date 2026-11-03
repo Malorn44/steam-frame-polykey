@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/steam",
+ "name": "Steam",
+ "followSteam": true,
+ "radius": 0,
+ "font": "\"Motiva Sans\", Arial, Helvetica, sans-serif",
+ "colors": {
+  "surface": "#23262e",
+  "key": "#0e141b",
+  "keyText": "#ffffff",
+  "modifier": "#000000",
+  "accent": "#1a9fff",
+  "legend": "#969696",
+  "fnLegend": "#f78c6c",
+  "hover": "#3d4450"
+ }
+}

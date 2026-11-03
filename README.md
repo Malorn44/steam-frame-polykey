@@ -2,9 +2,12 @@
 
 A modular on-screen keyboard for the Valve Steam Frame. It draws inside Steam's own keyboard popup and sends text through Steam's own key entry point, so it works wherever Steam's keyboard appears.
 
-**Status: milestone 1 spike.** Two test boxes in Steam's keyboard popup:
-- **polykey → テスト** sends text through `HandleVirtualKeyDown`. This works in Steam UI fields and in apps gamescope runs directly.
-- **📋 → テスト** pastes through the KDE desktop's clipboard with Shift+Insert, then restores the clipboard. This is for Desktop Mode, where sent text arrives as `123`.
+**Status: milestone 2.** A full English keyboard drawn over Steam's keyboard popup:
+- **Keys:** the number row with an Fn layer (Esc, F1–F12), sticky Ctrl, Alt, Frame (Super) and Fn, and full arrows.
+- **Toolbar:** settings, emoji, dictate, copy, cut and paste.
+- **🌐** switches keyboards; Steam's own keyboard is one of them.
+
+Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json`). A user pack in `~/.config/polykey/packs/<namespace>/` replaces a bundled item with the same id. KDE Desktop Mode gets non-ASCII text by paste.
 
 > Unofficial; not affiliated with Valve. It relies on private Steam internals. When a required Steam object is missing, it does nothing and leaves the stock keyboard alone.
 
@@ -33,18 +36,18 @@ Debug from the CDP console (`ssh -L 8080:127.0.0.1:8080 steamos@frame`, then `lo
 
 ```js
 __polykey.debug.status()
-__polykey.debug.split('chars')              // text split: 'auto' | 'run' | 'chars'
-__polykey.debug.pasteChord('ctrl-shift-v')  // 'shift-insert' | 'ctrl-v' | 'ctrl-shift-v'
-await __polykey.debug.tap('paste')          // tap a box without the laser
+__polykey.debug.use('steam/stock')   // or 'en/english'
 ```
 
 ## Layout
 
 ```
-src/core/       pure logic: output planning, key chords
+src/core/       pure logic: catalog types, key handling, key codes, output planning
 src/host/steam/ the only Steam-facing TypeScript
 src/bridge/     page side of the sidecar bridge
-src/spike.ts    the spike (bundle entry: spike-entry.ts; read-only report: probe.ts)
+src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
+src/ui/         the keyboard as DOM
+packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, Desktop Mode clipboard (Wayland)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs, deploy.sh

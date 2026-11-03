@@ -4,11 +4,12 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
+import { bundledBoot } from './boot.js';
 import { fakePopupWindow, fakeSteam } from './fake-steam.js';
 
 const bundle = async (): Promise<string> => {
   const result = await build({
-    entryPoints: ['src/spike-entry.ts'],
+    entryPoints: ['src/entry.ts'],
     bundle: true,
     format: 'iife',
     target: 'es2020',
@@ -33,7 +34,7 @@ describe('built bundle', () => {
   it('installs into a Steam-like window and draws the box', async () => {
     const win = steamWindow();
     const popup = fakePopupWindow(win.document.implementation);
-    Object.assign(win, fakeSteam({ popup }).g);
+    Object.assign(win, fakeSteam({ popup }).g, { __polykeyBoot: bundledBoot() });
     win.eval(await bundle());
     const api = (win as unknown as { __polykey: Polykey }).__polykey;
     expect(api.version).toBe('bundle-test');
@@ -43,8 +44,9 @@ describe('built bundle', () => {
     expect(popup.document.getElementById(SURFACE_ID)).toBeNull();
   });
 
-  it('stays inert without Steam', async () => {
+  it('waits without Steam', async () => {
     const win = steamWindow();
+    Object.assign(win, { __polykeyBoot: bundledBoot() });
     win.eval(await bundle());
     const api = (win as unknown as { __polykey: Polykey }).__polykey;
     expect(api.state).toBe('waiting');
@@ -52,6 +54,6 @@ describe('built bundle', () => {
   });
 
   it('is small', async () => {
-    expect((await bundle()).length).toBeLessThan(20 * 1024);
+    expect((await bundle()).length).toBeLessThan(40 * 1024);
   });
 });

@@ -22,11 +22,13 @@ const common = {
   define: { __POLYKEY_VERSION__: JSON.stringify(version) },
   logLevel: 'warning',
 };
-await build({ ...common, entryPoints: ['src/spike-entry.ts'], outfile: `${stage}/bundle.js` });
+await build({ ...common, entryPoints: ['src/entry.ts'], outfile: `${stage}/bundle.js` });
 await build({ ...common, entryPoints: ['src/probe.ts'], outfile: `${stage}/probe.js`, globalName: '__polykeyProbe' });
 
 writeFileSync(`${stage}/VERSION`, `${version}\n`);
 cpSync('sidecar/run.py', `${stage}/sidecar/run.py`);
+cpSync('packs', `${stage}/packs`, { recursive: true });
+cpSync('schema', `${stage}/schema`, { recursive: true });
 cpSync('sidecar/polykey', `${stage}/sidecar/polykey`, {
   recursive: true,
   filter: (src) => !src.includes('__pycache__') && !src.endsWith('.pyc'),

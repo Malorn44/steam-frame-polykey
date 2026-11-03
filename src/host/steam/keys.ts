@@ -1,7 +1,7 @@
 // Key presses through SteamClient.Input.ControllerKeyboardSetKeyState (what Steam's own Paste key
 // uses). Every pressed key is released in `finally`, on keyboard close and on uninstall.
 
-import type { KeyEvent } from '../../core/output/chords.js';
+import type { KeyEvent } from '../../core/keycodes.js';
 import type { SteamGlobals } from './globals.js';
 
 export type SetKeyState = (code: number, down: boolean) => void;

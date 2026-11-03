@@ -16,6 +16,7 @@ from typing import Awaitable, Optional, TextIO
 
 import aiohttp
 
+from . import packs as pack_loader
 from .bridge import BINDING_NAME, Bridge, reply_expression
 from .cdp import CdpError, CdpSession, check_loopback, find_target, list_targets
 from .desktop import DesktopPaste
@@ -51,6 +52,9 @@ class Config:
     devtools: str = "http://127.0.0.1:8080"
     bundle: Path = field(default_factory=lambda: _default("bundle.js"))
     probe: Path = field(default_factory=lambda: _default("probe.js"))
+    packs: Path = field(default_factory=lambda: _default("packs"))
+    schema: Path = field(default_factory=lambda: _default("schema/pack.schema.json"))
+    user_dir: Path = field(default_factory=pack_loader.user_dir)
     forward_console: bool = True
     debounce: float = 1.0
     safety_check: float = 120.0
@@ -110,12 +114,21 @@ def read_bundle(path: Path, log: Log) -> Optional[str]:
     return f"{source}\n//# sourceURL={SOURCE_URL}\n"
 
 
-async def inject(session: CdpSession, path: Path, log: Log) -> bool:
+def boot_script(cfg: Config, log: Log) -> str:
+    """Packs and settings for the page, set before the bundle runs. Re-read on every injection."""
+    boot = pack_loader.load(cfg.packs, cfg.schema, cfg.user_dir)
+    for error in boot["errors"]:
+        log.info(f"pack: {error}")
+    return f"globalThis.__polykeyBoot = {json.dumps(boot, ensure_ascii=True)};\n"
+
+
+async def inject(session: CdpSession, cfg: Config, log: Log) -> bool:
+    path = cfg.bundle
     source = read_bundle(path, log)
     if source is None:
         return False
     try:
-        await session.evaluate(source)
+        await session.evaluate(boot_script(cfg, log) + source)
     except (CdpError, asyncio.TimeoutError) as error:
         log.info(f"injection failed: {type(error).__name__}: {error}")
         return False
@@ -127,7 +140,7 @@ async def inject(session: CdpSession, path: Path, log: Log) -> bool:
     return True
 
 
-async def ensure_injected(session: CdpSession, path: Path, log: Log) -> bool:
+async def ensure_injected(session: CdpSession, cfg: Config, log: Log) -> bool:
     try:
         present = await session.evaluate(CHECK_EXPRESSION)
     except (CdpError, asyncio.TimeoutError) as error:
@@ -135,7 +148,7 @@ async def ensure_injected(session: CdpSession, path: Path, log: Log) -> bool:
         return False
     if present is True:
         return True
-    return await inject(session, path, log)
+    return await inject(session, cfg, log)
 
 
 async def uninstall_in_page(session: CdpSession, log: Log, timeout: float) -> None:
@@ -225,7 +238,7 @@ async def watch_target(http: aiohttp.ClientSession, target: dict, cfg: Config, l
             await session.call("Runtime.addBinding", {"name": BINDING_NAME})
         while not session.closed and not stop.is_set():
             watch.recheck.clear()
-            await ensure_injected(session, cfg.bundle, log)
+            await ensure_injected(session, cfg, log)
             await wait_any(watch.recheck.wait(), stop.wait(), session.wait_closed(), timeout=cfg.safety_check)
             if watch.recheck.is_set() and not stop.is_set():
                 await sleep_unless(stop, cfg.debounce)  # contexts arrive in bursts
@@ -296,7 +309,7 @@ async def _with_session(cfg: Config, log: Log, action) -> int:
 async def run_once(cfg: Config, log: Log) -> int:
     """Inject once, unconditionally; the bundle replaces a running instance itself."""
     async def action(session: CdpSession, _http) -> int:
-        return 0 if await inject(session, cfg.bundle, log) else 1
+        return 0 if await inject(session, cfg, log) else 1
     return await _with_session(cfg, log, action)
 
 

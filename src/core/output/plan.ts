@@ -2,8 +2,9 @@
 //   run    ASCII one per call, other runs as one call (fjk, minimal mode: one keymap change per call)
 //   chars  one grapheme per call (buffered mode moves its cursor one character per call)
 
-type NamedKey = 'Backspace' | 'Enter' | 'Tab' | 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
-export type OutputOp = { readonly text: string } | { readonly key: NamedKey };
+/** Keys HandleVirtualKeyDown takes by name (VKClose hides Steam's keyboard). */
+export type VkdKey = 'Backspace' | 'Enter' | 'Tab' | 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown' | 'VKClose';
+export type OutputOp = { readonly text: string } | { readonly key: VkdKey };
 export type SplitPolicy = 'run' | 'chars';
 export type SplitSetting = 'auto' | SplitPolicy;
 export type KeyboardMode = 'buffered' | 'minimal' | 'unknown';
