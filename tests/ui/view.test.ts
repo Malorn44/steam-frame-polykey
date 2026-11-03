@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
-import { LONG_PRESS_MS, createView } from '../../src/ui/view.js';
+import { LONG_PRESS_MS, REPEAT_DELAY_MS, REPEAT_MS, createView } from '../../src/ui/view.js';
 import { bundledBoot } from '../boot.js';
 
 const setup = () => {
@@ -179,11 +179,11 @@ describe('long press', () => {
   it('a key with nothing to choose just types on release', () => {
     vi.useFakeTimers();
     const { keyIn, shadow, pressed } = setup();
-    const space = keyIn(4, ' ');
-    touch(space, 'touchstart');
+    const q = keyIn(1, 'q'); // no variants, and its capital is not one
+    touch(q, 'touchstart');
     vi.advanceTimersByTime(LONG_PRESS_MS * 2);
     expect(shadow.querySelector('.alts')).toBeNull();
-    touch(space, 'touchend');
+    touch(q, 'touchend');
     expect(pressed).toHaveLength(1);
     vi.useRealTimers();
   });
@@ -195,5 +195,45 @@ describe('long press', () => {
     expect([...keyIn(1, 'q').classList].filter((c) => c === 'tri' || c === 'stack')).toEqual([]);
     view.update({ ...NO_MODS, fn: 'once' }); // Fn on: F1 is the label, no legends
     expect(keyIn(0, '1').classList.contains('tri')).toBe(false);
+  });
+});
+
+describe('hold to repeat', () => {
+  const touch = (el: Element, type: string) => el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+
+  it('a held Backspace repeats after a delay and does not type again on release', () => {
+    vi.useFakeTimers();
+    const { keyIn, pressed, shadow } = setup();
+    const backspace = keyIn(0, 'Backspace');
+    touch(backspace, 'touchstart');
+    vi.advanceTimersByTime(REPEAT_DELAY_MS - 1);
+    expect(pressed).toHaveLength(0);
+    vi.advanceTimersByTime(1 + REPEAT_MS * 3);
+    expect(pressed).toHaveLength(4);
+    touch(backspace, 'touchend');
+    vi.advanceTimersByTime(REPEAT_MS * 5);
+    expect(pressed).toHaveLength(4);
+    expect(shadow.querySelector('.alts')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('a quick tap types once; Space repeats; letters do not', () => {
+    vi.useFakeTimers();
+    const { keyIn, pressed } = setup();
+    const left = keyIn(4, 'ArrowLeft');
+    touch(left, 'touchstart');
+    touch(left, 'touchend');
+    expect(pressed).toHaveLength(1);
+    const space = keyIn(4, ' ');
+    touch(space, 'touchstart');
+    vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS * 2);
+    touch(space, 'touchend');
+    expect(pressed).toHaveLength(4); // the tap, then three spaces while held
+    const q = keyIn(1, 'q');
+    touch(q, 'touchstart');
+    vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS * 5);
+    touch(q, 'touchend');
+    expect(pressed).toHaveLength(5);
+    vi.useRealTimers();
   });
 });

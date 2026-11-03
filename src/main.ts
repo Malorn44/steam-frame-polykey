@@ -158,8 +158,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     refreshSuggestions();
   };
 
-  const onKey = (key: KeyDef, alternate?: string): void => {
-    if (surface) haptic(surface.win, HAPTIC.enter, hand);
+  const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
+    if (surface && !repeat) haptic(surface.win, HAPTIC.enter, hand); // one tick per press, not per repeat
     const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);

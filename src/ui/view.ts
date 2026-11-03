@@ -11,6 +11,11 @@ export const TOOLBAR_PX = 26;
 const TOUCH_MOUSE_GUARD_MS = 600;
 /** Hold this long for a key's alternates. */
 export const LONG_PRESS_MS = 400;
+/** Held Space, Backspace, Delete and arrows repeat: first after REPEAT_DELAY_MS, then every REPEAT_MS. */
+export const REPEAT_DELAY_MS = 450;
+export const REPEAT_MS = 60;
+const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
 
@@ -100,8 +105,8 @@ export const createView = (
   shadow: ShadowRoot,
   layout: Layout,
   theme: Theme,
-  /** A tap, or a long press that chose `alternate` (its text). */
-  onKey: (key: KeyDef, alternate?: string) => void,
+  /** A tap, a long press that chose `alternate` (its text), or a repeat of a held key. */
+  onKey: (key: KeyDef, alternate?: string, repeat?: boolean) => void,
   onSuggestion: (word: string) => void = () => {},
 ): View => {
   const style = doc.createElement('style');
@@ -174,12 +179,16 @@ export const createView = (
   let lastTouchAt = -Infinity;
   let mods: Mods = NO_MODS;
   let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  let repeatTimer: ReturnType<typeof setInterval> | null = null;
+  let repeated = false;
   let lastPoint: { x: number; y: number } | null = null;
   let popup: { el: HTMLElement; cells: { el: HTMLElement; text: string }[]; pick: number; key: KeyDef; keyRect: DOMRect } | null = null;
 
   const clearHold = (): void => {
     if (holdTimer !== null) clearTimeout(holdTimer);
     holdTimer = null;
+    if (repeatTimer !== null) clearInterval(repeatTimer);
+    repeatTimer = null;
   };
   const closePopup = (): void => {
     popup?.el.remove();
@@ -259,7 +268,15 @@ export const createView = (
     const held = pressed;
     const start = (e as TouchEvent).changedTouches?.[0];
     lastPoint = start ? { x: start.clientX, y: start.clientY } : null;
-    if (held) holdTimer = setTimeout(() => {
+    repeated = false;
+    if (held && repeats(held.key)) {
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        repeated = true;
+        onKey(held.key, undefined, true);
+        repeatTimer = setInterval(() => onKey(held.key, undefined, true), REPEAT_MS);
+      }, REPEAT_DELAY_MS);
+    } else if (held) holdTimer = setTimeout(() => {
       holdTimer = null;
       openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
     }, LONG_PRESS_MS);
@@ -292,6 +309,7 @@ export const createView = (
       if (chosen !== undefined) onKey(key, chosen);
       return;
     }
+    if (repeated) return; // a held key already typed while held
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   }, { passive: false });
   root.addEventListener('touchcancel', () => {
