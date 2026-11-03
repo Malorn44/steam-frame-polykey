@@ -8,6 +8,7 @@ import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState,
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
+import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
 export const TOOLBAR_PX = 26;
@@ -29,16 +30,15 @@ const POPUP_SCALE = 0.85;
 const CSS = `
 :host { all: initial; }
 .kb { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
-  --label: 17px; --legend-size: calc(var(--label) * 0.6);
-  background: var(--surface); color: var(--text); font: 400 var(--label)/1 var(--font);
+  background: var(--surface); color: var(--text); font: 400 var(--size-base)/1 var(--font);
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 .bar { height: ${TOOLBAR_PX}px; display: flex; flex: none; }
-.bar .key { flex: none; width: 30px; font-size: 14px; }
+.bar .key { flex: none; width: 30px; font-size: var(--size-bar-key); }
 .bar .key[data-k="hide"] { width: 24px; }
 .cands { flex: 1; display: flex; min-width: 0; margin: 0 4px; }
 /* Suggestions: text on the bar, not keys; thin dividers; the best (middle) in the accent colour. */
 .sugg { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6px;
-  font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--radius); }
+  font-size: var(--size-suggestion); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--radius); }
 .sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--mod); }
 .sugg.best { color: var(--accent); font-weight: 600; }
 .sugg.hover { background-color: var(--hover); }
@@ -46,7 +46,7 @@ const CSS = `
    marked. Then the candidates, the picked one in the accent colour. */
 .comp { flex: 1; display: none; align-items: center; min-width: 0; margin: 0 4px; gap: 8px; }
 .comp.on { display: flex; }
-.pre { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; font-size: 16px;
+.pre { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; font-size: var(--size-candidate);
   border-bottom: 1.5px solid var(--text); padding: 0 2px; }
 .pre:empty { display: none; } /* no reading: no underline (it showed as a dot) */
 .pre .seg { padding: 0 1px; }
@@ -54,7 +54,7 @@ const CSS = `
 .pre.converting .seg:not(.focus) { color: var(--legend); }
 .pre .caret { display: inline-block; width: 1.5px; height: 1em; margin: 0 1px; vertical-align: -2px; background: var(--accent); }
 .list { flex: 1; display: flex; min-width: 0; overflow: hidden; height: 100%; }
-.cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: 16px; white-space: nowrap;
+.cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: var(--size-candidate); white-space: nowrap;
   border-radius: var(--radius); }
 .cand + .cand { border-left: 1px solid var(--mod); }
 .cand.sel { background: var(--accent); color: var(--surface); font-weight: 600; }
@@ -67,22 +67,22 @@ const CSS = `
 .sidep { flex: 0 0 40%; display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius);
   background: var(--key); padding: 4px; box-sizing: border-box; }
 .kb.side .comp { flex: 1; flex-direction: column; align-items: stretch; margin: 0; gap: 4px; min-height: 0; }
-.kb.side .pre { max-width: none; align-self: flex-start; font-size: 18px; }
+.kb.side .pre { max-width: none; align-self: flex-start; font-size: var(--size-side-reading); }
 .kb.side .list { flex-wrap: wrap; align-content: flex-start; gap: 2px; }
-.kb.side .cand { height: 36px; font-size: 19px; }
+.kb.side .cand { height: 36px; font-size: var(--size-side-candidate); }
 .kb.side .cand + .cand { border-left: none; }
 .list > .placeholder { flex: 1 1 100%; align-self: stretch; display: flex; align-items: center; justify-content: center;
-  text-align: center; color: var(--legend); font-size: 13px; }
+  text-align: center; color: var(--legend); font-size: var(--size-placeholder); }
 .kb.side .list:has(> .placeholder) { align-content: stretch; }
 .kb.side .bar { border-top: 1px solid var(--mod); padding-top: 3px; }
 .kb.side .bar .cands { visibility: hidden; }
 .key { flex: 1 1 0; position: relative; display: flex; align-items: center; justify-content: center;
   box-sizing: border-box; border: 1.5px solid transparent; background: var(--key); background-clip: padding-box;
   border-radius: var(--radius); overflow: hidden; min-width: 0; }
-.key.mod, .key.named, .key.action { background-color: var(--mod); font-size: 13px; }
+.key.mod, .key.named, .key.action { background-color: var(--mod); font-size: var(--size-mod); }
 .key.gap { background: none; }
-.key svg { font-size: 18px; }
-.sh, .fn { position: absolute; top: 4px; font-size: var(--legend-size); line-height: 1; }
+.key svg { font-size: var(--size-icon); }
+.sh, .fn { position: absolute; top: 4px; font-size: var(--size-legend); line-height: 1; }
 .sh { color: var(--legend); }
 .fn { color: var(--fn); }
 .key.tri .sh { left: 6px; }
@@ -97,21 +97,21 @@ const CSS = `
 .key.locked { background-color: var(--accent); color: var(--surface); }
 .key.down { filter: brightness(1.5); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
-.kb.large .key.flick { font-size: 26px; }
-.kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: 20px; }
-.kb.large .key[data-k="modify"] { font-size: 21px; container-type: inline-size; }
+.kb.large .key.flick { font-size: var(--size-flick); }
+.kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: var(--size-label); }
+.kb.large .key[data-k="modify"] { font-size: var(--size-modify); container-type: inline-size; }
 /* ゛゜小 on one line, shrinking on a narrow key (the 五十音 grid). */
-.kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(21px, 27cqw); }
+.kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
-.key .fh { position: absolute; font-size: 11px; line-height: 1; color: var(--legend); pointer-events: none; }
+.key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
 .key .fh.l { left: 5px; top: 50%; transform: translateY(-50%); }
 .key .fh.u { top: 3px; left: 50%; transform: translateX(-50%); }
 .key .fh.r { right: 5px; top: 50%; transform: translateY(-50%); }
 .key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
-/* Text arrows as frame-jp-keyboard draws them (all four the same: Noto Sans CJK, 22px). */
-.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 22px/1 "Noto Sans CJK JP", "Noto Sans JP", var(--font); }
-.kb.large .bar .key { font-size: 14px; }
+/* Text arrows as frame-jp-keyboard draws them (all four the same: Noto Sans CJK). */
+.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 var(--size-arrow)/1 "Noto Sans CJK JP", "Noto Sans JP", var(--font); }
+.kb.large .bar .key { font-size: var(--size-bar-key); }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
 .fl { position: absolute; z-index: 2; pointer-events: none; }
@@ -123,12 +123,12 @@ const CSS = `
 .fl div.empty { opacity: 0.35; }
 /* A JIS key: Latin legends on the left, kana on the right (Shift above, plain below). The mode's side is
    bright, the character the key types now biggest; the other side is drawn like a Shift legend. */
-.key.dual .q { position: absolute; line-height: 1; font-size: var(--legend-size); color: var(--legend); } /* as a Shift legend */
+.key.dual .q { position: absolute; line-height: 1; font-size: var(--size-legend); color: var(--legend); } /* as a Shift legend */
 .key.dual .q.ls { top: 4px; left: 5px; }
 .key.dual .q.ll { bottom: 5px; left: 5px; }
 .key.dual .q.ks { top: 4px; right: 5px; }
 .key.dual .q.kl { bottom: 5px; right: 5px; }
-.key.dual .q.cur { color: var(--text); font-size: var(--label); } /* the English keys' sizes */
+.key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
 .key.dual.fnon .q { display: none; }
 .key.dual .q.dot { outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
   line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: 1px; } /* a tight square round the legend, as on a keycap */
@@ -139,11 +139,11 @@ const CSS = `
 .kb.romaji .key.dual .q.ls, .kb.romaji .key.dual .q.ll { left: 50%; transform: translateX(-50%); }
 .kb.romaji .key.dual:has(.q.ls:empty) .q.ll { bottom: auto; top: 50%; transform: translate(-50%, -50%); }
 /* A long press's character, small in the top right (the QWERTY page's digits). */
-.key .hn { position: absolute; top: 4px; right: 6px; font-size: var(--legend-size); line-height: 1; color: var(--legend); }
+.key .hn { position: absolute; top: 4px; right: 6px; font-size: var(--size-legend); line-height: 1; color: var(--legend); }
 /* The ABC keys: the label with its digit small beneath. */
 .key.subbed { flex-direction: column; }
-.key .sub { font-size: 13px; line-height: 1; margin-top: 3px; color: var(--legend); }
-.kb.large .key.mod.labelled { font-size: 20px; }
+.key .sub { font-size: var(--size-sub); line-height: 1; margin-top: 3px; color: var(--legend); }
+.kb.large .key.mod.labelled { font-size: var(--size-label); }
 /* The 12-key's mode key: あ and a, the current mode's in bold. */
 .key .pair { font-weight: 300; opacity: 0.7; }
 .key .pair.now { font-weight: 700; opacity: 1; }
@@ -243,7 +243,7 @@ export const createView = (
   const root = doc.createElement('div');
   root.className = layout.large ? 'kb large' : 'kb';
   if (romaji) root.classList.add('romaji');
-  root.style.cssText = themeVars(theme);
+  root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
 
   /** A JIS key's four legends: Latin Shift and plain, kana Shift and plain. */
   type Quad = { ls: HTMLElement; ll: HTMLElement; ks: HTMLElement; kl: HTMLElement };
