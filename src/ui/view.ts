@@ -8,6 +8,7 @@ import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState,
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
+import { themeVars } from './theme.js';
 
 export const TOOLBAR_PX = 26;
 const TOUCH_MOUSE_GUARD_MS = 600;
@@ -242,10 +243,7 @@ export const createView = (
   const root = doc.createElement('div');
   root.className = layout.large ? 'kb large' : 'kb';
   if (romaji) root.classList.add('romaji');
-  const c = theme.colors;
-  root.style.cssText = `--surface:${c.surface};--key:${c.key};--text:${c.keyText};--mod:${c.modifier};`
-    + `--accent:${c.accent};--legend:${c.legend ?? c.keyText};--fn:${c.fnLegend ?? c.accent};`
-    + `--hover:${c.hover ?? c.modifier};--radius:${theme.radius ?? 6}px;--font:${theme.font ?? 'system-ui, sans-serif'};`;
+  root.style.cssText = themeVars(theme);
 
   /** A JIS key's four legends: Latin Shift and plain, kana Shift and plain. */
   type Quad = { ls: HTMLElement; ll: HTMLElement; ks: HTMLElement; kl: HTMLElement };

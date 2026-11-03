@@ -6,6 +6,7 @@
 
 import type { Theme } from '../core/catalog.js';
 import { ICONS } from './icons.js';
+import { themeVars } from './theme.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 
 export type SettingsTab = 'general' | 'keyboards';
@@ -91,10 +92,7 @@ export const createSettingsView = (
   style.textContent = CSS + KEYBOARDS_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
-  const c = theme.colors;
-  root.style.cssText = `--surface:${c.surface};--text:${c.keyText};--mod:${c.modifier};--accent:${c.accent};`
-    + `--legend:${c.legend ?? c.keyText};--fn:${c.fnLegend ?? c.accent};--radius:${theme.radius ?? 6}px;`
-    + `--font:${theme.font ?? 'system-ui, sans-serif'};`;
+  root.style.cssText = themeVars(theme);
 
   const actions = new Map<HTMLElement, () => void>();
   const option = (label: string, on: boolean, action: () => void, extra = ''): HTMLElement => {

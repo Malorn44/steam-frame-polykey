@@ -9,6 +9,7 @@
 import type { Theme } from '../core/catalog.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
+import { themeVars } from './theme.js';
 import { MAX_FAVORITES, TONES, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf, type EmojiData, type EmojiState, type SteamItem, type Tone } from '../core/emoji.js';
 
 export const RECENT_COLUMNS = 6;
@@ -106,10 +107,7 @@ export const createEmojiView = (
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
   root.className = 'emoji';
-  const c = theme.colors;
-  root.style.cssText = `--surface:${c.surface};--key:${c.key};--text:${c.keyText};--mod:${c.modifier};--accent:${c.accent};`
-    + `--legend:${c.legend ?? c.keyText};--hover:${c.hover ?? c.modifier};--radius:${theme.radius ?? 6}px;`
-    + `--font:${theme.font ?? 'system-ui, sans-serif'};`;
+  root.style.cssText = themeVars(theme);
   const tabsEl = doc.createElement('div');
   tabsEl.className = 'tabs';
   const grid = doc.createElement('div');

@@ -34,7 +34,7 @@ export const KEYBOARDS_CSS = `
 .item .x.hover { background: var(--accent); color: var(--surface); }
 .item.hover { box-shadow: inset 0 0 0 2px var(--accent); }
 .item.dragging { display: none; }
-.kbs .ph { height: 29px; flex: none; border-radius: var(--radius); background: var(--hover, var(--mod));
+.kbs .ph { height: 29px; flex: none; border-radius: var(--radius); background: var(--hover);
   box-shadow: inset 0 0 0 2px var(--accent); opacity: 0.6; }
 .ghost { position: fixed; z-index: 3; pointer-events: none; opacity: 0.9; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 .ghost.out { opacity: 0.45; }
