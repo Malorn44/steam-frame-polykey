@@ -18,6 +18,25 @@ export const ICONS = {
   paste: svg('<path d="M-5 -8 H-9 V11 H9 V-8 H5"/><rect x="-5" y="-11" width="10" height="6" rx="2"/><path d="M-4 0 H4 M-4 5 H2"/>'),
   hide: svg('<path d="M-7 -7 L7 7 M7 -7 L-7 7"/>'),
   menu: svg('<path d="M-8 -6 H8 M-8 0 H8 M-8 6 H8"/>'),
+  // Emoji picker tabs and the Recent bin, ported from Full Keyboard (MIT, src/panel.cpp draw_icon).
+  recent: svg('<circle r="10"/><path d="M0 0 V-6 M0 0 L4.5 2.5"/>'),
+  favorites: svg('<path d="M0 -9.7 L2.59 -2.76 L9.99 -2.44 L4.18 2.16 L6.17 9.29 L0 5.2 L-6.17 9.29 L-4.18 2.16 L-9.99 -2.44 L-2.59 -2.76 Z"/>'),
+  smileys: svg('<circle r="10"/><circle cx="-3.6" cy="-3" r="0.5"/><circle cx="3.6" cy="-3" r="0.5"/><path d="M-5.5 2 H5.5 A5.5 5.5 0 0 1 -5.5 2 Z"/>'),
+  people: svg('<circle cy="-5" r="4"/><path d="M-8.5 11 A8.5 8.5 0 0 1 8.5 11"/>'),
+  animals: svg('<circle cy="5" r="4.5"/><circle cx="-7.5" cy="-1.5" r="2"/><circle cx="-3" cy="-7" r="2"/><circle cx="3" cy="-7" r="2"/><circle cx="7.5" cy="-1.5" r="2"/>'),
+  food: svg('<path d="M-9 -1 A9 9 0 0 1 9 -1 Z M-9.5 3 H9.5"/><rect x="-9" y="6" width="18" height="4" rx="2"/>'),
+  travel: svg('<rect x="-10.5" y="-1" width="21" height="7" rx="2"/><path d="M-6.5 -1 L-4 -6.5 H4 L6.5 -1"/><circle cx="-5.5" cy="8" r="2.2"/><circle cx="5.5" cy="8" r="2.2"/>'),
+  activities: svg('<circle r="10"/><path d="M0 -10 V10 M-10 0 H10 M-7.03 -7.17 A10 10 0 0 1 -7.03 7.17 M7.03 7.17 A10 10 0 0 1 7.03 -7.17"/>'),
+  objects: svg('<path d="M-4.83 2.74 A7.5 7.5 0 1 1 4.83 2.74 L3 6 H-3 Z M-2.5 9.5 H2.5"/>'),
+  symbols: svg('<path d="M0 9 C-13 0 -7 -11 0 -4.5 C7 -11 13 0 0 9 Z"/>'),
+  flags: svg('<path d="M-7 -10 V11 M-7 -9.5 H8.5 L5 -5 L8.5 -0.5 H-7"/>'),
+  clear: svg('<path d="M-8.5 -6 H8.5 M-3 -6 V-9 H3 V-6 M-6 -6 L-5 10 H5 L6 -6 M-2 -2 V6 M2 -2 V6"/>'),
+  // Steam item tabs: ours, drawn to match the set above (outlines on the same 24-unit box).
+  emoticons: svg('<path d="M-8 -9 H8 A2.5 2.5 0 0 1 10.5 -6.5 V3.5 A2.5 2.5 0 0 1 8 6 H-1 L-6 10.5 V6 H-8 A2.5 2.5 0 0 1 -10.5 3.5 V-6.5 A2.5 2.5 0 0 1 -8 -9 Z"/>'
+    + '<circle cx="-3.6" cy="-3.5" r="0.5"/><circle cx="3.6" cy="-3.5" r="0.5"/><path d="M-4 0.5 A5 5 0 0 0 4 0.5"/>'),
+  stickers: svg('<path d="M-7.5 -10 H7.5 A2.5 2.5 0 0 1 10 -7.5 V2 L2 10 H-7.5 A2.5 2.5 0 0 1 -10 7.5 V-7.5 A2.5 2.5 0 0 1 -7.5 -10 Z M10 2 H4.5 A2.5 2.5 0 0 0 2 4.5 V10"/>'),
+  effects: svg('<path d="M-2.5 -9.5 Q-0.74 -3.26 5.5 -1.5 Q-0.74 0.26 -2.5 6.5 Q-4.26 0.26 -10.5 -1.5 Q-4.26 -3.26 -2.5 -9.5 Z"/><path d="M6.5 2.5 Q7.38 5.62 10.5 6.5 Q7.38 7.38 6.5 10.5 Q5.62 7.38 2.5 6.5 Q5.62 5.62 6.5 2.5 Z"/>'
+    + '<circle cx="7" cy="-7.5" r="0.6"/><circle cx="-8.5" cy="8.5" r="0.6"/><circle cx="1" cy="10" r="0.6"/>'),
   backspace: svg('<path d="M-12 -7 V7 M11 0 H-6 M0 -6 L-6 0 L0 6"/>', 2.3),
   globe: svg('<circle r="10"/><ellipse rx="4.5" ry="10"/><path d="M-10 0 H10 M-8.5 -5 H8.5 M-8.5 5 H8.5"/>'),
   shift: svg(`<path d="${SHIFT_ARROW}"/>`),

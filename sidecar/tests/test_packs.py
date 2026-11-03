@@ -123,3 +123,27 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert ask({"haptics": "no"})["error"] == "bad-settings"
     assert ask({"keyboards": []})["error"] == "bad-settings"
     assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}
+
+
+def test_emoji_data_and_state(tmp_path):
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    groups = boot["emoji"]["groups"]
+    assert [g["id"] for g in groups][:2] == ["smileys", "people"]
+    assert groups[0]["items"][0] == "😀"
+    assert any(isinstance(i, list) and len(i) == 6 for i in groups[1]["items"])  # skin tones
+    assert boot["emojiState"] == {"recent": [], "favorites": [], "tone": ""}
+    write(tmp_path, "emoji.json", {"recent": ["😀", 5, "x" * 99], "favorites": ["⭐"], "tone": "dark", "other": 1})
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["emojiState"] == {"recent": ["😀"], "favorites": ["⭐"], "tone": "dark"}
+
+
+def test_bridge_saves_emoji_state_cleaned(tmp_path):
+    import asyncio
+    from polykey.bridge import Bridge
+    out = io.StringIO()
+    bridge = Bridge(Log(out), None, None, tmp_path / "settings.json")
+    state = {"recent": ["😀", "🎉"] + ["👍"] * 50, "favorites": [], "tone": "nope"}
+    reply = asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "emoji.save", "state": state})))
+    assert reply == {"id": 1, "ok": True}
+    saved = json.loads((tmp_path / "emoji.json").read_text(encoding="utf-8"))
+    assert len(saved["recent"]) == 40 and saved["tone"] == ""
+    assert "😀" not in out.getvalue()

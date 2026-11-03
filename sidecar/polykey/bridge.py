@@ -10,13 +10,13 @@ from typing import Optional
 
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
-from .packs import save_settings
+from .packs import clean_emoji_state, save_settings, write_json
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save")
+OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save")
 MAX_SUGGESTIONS = 12
 
 
@@ -61,6 +61,8 @@ class Bridge:
             return self._suggest(request)
         if op == "settings.save":
             return self._save_settings(request)
+        if op == "emoji.save":
+            return self._save_emoji(request)
         if self._desktop is None:
             return {"ok": False, "error": "desktop-paste-off"}
         if op == "desktop.prepare":
@@ -92,6 +94,17 @@ class Bridge:
             save_settings(self._settings_path, clean)
         except OSError as error:
             self._log.info(f"settings not saved: {type(error).__name__}")
+            return {"ok": False, "error": "not-saved"}
+        return {"ok": True}
+
+    def _save_emoji(self, request: dict) -> dict:
+        """Save recent and favorite emoji and the skin tone (typed content: never logged)."""
+        if self._settings_path is None or not isinstance(request.get("state"), dict):
+            return {"ok": False, "error": "bad-state"}
+        try:
+            write_json(self._settings_path.with_name("emoji.json"), clean_emoji_state(request["state"]))
+        except OSError as error:
+            self._log.info(f"emoji not saved: {type(error).__name__}")
             return {"ok": False, "error": "not-saved"}
         return {"ok": True}
 

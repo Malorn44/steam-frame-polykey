@@ -142,6 +142,50 @@ def load_settings(path: Path, errors: list[str]) -> dict:
     return settings
 
 
+MAX_EMOJI_LIST = 40
+TONES = ("", "light", "medium-light", "medium", "medium-dark", "dark")
+
+
+def load_emoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
+    """The emoji picker data (emoji/emoji.data, JSON): the user's copy first, then the bundled one."""
+    for directory in dirs:
+        path = directory / "emoji" / "emoji.data"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as error:
+            errors.append(f"emoji/emoji.data: not valid JSON ({type(error).__name__})")
+            continue
+        if isinstance(data, dict) and isinstance(data.get("groups"), list):
+            return {"groups": data["groups"]}
+        errors.append("emoji/emoji.data: no groups")
+    return None
+
+
+def clean_emoji_state(data: object) -> dict:
+    """Recent and favorites (emoji, or Steam item keys like "steam:sticker:<name>") and the skin tone; anything else is dropped."""
+    data = data if isinstance(data, dict) else {}
+    pick = lambda key: [e for e in data.get(key, []) if isinstance(e, str) and 0 < len(e) <= 96][:MAX_EMOJI_LIST] \
+        if isinstance(data.get(key), list) else []
+    tone = data.get("tone") if data.get("tone") in TONES else ""
+    return {"recent": pick("recent"), "favorites": pick("favorites"), "tone": tone}
+
+
+def load_emoji_state(path: Path) -> dict:
+    try:
+        return clean_emoji_state(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return clean_emoji_state(None)
+
+
+def write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def save_settings(path: Path, changes: dict) -> None:
     """Merge changes into settings.json, keeping other fields; written atomically."""
     try:
@@ -151,10 +195,7 @@ def save_settings(path: Path, changes: dict) -> None:
     except (OSError, ValueError):
         current = {}
     current.update(changes)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(current, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    write_json(path, current)
 
 
 def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
@@ -187,4 +228,6 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         errors.append(f"settings.json: unknown theme {settings['theme']}")
         default = DEFAULT_SETTINGS["theme"]
         settings["theme"] = default if default in catalog["themes"] else next(iter(sorted(catalog["themes"])), "")
-    return {"catalog": catalog, "settings": settings, "errors": errors}
+    emoji = load_emoji([user / "packs", bundled], errors)
+    return {"catalog": catalog, "settings": settings, "errors": errors,
+            "emoji": emoji, "emojiState": load_emoji_state(user / "emoji.json")}

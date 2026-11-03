@@ -208,6 +208,43 @@ describe('settings', () => {
   });
 });
 
+describe('emoji', () => {
+  it('😀 opens the picker over a key row; a tap types the emoji, updates Recent and is saved; ABC returns', async () => {
+    const boot = bundledBoot();
+    boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀', '😃'] }] };
+    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const saved: unknown[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      if (req.op === 'emoji.save') saved.push(req.state);
+      // Like the real sidecar outside KDE Desktop Mode: no paste route.
+      const reply = req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : { ok: true };
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+    };
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'emoji');
+    expect(shadowOf(popup)!.querySelector('.emoji')).not.toBeNull();
+    const smile = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === '😃')!;
+    smile.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    smile.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(manager.calls).toEqual([['😃', false]]);
+    expect(saved).toEqual([{ recent: ['😃'], favorites: [], tone: '' }]);
+    await vi.advanceTimersByTimeAsync(CHECK_MS * 2); // the periodic check keeps the row a row
+    const row = shadowOf(popup)!.querySelector<HTMLElement>('.kb')!;
+    expect(row.style.height).toBe('44px');
+    await tap(popup, 'Backspace'); // the bottom row works like keys
+    expect(manager.calls.at(-1)).toEqual(['Backspace', false]);
+    await tap(popup, 'abc');
+    expect(shadowOf(popup)!.querySelector('.emoji')).toBeNull();
+    expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5);
+  });
+});
+
 describe('failing safe', () => {
   it('does nothing without packs from the sidecar', () => {
     const popup = fakePopupWindow();

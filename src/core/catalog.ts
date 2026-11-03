@@ -1,10 +1,11 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
 // schema/pack.schema.json, which the sidecar has already validated.
 
+import type { EmojiData, EmojiState } from './emoji.js';
 import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
-export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate';
+export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate' | 'abc';
 
 export type CharKey = { type: 'char'; char: string; shift?: string; long?: string[]; label?: string; w?: number; fn?: FnKey };
 export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey };
@@ -30,6 +31,8 @@ export interface Boot {
   catalog: { layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme> };
   settings: { keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean };
   errors: string[];
+  emoji?: EmojiData | null;
+  emojiState?: EmojiState;
 }
 
 /** A one-character string is shorthand for a char key. */

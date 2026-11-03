@@ -5,6 +5,7 @@
 
 import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
 import { NO_MODS, alternates, charText, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
 
 export const TOOLBAR_PX = 26;
@@ -49,14 +50,9 @@ const CSS = `
 .key.tri .fn { right: 6px; }
 .key.stack .sh { left: 0; right: 0; text-align: center; }
 .key.tri .lbl, .key.stack .lbl { position: absolute; bottom: 5px; left: 0; right: 0; text-align: center; }
-.alts { position: absolute; display: flex; z-index: 1; background: var(--surface); border-radius: var(--radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 .key[data-k="fn"] { color: var(--fn); }
 .key[data-k="fn"].on { box-shadow: inset 0 0 0 2px var(--fn); }
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--surface); }
-/* Alternates wear the held-key look, so they stand apart from the keyboard; the pick gets the accent. */
-.alts .key { flex: none; background-color: var(--key); filter: brightness(1.5); }
-.alts .key.pick { background-color: var(--accent); color: var(--surface); filter: none; }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--accent); }
 .key.locked { background-color: var(--accent); color: var(--surface); }
@@ -110,7 +106,7 @@ export const createView = (
   onSuggestion: (word: string) => void = () => {},
 ): View => {
   const style = doc.createElement('style');
-  style.textContent = CSS;
+  style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
   root.className = 'kb';
   const c = theme.colors;
@@ -182,7 +178,7 @@ export const createView = (
   let repeatTimer: ReturnType<typeof setInterval> | null = null;
   let repeated = false;
   let lastPoint: { x: number; y: number } | null = null;
-  let popup: { el: HTMLElement; cells: { el: HTMLElement; text: string }[]; pick: number; key: KeyDef; keyRect: DOMRect } | null = null;
+  let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
 
   const clearHold = (): void => {
     if (holdTimer !== null) clearTimeout(holdTimer);
@@ -191,67 +187,19 @@ export const createView = (
     repeatTimer = null;
   };
   const closePopup = (): void => {
-    popup?.el.remove();
+    popup?.hold.close();
     popup = null;
-  };
-  const setPick = (index: number): void => {
-    if (!popup || index === popup.pick) return;
-    popup.cells[popup.pick]?.el.classList.remove('pick');
-    popup.pick = index;
-    popup.cells[index]?.el.classList.add('pick');
   };
   /** A row of alternates above the held key (below it on the top row), starting on the key itself. */
   const openPopup = (entry: Entry, startX: number | null, startY: number | null): void => {
     const texts = alternates(entry.key, mods);
     if (texts.length < 2) return;
-    const box = root.getBoundingClientRect();
     const at = entry.el.getBoundingClientRect();
-    const el = doc.createElement('div');
-    el.className = 'alts';
-    const cells = texts.map((text) => {
-      const cell = doc.createElement('div');
-      cell.className = 'key';
-      Object.assign(cell.style, { width: `${at.width * POPUP_SCALE}px`, height: `${at.height * POPUP_SCALE}px` });
-      cell.textContent = text;
-      el.append(cell);
-      return { el: cell, text };
-    });
-    const cellWidth = at.width * POPUP_SCALE;
-    const left = Math.min(Math.max(0, at.left - box.left), Math.max(0, box.width - cellWidth * texts.length));
-    const above = at.top - box.top - at.height * POPUP_SCALE - 2;
-    Object.assign(el.style, { left: `${left}px`, top: `${above >= 0 ? above : at.bottom - box.top + 2}px` });
-    root.append(el);
-    popup = { el, cells, pick: -1, key: entry.key, keyRect: at };
-    // Start on the cell above the laser, so the pick never flashes on the first cell first.
-    setPick(0);
-    if (startY !== null && startX !== null) pickAt(startX, startY);
+    const size = { width: at.width * POPUP_SCALE, height: at.height * POPUP_SCALE };
+    const start = startX !== null && startY !== null ? { x: startX, y: startY } : null;
+    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start), texts, key: entry.key };
   };
-  /**
-   * The cell above the laser's horizontal position, like a phone: the laser usually still sits on the
-   * held key, below the popup. Moving well above the popup or below the key picks nothing (release
-   * cancels).
-   */
-  const pickAt = (x: number, y: number): void => {
-    if (!popup) return;
-    const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-    const direct = popup.cells.findIndex(({ el }) => hits.includes(el));
-    if (direct >= 0) {
-      setPick(direct);
-      return;
-    }
-    const rects = popup.cells.map(({ el }) => el.getBoundingClientRect());
-    const first = rects[0];
-    const last = rects[rects.length - 1];
-    if (!first || !last || first.width === 0) return; // not laid out: keep the current pick
-    const top = Math.min(first.top, popup.keyRect.top);
-    const bottom = Math.max(first.bottom, popup.keyRect.bottom);
-    if (y < top - first.height || y > bottom + first.height) {
-      setPick(-1);
-      return;
-    }
-    const index = rects.findIndex((r) => x < r.right);
-    setPick(index < 0 ? rects.length - 1 : index);
-  };
+  const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
   const setHover = (entry: Entry | undefined): boolean => {
     if (entry === hovered) return false;
     hovered?.el.classList.remove('hover');
@@ -303,7 +251,7 @@ export const createView = (
       return;
     }
     if (popup) {
-      const chosen = popup.cells[popup.pick]?.text;
+      const chosen = popup.texts[popup.hold.pick];
       const key = popup.key;
       closePopup();
       if (chosen !== undefined) onKey(key, chosen);

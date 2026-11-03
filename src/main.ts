@@ -3,7 +3,7 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { readBoot, type ActionName, type Boot, type KeyDef, type Theme } from './core/catalog.js';
+import { readBoot, type ActionName, type Boot, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
@@ -18,6 +18,9 @@ import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
+import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
+import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
+import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
 
@@ -35,6 +38,16 @@ export const KEY_GAP_MS = 8;
 /** The stock keyboard's place in the 🌐 cycle. */
 export const STOCK = 'steam/stock';
 const NON_ASCII = /[^\x20-\x7e]/;
+/** The emoji picker's bottom row. */
+const EMOJI_ROW: Layout = {
+  id: 'internal/emoji-row',
+  name: 'emoji row',
+  rows: [[{ type: 'action', action: 'abc', w: 1.5 }, { type: 'char', char: ' ', label: 'Space', w: 6.5 },
+    { type: 'key', key: 'Backspace', w: 1.5 }, { type: 'key', key: 'Enter', w: 1.5 },
+    { type: 'key', key: 'ArrowLeft' }, { type: 'key', key: 'ArrowRight' }]],
+};
+const EMOJI_ROW_PX = 44;
+const EMOJI_SAVE_DELAY_MS = 1500;
 
 export type State = 'waiting' | 'blocked' | 'running' | 'inactive' | 'uninstalled';
 
@@ -69,7 +82,12 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let surface: Surface | null = null;
   let view: View | null = null;
   let panel: SettingsView | null = null;
-  let showingSettings = false;
+  let picker: EmojiView | null = null;
+  let page: 'keys' | 'settings' | 'emoji' = 'keys';
+  // Emoji: Recent, Favorites and the skin tone, saved by the sidecar (~/.config/polykey/emoji.json).
+  let emoji: EmojiState = boot?.emojiState ?? NO_EMOJI_STATE;
+  const tones = toneTable(boot?.emoji ?? { groups: [] });
+  let emojiSave: ReturnType<typeof setTimeout> | null = null;
   let guard: ReturnType<typeof createStockGuard> | null = null;
   let returnButton: HTMLElement | null = null;
   let stopCursor: (() => void) | null = null;
@@ -125,8 +143,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const runAction = (action: ActionName): void => {
     if (action === 'hide') void output([{ key: 'VKClose' }]);
     else if (action === 'next-keyboard') switchTo((current + 1) % ring.length);
-    else if (action === 'settings') {
-      showingSettings = true;
+    else if (action === 'settings' || action === 'emoji' || action === 'abc') {
+      if (page === 'emoji') saveEmoji(0);
+      page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
+      if (action === 'emoji' && !boot?.emoji) log('emoji: no emoji data from the sidecar');
       render();
     }
     else log(`${action}: not available yet`);
@@ -198,8 +218,23 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     view = null;
     panel?.destroy();
     panel = null;
+    picker?.destroy();
+    picker = null;
     returnButton?.remove();
     returnButton = null;
+  };
+
+  /** Size the current page's parts to the keyboard area: the emoji page is the picker above its key row. */
+  const applyBounds = (): void => {
+    if (!surface) return;
+    const rect = overlayRect(surface.win);
+    if (picker) {
+      picker.setBounds({ ...rect, height: rect.height - EMOJI_ROW_PX });
+      view?.setBounds({ ...rect, top: rect.top + rect.height - EMOJI_ROW_PX, height: EMOJI_ROW_PX });
+    } else {
+      view?.setBounds(rect);
+      panel?.setBounds(rect);
+    }
   };
 
   /** Show the current ring entry: one of our keyboards, or the stock one with a way back. */
@@ -233,23 +268,86 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     }
     guard?.setActive(true);
     const win = surface.win;
-    if (showingSettings) {
+    if (page === 'emoji' && boot.emoji) {
+      picker = createEmojiView(surface.doc, surface.shadow, theme, {
+        data: boot.emoji,
+        steam: steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) })),
+        steamAvailable: steamItemsAvailable(g),
+        tones,
+      }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent });
+      view = createView(surface.doc, surface.shadow, EMOJI_ROW, theme, onKey, onSuggestion);
+      view.update(mods);
+      applyBounds();
+    } else if (page === 'settings') {
       panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
         themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name })),
         version: VERSION,
         errors: boot.errors,
-      }, changeSettings, () => { showingSettings = false; render(); });
-      panel.setBounds(overlayRect(win));
+      }, changeSettings, () => { page = 'keys'; render(); });
+      applyBounds();
     } else {
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
-      view.setBounds(overlayRect(win));
       view.update(mods);
+      applyBounds();
       refreshSuggestions();
     }
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
+      picker?.hoverAt(x, y);
       if ((view ?? panel)?.hoverAt(x, y)) tick(win, which); // a tick as the laser crosses keys
     });
+  };
+
+  /** Save emoji state after a quiet moment (or now, on leaving the picker). It is typed content: never logged. */
+  const saveEmoji = (delay = EMOJI_SAVE_DELAY_MS): void => {
+    if (emojiSave !== null) clearTimeout(emojiSave);
+    emojiSave = setTimeout(() => {
+      emojiSave = null;
+      void bridge.call('emoji.save', { state: emoji }).then((reply) => {
+        if (!reply.ok) warn(`emoji not saved: ${reply.error ?? '?'}`);
+      });
+    }, delay);
+  };
+
+  const sendEffects = (effects: Effect[]): void => {
+    const tracked = trackWord(word, effects);
+    setWord(tracked.state);
+    enqueue(effects);
+  };
+
+  const typeEmoji = (base: string, fromRecent: boolean): void => {
+    if (surface) tick(surface.win, hand);
+    sendEffects([{ kind: 'text', text: withTone(base, emoji.tone, tones) }]);
+    emoji = { ...emoji, recent: useRecent(emoji.recent, base, fromRecent, RECENT_MAX) };
+    picker?.update(emoji);
+    saveEmoji();
+  };
+
+  const onSteam = (item: Parameters<typeof steamItemEffects>[0], fromRecent: boolean): void => {
+    if (surface) tick(surface.win, hand);
+    sendEffects(steamItemEffects(item));
+    emoji = { ...emoji, recent: useRecent(emoji.recent, steamKey(item), fromRecent, RECENT_MAX) };
+    picker?.update(emoji);
+    saveEmoji();
+  };
+
+  /** A skin tone picked from a hold: it applies everywhere from now on, starting with this emoji. */
+  const onTone = (tone: Tone, base: string): void => {
+    emoji = { ...emoji, tone };
+    typeEmoji(base, false);
+  };
+
+  const onClearRecent = (): void => {
+    if (surface) tick(surface.win, hand);
+    emoji = { ...emoji, recent: [] };
+    picker?.update(emoji);
+    saveEmoji(0);
+  };
+
+  const onFavorites = (favorites: string[]): void => {
+    emoji = { ...emoji, favorites };
+    picker?.update(emoji);
+    saveEmoji(0);
   };
 
   /** Apply settings at once and have the sidecar save them (a failed save is logged, not fatal). */
@@ -327,7 +425,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         log('keyboard popup changed; removed');
       }
       if (!surface && win?.document?.body) mount(win);
-      if (view && surface) view.setBounds(overlayRect(surface.win));
+      applyBounds();
       onOpenChange();
     } catch (error) {
       warn('check failed:', errorKind(error));
@@ -371,6 +469,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     state: 'waiting',
     uninstall: () => {
       stopTimer();
+      if (emojiSave !== null) {
+        clearTimeout(emojiSave);
+        void bridge.call('emoji.save', { state: emoji }); // a pending save is sent, not dropped
+      }
       keys.releaseAll();
       bridge.close();
       unmount();

@@ -128,7 +128,7 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
 const ACTION_LABELS: Record<ActionName, string> = {
-  hide: '✕', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
+  hide: '✕', abc: 'ABC', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
 };
 
 /** What a key shows right now (empty for the Super key, which shows an icon). */

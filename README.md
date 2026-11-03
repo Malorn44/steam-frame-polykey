@@ -2,9 +2,11 @@
 
 A modular on-screen keyboard for the Valve Steam Frame. It draws inside Steam's own keyboard popup and sends text through Steam's own key entry point, so it works wherever Steam's keyboard appears.
 
-**Status: milestone 2.** A full English keyboard drawn over Steam's keyboard popup:
-- **Keys:** the number row with an Fn layer (Esc, F1–F12), sticky Ctrl, Alt, Frame (Super) and Fn, and full arrows.
-- **Toolbar:** settings, emoji, dictate, copy, cut and paste.
+**Status: milestone 4.** A full English keyboard drawn over Steam's keyboard popup:
+- **Keys:** the number row with an Fn layer (Esc, F1–F12), sticky Ctrl, Alt, Frame (Super) and Fn, and full arrows. Hold a key for its alternates.
+- **Word suggestions** from a bundled word list.
+- **Toolbar:** settings (theme, haptics, suggestions), emoji, dictate, copy, cut, paste and menu.
+- **Emoji:** Recent, Favorites (drag and drop), skin tones, and your Steam emoticons, stickers and room effects.
 - **🌐** switches keyboards; Steam's own keyboard is one of them.
 
 Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json`). A user pack in `~/.config/polykey/packs/<namespace>/` replaces a bundled item with the same id. KDE Desktop Mode gets non-ASCII text by paste.
@@ -53,3 +55,9 @@ tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake 
 scripts/        build.mjs, deploy.sh
 contrib/        polykey.service
 ```
+
+## Credits
+
+- Many icons are ported from TaiKeid's [Steam Frame Full Keyboard](https://github.com/TaiKeid/steam-frame-full-keyboard) (MIT).
+- The English word list comes from AOSP (Apache-2.0, `packs/en/LICENSE.words`).
+- Emoji data comes from Unicode's `emoji-test.txt` (Unicode License v3, `packs/emoji/LICENSE.unicode`).
