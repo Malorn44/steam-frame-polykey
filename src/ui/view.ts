@@ -226,8 +226,10 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. idleHint: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, idleHint = '', latin: startLatin = false, romaji = false }:
-    { side?: boolean; hints?: boolean; idleHint?: string; latin?: boolean; romaji?: boolean } = {},
+  { side = false, hints = false, idleHint = '', latin: startLatin = false, romaji = false, keyboardMenu }:
+    { side?: boolean; hints?: boolean; idleHint?: string; latin?: boolean; romaji?: boolean;
+      /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
+      keyboardMenu?: { ids: readonly string[]; names: readonly string[] } } = {},
 ): View => {
   /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
   let latin = startLatin;
@@ -438,14 +440,21 @@ export const createView = (
     popup?.hold.close();
     popup = null;
   };
-  /** A row of alternates above the held key (below it on the top row), starting on the key itself. */
+  /**
+   * A row of alternates above the held key (below it on the top row), starting on the key itself.
+   * Holding 🌐: the keyboards by name, picked by id.
+   */
   const openPopup = (entry: Entry, startX: number | null, startY: number | null): void => {
-    const texts = alternates(kanaSide(entry.key, !latinKeys()), mods);
+    const menu = entry.key.type === 'action' && entry.key.action === 'next-keyboard' && keyboardMenu && keyboardMenu.ids.length > 1
+      ? keyboardMenu : null;
+    const texts = menu ? [...menu.names] : alternates(kanaSide(entry.key, !latinKeys()), mods);
     if (texts.length < 2) return;
     const at = entry.el.getBoundingClientRect();
-    const size = { width: at.width * POPUP_SCALE, height: at.height * POPUP_SCALE };
+    const width = menu ? Math.min(150, (root.getBoundingClientRect().width - 8) / texts.length || 150) : at.width * POPUP_SCALE;
+    const size = { width, height: at.height * POPUP_SCALE };
     const start = startX !== null && startY !== null ? { x: startX, y: startY } : null;
-    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start), texts, key: entry.key };
+    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start, true, menu ? 'menu' : ''),
+      texts: menu ? [...menu.ids] : texts, key: entry.key };
   };
   const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
   const setHover = (entry: Entry | undefined): boolean => {

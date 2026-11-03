@@ -54,6 +54,6 @@ describe('built bundle', () => {
   });
 
   it('is small', async () => {
-    expect((await bundle()).length).toBeLessThan(80 * 1024);
+    expect((await bundle()).length).toBeLessThan(100 * 1024); // an early warning, under the build's 120 KB budget
   });
 });

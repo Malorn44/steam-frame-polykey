@@ -20,6 +20,16 @@ DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaj
 KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin")
 
 
+MAX_KEYBOARDS = 20
+KEYBOARD_ID = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
+
+
+def clean_keyboard_list(value: object) -> bool:
+    """Whether a keyboards list from the page is sane: 1-20 distinct ids."""
+    return (isinstance(value, list) and 0 < len(value) <= MAX_KEYBOARDS and len(set(value)) == len(value)
+            and all(isinstance(k, str) and KEYBOARD_ID.match(k) for k in value))
+
+
 def clean_keyboard_options(value: object) -> Optional[dict]:
     """{keyboard id: {known option: bool}}, or None when it is not that shape."""
     if not isinstance(value, dict) or len(value) > 64:

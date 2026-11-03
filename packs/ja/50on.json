@@ -3,7 +3,7 @@
  "schemaVersion": 1,
  "kind": "keyboard",
  "id": "ja/50on",
- "name": "日本語 五十音",
+ "name": "五十音",
  "language": "ja",
  "layout": "ja/gojuon",
  "latinLayout": "ja/flick-abc",

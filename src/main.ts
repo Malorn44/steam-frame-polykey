@@ -27,7 +27,8 @@ import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord 
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
 import { NO_IME, composing, flush, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
-import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
+import { fullName, languageName } from './ui/keyboards-page.js';
+import { createSettingsView, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
 
 declare const __POLYKEY_VERSION__: string;
@@ -82,7 +83,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   }
 
   const boot: Boot | null = readBoot(g[BOOT_GLOBAL]);
-  const ring = (boot?.settings.keyboards ?? []).filter((id) => boot?.catalog.keyboards[id]);
+  // The keyboards 🌐 goes through, in order (settings → Keyboards changes them).
+  let ring = (boot?.settings.keyboards ?? []).filter((id) => boot?.catalog.keyboards[id]);
   let current = 0;
   /** Showing Steam's own keyboard, with a button back to polykey. */
   let stock = false;
@@ -107,6 +109,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let panel: SettingsView | null = null;
   let picker: EmojiView | null = null;
   let page: 'keys' | 'settings' | 'emoji' = 'keys';
+  // The settings page's tab, and the language whose layouts Keyboards shows (default: the current one's).
+  let settingsTab: SettingsTab = 'general';
+  let settingsLanguage: string | undefined;
   // Emoji: Recent, Favorites and the skin tone, saved by the sidecar (~/.config/polykey/emoji.json).
   let emoji: EmojiState = boot?.emojiState ?? NO_EMOJI_STATE;
   const tones = toneTable(boot?.emoji ?? { groups: [] });
@@ -262,6 +267,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
+    if (key.type === 'action' && key.action === 'next-keyboard' && alternate !== undefined) {
+      const index = ring.indexOf(alternate); // picked from the menu held on 🌐
+      if (index >= 0 && index !== current) switchTo(index);
+      return;
+    }
     const keyboard = currentKeyboard();
     const options = optionsFor(keyboard, keyboard ? keyboardOptions[keyboard.id] : undefined);
     const latin = keyboard ? latinMode.has(keyboard.id) : false;
@@ -528,9 +538,18 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         version: VERSION,
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,
-        keyboardName: keyboard?.name ?? id,
+        keyboardName: keyboard ? fullName(keyboard) : id,
         options: offered(keyboard).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
+        tab: settingsTab,
+        keyboards: {
+          all: Object.values(boot.catalog.keyboards).map((k) => ({ id: k.id, name: k.name, language: k.language ?? 'und' })),
+          ring,
+          language: settingsLanguage ?? keyboard?.language ?? 'en',
+        },
       }, {
+        onTab: (tab) => { settingsTab = tab; render(); },
+        onLanguage: (code) => { settingsLanguage = code; render(); },
+        onKeyboards: changeKeyboards,
         onChange: changeSettings,
         onOption: (name, value) => changeOption(id, name as OptionName, value),
         onStock: () => { page = 'keys'; stock = true; switchTo(current); },
@@ -541,6 +560,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           latin: latinMode.has(id), romaji: typesRomaji(keyboard),
+          // Holding 🌐: each keyboard's language small above its layout.
+          keyboardMenu: { ids: ring, names: ring.map((k) => {
+            const def = boot.catalog.keyboards[k];
+            return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
+          }) },
           ...(keyboard?.composer === 'kana' || keyboard?.composer === 'romaji' ? { idleHint: '入力すると、ここに変換候補が出ます' } : {}) });
       view.update(mods);
       applyBounds();
@@ -607,6 +631,24 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   /** A keyboard's own option: applies at once; the sidecar saves every keyboard's choices. */
+  /** Your keyboards, from settings → Keyboards: 🌐 follows the new order at once, and the sidecar saves it. */
+  const changeKeyboards = (ids: string[]): void => {
+    const next = ids.filter((k) => boot?.catalog.keyboards[k]);
+    if (!next.length) return;
+    const showing = ring[current];
+    ring = next;
+    void bridge.call('settings.save', { settings: { keyboards: ring } }).then((reply) => {
+      if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
+    });
+    if (surface) tick(surface.win, hand);
+    const index = ring.indexOf(showing ?? '');
+    if (index < 0) switchTo(0); // the one showing was removed
+    else {
+      current = index;
+      render();
+    }
+  };
+
   const changeOption = (keyboardId: string, name: OptionName, value: boolean): void => {
     keyboardOptions[keyboardId] = { ...keyboardOptions[keyboardId], [name]: value };
     ime = { ...ime, cycle: null };

@@ -8,6 +8,9 @@ export const HOLD_POPUP_CSS = `
 .alts .key { flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border-radius: var(--radius); background-color: var(--key);
   background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)); }
+/* The keyboards menu (holding 🌐): the language small above the layout, each on one line. */
+.alts.menu .key { flex-direction: column; font-size: 16px; line-height: 1.1; white-space: nowrap; overflow: hidden; padding: 0 6px; }
+.alts.menu .key .lang { font-size: 11px; opacity: 0.75; }
 /* Lighten the cell's background only: a filter would also lighten the choice (an emoji's skin tone). */
 .alts .key.pick { background-color: var(--accent); background-image: none; color: var(--surface); }
 `;
@@ -33,15 +36,19 @@ export const openHoldPopup = (
   start: { x: number; y: number } | null,
   /** Whether moving well away picks nothing (keys); skin tones always keep a pick. */
   cancelable = true,
+  /** An extra class for the row ('menu': the keyboards menu). */
+  variant = '',
 ): HoldPopup => {
   const box = root.getBoundingClientRect();
   const el = doc.createElement('div');
-  el.className = 'alts';
+  el.className = variant ? `alts ${variant}` : 'alts';
   const cells = texts.map((text) => {
     const cell = doc.createElement('div');
     cell.className = 'key';
     Object.assign(cell.style, { width: `${size.width}px`, height: `${size.height}px` });
-    cell.textContent = text;
+    const [top, main] = text.includes('\n') ? text.split('\n') : [null, text];
+    if (top !== null) cell.append(Object.assign(doc.createElement('span'), { className: 'lang', textContent: top }));
+    cell.append(main ?? '');
     el.append(cell);
     return cell;
   });

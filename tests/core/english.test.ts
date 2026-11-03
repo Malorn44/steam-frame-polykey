@@ -40,3 +40,13 @@ describe('English word in 英数 mode', () => {
     expect(run(['h', 'i', { type: 'action', action: 'undo' }])).toEqual({ word: '', caret: 0, sent: '' });
   });
 });
+
+describe('settings → Keyboards drops', () => {
+  it('insert a new keyboard or move one, among the others', async () => {
+    const { dropInto } = await import('../../src/ui/keyboards-page.js');
+    expect(dropInto(['a', 'b', 'c'], 'x', 1)).toEqual(['a', 'x', 'b', 'c']);
+    expect(dropInto(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
+    expect(dropInto(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b']);
+    expect(dropInto(['a'], 'x', 9)).toEqual(['a', 'x']);
+  });
+});

@@ -3,7 +3,7 @@
  "schemaVersion": 1,
  "kind": "keyboard",
  "id": "en/english",
- "name": "English",
+ "name": "QWERTY",
  "language": "en",
  "layout": "en/qwerty",
  "composer": "direct",

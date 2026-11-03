@@ -1,10 +1,14 @@
-// The settings page, drawn in the keyboard area instead of the keys while open: General (theme,
-// haptics, suggestions) on the left, the current keyboard's own options on the right, and the version
-// and any pack errors at the bottom. Changes apply at once; ✕ goes back to the keys, and "Steam
-// keyboard" hands over to Steam's own (🌐 skips it).
+// The settings page, drawn in the keyboard area instead of the keys while open. Two tabs: Settings has
+// General (theme, haptics, suggestions) on the left, the current keyboard's own options on the right,
+// and the version and any pack errors at the bottom; Keyboards picks and orders the keyboards 🌐 goes
+// through (ui/keyboards-page.ts). Changes apply at once; ✕ goes back to the keys, and "Steam keyboard"
+// hands over to Steam's own (🌐 skips it).
 
 import type { Theme } from '../core/catalog.js';
 import { ICONS } from './icons.js';
+import { KEYBOARDS_CSS, buildKeyboardsPage, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
+
+export type SettingsTab = 'general' | 'keyboards';
 
 export interface SettingsValues {
   theme: string;
@@ -22,9 +26,12 @@ export interface SettingsInfo {
   keyboardName: string;
   /** The current keyboard's options: a name and its two choices. */
   options: { id: string; name: string; off: string; on: string; toggle?: boolean; invert?: boolean; value: boolean }[];
+  tab: SettingsTab;
+  keyboards: KeyboardsInfo;
 }
 
-export interface SettingsHandlers {
+export interface SettingsHandlers extends KeyboardsHandlers {
+  onTab(tab: SettingsTab): void;
   onChange(changes: Partial<SettingsValues>): void;
   onOption(id: string, value: boolean): void;
   onStock(): void;
@@ -37,6 +44,8 @@ const CSS = `
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 .head { display: flex; align-items: center; height: 26px; font-size: 16px; font-weight: 600; }
 .head .title { flex: 1; }
+.head .tab { flex: none; min-width: 0; margin-right: 6px; padding: 2px 12px; font-size: 14px; }
+.head .tab.on { background: var(--accent); color: var(--surface); }
 .cols { flex: 1; display: flex; gap: 14px; min-height: 0; }
 .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .sect { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
@@ -76,10 +85,10 @@ export const createSettingsView = (
   theme: Theme,
   values: SettingsValues,
   info: SettingsInfo,
-  { onChange, onOption, onStock, onClose }: SettingsHandlers,
+  { onTab, onChange, onOption, onStock, onClose, onLanguage, onKeyboards }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS;
+  style.textContent = CSS + KEYBOARDS_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   const c = theme.colors;
@@ -110,8 +119,11 @@ export const createSettingsView = (
   head.className = 'head';
   const title = doc.createElement('div');
   title.className = 'title';
-  title.textContent = 'Settings';
-  head.append(title, option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
+  head.append(
+    option('Settings', info.tab === 'general', () => onTab('general'), ' tab'),
+    option('Keyboards', info.tab === 'keyboards', () => onTab('keyboards'), ' tab'),
+    title,
+    option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
 
   /** A general on/off setting as a switch. */
   const onOff = (name: string, key: 'haptics' | 'suggestions'): HTMLElement => {
@@ -163,7 +175,11 @@ export const createSettingsView = (
           option(o.on, o.value, () => onOption(o.id, true)))))
         : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })])),
   );
-  root.append(head, cols, about);
+  if (info.tab === 'keyboards') {
+    const hint = Object.assign(doc.createElement('div'), { className: 'hintline',
+      textContent: 'Tap or drag a layout into your list · drag to reorder · drag out or ✕ to remove · hold 🌐 to jump to one' });
+    root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions), hint);
+  } else root.append(head, cols, about);
 
   const optionAt = (target: EventTarget | null): HTMLElement | undefined =>
     [...actions.keys()].find((el) => el === target || el.contains(target as Node));

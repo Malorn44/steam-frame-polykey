@@ -3,7 +3,7 @@
  "schemaVersion": 1,
  "kind": "keyboard",
  "id": "ja/jis",
- "name": "日本語 かな (JIS)",
+ "name": "かな (JIS)",
  "language": "ja",
  "layout": "ja/kana-jis",
  "composer": "kana",

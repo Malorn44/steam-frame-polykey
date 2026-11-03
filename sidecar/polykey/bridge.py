@@ -11,7 +11,7 @@ from typing import Optional
 from .anthy import Converter
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
-from .packs import clean_emoji_state, clean_keyboard_options, save_settings, write_json
+from .packs import clean_keyboard_list, clean_emoji_state, clean_keyboard_options, save_settings, write_json
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
@@ -86,17 +86,20 @@ class Bridge:
         return {"ok": True, "pasted": await self._desktop.wait(seconds)}
 
     def _save_settings(self, request: dict) -> dict:
-        """Save the settings the page may change: theme id, haptics, suggestions, keyboard options."""
+        """Save the settings the page may change: theme id, haptics, suggestions, keyboard options, and
+        the keyboards 🌐 goes through (ids, in order; unknown ones are dropped at the next load)."""
         changes = request.get("settings")
         if self._settings_path is None or not isinstance(changes, dict):
             return {"ok": False, "error": "bad-settings"}
-        allowed = {"theme": str, "haptics": bool, "suggestions": bool, "keyboardOptions": dict}
+        allowed = {"theme": str, "haptics": bool, "suggestions": bool, "keyboardOptions": dict, "keyboards": list}
         clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
         if "keyboardOptions" in clean:
             options = clean_keyboard_options(clean["keyboardOptions"])
             if options is None:
                 return {"ok": False, "error": "bad-settings"}
             clean["keyboardOptions"] = options
+        if "keyboards" in clean and not clean_keyboard_list(clean["keyboards"]):
+            return {"ok": False, "error": "bad-settings"}
         if not clean or len(clean) != len(changes) or len(str(clean.get("theme", ""))) > 80:
             return {"ok": False, "error": "bad-settings"}
         try:

@@ -123,12 +123,16 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert ask({"haptics": False}) == {"id": 1, "ok": True}
     assert ask({"haptics": "no"})["error"] == "bad-settings"
     assert ask({"keyboards": []})["error"] == "bad-settings"
+    assert ask({"keyboards": ["ja/jis", "ja/jis"]})["error"] == "bad-settings"
+    assert ask({"keyboards": ["../etc"]})["error"] == "bad-settings"
     assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": True}}}) == {"id": 1, "ok": True}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": "yes"}}})["error"] == "bad-settings"
     assert ask({"keyboardOptions": {"ja/12key": {"rm -rf": True}}})["error"] == "bad-settings"
+    assert ask({"keyboards": ["ja/jis", "en/english"]}) == {"id": 1, "ok": True}
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["settings"]["keyboardOptions"] == {"ja/12key": {"tapCycle": True}}
+    assert boot["settings"]["keyboards"] == ["ja/jis", "en/english"]
 
 
 def test_the_japanese_12key_pack_loads():

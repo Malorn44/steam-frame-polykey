@@ -3,7 +3,7 @@
  "schemaVersion": 1,
  "kind": "keyboard",
  "id": "ja/12key",
- "name": "日本語 12キー",
+ "name": "12キー",
  "language": "ja",
  "layout": "ja/flick",
  "latinLayout": "ja/flick-abc",

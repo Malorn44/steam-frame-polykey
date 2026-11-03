@@ -450,6 +450,49 @@ describe('12-key ABC', () => {
   });
 });
 
+describe('settings → Keyboards', () => {
+  it('✕ removes a keyboard, a tapped layout comes back at the end; 🌐 and the save follow', async () => {
+    const { popup, g, api } = setup();
+    const saved: unknown[] = [];
+    g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      if (req.op === 'settings.save') saved.push(req.settings);
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true }), 1);
+    };
+    const press = async (el: HTMLElement) => {
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(50);
+    };
+    const panel = () => shadowOf(popup)!.querySelector('.panel')!;
+    await tap(popup, 'settings');
+    await press([...panel().querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === 'Keyboards')!);
+    const mine = () => [...panel().querySelectorAll<HTMLElement>('.mine .item')];
+    expect(mine().map((i) => i.querySelector('.nm')!.textContent)).toEqual(
+      ['English · QWERTY', '日本語 · 12キー', '日本語 · 五十音', '日本語 · ローマ字', '日本語 · かな (JIS)']);
+    await press(mine()[1]!.querySelector<HTMLElement>('.x')!); // remove the 12-key
+    expect(saved).toEqual([{ keyboards: ['en/english', 'ja/50on', 'ja/romaji', 'ja/jis'] }]);
+    await press([...panel().querySelectorAll<HTMLElement>('.langs .item')].find((i) => i.textContent?.startsWith('日本語'))!);
+    const twelve = [...panel().querySelectorAll<HTMLElement>('.lays .item')].find((i) => i.textContent?.includes('12キー'))!;
+    expect(twelve.textContent).toContain('+');
+    await press(twelve);
+    expect(saved.at(-1)).toEqual({ keyboards: ['en/english', 'ja/50on', 'ja/romaji', 'ja/jis', 'ja/12key'] });
+    await press(panel().querySelector<HTMLElement>('.opt.close')!);
+    await tap(popup, 'next-keyboard');
+    expect(api.debug.status()).toContain('keyboard=ja/50on');
+  });
+
+  it('holding 🌐 shows your keyboards by name', async () => {
+    const { popup } = setup();
+    const globe = key(popup, 'next-keyboard');
+    globe.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect([...shadowOf(popup)!.querySelectorAll('.alts.menu .key')].map((c) => c.textContent)).toEqual(
+      ['EnglishQWERTY', '日本語12キー', '日本語五十音', '日本語ローマ字', '日本語かな (JIS)']); // language above layout
+    globe.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+  });
+});
+
 describe('五十音', () => {
   it('kana keys go into the reading; ゛゜小 voices the one before; the two-row あa switches to letters', async () => {
     const { popup, manager, api } = setup();
