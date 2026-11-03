@@ -126,4 +126,4 @@ class Bridge:
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        return {"ok": True, "words": lexicon.complete(prefix, limit)}
+        return {"ok": True, "words": lexicon.suggest(prefix, limit)}

@@ -20,6 +20,16 @@ def test_completes_by_count_case_insensitively():
     assert lexicon.complete("", 3) == []
 
 
+def test_corrects_likely_slips_ranked_with_completions():
+    lexicon = Lexicon.parse("the\t250\nten\t150\nhello\t150\nhelots\t10\nhelp\t160\nbecause\t200\ndon't\t180\nTehran\t60\n")
+    assert lexicon.correct("teh") == ["the", "ten"]  # swapped letters, then a replaced one
+    assert lexicon.suggest("helo", 3) == ["hello", "help", "helots"]  # a doubled letter beats a rare completion
+    assert lexicon.suggest("becuase", 3) == ["because"]
+    assert lexicon.suggest("dont", 3) == ["don't"]
+    assert lexicon.correct("bcause") == ["because"]  # one edit: an insert
+    assert lexicon.correct("x") == [] and lexicon.correct("4th") == []
+
+
 def test_skips_comments_and_bad_lines():
     lexicon = Lexicon.parse(WORDS)
     assert len(lexicon) == 8  # "The" kept as its own entry, the bad line dropped
