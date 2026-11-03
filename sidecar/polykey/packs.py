@@ -17,7 +17,7 @@ MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
 DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
-KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput")
+KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin")
 
 
 def clean_keyboard_options(value: object) -> Optional[dict]:
@@ -233,8 +233,10 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     for item_id, item in items.items():
         catalog[KINDS[item["kind"]]][item_id] = item
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
-        if keyboard["layout"] not in catalog["layouts"]:
-            errors.append(f"{keyboard_id}: layout {keyboard['layout']} not found")
+        missing = [lay for lay in (keyboard["layout"], keyboard.get("latinLayout"), keyboard.get("symbolsLayout"), keyboard.get("qwertyLayout"),
+                                                keyboard.get("moreSymbolsLayout")) if lay and lay not in catalog["layouts"]]
+        if missing:
+            errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]
         elif (keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})) \
                 and keyboard.get("table") not in catalog["tables"]:

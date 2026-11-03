@@ -4,7 +4,7 @@
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
 import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
-import { NO_MODS, alternates, charText, kanaSide, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState, type Mods } from '../core/keyboard.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
@@ -106,6 +106,8 @@ const CSS = `
 .key .fh.r { right: 5px; top: 50%; transform: translateY(-50%); }
 .key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
+/* Text arrows as frame-jp-keyboard draws them (all four the same: Noto Sans CJK, 22px). */
+.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 22px/1 "Noto Sans CJK JP", "Noto Sans JP", var(--font); }
 .kb.large .bar .key { font-size: 14px; }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
@@ -132,6 +134,16 @@ const CSS = `
 .kb.romaji .key.dual .q.ks, .kb.romaji .key.dual .q.kl { display: none; }
 .kb.romaji .key.dual .q.ls, .kb.romaji .key.dual .q.ll { left: 50%; transform: translateX(-50%); }
 .kb.romaji .key.dual:has(.q.ls:empty) .q.ll { bottom: auto; top: 50%; transform: translate(-50%, -50%); }
+/* A long press's character, small in the top right (the QWERTY page's digits). */
+.key .hn { position: absolute; top: 4px; right: 6px; font-size: var(--legend-size); line-height: 1; color: var(--legend); }
+/* The ABC keys: the label with its digit small beneath. */
+.key.subbed { flex-direction: column; }
+.key .sub { font-size: 13px; line-height: 1; margin-top: 3px; color: var(--legend); }
+.kb.large .key.mod.labelled { font-size: 20px; }
+/* The 12-key's mode key: あ and a, the current mode's in bold. */
+.key .pair { font-weight: 300; opacity: 0.7; }
+.key .pair.now { font-weight: 700; opacity: 1; }
+.key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; }
 .kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 `;
@@ -143,14 +155,15 @@ const ACTION_ICONS: Partial<Record<string, IconName>> = {
 
 /** In a large layout (the 12-key), these keys draw icons too: font glyphs render tiny in the headset (fjk). */
 const LARGE_ICONS: Partial<Record<string, IconName>> = {
-  undo: 'undo', Backspace: 'backspaceTag', Enter: 'enter', ArrowLeft: 'left', ArrowRight: 'right',
+  undo: 'undo', Backspace: 'backspaceTag', Enter: 'enter', ArrowLeft: 'left', ArrowRight: 'right', ' ': 'space',
 };
 
 /** The icon a key shows, if any (Shift and Caps change icon when locked). */
 const iconFor = (key: KeyDef, mods: Mods, large: boolean): IconName | undefined => {
   if ('label' in key && key.label) return undefined;
-  const id = key.type === 'action' ? key.action : key.type === 'key' ? key.key : '';
+  const id = key.type === 'action' ? key.action : key.type === 'key' ? key.key : key.type === 'char' && key.char === ' ' ? ' ' : '';
   if (large && LARGE_ICONS[id]) return LARGE_ICONS[id];
+  if (id === ' ') return 'space'; // a space key without a label: ⎵
   if (key.type === 'action') return ACTION_ICONS[key.action];
   if (key.type === 'key' && key.key === 'Backspace') return 'backspace';
   if (key.type !== 'mod') return undefined;
@@ -251,6 +264,12 @@ export const createView = (
       el.append(quad.ls, quad.ll, quad.ks, quad.kl);
     }
     if (key.type === 'key' && key.tall) el.classList.add(`tall-${key.tall}`);
+    if (key.type === 'char' && key.hint) el.append(Object.assign(doc.createElement('span'), { className: 'hn', textContent: key.hint }));
+    if (key.type === 'mod' && key.label) el.classList.add('labelled'); // text, not an icon (a↔A)
+    if (key.type === 'flick' && key.sub && !(hints || key.hints)) {
+      el.classList.add('subbed');
+      el.append(Object.assign(doc.createElement('span'), { className: 'sub', textContent: key.sub }));
+    }
     if (key.type === 'flick' && (hints || key.hints)) {
       key.flick.slice(1).forEach((text, i) => {
         if (!text) return;
@@ -381,7 +400,7 @@ export const createView = (
       const [dx, dy] = place[i]!;
       Object.assign(cell.style, { left: `${dx * step}px`, top: `${dy * step}px`, width: `${size}px`, height: `${size}px` });
       if (!text) cell.className = 'empty';
-      cell.textContent = text;
+      cell.textContent = flickText(text, mods); // capitals while a/A (Shift) is on
       el.append(cell);
       return cell;
     });
@@ -602,7 +621,15 @@ export const createView = (
         }
         const id = el.dataset['k'] ?? '';
         const icon = labels[id] === undefined ? iconFor(key, mods, layout.large === true) : undefined;
+        const pair = key.type === 'action' && (key.action === 'eisu' || key.action === 'kana' || key.action === 'symbols')
+          && key.label?.includes(' ')
+          ? key.label.split(' ') : null;
         if (labels[id] !== undefined) label.textContent = labels[id]!;
+        else if (pair) {
+          label.textContent = '';
+          pair.forEach((text, i) => label.append(Object.assign(doc.createElement('span'), {
+            className: (i === 1) === latin ? 'pair now' : 'pair', textContent: text })));
+        }
         else if (key.type === 'flick' && (hints || key.hints)) label.textContent = key.flick[0];
         else if (icon) label.innerHTML = ICONS[icon];
         else label.textContent = keyLabel(key, mods);

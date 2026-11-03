@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schema/pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ja/flick-symbols2",
+  "name": "Japanese 12-key more symbols",
+  "description": "The 12-key's second symbols page (=\\<): typed in the mode it was opened from. 123 goes back to the numbers, あいう to the letters.",
+  "large": true,
+  "toolbar": [
+    {
+      "type": "action",
+      "action": "settings"
+    },
+    {
+      "type": "action",
+      "action": "emoji"
+    },
+    {
+      "type": "action",
+      "action": "dictate"
+    },
+    {
+      "type": "action",
+      "action": "copy"
+    },
+    {
+      "type": "action",
+      "action": "cut"
+    },
+    {
+      "type": "action",
+      "action": "paste"
+    },
+    {
+      "type": "action",
+      "action": "menu"
+    },
+    {
+      "type": "action",
+      "action": "hide"
+    }
+  ],
+  "rows": [
+    [{"type": "char", "char": "~"}, {"type": "char", "char": "`"}, {"type": "char", "char": "|"}, {"type": "char", "char": "·"}, {"type": "char", "char": "√"}, {"type": "char", "char": "π"}, {"type": "char", "char": "÷"}, {"type": "char", "char": "×"}, {"type": "char", "char": "§"}, {"type": "char", "char": "Δ"}],
+    [{"type": "char", "char": "£"}, {"type": "char", "char": "€"}, {"type": "char", "char": "$"}, {"type": "char", "char": "¢"}, {"type": "char", "char": "^"}, {"type": "char", "char": "°"}, {"type": "char", "char": "="}, {"type": "char", "char": "{"}, {"type": "char", "char": "}"}, {"type": "char", "char": "\\"}],
+    [{"type": "action", "action": "more-symbols", "label": "123", "w": 1.5}, {"type": "char", "char": "_"}, {"type": "char", "char": "©"}, {"type": "char", "char": "®"}, {"type": "char", "char": "™"}, {"type": "char", "char": "✓"}, {"type": "char", "char": "["}, {"type": "char", "char": "]"}, {"type": "key", "key": "Backspace", "w": 1.5}],
+    [{"type": "action", "action": "next-keyboard"}, {"type": "action", "action": "symbols", "label": "あいう", "w": 1.5}, {"type": "char", "char": "<"}, {"type": "char", "char": " ", "w": 3.5}, {"type": "char", "char": ">"}, {"type": "key", "key": "Enter", "w": 2}]
+  ]
+}

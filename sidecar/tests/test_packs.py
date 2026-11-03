@@ -26,7 +26,7 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick", "ja/kana-jis", "ja/qwerty-romaji"}
+    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/kana-jis", "ja/qwerty-romaji"}
     assert set(boot["catalog"]["tables"]) == {"ja/romaji-table"}
     assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
@@ -134,7 +134,7 @@ def test_bridge_saves_only_known_settings(tmp_path):
 def test_the_japanese_12key_pack_loads():
     boot = packs.load(BUNDLED, SCHEMA, None)
     assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": False, "flickHints": False}
+    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": False, "flickHints": False, "qwertyLatin": True}
     layout = boot["catalog"]["layouts"]["ja/flick"]
     assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
     assert "はばぱ" in layout["modify"]

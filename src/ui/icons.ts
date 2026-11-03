@@ -45,6 +45,8 @@ export const ICONS = {
     + '<path d="M12 9l6 6"/><path d="M18 9l-6 6"/></g>', 2.2),
   enter: svg('<path d="M8 -7 V0 A3 3 0 0 1 5 3 H-8 M-4 -1 L-8 3 L-4 7"/>', 2.2),
   left: svg('<path d="M8 0 H-8 M-2 -6 L-8 0 L-2 6"/>', 2.2),
+  /** The space mark (⎵): a bracket open upwards. */
+  space: svg('<path d="M-9 -1 V4 H9 V-1"/>', 2.2),
   right: svg('<path d="M-8 0 H8 M2 -6 L8 0 L2 6"/>', 2.2),
   globe: svg('<circle r="10"/><ellipse rx="4.5" ry="10"/><path d="M-10 0 H10 M-8.5 -5 H8.5 M-8.5 5 H8.5"/>'),
   shift: svg(`<path d="${SHIFT_ARROW}"/>`),

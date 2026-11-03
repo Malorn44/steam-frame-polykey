@@ -202,6 +202,30 @@ describe('settings', () => {
     expect(haptics.length).toBe(before); // no tick with haptics off
   });
 
+  it('12-key ABC: suggestions show where the candidates go; picking one replaces the word', async () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = bundledBoot();
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      const words = req.op === 'suggest' ? ['dog', 'door'].filter((w) => w.startsWith(req.prefix)) : [];
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 1);
+    };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use('ja/12key');
+    await tap(popup, 'eisu');
+    await tap(popup, 'd');
+    const cands = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')];
+    expect(cands.map((el) => el.textContent)).toEqual(['dog', 'door']);
+    cands[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    cands[1]!.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+    expect(manager.calls.map(([k]) => k).join('')).toBe('door '); // the word was only in the bar
+    expect(shadowOf(popup)!.querySelectorAll('.cand')).toHaveLength(0);
+  });
+
   it('suggestions off: no suggest requests', async () => {
     const boot = bundledBoot();
     boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
@@ -375,6 +399,87 @@ describe('Japanese 12-key', () => {
   });
 });
 
+describe('12-key ABC', () => {
+  it('ABC keys QWERTY (the default): letters with digits on the top row; ?123 and back return to it', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/12key');
+    await tap(popup, 'eisu');
+    expect(key(popup, 'q').querySelector('.hn')!.textContent).toBe('1');
+    await tap(popup, 'q');
+    await tap(popup, 'shift');
+    await tap(popup, 'w');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('qW');
+    await tap(popup, 'symbols');
+    await tap(popup, 'symbols'); // あいう: back to the QWERTY letters
+    expect(key(popup, 'q')).toBeDefined();
+    await tap(popup, '.');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('qW.');
+  });
+
+  it('ABC keys Flick: sends the reading and shows the letter keys; a/A capitalises; あ a goes back', async () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboardOptions = { 'ja/12key': { qwertyLatin: false } };
+    steam.g[BOOT_GLOBAL] = boot;
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use('ja/12key');
+    await tap(popup, 'あ');
+    await tap(popup, 'eisu');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('あ');
+    expect(key(popup, 'あ')).toBeUndefined();
+    await tap(popup, 'a');
+    await tap(popup, 'shift');
+    await tap(popup, 'd');
+    await tap(popup, 'd'); // Shift was one-shot
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('aDd'); // the word waits in the bar
+    await tap(popup, ' ');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('あaDd ');
+    await tap(popup, 'a');
+    await tap(popup, 'undo'); // ↶ drops the word
+    await tap(popup, 'kana');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('あaDd ');
+    expect(key(popup, 'あ')).toBeDefined();
+  });
+});
+
+describe('12-key ?123', () => {
+  it('digits go into the reading in kana mode, and end the English word in ABC mode', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/12key');
+    await tap(popup, 'symbols');
+    await tap(popup, '3');
+    await tap(popup, 'symbols'); // back to the kana
+    await tap(popup, 'た');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('3た');
+    expect(manager.calls).toEqual([]);
+    await tap(popup, 'Enter');
+    await tap(popup, 'eisu');
+    await tap(popup, 'a');
+    await tap(popup, 'symbols');
+    await tap(popup, '!');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('3たa!');
+  });
+
+  it('=\\< opens the second page; 123 goes back to the numbers, あいう to the letters', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/12key');
+    await tap(popup, 'symbols');
+    await tap(popup, 'more-symbols');
+    expect(key(popup, '1')).toBeUndefined();
+    await tap(popup, '§');
+    await tap(popup, 'more-symbols'); // 123
+    expect(key(popup, '1')).toBeDefined();
+    await tap(popup, 'more-symbols');
+    await tap(popup, 'symbols'); // あいう
+    expect(key(popup, 'あ')).toBeDefined();
+    await tap(popup, 'Enter');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('§');
+  });
+});
+
 describe('Japanese romaji and JIS kana', () => {
   it('romaji: letters become kana in the buffer; 確定 sends them', async () => {
     const { popup, manager, api } = setup();
@@ -392,8 +497,9 @@ describe('Japanese romaji and JIS kana', () => {
     await tap(popup, 'eisu');
     await tap(popup, 'k');
     await tap(popup, 'a');
+    expect(manager.calls).toEqual([]);
+    await tap(popup, 'kana'); // sends the English word
     expect(manager.calls.map((c) => c[0]).join('')).toBe('ka');
-    await tap(popup, 'kana');
     await tap(popup, 'k');
     await tap(popup, 'a');
     expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('か');

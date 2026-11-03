@@ -8,5 +8,6 @@
  "layout": "ja/qwerty-romaji",
  "composer": "romaji",
  "table": "ja/romaji-table",
- "converter": "anthy"
+ "converter": "anthy",
+ "lexicon": "en/words"
 }

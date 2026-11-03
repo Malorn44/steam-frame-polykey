@@ -5,7 +5,7 @@
 import { createBridge } from './bridge/client.js';
 import { readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
-import { NO_MODS, charText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
+import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
 import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
@@ -23,6 +23,7 @@ import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/it
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
+import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
 import { NO_IME, composing, flush, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
@@ -97,6 +98,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let imeGeneration = 0;
   // Keyboards in 英数 mode (a JIS keyboard's keys type their Latin legends); the rest are in かな mode.
   const latinMode = new Set<string>();
+  // Keyboards showing a numbers and symbols page (the 12-key's ?123 is 1, its =\< page 2).
+  const symbolsOn = new Map<string, 1 | 2>();
   let converterDown = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
@@ -190,20 +193,45 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const boost = (used: string): void => { session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1); };
 
-  const lexiconId = (): string | undefined => boot?.catalog.keyboards[ring[current] as string]?.lexicon;
+  /** A keyboard with a reading buffer (the Japanese ones). */
+  const buffered = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
+  /** Word suggestions: a Japanese keyboard has them only in 英数 mode, in its candidate area. */
+  const lexiconId = (): string | undefined => {
+    const keyboard = boot?.catalog.keyboards[ring[current] as string];
+    return buffered(keyboard) && !latinMode.has(keyboard!.id) ? undefined : keyboard?.lexicon;
+  };
+  /** The words suggested on a Japanese keyboard in 英数 mode, best first (shown as candidates). */
+  let suggested: string[] = [];
+  /** The English word typed in a Japanese keyboard's 英数 mode, in the bar until sent (core/english.ts). */
+  let en: EnglishWord = NO_ENGLISH;
+  /** Send the English word (a keyboard switch, another key); it counts as used for ranking. */
+  const sendEnglish = (): void => {
+    if (!en.chars.length) return;
+    boost(englishText(en));
+    enqueue(commitEnglish(en));
+    en = NO_ENGLISH;
+    refreshSuggestions();
+  };
+  const showWords = (words: string[]): void => {
+    if (buffered(boot?.catalog.keyboards[ring[current] as string])) {
+      suggested = words;
+      showIme();
+    } else view?.setSuggestions(slotOrder(words));
+  };
 
   const refreshSuggestions = (): void => {
     const generation = ++suggestGeneration;
-    const prefix = suggestPrefix(word);
+    const inBar = buffered(boot?.catalog.keyboards[ring[current] as string]);
+    const prefix = inBar ? englishText(en) || null : suggestPrefix(word);
     const lexicon = lexiconId();
     if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
-      view?.setSuggestions([]);
+      showWords([]);
       return;
     }
     void bridge.call('suggest', { prefix, lexicon, limit: 8 }).then((reply) => {
       if (generation !== suggestGeneration) return;
       const words = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as string[]) : [];
-      view?.setSuggestions(slotOrder(rank(words, session).map((w) => matchCase(w, prefix))));
+      showWords(rank(words, session, inBar ? 8 : 3).map((w) => matchCase(w, prefix)));
     });
   };
 
@@ -242,12 +270,49 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       if (key.action === 'eisu' && !latin) {
         if (composing(ime)) applyIme(flush(ime, romajiFor(keyboard))); // 英数 sends the reading first
         latinMode.add(keyboard.id);
-      } else if (key.action === 'kana') latinMode.delete(keyboard.id);
-      view?.setMode(latinMode.has(keyboard.id));
-      view?.update(mods);
+      } else if (key.action === 'kana') {
+        sendEnglish(); // かな sends the English word first
+        latinMode.delete(keyboard.id);
+      }
+      setWord(NO_WORD); // suggestions only for words typed in 英数 mode
+      if (keyboard.latinLayout) render(); // the 12-key: ABC keys in 英数 mode
+      else {
+        view?.setMode(latinMode.has(keyboard.id));
+        view?.update(mods);
+      }
       return;
     }
-    if ((keyboard?.composer === 'kana' || keyboard?.composer === 'romaji') && page === 'keys' && !latin) {
+    // ?123: the numbers and symbols page, and back; what is being typed stays (3 + じ → 3時).
+    if (keyboard?.symbolsLayout && key.type === 'action' && (key.action === 'symbols' || key.action === 'more-symbols')) {
+      const shown = symbolsOn.get(keyboard.id);
+      if (key.action === 'more-symbols') symbolsOn.set(keyboard.id, shown === 2 ? 1 : 2); // =\< and back to 123
+      else if (shown) symbolsOn.delete(keyboard.id); // back to the letters
+      else symbolsOn.set(keyboard.id, 1);
+      render();
+      return;
+    }
+    // 英数 mode on a Japanese keyboard: English words wait in the bar with their suggestions.
+    if (keyboard && buffered(keyboard) && page === 'keys' && latin) {
+      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off';
+      const typed = chording ? undefined
+        : key.type === 'char' ? (alternate ?? charText(key, mods))
+          : key.type === 'flick' ? flickText(alternate ?? key.flick[0], mods) : undefined;
+      const handled = pressEnglish(en, key, typed);
+      if (handled) {
+        if (typed !== undefined) {
+          mods = pressText(mods, '').mods; // a one-shot Shift is used up
+          view?.update(mods);
+        }
+        if (en.chars.length && !handled.word.chars.length && handled.effects.length) boost(englishText(en));
+        en = handled.word;
+        enqueue(handled.effects);
+        refreshSuggestions();
+        showIme();
+        return;
+      }
+      if (key.type !== 'mod') sendEnglish(); // any other key sends the word first
+    }
+    if (keyboard && buffered(keyboard) && page === 'keys' && !latin) {
       const romaji = romajiFor(keyboard);
       // A typed key goes into the buffer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off';
@@ -266,7 +331,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       // Any other key sends the buffer first (a modifier only arms, so it does not).
       if (composing(ime) && key.type !== 'mod') applyIme(flush(ime, romaji));
     }
-    const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
+    const result = alternate === undefined ? press(mods, key)
+      : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
     mods = result.mods;
     view?.update(mods);
     const tracked = trackWord(word, result.effects);
@@ -326,8 +392,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const showIme = (): void => {
     if (!view) return;
     if (!composing(ime)) {
-      view.setComposition(null);
-      view.setLabels({});
+      // 英数 mode: English word suggestions where the candidates go; picking one replaces the word typed.
+      view.setComposition(en.chars.length ? {
+        before: en.chars.slice(0, en.caret).join(''), after: en.chars.slice(en.caret).join(''), candidates: suggested, selected: -1,
+      } : null);
+      view.setLabels(en.chars.length ? { Enter: '確定' } : {});
     } else {
       const focused = ime.segments?.[ime.focus];
       view.setComposition(ime.segments
@@ -355,6 +424,15 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const onCandidate = (text: string, index: number): void => {
+    if (!composing(ime) && en.chars.length) {
+      // A suggestion for the English word: sent in its place, with a space.
+      if (surface) tick(surface.win, hand);
+      boost(text);
+      enqueue([{ kind: 'text', text: `${text} ` }]);
+      en = NO_ENGLISH;
+      refreshSuggestions();
+      return;
+    }
     if (surface) tick(surface.win, hand);
     const source = !ime.segments && liveSource?.reading === reading(ime) ? liveSource : null;
     if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
@@ -422,7 +500,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       return;
     }
     const keyboard = boot.catalog.keyboards[id];
-    const layout = keyboard && boot.catalog.layouts[keyboard.layout];
+    const symbolsPage = keyboard ? symbolsOn.get(keyboard.id) : undefined;
+    const layout = keyboard && boot.catalog.layouts[(symbolsPage === 2 && keyboard.moreSymbolsLayout)
+      || (symbolsPage && keyboard.symbolsLayout)
+      || (latinMode.has(keyboard.id) && ((optionsFor(keyboard, keyboardOptions[id]).qwertyLatin && keyboard.qwertyLayout)
+        || keyboard.latinLayout)) || keyboard.layout];
     const theme = themeFor(surface.win);
     if (!layout || !theme) {
       warn(`keyboard ${id} has no layout or theme; showing Steam's keyboard`);
@@ -554,6 +636,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const switchTo = (index: number): void => {
     if (composing(ime)) enqueue(flush(ime, romajiFor(currentKeyboard())).effects); // switching keyboards sends the buffer
+    if (en.chars.length) enqueue(commitEnglish(en));
+    en = NO_ENGLISH;
+    symbolsOn.clear(); // a keyboard comes back on its letters
     ime = NO_IME;
     live = [];
     keys.releaseAll();

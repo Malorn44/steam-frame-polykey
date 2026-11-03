@@ -11,5 +11,6 @@
  "table": "ja/romaji-table",
  "options": {
   "romajiInput": false
- }
+ },
+ "lexicon": "en/words"
 }

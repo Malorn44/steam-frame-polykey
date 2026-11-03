@@ -103,6 +103,10 @@
           },
           "description": "Variants offered on a long press, after the key itself and its Shift variant."
         },
+        "hint": {
+          "$ref": "#/$defs/char",
+          "description": "A small legend in the top right corner, e.g. the digit a long press offers."
+        },
         "kana": {
           "$ref": "#/$defs/char",
           "description": "A JIS key's kana: typed in かな mode (char and shift are then its Latin legends, typed in 英数 mode)."
@@ -249,7 +253,9 @@
             "modify",
             "undo",
             "eisu",
-            "kana"
+            "kana",
+            "symbols",
+            "more-symbols"
           ]
         },
         "label": {
@@ -414,6 +420,22 @@
         "layout": {
           "$ref": "#/$defs/id"
         },
+        "latinLayout": {
+          "$ref": "#/$defs/id",
+          "description": "The layout shown in 英数 mode instead (the 12-key's ABC keys); default: the same layout."
+        },
+        "qwertyLayout": {
+          "$ref": "#/$defs/id",
+          "description": "The 英数 layout when the qwertyLatin option is on."
+        },
+        "symbolsLayout": {
+          "$ref": "#/$defs/id",
+          "description": "The layout the symbols key (?123) shows: numbers and symbols, typed in the current mode."
+        },
+        "moreSymbolsLayout": {
+          "$ref": "#/$defs/id",
+          "description": "The second symbols page, from the more-symbols key (=\\<) on the first."
+        },
         "composer": {
           "enum": [
             "direct",
@@ -424,7 +446,7 @@
         },
         "lexicon": {
           "$ref": "#/$defs/id",
-          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count)."
+          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count). On a Japanese keyboard, for its 英数 mode (shown as candidates)."
         },
         "options": {
           "type": "object",
@@ -446,6 +468,10 @@
             "romajiInput": {
               "type": "boolean",
               "description": "A JIS kana keyboard types romaji instead (its Latin legends through the keyboard's table); off: kana input."
+            },
+            "qwertyLatin": {
+              "type": "boolean",
+              "description": "英数 mode shows the keyboard's qwertyLayout instead of its latinLayout (the 12-key: QWERTY or flick letters)."
             }
           }
         },
@@ -590,6 +616,10 @@
         "hints": {
           "type": "boolean",
           "description": "Always show the other directions small at the key's edges, whatever the flick hints option says (e.g. a punctuation key)."
+        },
+        "sub": {
+          "$ref": "#/$defs/label",
+          "description": "A small legend beneath the label (the ABC keys' digit); not shown with flick hints."
         }
       }
     },

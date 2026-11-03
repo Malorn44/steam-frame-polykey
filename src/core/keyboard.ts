@@ -28,6 +28,9 @@ export type Effect =
 /** Keys HandleVirtualKeyDown takes by name; every other named key is sent as a chord. */
 const VKD_KEYS = new Set<NamedKey>(['Backspace', 'Enter', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const CHORD_MODS = ['ctrl', 'alt', 'super'] as const;
+const z = keyForChar('z');
+/** Ctrl+Z. */
+export const UNDO: Effect = { kind: 'chord', events: chord([MODIFIER.ctrl], z ? z.code : 29) };
 
 const on = (latch: Latch): boolean => latch !== 'off';
 const nextLatch = (latch: Latch): Latch => (latch === 'off' ? 'once' : latch === 'once' ? 'locked' : 'off');
@@ -50,6 +53,9 @@ export const kanaSide = (key: KeyDef, kanaMode: boolean): KeyDef =>
     ? { type: 'char', char: key.kana, shift: key.kanaShift ?? key.kana, ...(key.w !== undefined ? { w: key.w } : {}) }
     : key);
 
+/** A flicked character with Shift and Caps (a letter on the 12-key's ABC keys: a/A is Shift). */
+export const flickText = (text: string, mods: Mods): string => charText({ char: text }, mods);
+
 /** The text a char key types with the current Shift and Caps. */
 export const charText = (key: { char: string; shift?: string }, mods: Mods): string => {
   const letter = key.char.toLowerCase() !== key.char.toUpperCase();
@@ -69,8 +75,8 @@ export const press = (mods: Mods, pressed: KeyDef): { mods: Mods; effects: Effec
   switch (key.type) {
     case 'gap':
       return { mods, effects: [] };
-    case 'flick': // a tap outside a reading buffer (core/ime.ts handles the 12-key): the key's own kana
-      return { mods: releaseOnce(mods), effects: key.flick[0] ? [{ kind: 'text', text: key.flick[0] }] : [] };
+    case 'flick': // a tap outside a reading buffer (core/ime.ts handles the 12-key kana): the key's own character
+      return { mods: releaseOnce(mods), effects: key.flick[0] ? [{ kind: 'text', text: flickText(key.flick[0], mods) }] : [] };
     case 'mod':
       if (key.mod === 'super' && mods.super === 'once') {
         // Super never locks: a second tap sends Super on its own (KDE opens its launcher).
@@ -81,7 +87,8 @@ export const press = (mods: Mods, pressed: KeyDef): { mods: Mods; effects: Effec
       const chorded = key.action === 'copy' || key.action === 'cut' || key.action === 'paste' || key.action === 'menu';
       const effect: Effect = chorded
         ? { kind: 'chord', events: CLIPBOARD_CHORDS[key.action as 'copy' | 'cut' | 'paste' | 'menu'] }
-        : { kind: 'action', action: key.action };
+        : key.action === 'undo' ? UNDO // ↶ outside a reading buffer: undo in the app
+          : { kind: 'action', action: key.action };
       return { mods: releaseOnce(mods), effects: [effect] };
     }
     case 'char': {
@@ -136,7 +143,7 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
 const ACTION_LABELS: Record<ActionName, string> = {
-  hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
+  hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', symbols: '?123', 'more-symbols': '=\\<', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
 };
 
 /** What a key shows right now (empty for the Super key, which shows an icon). */
@@ -144,7 +151,7 @@ export const keyLabel = (pressed: KeyDef, mods: Mods): string => {
   const key = resolveKey(pressed, mods);
   switch (key.type) {
     case 'gap': return '';
-    case 'flick': return key.label ?? key.flick[0];
+    case 'flick': return flickText(key.label ?? key.flick[0], mods);
     case 'mod': return key.label ?? MOD_LABELS[key.mod];
     case 'action': return key.label ?? ACTION_LABELS[key.action];
     case 'key': return key.label ?? NAMED_LABELS[key.key] ?? key.key;

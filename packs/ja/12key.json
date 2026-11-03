@@ -6,11 +6,17 @@
  "name": "日本語 12キー",
  "language": "ja",
  "layout": "ja/flick",
+ "latinLayout": "ja/flick-abc",
+ "qwertyLayout": "ja/flick-qwerty",
+ "symbolsLayout": "ja/flick-symbols",
+ "moreSymbolsLayout": "ja/flick-symbols2",
  "composer": "kana",
  "options": {
   "tapCycle": false,
   "candidatesLeft": false,
-  "flickHints": false
+  "flickHints": false,
+  "qwertyLatin": true
  },
- "converter": "anthy"
+ "converter": "anthy",
+ "lexicon": "en/words"
 }

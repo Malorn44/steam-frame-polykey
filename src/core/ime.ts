@@ -19,8 +19,7 @@
 import type { FlickKey, KeyDef } from './catalog.js';
 import { inForm, nextForm, toKatakana, type Form } from './forms.js';
 import { feedRomaji, isRomaji, type RomajiTable } from './romaji.js';
-import { MODIFIER, chord, keyForChar } from './keycodes.js';
-import type { Effect } from './keyboard.js';
+import { UNDO, type Effect } from './keyboard.js';
 
 /** The longest reading the sidecar converts. */
 export const MAX_READING = 64;
@@ -71,9 +70,6 @@ export const composing = (ime: Ime): boolean => ime.chars.length > 0;
 export const converted = (ime: Ime): string =>
   (ime.segments ? ime.segments.map((s) => s.candidates[s.index] ?? s.reading).join('') : inForm(reading(ime), ime.form));
 
-const z = keyForChar('z');
-/** ↶ with nothing in the buffer: undo in the app. */
-const UNDO: Effect = { kind: 'chord', events: chord([MODIFIER.ctrl], z ? z.code : 29) };
 
 const commit = (ime: Ime): ImeResult => ({
   ime: NO_IME,

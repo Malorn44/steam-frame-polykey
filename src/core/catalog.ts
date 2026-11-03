@@ -6,7 +6,7 @@ import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
 export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate' | 'abc'
-  | 'modify' | 'undo' | 'eisu' | 'kana';
+  | 'modify' | 'undo' | 'eisu' | 'kana' | 'symbols' | 'more-symbols';
 
 /**
  * A key. On a JIS key, char and shift are its Latin legends (typed in 英数 mode) and kana and kanaShift
@@ -15,6 +15,8 @@ export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | '
 export type CharKey = {
   type: 'char'; char: string; shift?: string; long?: string[]; label?: string; w?: number; fn?: FnKey;
   kana?: string; kanaShift?: string;
+  /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
+  hint?: string;
 };
 /** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
 export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey; tall?: 'top' | 'bottom' };
@@ -29,6 +31,8 @@ export type FlickKey = {
   type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; w?: number;
   /** Always show the other directions at the key's edges (whatever the flick hints option says). */
   hints?: boolean;
+  /** A small legend beneath the label (the ABC keys' digit). */
+  sub?: string;
 };
 export type KeyDef = CharKey | NamedKeyKey | ModKey | ActionKey | GapKey | FlickKey;
 export type FnKey = string | Omit<CharKey, 'w' | 'fn'> | Omit<NamedKeyKey, 'w' | 'fn'>;
@@ -46,7 +50,9 @@ export interface Layout {
   dotted?: string;
 }
 /** Per-keyboard choices; a keyboard lists the ones it has, with its default. */
-export interface KeyboardOptions { tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean }
+export interface KeyboardOptions {
+  tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean; qwertyLatin?: boolean;
+}
 export interface KeyboardDef {
   id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   /**
@@ -56,6 +62,14 @@ export interface KeyboardDef {
   composer?: 'direct' | 'kana' | 'romaji';
   /** The romaji table (a table pack) for composer romaji, or a kana keyboard's romajiInput option. */
   table?: string;
+  /** The layout shown in 英数 mode instead (the 12-key's ABC keys); default: the same layout. */
+  latinLayout?: string;
+  /** The 英数 layout with the qwertyLatin option on (the 12-key's QWERTY page). */
+  qwertyLayout?: string;
+  /** The layout the symbols key (?123) shows: numbers and symbols, typed in the current mode. */
+  symbolsLayout?: string;
+  /** The second symbols page (=\\<), and back to the first. */
+  moreSymbolsLayout?: string;
   /** The engine that converts the reading (with composer kana). */
   converter?: 'anthy';
 }
