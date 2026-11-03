@@ -39,7 +39,7 @@ const CSS = `
 /* Suggestions: text on the bar, not keys; thin dividers; the best (middle) in the accent colour. */
 .sugg { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6px;
   font-size: var(--size-suggestion); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--radius); }
-.sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--mod); }
+.sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--divider); }
 .sugg.best { color: var(--accent); font-weight: 600; }
 .sugg.hover { background-color: var(--hover); }
 /* The reading buffer (12-key): underlined, with a caret; while converting, the focused segment is
@@ -50,14 +50,14 @@ const CSS = `
   border-bottom: 1.5px solid var(--text); padding: 0 2px; }
 .pre:empty { display: none; } /* no reading: no underline (it showed as a dot) */
 .pre .seg { padding: 0 1px; }
-.pre .seg.focus { background: var(--accent); color: var(--surface); border-radius: 3px; }
+.pre .seg.focus { background: var(--accent); color: var(--accent-text); border-radius: var(--radius-sm); }
 .pre.converting .seg:not(.focus) { color: var(--legend); }
 .pre .caret { display: inline-block; width: 1.5px; height: 1em; margin: 0 1px; vertical-align: -2px; background: var(--accent); }
 .list { flex: 1; display: flex; min-width: 0; overflow: hidden; height: 100%; }
 .cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: var(--size-candidate); white-space: nowrap;
   border-radius: var(--radius); }
-.cand + .cand { border-left: 1px solid var(--mod); }
-.cand.sel { background: var(--accent); color: var(--surface); font-weight: 600; }
+.cand + .cand { border-left: 1px solid var(--divider); }
+.cand.sel { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
 .cand.hover { background-color: var(--hover); }
 .keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -74,7 +74,7 @@ const CSS = `
 .list > .placeholder { flex: 1 1 100%; align-self: stretch; display: flex; align-items: center; justify-content: center;
   text-align: center; color: var(--legend); font-size: var(--size-placeholder); }
 .kb.side .list:has(> .placeholder) { align-content: stretch; }
-.kb.side .bar { border-top: 1px solid var(--mod); padding-top: 3px; }
+.kb.side .bar { border-top: 1px solid var(--divider); padding-top: 3px; }
 .kb.side .bar .cands { visibility: hidden; }
 .key { flex: 1 1 0; position: relative; display: flex; align-items: center; justify-content: center;
   box-sizing: border-box; border: 1.5px solid transparent; background: var(--key); background-clip: padding-box;
@@ -91,11 +91,12 @@ const CSS = `
 .key.tri .lbl, .key.stack .lbl { position: absolute; bottom: 5px; left: 0; right: 0; text-align: center; }
 .key[data-k="fn"] { color: var(--fn); }
 .key[data-k="fn"].on { box-shadow: inset 0 0 0 2px var(--fn); }
-.key[data-k="fn"].locked { background-color: var(--fn); color: var(--surface); }
+.key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
-.key.on { box-shadow: inset 0 0 0 2px var(--accent); }
-.key.locked { background-color: var(--accent); color: var(--surface); }
-.key.down { filter: brightness(1.5); }
+.key.on { box-shadow: inset 0 0 0 2px var(--ring); }
+.key.action.on { box-shadow: inset 0 0 0 2px var(--indicator); } /* the current input mode (英数 / かな) */
+.key.locked { background-color: var(--accent); color: var(--accent-text); }
+.key.down { filter: var(--pressed); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: var(--size-flick); }
 .kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: var(--size-label); }
@@ -110,17 +111,17 @@ const CSS = `
 .key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
 /* Text arrows as frame-jp-keyboard draws them (all four the same: Noto Sans CJK). */
-.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 var(--size-arrow)/1 "Noto Sans CJK JP", "Noto Sans JP", var(--font); }
+.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 var(--size-arrow)/1 var(--font-cjk), var(--font); }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
 .fl { position: absolute; z-index: 2; pointer-events: none; }
 .fl div { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border-radius: var(--radius); font-size: inherit; background-color: var(--key);
-  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
-.fl div.pick { background-color: var(--accent); background-image: none; color: var(--surface); transform: scale(1.08); }
-.fl div.empty { opacity: 0.35; }
+  background-image: linear-gradient(var(--raised), var(--raised));
+  box-shadow: var(--shadow); }
+.fl div.pick { background-color: var(--accent); background-image: none; color: var(--accent-text); transform: scale(1.08); }
+.fl div.empty { opacity: var(--opacity-dim); }
 /* A JIS key: Latin legends on the left, kana on the right (Shift above, plain below). The mode's side is
    bright, the character the key types now biggest; the other side is drawn like a Shift legend. */
 .key.dual .q { position: absolute; line-height: 1; font-size: var(--size-legend); color: var(--legend); } /* as a Shift legend */
@@ -131,7 +132,7 @@ const CSS = `
 .key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
 .key.dual.fnon .q { display: none; }
 .key.dual .q.dot { outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
-  line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: 1px; } /* a tight square round the legend, as on a keycap */
+  line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: var(--radius-box); } /* a tight square round the legend, as on a keycap */
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
 /* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
    a letter alone in the middle). */
@@ -145,7 +146,7 @@ const CSS = `
 .key .sub { font-size: var(--size-sub); line-height: 1; margin-top: 3px; color: var(--legend); }
 .kb.large .key.mod.labelled { font-size: var(--size-label); }
 /* The 12-key's mode key: あ and a, the current mode's in bold. */
-.key .pair { font-weight: 300; opacity: 0.7; }
+.key .pair { font-weight: 300; opacity: var(--opacity-muted); }
 .key .pair.now { font-weight: 700; opacity: 1; }
 .key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }

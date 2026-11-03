@@ -558,9 +558,69 @@
             },
             "hover": {
               "$ref": "#/$defs/color",
-              "description": "Key under the laser; default a lighter key."
+              "description": "Key under the laser; default modifier."
+            },
+            "accentText": {
+              "$ref": "#/$defs/color",
+              "description": "Text on the accent (a selected candidate, a locked key); default surface."
+            },
+            "fnText": {
+              "$ref": "#/$defs/color",
+              "description": "Text on the Fn colour (Fn locked); default surface."
+            },
+            "divider": {
+              "$ref": "#/$defs/color",
+              "description": "Hairlines between candidates and sections; default modifier."
+            },
+            "ring": {
+              "$ref": "#/$defs/color",
+              "description": "Outline of an armed modifier, a hovered setting, a selected item; default accent."
+            },
+            "indicator": {
+              "$ref": "#/$defs/color",
+              "description": "Outline marking the current input mode (英数 / かな); default accent."
             }
           }
+        },
+        "tone": {
+          "enum": [
+            "dark",
+            "light"
+          ],
+          "description": "dark (default): pressed and raised states shift lighter; light: they shift darker."
+        },
+        "radiusSmall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "description": "A focused reading segment; default 3."
+        },
+        "radiusBox": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "description": "A dotted legend box (JIS); default 1."
+        },
+        "radiusPill": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "description": "Switches in settings; default 13."
+        },
+        "fontCjk": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Japanese fonts tried first where Japanese is drawn as text; default \"Noto Sans CJK JP\", \"Noto Sans JP\"."
+        },
+        "shadow": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "CSS box-shadow for popups and the drag ghost; default 0 2px 10px rgba(0, 0, 0, 0.6)."
+        },
+        "shadowLarge": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "CSS box-shadow for the emoji preview; default 0 4px 14px rgba(0,0,0,0.6)."
         },
         "radius": {
           "type": "number",
@@ -579,7 +639,8 @@
     },
     "color": {
       "type": "string",
-      "pattern": "^#[0-9a-fA-F]{6}$"
+      "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+      "description": "#rrggbb, or #rrggbbaa with transparency."
     },
     "flickKey": {
       "type": "object",

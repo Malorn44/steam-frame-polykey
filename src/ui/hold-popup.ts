@@ -4,15 +4,15 @@
 
 export const HOLD_POPUP_CSS = `
 .alts { position: absolute; display: flex; z-index: 2; background: var(--surface); border-radius: var(--radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
+  box-shadow: var(--shadow); }
 .alts .key { flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border-radius: var(--radius); background-color: var(--key);
-  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)); }
+  background-image: linear-gradient(var(--raised), var(--raised)); }
 /* The keyboards menu (holding 🌐): the language small above the layout, each on one line. */
 .alts.menu .key { flex-direction: column; font-size: 16px; line-height: 1.1; white-space: nowrap; overflow: hidden; padding: 0 6px; }
 .alts.menu .key .lang { font-size: 11px; opacity: 0.75; }
 /* Lighten the cell's background only: a filter would also lighten the choice (an emoji's skin tone). */
-.alts .key.pick { background-color: var(--accent); background-image: none; color: var(--surface); }
+.alts .key.pick { background-color: var(--accent); background-image: none; color: var(--accent-text); }
 `;
 
 export interface HoldPopup {

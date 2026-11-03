@@ -44,7 +44,7 @@ const CSS = `
 .cell img { max-width: 80%; max-height: 80%; pointer-events: none; }
 .cell.effect { font-size: 11px; text-align: center; color: var(--legend); }
 .cell.hover { background: var(--hover); }
-.cell.lifted { opacity: 0.35; }
+.cell.lifted { opacity: var(--opacity-dim); }
 .cell.fav { transition: left 0.12s ease-out, top 0.12s ease-out; }
 .cell.away { visibility: hidden; }
 .note { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
@@ -53,7 +53,7 @@ const CSS = `
 .divider { position: absolute; top: 8%; height: 84%; width: 1px; background: var(--mod); }
 .label { position: absolute; top: 0; font-size: 10px; color: var(--legend); writing-mode: vertical-rl; transform: rotate(180deg); }
 .ghost { position: fixed; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center;
-  font-size: 34px; background: var(--mod); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,0.6); }
+  font-size: 34px; background: var(--mod); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .alts .key { font-size: 26px; }
 `;
 

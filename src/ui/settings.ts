@@ -46,11 +46,11 @@ const CSS = `
 .head { display: flex; align-items: center; height: 26px; font-size: 16px; font-weight: 600; }
 .head .title { flex: 1; }
 .head .tab { flex: none; min-width: 0; margin-right: 6px; padding: 2px 12px; font-size: 14px; }
-.head .tab.on { background: var(--accent); color: var(--surface); }
+.head .tab.on { background: var(--accent); color: var(--accent-text); }
 .cols { flex: 1; display: flex; gap: 14px; min-height: 0; }
 .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .sect { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
-  border-bottom: 1px solid var(--mod); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
+  border-bottom: 1px solid var(--divider); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
 .none { color: var(--legend); font-size: 13px; padding-top: 4px; }
 .row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
 .row .name { flex: none; width: 104px; color: var(--text); font-size: 14px; }
@@ -60,17 +60,17 @@ const CSS = `
 .head .opt { flex: none; }
 .opt.close { min-width: 32px; width: 32px; padding: 0; }
 .opt.stock { margin-right: 6px; font-size: 13px; }
-.opt.on { background: var(--accent); color: var(--surface); }
-.opt.hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt.on { background: var(--accent); color: var(--accent-text); }
+.opt.hover { box-shadow: inset 0 0 0 2px var(--ring); }
 /* A switch (Gboard's style settings): the statement on the left, the switch at the right. */
 .row.sw .name { flex: 1; width: auto; }
-.switch { flex: none; position: relative; width: 46px; height: 26px; border-radius: 13px; background: var(--mod); }
+.switch { flex: none; position: relative; width: 46px; height: 26px; border-radius: var(--radius-pill); background: var(--mod); }
 .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
   background: var(--legend); transition: left 0.12s; }
 .switch.on { background: var(--accent); }
-.switch.on::after { left: 23px; background: var(--surface); }
-.switch.hover { box-shadow: 0 0 0 2px var(--accent); }
-.about { color: var(--legend); font-size: 12px; border-top: 1px solid var(--mod); padding-top: 3px; }
+.switch.on::after { left: 23px; background: var(--accent-text); }
+.switch.hover { box-shadow: 0 0 0 2px var(--ring); }
+.about { color: var(--legend); font-size: 12px; border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--fn); }
 `;
 

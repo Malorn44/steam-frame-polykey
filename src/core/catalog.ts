@@ -77,10 +77,30 @@ export interface KeyboardDef {
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
   legend?: string; fnLegend?: string; hover?: string;
+  /** Text on the accent (a selected candidate, a locked key); default surface. */
+  accentText?: string;
+  /** Text on the Fn colour (Fn locked); default surface. */
+  fnText?: string;
+  /** Hairlines between candidates, sections; default modifier. */
+  divider?: string;
+  /** The outline of an armed modifier, a hovered setting, a selected item; default accent. */
+  ring?: string;
+  /** The outline marking the current input mode (英数 / かな); default accent. */
+  indicator?: string;
 }
 /** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
 export interface TableDef { id: string; name: string; entries: [string, string, string?][] }
-export interface Theme { id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors }
+export interface Theme {
+  id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
+  /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */
+  tone?: 'dark' | 'light';
+  /** Smaller radii: a focused segment (default 3), a dotted legend box (1), a switch (13). */
+  radiusSmall?: number; radiusBox?: number; radiusPill?: number;
+  /** Japanese fonts tried first where Japanese is drawn as text (default Noto Sans CJK JP). */
+  fontCjk?: string;
+  /** Shadows: popups and the drag ghost, and the larger emoji preview (CSS box-shadow values). */
+  shadow?: string; shadowLarge?: string;
+}
 export interface Boot {
   catalog: {
     layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme>;

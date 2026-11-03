@@ -49,7 +49,7 @@ def test_a_bad_user_file_is_reported_and_the_bundled_item_kept(tmp_path):
     write(tmp_path / "packs", "themes/broken.json", "{ not json")
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["catalog"]["themes"]["themes/night-owl"]["colors"]["surface"] == "#011627"
-    assert "themes/night-owl.json: /colors/surface: does not match ^#[0-9a-fA-F]{6}$" in boot["errors"]
+    assert "themes/night-owl.json: /colors/surface: does not match ^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" in boot["errors"]
     assert "themes/broken.json: not valid JSON (JSONDecodeError)" in boot["errors"]
 
 
