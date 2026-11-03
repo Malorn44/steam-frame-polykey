@@ -26,8 +26,8 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {"en/qwerty"}
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick"}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
@@ -108,7 +108,7 @@ def test_settings_flags_and_saving(tmp_path):
     packs.save_settings(tmp_path / "settings.json", {"haptics": False})
     packs.save_settings(tmp_path / "settings.json", {"theme": "themes/night-owl"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
     assert json.loads((tmp_path / "settings.json").read_text()) == {"keyboards": ["en/english"], "custom": 1, "suggestions": False}
@@ -123,6 +123,20 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert ask({"haptics": "no"})["error"] == "bad-settings"
     assert ask({"keyboards": []})["error"] == "bad-settings"
     assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}
+    assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": True}}}) == {"id": 1, "ok": True}
+    assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": "yes"}}})["error"] == "bad-settings"
+    assert ask({"keyboardOptions": {"ja/12key": {"rm -rf": True}}})["error"] == "bad-settings"
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["settings"]["keyboardOptions"] == {"ja/12key": {"tapCycle": True}}
+
+
+def test_the_japanese_12key_pack_loads():
+    boot = packs.load(BUNDLED, SCHEMA, None)
+    assert boot["errors"] == []
+    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False}
+    layout = boot["catalog"]["layouts"]["ja/flick"]
+    assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
+    assert "はばぱ" in layout["modify"]
 
 
 def test_emoji_data_and_state(tmp_path):

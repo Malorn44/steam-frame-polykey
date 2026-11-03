@@ -5,6 +5,7 @@
 
 import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
 import { NO_MODS, alternates, charText, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
 
@@ -17,6 +18,8 @@ export const REPEAT_DELAY_MS = 450;
 export const REPEAT_MS = 60;
 const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
+/** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
+export const FLICK_CELL_PX = 30;
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
 
@@ -57,6 +60,21 @@ const CSS = `
 .key.on { box-shadow: inset 0 0 0 2px var(--accent); }
 .key.locked { background-color: var(--accent); color: var(--surface); }
 .key.down { filter: brightness(1.5); }
+/* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
+.kb.large .key.flick { font-size: 26px; }
+.kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: 20px; }
+.kb.large .key[data-k="modify"], .kb.large .key[data-k="、"] { font-size: 21px; }
+.kb.large .key svg { width: 1.35em; height: 1.35em; }
+.kb.large .bar .key { font-size: 14px; }
+.kb.large .bar .key svg { width: 1em; height: 1em; }
+/* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
+.fl { position: absolute; z-index: 2; pointer-events: none; }
+.fl div { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  border-radius: var(--radius); font-size: inherit; background-color: var(--key);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
+.fl div.pick { background-color: var(--accent); background-image: none; color: var(--surface); transform: scale(1.08); }
+.fl div.empty { opacity: 0.35; }
 `;
 
 const ACTION_ICONS: Partial<Record<string, IconName>> = {
@@ -64,9 +82,16 @@ const ACTION_ICONS: Partial<Record<string, IconName>> = {
   hide: 'hide', 'next-keyboard': 'globe',
 };
 
+/** In a large layout (the 12-key), these keys draw icons too: font glyphs render tiny in the headset (fjk). */
+const LARGE_ICONS: Partial<Record<string, IconName>> = {
+  undo: 'undo', Backspace: 'backspaceTag', Enter: 'enter', ArrowLeft: 'left', ArrowRight: 'right',
+};
+
 /** The icon a key shows, if any (Shift and Caps change icon when locked). */
-const iconFor = (key: KeyDef, mods: Mods): IconName | undefined => {
+const iconFor = (key: KeyDef, mods: Mods, large: boolean): IconName | undefined => {
   if ('label' in key && key.label) return undefined;
+  const id = key.type === 'action' ? key.action : key.type === 'key' ? key.key : '';
+  if (large && LARGE_ICONS[id]) return LARGE_ICONS[id];
   if (key.type === 'action') return ACTION_ICONS[key.action];
   if (key.type === 'key' && key.key === 'Backspace') return 'backspace';
   if (key.type !== 'mod') return undefined;
@@ -108,7 +133,7 @@ export const createView = (
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
-  root.className = 'kb';
+  root.className = layout.large ? 'kb large' : 'kb';
   const c = theme.colors;
   root.style.cssText = `--surface:${c.surface};--key:${c.key};--text:${c.keyText};--mod:${c.modifier};`
     + `--accent:${c.accent};--legend:${c.legend ?? c.keyText};--fn:${c.fnLegend ?? c.accent};`
@@ -123,7 +148,7 @@ export const createView = (
     // An exact share of the row, so keys line up across rows whatever their count.
     if (rowUnits) el.style.flex = `0 0 ${(widthOf(key) / rowUnits) * 100}%`;
     el.dataset['k'] = key.type === 'char' ? key.char : key.type === 'key' ? key.key
-      : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : '';
+      : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : key.type === 'flick' ? key.flick[0] : '';
     const label = doc.createElement('span');
     label.className = 'lbl';
     const sh = doc.createElement('span');
@@ -179,6 +204,53 @@ export const createView = (
   let repeated = false;
   let lastPoint: { x: number; y: number } | null = null;
   let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
+  // A held flick key: where the press started and its guide (one cell per direction that has a kana).
+  let flick: { key: Extract<KeyDef, { type: 'flick' }>; start: { x: number; y: number }; el: HTMLElement;
+    cells: HTMLElement[]; pick: number } | null = null;
+
+  /**
+   * Show the guide over the key: the tap kana in the middle, the flick kana left, above, right and below.
+   * Sized like fjk's: square cells 94% of the key's height, one key height apart, kana at 62% of the
+   * cell; a direction with nothing is shown faded. The cross moves inward where it would leave the keyboard.
+   */
+  const openFlick = (entry: Entry, start: { x: number; y: number }): void => {
+    if (entry.key.type !== 'flick') return;
+    const at = entry.el.getBoundingClientRect();
+    const box = root.getBoundingClientRect();
+    const step = Math.min(at.width, at.height) || FLICK_CELL_PX;
+    const size = Math.round(step * 0.94);
+    const clamp = (v: number, max: number): number => Math.min(Math.max(v, step * 1.5), Math.max(step * 1.5, max - step * 1.5));
+    const cx = clamp(at.left - box.left + at.width / 2, box.width);
+    const cy = clamp(at.top - box.top + at.height / 2, box.height);
+    const el = doc.createElement('div');
+    el.className = 'fl';
+    Object.assign(el.style, { left: `${cx - size / 2}px`, top: `${cy - size / 2}px`, fontSize: `${Math.round(size * 0.62)}px` });
+    const place: [number, number][] = [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1]];
+    const cells = entry.key.flick.map((text, i) => {
+      const cell = doc.createElement('div');
+      const [dx, dy] = place[i]!;
+      Object.assign(cell.style, { left: `${dx * step}px`, top: `${dy * step}px`, width: `${size}px`, height: `${size}px` });
+      if (!text) cell.className = 'empty';
+      cell.textContent = text;
+      el.append(cell);
+      return cell;
+    });
+    root.append(el);
+    flick = { key: entry.key, start, el, cells, pick: 0 };
+    cells[0]?.classList.add('pick');
+  };
+  const moveFlick = (p: { x: number; y: number }): void => {
+    if (!flick) return;
+    const pick = DIRECTIONS.indexOf(flickDirection(p.x - flick.start.x, p.y - flick.start.y));
+    if (pick === flick.pick) return;
+    flick.cells[flick.pick]?.classList.remove('pick');
+    flick.pick = pick;
+    flick.cells[pick]?.classList.add('pick');
+  };
+  const closeFlick = (): void => {
+    flick?.el.remove();
+    flick = null;
+  };
 
   const clearHold = (): void => {
     if (holdTimer !== null) clearTimeout(holdTimer);
@@ -217,6 +289,10 @@ export const createView = (
     const start = (e as TouchEvent).changedTouches?.[0];
     lastPoint = start ? { x: start.clientX, y: start.clientY } : null;
     repeated = false;
+    if (held?.key.type === 'flick') {
+      openFlick(held, lastPoint ?? { x: 0, y: 0 });
+      return;
+    }
     if (held && repeats(held.key)) {
       holdTimer = setTimeout(() => {
         holdTimer = null;
@@ -235,7 +311,8 @@ export const createView = (
     const touch = (e as TouchEvent).changedTouches?.[0];
     if (!touch) return;
     lastPoint = { x: touch.clientX, y: touch.clientY };
-    pickAt(touch.clientX, touch.clientY);
+    if (flick) moveFlick(lastPoint);
+    else pickAt(touch.clientX, touch.clientY);
   }, { passive: false });
   root.addEventListener('touchend', (e) => {
     e.preventDefault();
@@ -245,6 +322,14 @@ export const createView = (
     const hit = pressed;
     pressed = undefined;
     hit?.el.classList.remove('down');
+    if (flick) {
+      if (lastPoint) moveFlick(lastPoint);
+      const { key, pick } = flick;
+      closeFlick();
+      if (pick === 0) onKey(key); // a tap: the 12-key decides (it may cycle)
+      else if (key.flick[pick]) onKey(key, key.flick[pick]); // a direction with nothing types nothing
+      return;
+    }
     const slot = slotFor(e.target);
     if (slot?.word) {
       onSuggestion(slot.word);
@@ -263,6 +348,7 @@ export const createView = (
   root.addEventListener('touchcancel', () => {
     clearHold();
     closePopup();
+    closeFlick();
     pressed?.el.classList.remove('down');
     pressed = undefined;
   });
@@ -292,7 +378,7 @@ export const createView = (
           el.classList.toggle('on', state.on);
           el.classList.toggle('locked', state.locked);
         }
-        const icon = iconFor(key, mods);
+        const icon = iconFor(key, mods, layout.large === true);
         if (icon) label.innerHTML = ICONS[icon];
         else label.textContent = keyLabel(key, mods);
         const small = legends(key, mods);
@@ -312,6 +398,7 @@ export const createView = (
       if (hoveredSlot && !hoveredSlot.word) setSlotHover(undefined);
     },
     hoverAt: (x, y) => {
+      if (flick) return false; // a flick follows the touch alone
       if (popup) {
         pickAt(x, y);
         return false;
@@ -323,6 +410,6 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
-    destroy: () => { clearHold(); closePopup(); style.remove(); root.remove(); },
+    destroy: () => { clearHold(); closePopup(); closeFlick(); style.remove(); root.remove(); },
   };
 };

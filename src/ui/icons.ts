@@ -38,6 +38,14 @@ export const ICONS = {
   effects: svg('<path d="M-2.5 -9.5 Q-0.74 -3.26 5.5 -1.5 Q-0.74 0.26 -2.5 6.5 Q-4.26 0.26 -10.5 -1.5 Q-4.26 -3.26 -2.5 -9.5 Z"/><path d="M6.5 2.5 Q7.38 5.62 10.5 6.5 Q7.38 7.38 6.5 10.5 Q5.62 7.38 2.5 6.5 Q5.62 5.62 6.5 2.5 Z"/>'
     + '<circle cx="7" cy="-7.5" r="0.6"/><circle cx="-8.5" cy="8.5" r="0.6"/><circle cx="1" cy="10" r="0.6"/>'),
   backspace: svg('<path d="M-12 -7 V7 M11 0 H-6 M0 -6 L-6 0 L0 6"/>', 2.3),
+  // 12-key side keys. Undo and backspace from frame-jp-keyboard (MIT, src/icons.js; its 24 grid starts at
+  // 0, hence the shift); return and the arrows are ours, drawn to match.
+  undo: svg('<g transform="translate(-12 -12)"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></g>', 2.2),
+  backspaceTag: svg('<g transform="translate(-12 -12)"><path d="M21 5H9l-7 7 7 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/>'
+    + '<path d="M12 9l6 6"/><path d="M18 9l-6 6"/></g>', 2.2),
+  enter: svg('<path d="M8 -7 V0 A3 3 0 0 1 5 3 H-8 M-4 -1 L-8 3 L-4 7"/>', 2.2),
+  left: svg('<path d="M8 0 H-8 M-2 -6 L-8 0 L-2 6"/>', 2.2),
+  right: svg('<path d="M-8 0 H8 M2 -6 L8 0 L2 6"/>', 2.2),
   globe: svg('<circle r="10"/><ellipse rx="4.5" ry="10"/><path d="M-10 0 H10 M-8.5 -5 H8.5 M-8.5 5 H8.5"/>'),
   shift: svg(`<path d="${SHIFT_ARROW}"/>`),
   shiftLocked: svg(`<path d="${SHIFT_ARROW}" fill="currentColor"/>`),

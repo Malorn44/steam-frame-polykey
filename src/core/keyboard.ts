@@ -63,6 +63,8 @@ export const press = (mods: Mods, pressed: KeyDef): { mods: Mods; effects: Effec
   switch (key.type) {
     case 'gap':
       return { mods, effects: [] };
+    case 'flick': // a tap, without the 12-key's own handling (core/kana.ts): the key's own kana
+      return { mods: releaseOnce(mods), effects: key.flick[0] ? [{ kind: 'text', text: key.flick[0] }] : [] };
     case 'mod':
       if (key.mod === 'super' && mods.super === 'once') {
         // Super never locks: a second tap sends Super on its own (KDE opens its launcher).
@@ -128,7 +130,7 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
 const ACTION_LABELS: Record<ActionName, string> = {
-  hide: '✕', abc: 'ABC', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
+  hide: '✕', abc: 'ABC', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
 };
 
 /** What a key shows right now (empty for the Super key, which shows an icon). */
@@ -136,6 +138,7 @@ export const keyLabel = (pressed: KeyDef, mods: Mods): string => {
   const key = resolveKey(pressed, mods);
   switch (key.type) {
     case 'gap': return '';
+    case 'flick': return key.label ?? key.flick[0];
     case 'mod': return key.label ?? MOD_LABELS[key.mod];
     case 'action': return key.label ?? ACTION_LABELS[key.action];
     case 'key': return key.label ?? NAMED_LABELS[key.key] ?? key.key;

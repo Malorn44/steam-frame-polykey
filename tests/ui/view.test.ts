@@ -236,4 +236,35 @@ describe('hold to repeat', () => {
     expect(pressed).toHaveLength(5);
     vi.useRealTimers();
   });
+
+  it('a flick key shows its kana in a cross while held, and the flick picks one', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const got: [string, string | undefined][] = [];
+    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
+      (k, alternate) => got.push([k.type === 'flick' ? k.flick[0] : '?', alternate]));
+    view.update(NO_MODS);
+    const ka = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
+    const at = (type: string, x: number, y: number) => {
+      const e = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+      ka.dispatchEvent(e);
+    };
+    at('touchstart', 100, 100);
+    expect([...shadow.querySelectorAll('.fl div')].map((c) => c.textContent)).toEqual(['か', 'き', 'く', 'け', 'こ']);
+    // Unlaid-out (jsdom: zero-size) keyboard: the cross still sits inside, its cells text-sized.
+    const guide = shadow.querySelector<HTMLElement>('.fl')!;
+    expect([guide.style.left, guide.style.top]).toEqual(['31px', '31px']);
+    expect(shadow.querySelector<HTMLElement>('.fl div')!.style.width).toBe('28px');
+    at('touchmove', 100, 60); // up
+    expect(shadow.querySelector('.fl .pick')!.textContent).toBe('く');
+    at('touchend', 100, 60);
+    expect(shadow.querySelector('.fl')).toBeNull();
+    at('touchstart', 100, 100);
+    at('touchend', 104, 102); // a tap: the keyboard decides what it types
+    expect(got).toEqual([['か', 'く'], ['か', undefined]]);
+  });
 });
+

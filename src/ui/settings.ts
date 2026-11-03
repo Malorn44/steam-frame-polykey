@@ -1,5 +1,6 @@
 // The settings page, drawn in the keyboard area instead of the keys while open: theme, haptics,
-// suggestions, and an About line. Changes apply at once through onChange; ✕ goes back to the keys.
+// suggestions, the current keyboard's own options, and an About line. Changes apply at once; ✕ goes
+// back to the keys, and "Steam keyboard" hands over to Steam's own (🌐 skips it).
 
 import type { Theme } from '../core/catalog.js';
 import { ICONS } from './icons.js';
@@ -14,6 +15,15 @@ export interface SettingsInfo {
   themes: { id: string; name: string }[];
   version: string;
   errors: string[];
+  /** The current keyboard's options: a name and its two choices. */
+  options: { id: string; name: string; off: string; on: string; value: boolean }[];
+}
+
+export interface SettingsHandlers {
+  onChange(changes: Partial<SettingsValues>): void;
+  onOption(id: string, value: boolean): void;
+  onStock(): void;
+  onClose(): void;
 }
 
 const CSS = `
@@ -27,6 +37,7 @@ const CSS = `
 .opt { display: flex; align-items: center; justify-content: center; min-width: 90px; height: 32px; padding: 0 12px;
   box-sizing: border-box; background: var(--mod); border-radius: var(--radius); }
 .opt.close { min-width: 32px; width: 32px; padding: 0; }
+.opt.stock { margin-right: 6px; font-size: 13px; }
 .opt.on { background: var(--accent); color: var(--surface); }
 .opt.hover { box-shadow: inset 0 0 0 2px var(--accent); }
 .about { color: var(--legend); font-size: 13px; }
@@ -45,8 +56,7 @@ export const createSettingsView = (
   theme: Theme,
   values: SettingsValues,
   info: SettingsInfo,
-  onChange: (changes: Partial<SettingsValues>) => void,
-  onClose: () => void,
+  { onChange, onOption, onStock, onClose }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
   style.textContent = CSS;
@@ -81,7 +91,7 @@ export const createSettingsView = (
   const title = doc.createElement('div');
   title.className = 'title';
   title.textContent = 'Settings';
-  head.append(title, option(ICONS.hide, false, onClose, ' close'));
+  head.append(title, option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
 
   const onOff = (key: 'haptics' | 'suggestions') => [
     option('On', values[key], () => onChange({ [key]: true })),
@@ -104,6 +114,7 @@ export const createSettingsView = (
     row('Theme', ...info.themes.map((t) => option(t.name, t.id === values.theme, () => onChange({ theme: t.id })))),
     row('Haptics', ...onOff('haptics')),
     row('Suggestions', ...onOff('suggestions')),
+    ...info.options.map((o) => row(o.name, option(o.off, !o.value, () => onOption(o.id, false)), option(o.on, o.value, () => onOption(o.id, true)))),
     about,
   );
 

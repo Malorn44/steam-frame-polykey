@@ -79,9 +79,16 @@ describe('installPolykey', () => {
     expect(manager.calls).toEqual([['VKClose', false]]);
   });
 
-  it('🌐 switches to the stock keyboard and back', async () => {
+  it('🌐 rotates polykey\'s keyboards only; settings hands over to Steam\'s keyboard, with a way back', async () => {
     const { popup } = setup();
     await tap(popup, 'next-keyboard');
+    expect(key(popup, 'あ')).toBeDefined(); // the 12-key
+    await tap(popup, 'next-keyboard');
+    expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5); // English again, not Steam's
+    await tap(popup, 'settings');
+    const stockButton = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Steam keyboard')!;
+    stockButton.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    stockButton.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     expect(shadowOf(popup)!.querySelector('.kb')).toBeNull();
     expect(popup.document.getElementById('polykey-stock-guard')).toBeNull();
     const back = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('div')].find((el) => el.textContent === '🌐 polykey')!;
@@ -242,6 +249,37 @@ describe('emoji', () => {
     await tap(popup, 'abc');
     expect(shadowOf(popup)!.querySelector('.emoji')).toBeNull();
     expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5);
+  });
+});
+
+describe('Japanese 12-key', () => {
+  it('types kana; with "Next kana" chosen in settings, tapping again cycles, and the choice is saved', async () => {
+    const { popup, manager, g } = setup();
+    const saved: unknown[] = [];
+    g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      if (req.op === 'settings.save') saved.push(req.settings);
+      const reply = req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : { ok: true };
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+    };
+    await tap(popup, 'next-keyboard');
+    await tap(popup, 'た');
+    await tap(popup, 'た');
+    expect(manager.calls).toEqual([['た', false], ['た', false]]); // types it again by default
+    await tap(popup, 'settings');
+    const opt = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Next kana (→ moves on)')!;
+    opt.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    opt.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(saved).toEqual([{ keyboardOptions: { 'ja/12key': { tapCycle: true } } }]);
+    const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
+    close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    manager.calls.length = 0;
+    await tap(popup, 'は');
+    await tap(popup, 'は');
+    await tap(popup, 'modify');
+    expect(manager.calls).toEqual([['は', false], ['Backspace', false], ['ひ', false], ['Backspace', false], ['び', false]]);
   });
 });
 

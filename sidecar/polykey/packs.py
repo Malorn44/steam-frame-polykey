@@ -15,7 +15,23 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+# Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
+KEYBOARD_OPTIONS = ("tapCycle",)
+
+
+def clean_keyboard_options(value: object) -> Optional[dict]:
+    """{keyboard id: {known option: bool}}, or None when it is not that shape."""
+    if not isinstance(value, dict) or len(value) > 64:
+        return None
+    clean = {}
+    for keyboard, options in value.items():
+        if not isinstance(keyboard, str) or not 0 < len(keyboard) <= 80 or not isinstance(options, dict):
+            return None
+        if any(k not in KEYBOARD_OPTIONS or not isinstance(v, bool) for k, v in options.items()):
+            return None
+        clean[keyboard] = dict(options)
+    return clean
 
 
 def user_dir() -> Path:
@@ -139,6 +155,9 @@ def load_settings(path: Path, errors: list[str]) -> dict:
         for flag in ("haptics", "suggestions"):
             if isinstance(data.get(flag), bool):
                 settings[flag] = data[flag]
+        options = clean_keyboard_options(data.get("keyboardOptions"))
+        if options is not None:
+            settings["keyboardOptions"] = options
     return settings
 
 

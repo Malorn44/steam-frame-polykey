@@ -227,7 +227,9 @@
             "settings",
             "emoji",
             "dictate",
-            "abc"
+            "abc",
+            "modify",
+            "undo"
           ]
         },
         "label": {
@@ -274,6 +276,9 @@
         },
         {
           "$ref": "#/$defs/gap"
+        },
+        {
+          "$ref": "#/$defs/flickKey"
         }
       ]
     },
@@ -328,6 +333,20 @@
               "$ref": "#/$defs/key"
             }
           }
+        },
+        "modify": {
+          "type": "array",
+          "maxItems": 80,
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 8
+          },
+          "description": "What the modify (゛゜小) key cycles the last typed character through; each string is one cycle, e.g. \"はばぱ\"."
+        },
+        "large": {
+          "type": "boolean",
+          "description": "Bigger key text and icons, as on a phone 12-key."
         }
       }
     },
@@ -378,6 +397,17 @@
         "lexicon": {
           "$ref": "#/$defs/id",
           "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count)."
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The options this keyboard offers in settings, with their defaults.",
+          "properties": {
+            "tapCycle": {
+              "type": "boolean",
+              "description": "Tapping a flick key again goes to its next kana (→ moves on); off: it types the kana again."
+            }
+          }
         }
       }
     },
@@ -467,6 +497,47 @@
     "color": {
       "type": "string",
       "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "flickKey": {
+      "type": "object",
+      "required": [
+        "type",
+        "flick"
+      ],
+      "additionalProperties": false,
+      "description": "A 12-key flick key.",
+      "properties": {
+        "type": {
+          "const": "flick"
+        },
+        "flick": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "maxLength": 4
+          },
+          "description": "What it types for [tap, flick left, up, right, down]; \"\" where a direction has nothing. The tap entry is required."
+        },
+        "cycle": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4
+          },
+          "description": "What tapping it again goes through when the keyboard's tapCycle option is on; default: its flick entries."
+        },
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "w": {
+          "$ref": "#/$defs/width"
+        }
+      }
     }
   }
 }

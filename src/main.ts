@@ -3,7 +3,7 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { readBoot, type ActionName, type Boot, type KeyDef, type Layout, type Theme } from './core/catalog.js';
+import { readBoot, type ActionName, type Boot, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
@@ -21,6 +21,8 @@ import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
+import { NO_KANA, modifyTable, pressKana, type KanaState } from './core/kana.js';
+import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
 import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
 
@@ -35,7 +37,7 @@ export const PREREQ_RETRY_MS = 1000;
 export const PREREQ_TIMEOUT_MS = 120_000;
 /** Gap between key-state events (TaiKeid: IBus reorders keys sent with no gap). */
 export const KEY_GAP_MS = 8;
-/** The stock keyboard's place in the 🌐 cycle. */
+/** Steam's own keyboard (settings → Steam keyboard; 🌐 only rotates polykey's keyboards). */
 export const STOCK = 'steam/stock';
 const NON_ASCII = /[^\x20-\x7e]/;
 /** The emoji picker's bottom row. */
@@ -76,8 +78,14 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   }
 
   const boot: Boot | null = readBoot(g[BOOT_GLOBAL]);
-  const ring = [...(boot?.settings.keyboards ?? []).filter((id) => boot?.catalog.keyboards[id]), STOCK];
+  const ring = (boot?.settings.keyboards ?? []).filter((id) => boot?.catalog.keyboards[id]);
   let current = 0;
+  /** Showing Steam's own keyboard, with a button back to polykey. */
+  let stock = false;
+  // 12-key state (the cycle and the last kana typed), and each keyboard's options as the user set them.
+  let kana: KanaState = NO_KANA;
+  const keyboardOptions: Record<string, KeyboardOptions> = { ...(boot?.settings.keyboardOptions ?? {}) };
+  const modifyTables = new Map<string, ReadonlyMap<string, string>>();
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
   let view: View | null = null;
@@ -142,7 +150,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const runAction = (action: ActionName): void => {
     if (action === 'hide') void output([{ key: 'VKClose' }]);
-    else if (action === 'next-keyboard') switchTo((current + 1) % ring.length);
+    else if (action === 'next-keyboard') switchTo((current + 1) % Math.max(1, ring.length));
     else if (action === 'settings' || action === 'emoji' || action === 'abc') {
       if (page === 'emoji') saveEmoji(0);
       page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
@@ -192,9 +200,22 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     refreshSuggestions();
   };
 
+  const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
+  const modifyFor = (layoutId: string): ReadonlyMap<string, string> => {
+    let table = modifyTables.get(layoutId);
+    if (!table) modifyTables.set(layoutId, (table = modifyTable(boot?.catalog.layouts[layoutId]?.modify)));
+    return table;
+  };
+
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
-    const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
+    const keyboard = currentKeyboard();
+    const kanaResult = keyboard && page === 'keys'
+      ? pressKana(kana, key, alternate, optionsFor(keyboard, keyboardOptions[keyboard.id]), modifyFor(keyboard.layout))
+      : null;
+    kana = kanaResult?.state ?? NO_KANA;
+    const result = kanaResult ? { mods, effects: kanaResult.effects }
+      : alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);
     const tracked = trackWord(word, result.effects);
@@ -237,12 +258,12 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     }
   };
 
-  /** Show the current ring entry: one of our keyboards, or the stock one with a way back. */
+  /** Show the current keyboard, or Steam's own with a way back. */
   const render = (): void => {
     if (!surface || !boot) return;
     unmountView();
-    const id = ring[current] as string;
-    if (id === STOCK) {
+    const id = ring[current] ?? '';
+    if (stock) {
       guard?.setActive(false);
       const button = surface.doc.createElement('div');
       button.textContent = '🌐 polykey';
@@ -251,7 +272,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       const back = (e: Event): void => {
         e.preventDefault();
         e.stopPropagation();
-        switchTo(0);
+        stock = false;
+        switchTo(current);
       };
       button.addEventListener('touchend', back);
       button.addEventListener('click', back);
@@ -283,7 +305,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name })),
         version: VERSION,
         errors: boot.errors,
-      }, changeSettings, () => { page = 'keys'; render(); });
+        options: offered(keyboard).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
+      }, {
+        onChange: changeSettings,
+        onOption: (name, value) => changeOption(id, name as OptionName, value),
+        onStock: () => { page = 'keys'; stock = true; switchTo(current); },
+        onClose: () => { page = 'keys'; render(); },
+      });
       applyBounds();
     } else {
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
@@ -350,6 +378,17 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     saveEmoji(0);
   };
 
+  /** A keyboard's own option: applies at once; the sidecar saves every keyboard's choices. */
+  const changeOption = (keyboardId: string, name: OptionName, value: boolean): void => {
+    keyboardOptions[keyboardId] = { ...keyboardOptions[keyboardId], [name]: value };
+    kana = NO_KANA;
+    void bridge.call('settings.save', { settings: { keyboardOptions } }).then((reply) => {
+      if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
+    });
+    if (surface) tick(surface.win, hand);
+    render();
+  };
+
   /** Apply settings at once and have the sidecar save them (a failed save is logged, not fatal). */
   const changeSettings = (changes: Partial<SettingsValues>): void => {
     Object.assign(settings, changes);
@@ -371,9 +410,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const switchTo = (index: number): void => {
     keys.releaseAll();
     mods = NO_MODS;
+    kana = NO_KANA;
     current = index;
     render();
-    log(`keyboard: ${ring[current]}`);
+    log(`keyboard: ${stock ? STOCK : ring[current]}`);
   };
 
   const unmount = (): void => {
@@ -481,12 +521,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     },
     bridgeReply: (reply) => bridge.receive(reply),
     debug: {
-      status: () => `${api.state} keyboard=${ring[current]} ${describeStatus(readStatus(statusStore))} `
+      status: () => `${api.state} keyboard=${stock ? STOCK : ring[current]} ${describeStatus(readStatus(statusStore))} `
         + `popup=${surface ? `${surface.win.innerWidth}x${surface.win.innerHeight}` : '-'}`,
       use: (id) => {
         const index = ring.indexOf(id);
-        if (index < 0) return `unknown keyboard ${id}; have ${ring.join(', ')}`;
-        switchTo(index);
+        if (index < 0 && id !== STOCK) return `unknown keyboard ${id}; have ${[...ring, STOCK].join(', ')}`;
+        stock = id === STOCK;
+        switchTo(index < 0 ? current : index);
         return `keyboard ${id}`;
       },
     },
