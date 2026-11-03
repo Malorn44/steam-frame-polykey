@@ -23,7 +23,13 @@ const CSS = `
 .bar { height: ${TOOLBAR_PX}px; display: flex; flex: none; }
 .bar .key { flex: none; width: 30px; font-size: 14px; }
 .bar .key[data-k="hide"] { width: 24px; }
-.cands { flex: 1; display: flex; align-items: center; gap: 12px; padding: 0 8px; overflow: hidden; white-space: nowrap; }
+.cands { flex: 1; display: flex; min-width: 0; margin: 0 4px; }
+/* Suggestions: text on the bar, not keys; thin dividers; the best (middle) in the accent colour. */
+.sugg { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6px;
+  font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--radius); }
+.sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--mod); }
+.sugg.best { color: var(--accent); font-weight: 600; }
+.sugg.hover { background-color: var(--hover); }
 .row { flex: 1; display: flex; min-height: 0; }
 .key { flex: 1 1 0; position: relative; display: flex; align-items: center; justify-content: center;
   box-sizing: border-box; border: 1.5px solid transparent; background: var(--key); background-clip: padding-box;
@@ -81,6 +87,8 @@ const legends = (key: KeyDef, mods: Mods): { sh: string; fn: string } => {
 
 export interface View {
   update(mods: Mods): void;
+  /** Fill the three suggestion slots ([left, best, right]); undefined leaves a slot empty. */
+  setSuggestions(words: readonly (string | undefined)[]): void;
   /** Hover the key at popup coordinates (the laser); returns true when the hovered key changed. */
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
@@ -94,6 +102,7 @@ export const createView = (
   theme: Theme,
   /** A tap, or a long press that chose `alternate` (its text). */
   onKey: (key: KeyDef, alternate?: string) => void,
+  onSuggestion: (word: string) => void = () => {},
 ): View => {
   const style = doc.createElement('style');
   style.textContent = CSS;
@@ -131,6 +140,12 @@ export const createView = (
   for (const key of toolbar.filter((k) => k.action !== 'hide')) bar.append(makeKey(key));
   const cands = doc.createElement('div');
   cands.className = 'cands';
+  const slots = [0, 1, 2].map((i) => {
+    const el = doc.createElement('div');
+    el.className = i === 1 ? 'sugg best' : 'sugg';
+    cands.append(el);
+    return { el, word: undefined as string | undefined };
+  });
   bar.append(cands);
   for (const key of toolbar.filter((k) => k.action === 'hide')) bar.append(makeKey(key)); // close sits at the right end
   if (toolbar.length) root.append(bar);
@@ -145,6 +160,15 @@ export const createView = (
 
   const entryFor = (target: EventTarget | null): Entry | undefined =>
     keys.find(({ el }) => el === target || el.contains(target as Node));
+  const slotFor = (target: EventTarget | null) => slots.find(({ el, word }) => word && (el === target || el.contains(target as Node)));
+  let hoveredSlot: (typeof slots)[number] | undefined;
+  const setSlotHover = (slot: (typeof slots)[number] | undefined): boolean => {
+    if (slot === hoveredSlot) return false;
+    hoveredSlot?.el.classList.remove('hover');
+    hoveredSlot = slot;
+    slot?.el.classList.add('hover');
+    return true;
+  };
   let pressed: Entry | undefined;
   let hovered: Entry | undefined;
   let lastTouchAt = -Infinity;
@@ -256,6 +280,11 @@ export const createView = (
     const hit = pressed;
     pressed = undefined;
     hit?.el.classList.remove('down');
+    const slot = slotFor(e.target);
+    if (slot?.word) {
+      onSuggestion(slot.word);
+      return;
+    }
     if (popup) {
       const chosen = popup.cells[popup.pick]?.text;
       const key = popup.key;
@@ -271,12 +300,17 @@ export const createView = (
     pressed?.el.classList.remove('down');
     pressed = undefined;
   });
-  root.addEventListener('mouseover', (e) => setHover(entryFor(e.target)));
+  root.addEventListener('mouseover', (e) => { setHover(entryFor(e.target)); setSlotHover(slotFor(e.target)); });
   root.addEventListener('mouseleave', () => setHover(undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
   root.addEventListener('click', (e) => {
     e.stopPropagation();
     if (Date.now() - lastTouchAt < TOUCH_MOUSE_GUARD_MS) return;
+    const slot = slotFor(e.target);
+    if (slot?.word) {
+      onSuggestion(slot.word);
+      return;
+    }
     const hit = entryFor(e.target);
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   });
@@ -304,13 +338,21 @@ export const createView = (
         el.classList.toggle('stack', small.fn === '' && small.sh !== '');
       }
     },
+    setSuggestions: (words) => {
+      slots.forEach((slot, i) => {
+        slot.word = words[i];
+        slot.el.textContent = words[i] ?? '';
+      });
+      if (hoveredSlot && !hoveredSlot.word) setSlotHover(undefined);
+    },
     hoverAt: (x, y) => {
       if (popup) {
         pickAt(x, y);
         return false;
       }
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-      return setHover(hits.map(entryFor).find(Boolean));
+      const slotChanged = setSlotHover(hits.map(slotFor).find(Boolean));
+      return setHover(hits.map(entryFor).find(Boolean)) || slotChanged;
     },
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });

@@ -6,5 +6,6 @@
  "name": "English",
  "language": "en",
  "layout": "en/qwerty",
- "composer": "direct"
+ "composer": "direct",
+ "lexicon": "en/words"
 }

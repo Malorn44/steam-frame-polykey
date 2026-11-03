@@ -97,6 +97,66 @@ describe('installPolykey', () => {
   });
 });
 
+describe('suggestions', () => {
+  /** A fake sidecar answering `suggest` from a small list. */
+  const withSidecar = (g: Record<string, unknown>) => {
+    const words = ['hello', 'help', 'held', 'helmet'];
+    const asked: string[] = [];
+    g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      asked.push(req.prefix);
+      const found = words.filter((w) => w.startsWith(String(req.prefix).toLowerCase()));
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: found }), 1);
+    };
+    return asked;
+  };
+  const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+
+  it('suggests completions for the word being typed, best in the middle, in the typed case', async () => {
+    const boot = bundledBoot();
+    boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked = withSidecar(steam.g);
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'shift');
+    await tap(popup, 'h');
+    await tap(popup, 'e');
+    await tap(popup, 'l');
+    expect(asked).toEqual(['H', 'He', 'Hel']);
+    expect(slots(popup)).toEqual(['Help', 'Hello', 'Held']);
+  });
+
+  it('picking one replaces the typed letters and adds a space; the next word starts clean', async () => {
+    const boot = bundledBoot();
+    boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    withSidecar(steam.g);
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'h');
+    await tap(popup, 'e');
+    const best = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')][1]!;
+    best.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    best.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+    const calls = manager.calls.map(([k]) => k);
+    expect(calls.slice(0, 4)).toEqual(['h', 'e', 'Backspace', 'Backspace']);
+    expect(calls.slice(4).join('')).toBe('hello '); // ASCII goes one character per call in minimal mode
+    expect(slots(popup)).toEqual(['', '', '']);
+  });
+
+  it('no lexicon or no sidecar: no suggestions, typing unaffected', async () => {
+    const { popup, manager } = setup();
+    await tap(popup, 'h');
+    expect(slots(popup)).toEqual(['', '', '']);
+    expect(manager.calls).toEqual([['h', false]]);
+  });
+});
+
 describe('failing safe', () => {
   it('does nothing without packs from the sidecar', () => {
     const popup = fakePopupWindow();

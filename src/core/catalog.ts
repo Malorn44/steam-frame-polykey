@@ -20,7 +20,7 @@ export interface Layout {
   toolbar?: ActionKey[];
   rows: (string | KeyDef)[][];
 }
-export interface KeyboardDef { id: string; name: string; layout: string; language?: string }
+export interface KeyboardDef { id: string; name: string; layout: string; language?: string; lexicon?: string }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
   legend?: string; fnLegend?: string; hover?: string;

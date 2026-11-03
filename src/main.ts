@@ -7,6 +7,7 @@ import { readBoot, type ActionName, type Boot, type KeyDef, type Theme } from '.
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
+import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
 import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
@@ -75,6 +76,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let wasOpen = false;
   let waitingSince = 0;
   let queue: Promise<unknown> = Promise.resolve();
+  // Suggestions: the word being typed, words used this session (memory only), and a generation so a
+  // slow reply never shows suggestions for an older word.
+  let word: WordState = NO_WORD;
+  const session = new Map<string, number>();
+  let suggestGeneration = 0;
 
   const output = createOutput({
     getManager: () => pickKeyboardManager(g),
@@ -121,15 +127,54 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     } else runAction(effect.action);
   };
 
+  const enqueue = (effects: readonly Effect[]): void => {
+    // In order, one press after another, so fast typing never interleaves.
+    queue = queue.then(async () => {
+      for (const effect of effects) await apply(effect);
+    }).catch((error) => warn('key failed:', errorKind(error)));
+  };
+
+  const boost = (used: string): void => { session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1); };
+
+  const lexiconId = (): string | undefined => boot?.catalog.keyboards[ring[current] as string]?.lexicon;
+
+  const refreshSuggestions = (): void => {
+    const generation = ++suggestGeneration;
+    const prefix = suggestPrefix(word);
+    const lexicon = lexiconId();
+    if (!prefix || !lexicon || !bridge.available()) {
+      view?.setSuggestions([]);
+      return;
+    }
+    void bridge.call('suggest', { prefix, lexicon, limit: 8 }).then((reply) => {
+      if (generation !== suggestGeneration) return;
+      const words = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as string[]) : [];
+      view?.setSuggestions(slotOrder(rank(words, session).map((w) => matchCase(w, prefix))));
+    });
+  };
+
+  const setWord = (next: WordState): void => {
+    word = next;
+    refreshSuggestions();
+  };
+
   const onKey = (key: KeyDef, alternate?: string): void => {
     if (surface) haptic(surface.win, HAPTIC.enter, hand);
     const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);
-    // In order, one press after another, so fast typing never interleaves.
-    queue = queue.then(async () => {
-      for (const effect of result.effects) await apply(effect);
-    }).catch((error) => warn('key failed:', errorKind(error)));
+    const tracked = trackWord(word, result.effects);
+    if (tracked.ended) boost(tracked.ended);
+    setWord(tracked.state);
+    enqueue(result.effects);
+  };
+
+  const onSuggestion = (chosen: string): void => {
+    if (surface) haptic(surface.win, HAPTIC.enter, hand);
+    const typed = word.word;
+    boost(chosen);
+    setWord(NO_WORD);
+    enqueue(replaceWord(typed, chosen));
   };
 
   const unmountView = (): void => {
@@ -171,7 +216,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       return;
     }
     guard?.setActive(true);
-    view = createView(surface.doc, surface.shadow, layout, theme, onKey);
+    view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
     view.setBounds(overlayRect(surface.win));
     view.update(mods);
     const win = surface.win;
@@ -216,6 +261,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     const status = readStatus(statusStore);
     const open = status?.bIsOpen === true;
     if (open !== wasOpen) {
+      setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
       if (!open) {
         keys.releaseAll(); // closing must never leave a key held
         mods = { ...NO_MODS, caps: mods.caps };

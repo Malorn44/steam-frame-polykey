@@ -373,6 +373,10 @@
           "enum": [
             "direct"
           ]
+        },
+        "lexicon": {
+          "$ref": "#/$defs/id",
+          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count)."
         }
       }
     },
