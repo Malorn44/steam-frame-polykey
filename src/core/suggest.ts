@@ -1,7 +1,8 @@
 // Word suggestions: which word is being typed, how to rank completions, how to replace the word.
 // Pure. We can't read the text field, so the word is the letters we sent ourselves; a pick deletes only
 // those. Anything that may move the cursor away from them (arrows, chords, Backspace past them) makes
-// the word unknown until the next boundary.
+// the text before them unknown: letters typed after it are still suggested for (a pick replaces only
+// them), but the word is not learned at the next boundary, as it may be part of a longer one.
 
 import type { Effect } from './keyboard.js';
 import { graphemes } from './output/plan.js';
@@ -9,7 +10,7 @@ import { graphemes } from './output/plan.js';
 export interface WordState {
   /** Letters typed since the last boundary. */
   readonly word: string;
-  /** False when the text before the cursor is unknown: no suggestions until the next boundary. */
+  /** False when the text before the word is unknown (it may continue a word there): not learned. */
   readonly known: boolean;
 }
 export const NO_WORD: WordState = { word: '', known: true };
@@ -49,7 +50,7 @@ export const trackWord = (state: WordState, effects: readonly Effect[]): { state
 };
 
 /** The prefix to complete, or null when there is nothing to suggest for. */
-export const suggestPrefix = (state: WordState): string | null => (state.known && state.word ? state.word : null);
+export const suggestPrefix = (state: WordState): string | null => state.word || null;
 
 /** Words used this session first (by use count), then the list's own order. */
 export const rank = (candidates: readonly string[], session: ReadonlyMap<string, number>, count = 3): string[] => {

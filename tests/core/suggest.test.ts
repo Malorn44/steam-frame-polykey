@@ -26,9 +26,10 @@ describe('trackWord', () => {
     expect(trackWord(UNKNOWN, [text('x'), text(' ')]).ended).toBeUndefined(); // part of an unknown word
   });
 
-  it('suggests only for a known, non-empty word', () => {
+  it('suggests for the letters typed, even after the text before became unknown', () => {
     expect(suggestPrefix({ word: 'he', known: true })).toBe('he');
-    expect(suggestPrefix({ word: 'he', known: false })).toBeNull();
+    expect(suggestPrefix({ word: 'he', known: false })).toBe('he'); // typed after a Backspace past the word
+    expect(suggestPrefix(UNKNOWN)).toBeNull();
     expect(suggestPrefix(NO_WORD)).toBeNull();
   });
 });
