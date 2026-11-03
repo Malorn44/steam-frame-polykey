@@ -10,6 +10,7 @@ export const OPTIONS: Record<OptionName, { name: string; off: string; on: string
   tapCycle: { name: 'Same key again', off: 'Types it again', on: 'Next kana (→ moves on)' },
   candidatesLeft: { name: 'Candidates', off: 'On top', on: 'On the left' },
   flickHints: { name: 'Flick hints', off: 'Off', on: 'On' },
+  romajiInput: { name: 'Input', off: 'かな', on: 'ローマ字' },
 };
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */
@@ -17,7 +18,9 @@ export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOpt
   const own = keyboard?.options ?? {};
   const pick = (name: OptionName): boolean =>
     name in own ? (typeof saved?.[name] === 'boolean' ? saved[name]! : own[name]!) : false;
-  return { tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints') };
+  return {
+    tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
+  };
 };
 
 /** The options a keyboard offers, in a stable order. */

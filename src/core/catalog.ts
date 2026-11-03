@@ -6,10 +6,18 @@ import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
 export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate' | 'abc'
-  | 'modify' | 'undo';
+  | 'modify' | 'undo' | 'eisu' | 'kana';
 
-export type CharKey = { type: 'char'; char: string; shift?: string; long?: string[]; label?: string; w?: number; fn?: FnKey };
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey };
+/**
+ * A key. On a JIS key, char and shift are its Latin legends (typed in 英数 mode) and kana and kanaShift
+ * its kana legends (typed in かな mode).
+ */
+export type CharKey = {
+  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; w?: number; fn?: FnKey;
+  kana?: string; kanaShift?: string;
+};
+/** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey; tall?: 'top' | 'bottom' };
 export type ModKey = { type: 'mod'; mod: ModName; label?: string; w?: number };
 export type ActionKey = { type: 'action'; action: ActionName; label?: string; w?: number };
 export type GapKey = { type: 'gap'; w: number };
@@ -34,13 +42,20 @@ export interface Layout {
   large?: boolean;
   /** What ゛゜小 cycles the last typed character through: each string is one cycle, e.g. "はばぱ". */
   modify?: string[];
+  /** Legends drawn in a dotted box, as on JIS keycaps (punctuation, e.g. "、。・「」ー"). */
+  dotted?: string;
 }
 /** Per-keyboard choices; a keyboard lists the ones it has, with its default. */
-export interface KeyboardOptions { tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean }
+export interface KeyboardOptions { tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean }
 export interface KeyboardDef {
   id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
-  /** direct: keys type at once; kana: a reading buffer, sent when confirmed (core/ime.ts). */
-  composer?: 'direct' | 'kana';
+  /**
+   * direct: keys type at once. kana: a reading buffer, sent when confirmed (core/ime.ts). romaji: the
+   * same buffer, letters turned into kana with the keyboard's table.
+   */
+  composer?: 'direct' | 'kana' | 'romaji';
+  /** The romaji table (a table pack) for composer romaji, or a kana keyboard's romajiInput option. */
+  table?: string;
   /** The engine that converts the reading (with composer kana). */
   converter?: 'anthy';
 }
@@ -48,9 +63,14 @@ export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
   legend?: string; fnLegend?: string; hover?: string;
 }
+/** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
+export interface TableDef { id: string; name: string; entries: [string, string, string?][] }
 export interface Theme { id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors }
 export interface Boot {
-  catalog: { layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme> };
+  catalog: {
+    layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme>;
+    tables?: Record<string, TableDef>;
+  };
   settings: {
     keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean;
     /** The user's choices, by keyboard id. */

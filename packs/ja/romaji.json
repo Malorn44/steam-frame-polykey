@@ -1,0 +1,12 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "ja/romaji",
+ "name": "日本語 ローマ字",
+ "language": "ja",
+ "layout": "ja/qwerty-romaji",
+ "composer": "romaji",
+ "table": "ja/romaji-table",
+ "converter": "anthy"
+}

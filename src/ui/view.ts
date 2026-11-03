@@ -4,7 +4,7 @@
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
 import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
-import { NO_MODS, alternates, charText, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { NO_MODS, alternates, charText, kanaSide, keyLabel, modState, type Mods } from '../core/keyboard.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
@@ -116,6 +116,24 @@ const CSS = `
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 .fl div.pick { background-color: var(--accent); background-image: none; color: var(--surface); transform: scale(1.08); }
 .fl div.empty { opacity: 0.35; }
+/* A JIS key: Latin legends on the left, kana on the right (Shift above, plain below). The mode's side is
+   bright, the character the key types now biggest; the other side is drawn like a Shift legend. */
+.key.dual .q { position: absolute; line-height: 1; font-size: var(--legend-size); color: var(--legend); } /* as a Shift legend */
+.key.dual .q.ls { top: 4px; left: 5px; }
+.key.dual .q.ll { bottom: 5px; left: 5px; }
+.key.dual .q.ks { top: 4px; right: 5px; }
+.key.dual .q.kl { bottom: 5px; right: 5px; }
+.key.dual .q.cur { color: var(--text); font-size: var(--label); } /* the English keys' sizes */
+.key.dual .q.dot { outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
+  line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: 1px; } /* a tight square round the legend, as on a keycap */
+/* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
+/* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
+   a letter alone in the middle). */
+.kb.romaji .key.dual .q.ks, .kb.romaji .key.dual .q.kl { display: none; }
+.kb.romaji .key.dual .q.ls, .kb.romaji .key.dual .q.ll { left: 50%; transform: translateX(-50%); }
+.kb.romaji .key.dual:has(.q.ls:empty) .q.ll { bottom: auto; top: 50%; transform: translate(-50%, -50%); }
+.kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; }
+.kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 `;
 
 const ACTION_ICONS: Partial<Record<string, IconName>> = {
@@ -160,6 +178,8 @@ export type CompositionView = (
 
 export interface View {
   update(mods: Mods): void;
+  /** 英数 (true) or かな mode, for JIS keys' legends; shown at the next update(). */
+  setMode(latin: boolean): void;
   /** Show the reading buffer and its candidates in the bar instead of word suggestions (null: hide). */
   setComposition(composition: CompositionView | null): void;
   /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
@@ -186,18 +206,27 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. idleHint: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, idleHint = '' }: { side?: boolean; hints?: boolean; idleHint?: string } = {},
+  { side = false, hints = false, idleHint = '', latin: startLatin = false, romaji = false }:
+    { side?: boolean; hints?: boolean; idleHint?: string; latin?: boolean; romaji?: boolean } = {},
 ): View => {
+  /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
+  let latin = startLatin;
+  /** Romaji input: JIS keys type their Latin legends in かな mode too. */
+  const latinKeys = (): boolean => latin || romaji;
+  const dotted = new Set(Array.from(layout.dotted ?? ''));
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
   root.className = layout.large ? 'kb large' : 'kb';
+  if (romaji) root.classList.add('romaji');
   const c = theme.colors;
   root.style.cssText = `--surface:${c.surface};--key:${c.key};--text:${c.keyText};--mod:${c.modifier};`
     + `--accent:${c.accent};--legend:${c.legend ?? c.keyText};--fn:${c.fnLegend ?? c.accent};`
     + `--hover:${c.hover ?? c.modifier};--radius:${theme.radius ?? 6}px;--font:${theme.font ?? 'system-ui, sans-serif'};`;
 
-  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; sh: HTMLElement; fn: HTMLElement };
+  /** A JIS key's four legends: Latin Shift and plain, kana Shift and plain. */
+  type Quad = { ls: HTMLElement; ll: HTMLElement; ks: HTMLElement; kl: HTMLElement };
+  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; sh: HTMLElement; fn: HTMLElement; quad?: Quad; twin?: Entry };
   const keys: Entry[] = [];
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
@@ -214,6 +243,14 @@ export const createView = (
     const fn = doc.createElement('span');
     fn.className = 'fn';
     el.append(sh, label, fn);
+    let quad: Quad | undefined;
+    if (key.type === 'char' && key.kana) {
+      el.classList.add('dual');
+      const q = (cls: string): HTMLElement => Object.assign(doc.createElement('span'), { className: `q ${cls}` });
+      quad = { ls: q('ls'), ll: q('ll'), ks: q('ks'), kl: q('kl') };
+      el.append(quad.ls, quad.ll, quad.ks, quad.kl);
+    }
+    if (key.type === 'key' && key.tall) el.classList.add(`tall-${key.tall}`);
     if (key.type === 'flick' && (hints || key.hints)) {
       key.flick.slice(1).forEach((text, i) => {
         if (!text) return;
@@ -224,7 +261,7 @@ export const createView = (
       });
       if (key.label) label.textContent = key.flick[0]; // the hints show the rest
     }
-    keys.push({ el, key, label, sh, fn });
+    keys.push({ el, key, label, sh, fn, ...(quad ? { quad } : {}) });
     return el;
   };
 
@@ -262,6 +299,19 @@ export const createView = (
     for (const key of defs) rowEl.append(makeKey(key, units));
     keysEl.append(rowEl);
   }
+  // A two-row key's halves act as one: each hovers and presses with the other.
+  for (const top of keys.filter((e) => e.key.type === 'key' && e.key.tall === 'top')) {
+    const bottom = keys.find((e) => e.key.type === 'key' && e.key.tall === 'bottom' && !e.twin
+      && top.key.type === 'key' && e.key.key === top.key.key);
+    if (bottom) {
+      top.twin = bottom;
+      bottom.twin = top;
+    }
+  }
+  const mark = (entry: Entry | undefined, cls: string, on: boolean): void => {
+    entry?.el.classList.toggle(cls, on);
+    entry?.twin?.el.classList.toggle(cls, on);
+  };
   if (side && toolbar.length) {
     // fjk's arrangement: reading and candidates on the left above the toolbar, keys on the right.
     root.classList.add('side');
@@ -364,7 +414,7 @@ export const createView = (
   };
   /** A row of alternates above the held key (below it on the top row), starting on the key itself. */
   const openPopup = (entry: Entry, startX: number | null, startY: number | null): void => {
-    const texts = alternates(entry.key, mods);
+    const texts = alternates(kanaSide(entry.key, !latinKeys()), mods);
     if (texts.length < 2) return;
     const at = entry.el.getBoundingClientRect();
     const size = { width: at.width * POPUP_SCALE, height: at.height * POPUP_SCALE };
@@ -373,10 +423,10 @@ export const createView = (
   };
   const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
   const setHover = (entry: Entry | undefined): boolean => {
-    if (entry === hovered) return false;
-    hovered?.el.classList.remove('hover');
+    if (entry === hovered || (entry && entry === hovered?.twin)) return false;
+    mark(hovered, 'hover', false);
     hovered = entry && entry.key.type !== 'gap' ? entry : undefined;
-    hovered?.el.classList.add('hover');
+    mark(hovered, 'hover', true);
     return true;
   };
   // Dragging the candidate list scrolls it (across on top, down on the left); a press that does not
@@ -401,7 +451,7 @@ export const createView = (
       return;
     }
     pressed = entryFor(e.target);
-    pressed?.el.classList.add('down');
+    mark(pressed, 'down', true);
     clearHold();
     const held = pressed;
     const start = (e as TouchEvent).changedTouches?.[0];
@@ -449,7 +499,7 @@ export const createView = (
     clearHold();
     const hit = pressed;
     pressed = undefined;
-    hit?.el.classList.remove('down');
+    mark(hit, 'down', false);
     if (listDrag) {
       const { moved, cand } = listDrag;
       listDrag = null;
@@ -489,7 +539,7 @@ export const createView = (
     closePopup();
     closeFlick();
     listDrag = null;
-    pressed?.el.classList.remove('down');
+    mark(pressed, 'down', false);
     pressed = undefined;
   });
   root.addEventListener('mouseover', (e) => { setHover(entryFor(e.target)); setSlotHover(slotFor(e.target)); });
@@ -512,12 +562,39 @@ export const createView = (
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   });
 
+  /** Fill a JIS key's legends: the mode's side bright, the character it types now biggest. */
+  const showQuad = (quad: Quad, key: Extract<KeyDef, { type: 'char' }>): void => {
+    const letter = key.char.toLowerCase() !== key.char.toUpperCase();
+    const shiftOn = mods.shift !== 'off';
+    const latinNow = charText(key, mods);
+    const set = (el: HTMLElement, text: string, active: boolean, current: boolean): void => {
+      el.textContent = text;
+      el.classList.toggle('act', active);
+      el.classList.toggle('cur', active && current);
+      el.classList.toggle('dot', dotted.has(text));
+    };
+    // A letter has one Latin legend, in the case it types now.
+    const onLatin = latinKeys();
+    set(quad.ll, letter ? latinNow : key.char, onLatin, letter || latinNow === key.char);
+    set(quad.ls, letter ? '' : key.shift ?? '', onLatin, !letter && latinNow !== key.char);
+    set(quad.kl, key.kana ?? '', !onLatin, !shiftOn || !key.kanaShift);
+    set(quad.ks, key.kanaShift ?? '', !onLatin, shiftOn);
+  };
+
   shadow.append(style, root);
 
   return {
     update: (next) => {
       mods = next;
-      for (const { el, key, label, sh, fn } of keys) {
+      for (const { el, key, label, sh, fn, quad } of keys) {
+        if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana')) {
+          el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
+        }
+        if (quad && key.type === 'char') {
+          showQuad(quad, key);
+          continue;
+        }
+        if (key.type === 'key' && key.tall === 'bottom') continue; // the label is on the top half
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);
@@ -537,6 +614,9 @@ export const createView = (
         el.classList.toggle('tri', small.fn !== '');
         el.classList.toggle('stack', small.fn === '' && small.sh !== '');
       }
+    },
+    setMode: (next) => {
+      latin = next;
     },
     setComposition: (c) => {
       const showing = c !== null || side || idleHint !== '';

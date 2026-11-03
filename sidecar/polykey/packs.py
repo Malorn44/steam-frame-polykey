@@ -14,10 +14,10 @@ from typing import Any, Optional
 
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
-KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
+DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
-KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints")
+KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput")
 
 
 def clean_keyboard_options(value: object) -> Optional[dict]:
@@ -235,6 +235,10 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         if keyboard["layout"] not in catalog["layouts"]:
             errors.append(f"{keyboard_id}: layout {keyboard['layout']} not found")
+            del catalog["keyboards"][keyboard_id]
+        elif (keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})) \
+                and keyboard.get("table") not in catalog["tables"]:
+            errors.append(f"{keyboard_id}: romaji table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
 
     settings = load_settings(user / "settings.json", errors)

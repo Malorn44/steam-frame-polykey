@@ -44,6 +44,12 @@ const releaseOnce = (mods: Mods): Mods => ({
 export const resolveKey = (key: KeyDef, mods: Mods): KeyDef =>
   (on(mods.fn) && (key.type === 'char' || key.type === 'key') && key.fn ? normalizeFn(key.fn) : key);
 
+/** A JIS key as it types in かな mode: its kana legends (Shift: kanaShift, else the kana again). */
+export const kanaSide = (key: KeyDef, kanaMode: boolean): KeyDef =>
+  (kanaMode && key.type === 'char' && key.kana
+    ? { type: 'char', char: key.kana, shift: key.kanaShift ?? key.kana, ...(key.w !== undefined ? { w: key.w } : {}) }
+    : key);
+
 /** The text a char key types with the current Shift and Caps. */
 export const charText = (key: { char: string; shift?: string }, mods: Mods): string => {
   const letter = key.char.toLowerCase() !== key.char.toUpperCase();
@@ -130,7 +136,7 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
 const ACTION_LABELS: Record<ActionName, string> = {
-  hide: '✕', abc: 'ABC', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
+  hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', dictate: '🎤',
 };
 
 /** What a key shows right now (empty for the Super key, which shows an icon). */

@@ -26,8 +26,9 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick"}
-    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick", "ja/kana-jis", "ja/qwerty-romaji"}
+    assert set(boot["catalog"]["tables"]) == {"ja/romaji-table"}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
@@ -108,7 +109,7 @@ def test_settings_flags_and_saving(tmp_path):
     packs.save_settings(tmp_path / "settings.json", {"haptics": False})
     packs.save_settings(tmp_path / "settings.json", {"theme": "themes/night-owl"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
     assert json.loads((tmp_path / "settings.json").read_text()) == {"keyboards": ["en/english"], "custom": 1, "suggestions": False}

@@ -80,11 +80,13 @@ describe('installPolykey', () => {
   });
 
   it('🌐 rotates polykey\'s keyboards only; settings hands over to Steam\'s keyboard, with a way back', async () => {
-    const { popup } = setup();
+    const { popup, api } = setup();
     await tap(popup, 'next-keyboard');
     expect(key(popup, 'あ')).toBeDefined(); // the 12-key
-    await tap(popup, 'next-keyboard');
-    expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5); // English again, not Steam's
+    for (const next of ['ja/romaji', 'ja/jis', 'en/english']) {
+      await tap(popup, 'next-keyboard');
+      expect(api.debug.status()).toContain(`keyboard=${next}`); // never Steam's
+    }
     await tap(popup, 'settings');
     const stockButton = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Steam keyboard')!;
     stockButton.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
@@ -370,6 +372,107 @@ describe('Japanese 12-key', () => {
     expect(manager.calls).toEqual([]);
     await tap(popup, 'emoji'); // any other key sends the buffer first
     expect(manager.calls.map((c) => c[0]).join('')).toBe('びは');
+  });
+});
+
+describe('Japanese romaji and JIS kana', () => {
+  it('romaji: letters become kana in the buffer; 確定 sends them', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/romaji');
+    for (const c of ['k', 'a', 'n', 'j', 'i']) await tap(popup, c);
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('かんじ');
+    expect(manager.calls).toEqual([]);
+    await tap(popup, 'Enter');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('かんじ');
+  });
+
+  it('romaji: 英数 types Latin directly, かな goes back to romaji', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/romaji');
+    await tap(popup, 'eisu');
+    await tap(popup, 'k');
+    await tap(popup, 'a');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('ka');
+    await tap(popup, 'kana');
+    await tap(popup, 'k');
+    await tap(popup, 'a');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('か');
+  });
+
+  it('JIS kana: Shift gives the small kana and does not send the buffer; ゛ joins', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/jis');
+    await tap(popup, 't'); // か
+    await tap(popup, '@'); // ゛
+    await tap(popup, 'shift');
+    await tap(popup, '3'); // ぁ
+    await tap(popup, '3'); // あ: Shift was one-shot
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('がぁあ');
+    expect(manager.calls).toEqual([]);
+  });
+
+  it('JIS: 英数 sends the reading and types the Latin legends; かな goes back to kana', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/jis');
+    await tap(popup, 'q'); // た
+    await tap(popup, 'eisu');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('た');
+    expect(key(popup, 'eisu').classList.contains('on')).toBe(true);
+    await tap(popup, 'q');
+    await tap(popup, 'shift');
+    await tap(popup, '2');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('たq"');
+    await tap(popup, 'kana');
+    await tap(popup, 'q');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('た');
+    expect(key(popup, 'kana').classList.contains('on')).toBe(true);
+  });
+
+  it('JIS: かな while typing shows the reading as カタカナ, then ﾊﾝｶｸ; 確定 sends that form', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/jis');
+    await tap(popup, 'h'); // く
+    await tap(popup, '@'); // ゛
+    await tap(popup, 'l'); // り
+    expect(key(popup, 'kana').textContent).toBe('カナ');
+    await tap(popup, 'kana');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('グリ');
+    expect(key(popup, 'kana').textContent).toBe('ﾊﾝｶｸ');
+    await tap(popup, 'kana');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('ｸﾞﾘ');
+    await tap(popup, 'Enter');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('ｸﾞﾘ');
+  });
+
+  it('JIS with romaji input: Latin keys go through the romaji table, punctuation turns Japanese', async () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboardOptions = { 'ja/jis': { romajiInput: true } };
+    steam.g[BOOT_GLOBAL] = boot;
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use('ja/jis');
+    for (const c of ['k', 'a', 'n', 'a', ',', '-']) await tap(popup, c);
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('かな、ー');
+    expect(key(popup, 'k').querySelector('.ll')!.classList.contains('cur')).toBe(true); // the Latin side is lit
+    await tap(popup, 'Enter');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('かな、ー');
+  });
+
+  it('JIS keys show Latin and kana legends, the mode bright; the two-row Enter hovers as one', async () => {
+    const { popup, api } = setup();
+    api.debug.use('ja/jis');
+    const three = key(popup, '3');
+    const legends = [...three.querySelectorAll('.q')].map((el) => [el.textContent, el.classList.contains('act')]);
+    expect(legends).toEqual([['#', false], ['3', false], ['ぁ', true], ['あ', true]]);
+    expect(key(popup, ',').querySelector('.kl')!.classList.contains('dot')).toBe(false);
+    expect(key(popup, ',').querySelector('.ks')!.classList.contains('dot')).toBe(true); // 、
+    const enters = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'Enter');
+    expect(enters.map((el) => el.className.includes('tall'))).toEqual([true, true]);
+    enters[1]!.dispatchEvent(new Event('mouseover', { bubbles: true }));
+    expect(enters.map((el) => el.classList.contains('hover'))).toEqual([true, true]);
   });
 });
 

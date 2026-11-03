@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FlickKey, KeyDef } from '../../src/core/catalog.js';
 import { NO_IME, composing, pressIme, reading, type Ime } from '../../src/core/ime.js';
 import { flickDirection, modifyTable } from '../../src/core/kana.js';
+import { inForm, toHalfwidth } from '../../src/core/forms.js';
 import { optionsFor } from '../../src/core/options.js';
 
 const ta: FlickKey = { type: 'flick', flick: ['た', 'ち', 'つ', 'て', 'と'], cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'] };
@@ -15,7 +16,7 @@ const run = (presses: [KeyDef, string?][], tapCycle: boolean): { buffer: string;
   let ime: Ime = NO_IME;
   let sent = '';
   for (const [key, flicked] of presses) {
-    const result = pressIme(ime, key, flicked, { tapCycle }, modify);
+    const result = pressIme(ime, key, flicked === undefined ? {} : { flicked }, { tapCycle }, { modify });
     if (!result) {
       sent += `<${(key as { key?: string }).key ?? '?'}>`;
       continue;
@@ -74,5 +75,28 @@ describe('keyboard options', () => {
     expect(optionsFor(keyboard, undefined).tapCycle).toBe(false);
     expect(optionsFor(keyboard, { tapCycle: true }).tapCycle).toBe(true);
     expect(optionsFor({ ...keyboard, options: {} }, { tapCycle: true }).tapCycle).toBe(false);
+  });
+});
+
+describe('reading forms', () => {
+  it('gives katakana and half-width katakana, voiced marks split off', () => {
+    expect(inForm('ぐりーん', 'katakana')).toBe('グリーン');
+    expect(toHalfwidth('ぱゔぁ、「ゃ」。')).toBe('ﾊﾟｳﾞｧ､｢ｬ｣｡');
+    expect(toHalfwidth('ヶ')).toBe('ヶ'); // no half-width form
+  });
+
+  it('かな cycles the reading; editing goes back to ひらがな; while converting it returns to カタカナ', () => {
+    const kana: KeyDef = { type: 'action', action: 'kana' };
+    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.ime;
+    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.ime;
+    expect(ime.form).toBe('katakana');
+    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.ime;
+    expect(ime.form).toBe('halfwidth');
+    expect(pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!.effects).toEqual([{ kind: 'text', text: 'ﾊ' }]);
+    expect(pressIme(ime, ta, {}, { tapCycle: false }, { modify })!.ime.form).toBe('hiragana');
+    const converting: Ime = { ...ime, form: 'hiragana', segments: [{ reading: 'は', candidates: ['葉'], index: 0 }] };
+    const back = pressIme(converting, kana, {}, { tapCycle: false }, { modify })!;
+    expect([back.ime.segments, back.ime.form]).toEqual([null, 'katakana']);
+    expect(pressIme(NO_IME, kana, {}, { tapCycle: false }, { modify })).toEqual({ ime: NO_IME, effects: [] });
   });
 });

@@ -3,9 +3,9 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { readBoot, type ActionName, type Boot, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
+import { readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
-import { NO_MODS, press, pressText, type Effect, type Mods } from './core/keyboard.js';
+import { NO_MODS, charText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
 import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
@@ -22,7 +22,9 @@ import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withT
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
-import { NO_IME, composing, flush, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
+import { romajiTable, type RomajiTable } from './core/romaji.js';
+import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
+import { NO_IME, composing, flush, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
 import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
@@ -93,6 +95,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   // Where the live candidates came from, so a picked one can be learned.
   let liveSource: { reading: string; segments: Omit<Segment, 'index'>[]; predictions: string[] } | null = null;
   let imeGeneration = 0;
+  // Keyboards in 英数 mode (a JIS keyboard's keys type their Latin legends); the rest are in かな mode.
+  const latinMode = new Set<string>();
   let converterDown = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
@@ -209,6 +213,19 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
+  const romajiTables = new Map<string, RomajiTable>();
+  /** Whether a keyboard types romaji: the romaji keyboard, or a JIS kana keyboard with its romajiInput option on. */
+  const typesRomaji = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'romaji'
+    || (keyboard?.composer === 'kana' && optionsFor(keyboard, keyboardOptions[keyboard.id]).romajiInput);
+  /** The keyboard's romaji table while it types romaji. */
+  const romajiFor = (keyboard: KeyboardDef | undefined): RomajiTable | undefined => {
+    const tableId = keyboard?.table;
+    const def = tableId ? boot?.catalog.tables?.[tableId] : undefined;
+    if (!tableId || !def || !typesRomaji(keyboard)) return undefined;
+    let table = romajiTables.get(tableId);
+    if (!table) romajiTables.set(tableId, (table = romajiTable(def.entries)));
+    return table;
+  };
   const modifyFor = (layoutId: string): ReadonlyMap<string, string> => {
     let table = modifyTables.get(layoutId);
     if (!table) modifyTables.set(layoutId, (table = modifyTable(boot?.catalog.layouts[layoutId]?.modify)));
@@ -219,13 +236,35 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     const keyboard = currentKeyboard();
     const options = optionsFor(keyboard, keyboard ? keyboardOptions[keyboard.id] : undefined);
-    if (keyboard?.composer === 'kana' && page === 'keys') {
-      const handled = pressIme(ime, key, alternate, options, modifyFor(keyboard.layout));
+    const latin = keyboard ? latinMode.has(keyboard.id) : false;
+    // 英数 and かな (the Mac's two keys): one-way switches between typing Latin and typing kana.
+    if (keyboard && key.type === 'action' && (key.action === 'eisu' || (key.action === 'kana' && latin))) {
+      if (key.action === 'eisu' && !latin) {
+        if (composing(ime)) applyIme(flush(ime, romajiFor(keyboard))); // 英数 sends the reading first
+        latinMode.add(keyboard.id);
+      } else if (key.action === 'kana') latinMode.delete(keyboard.id);
+      view?.setMode(latinMode.has(keyboard.id));
+      view?.update(mods);
+      return;
+    }
+    if ((keyboard?.composer === 'kana' || keyboard?.composer === 'romaji') && page === 'keys' && !latin) {
+      const romaji = romajiFor(keyboard);
+      // A typed key goes into the buffer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
+      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off';
+      const side = kanaSide(key, !romaji); // a JIS key types its kana (its Latin legend with romaji input)
+      const typed = side.type === 'char' && !chording ? (alternate ?? charText(side, mods)) : undefined;
+      const handled = pressIme(ime, key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) },
+        options, { modify: modifyFor(keyboard.layout), ...(romaji ? { romaji } : {}) });
       if (handled) {
+        if (typed !== undefined) {
+          mods = pressText(mods, '').mods; // a one-shot Shift is used up
+          view?.update(mods);
+        }
         applyIme(handled);
         return;
       }
-      if (composing(ime)) applyIme(flush(ime)); // any other key: the buffer goes out first
+      // Any other key sends the buffer first (a modifier only arms, so it does not).
+      if (composing(ime) && key.type !== 'mod') applyIme(flush(ime, romaji));
     }
     const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
@@ -248,7 +287,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   /** Ask the converter for live candidates or a conversion of the buffer; stale replies are dropped. */
   const requestIme = (request: ImeRequest): void => {
     const generation = ++imeGeneration;
-    const forReading = reading(ime);
+    // Live candidates see pending letters settled (かn → かん); a conversion's buffer is settled already.
+    const forReading = reading(settleRomaji(ime, romajiFor(currentKeyboard())));
     if (!forReading || !bridge.available()) {
       live = forReading ? liveCandidates(forReading, [], []) : [];
       showIme();
@@ -293,8 +333,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       view.setComposition(ime.segments
         ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
           candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
-        : { before: ime.chars.slice(0, ime.caret).join(''), after: ime.chars.slice(ime.caret).join(''), candidates: live, selected: -1 });
-      view.setLabels({ ' ': ime.segments ? '次変換' : '変換', Enter: '確定' }); // once converting, Space goes to the next candidate
+        : { before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form), after: inForm(ime.chars.slice(ime.caret).join(''), ime.form),
+          candidates: live, selected: -1 });
+      // Once converting, Space goes to the next candidate; かな shows the form it changes the reading to.
+      view.setLabels({ ' ': ime.segments ? '次変換' : '変換', Enter: '確定', kana: ime.segments ? FORM_LABELS.katakana : FORM_LABELS[nextForm(ime.form)] });
     }
     view.update(mods);
   };
@@ -415,7 +457,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     } else {
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          ...(keyboard?.composer === 'kana' ? { idleHint: '入力すると、ここに変換候補が出ます' } : {}) });
+          latin: latinMode.has(id), romaji: typesRomaji(keyboard),
+          ...(keyboard?.composer === 'kana' || keyboard?.composer === 'romaji' ? { idleHint: '入力すると、ここに変換候補が出ます' } : {}) });
       view.update(mods);
       applyBounds();
       refreshSuggestions();
@@ -510,7 +553,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const switchTo = (index: number): void => {
-    if (composing(ime)) enqueue(flush(ime).effects); // switching keyboards sends the buffer
+    if (composing(ime)) enqueue(flush(ime, romajiFor(currentKeyboard())).effects); // switching keyboards sends the buffer
     ime = NO_IME;
     live = [];
     keys.releaseAll();
