@@ -18,6 +18,7 @@ import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
+import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
 
 declare const __POLYKEY_VERSION__: string;
@@ -67,6 +68,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
   let view: View | null = null;
+  let panel: SettingsView | null = null;
+  let showingSettings = false;
   let guard: ReturnType<typeof createStockGuard> | null = null;
   let returnButton: HTMLElement | null = null;
   let stopCursor: (() => void) | null = null;
@@ -81,6 +84,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let word: WordState = NO_WORD;
   const session = new Map<string, number>();
   let suggestGeneration = 0;
+  // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
+  const settings: SettingsValues = {
+    theme: boot?.settings.theme ?? '',
+    haptics: boot?.settings.haptics !== false,
+    suggestions: boot?.settings.suggestions !== false,
+  };
+  const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
   const output = createOutput({
     getManager: () => pickKeyboardManager(g),
@@ -115,6 +125,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const runAction = (action: ActionName): void => {
     if (action === 'hide') void output([{ key: 'VKClose' }]);
     else if (action === 'next-keyboard') switchTo((current + 1) % ring.length);
+    else if (action === 'settings') {
+      showingSettings = true;
+      render();
+    }
     else log(`${action}: not available yet`);
   };
 
@@ -142,7 +156,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     const generation = ++suggestGeneration;
     const prefix = suggestPrefix(word);
     const lexicon = lexiconId();
-    if (!prefix || !lexicon || !bridge.available()) {
+    if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
       view?.setSuggestions([]);
       return;
     }
@@ -159,7 +173,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
-    if (surface && !repeat) haptic(surface.win, HAPTIC.enter, hand); // one tick per press, not per repeat
+    if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);
@@ -170,7 +184,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const onSuggestion = (chosen: string): void => {
-    if (surface) haptic(surface.win, HAPTIC.enter, hand);
+    if (surface) tick(surface.win, hand);
     const typed = word.word;
     boost(chosen);
     setWord(NO_WORD);
@@ -182,6 +196,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     stopCursor = null;
     view?.destroy();
     view = null;
+    panel?.destroy();
+    panel = null;
     returnButton?.remove();
     returnButton = null;
   };
@@ -216,19 +232,39 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       return;
     }
     guard?.setActive(true);
-    view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
-    view.setBounds(overlayRect(surface.win));
-    view.update(mods);
     const win = surface.win;
+    if (showingSettings) {
+      panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
+        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name })),
+        version: VERSION,
+        errors: boot.errors,
+      }, changeSettings, () => { showingSettings = false; render(); });
+      panel.setBounds(overlayRect(win));
+    } else {
+      view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
+      view.setBounds(overlayRect(win));
+      view.update(mods);
+      refreshSuggestions();
+    }
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
-      if (view?.hoverAt(x, y)) haptic(win, HAPTIC.enter, which); // a tick as the laser crosses keys
+      if ((view ?? panel)?.hoverAt(x, y)) tick(win, which); // a tick as the laser crosses keys
     });
+  };
+
+  /** Apply settings at once and have the sidecar save them (a failed save is logged, not fatal). */
+  const changeSettings = (changes: Partial<SettingsValues>): void => {
+    Object.assign(settings, changes);
+    void bridge.call('settings.save', { settings: changes }).then((reply) => {
+      if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
+    });
+    if (surface) tick(surface.win, hand);
+    render();
   };
 
   /** The selected theme; a followSteam theme takes Steam's own keyboard colours where it can read them. */
   const themeFor = (win: Window): Theme | undefined => {
-    const theme = boot?.catalog.themes[boot.settings.theme] ?? Object.values(boot?.catalog.themes ?? {})[0];
+    const theme = boot?.catalog.themes[settings.theme] ?? Object.values(boot?.catalog.themes ?? {})[0];
     if (!theme?.followSteam) return theme;
     const steam = steamKeyboardStyle(win);
     return { ...theme, ...(steam.font ? { font: steam.font } : {}), colors: { ...theme.colors, ...steam.colors } };

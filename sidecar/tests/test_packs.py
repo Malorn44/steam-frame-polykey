@@ -27,7 +27,7 @@ def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     assert set(boot["catalog"]["layouts"]) == {"en/qwerty"}
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam"}
+    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
@@ -69,7 +69,7 @@ def test_a_keyboard_needs_its_layout(tmp_path):
 def test_settings_are_read_and_checked(tmp_path):
     write(tmp_path, "settings.json", {"keyboards": ["xx/nope", "en/english"], "theme": "themes/nope"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam"}
+    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "settings.json: unknown keyboards xx/nope" in boot["errors"]
     assert "settings.json: unknown theme themes/nope" in boot["errors"]
 
@@ -102,3 +102,24 @@ def test_boot_script_sets_the_catalog_and_logs_pack_errors(tmp_path):
     boot = json.loads(script.removeprefix("globalThis.__polykeyBoot = ").rstrip().removesuffix(";"))
     assert "en/qwerty" in boot["catalog"]["layouts"]
     assert "pack: themes/broken.json: not valid JSON" in out.getvalue()
+
+
+def test_settings_flags_and_saving(tmp_path):
+    packs.save_settings(tmp_path / "settings.json", {"haptics": False})
+    packs.save_settings(tmp_path / "settings.json", {"theme": "themes/night-owl"})
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
+    write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
+    packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
+    assert json.loads((tmp_path / "settings.json").read_text()) == {"keyboards": ["en/english"], "custom": 1, "suggestions": False}
+
+
+def test_bridge_saves_only_known_settings(tmp_path):
+    import asyncio
+    from polykey.bridge import Bridge
+    bridge = Bridge(Log(io.StringIO()), None, None, tmp_path / "settings.json")
+    ask = lambda settings: asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "settings.save", "settings": settings})))
+    assert ask({"haptics": False}) == {"id": 1, "ok": True}
+    assert ask({"haptics": "no"})["error"] == "bad-settings"
+    assert ask({"keyboards": []})["error"] == "bad-settings"
+    assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}

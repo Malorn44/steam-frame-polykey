@@ -5,16 +5,18 @@ Requests may carry typed text: never logged or echoed. Errors are short log-safe
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Optional
 
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
+from .packs import save_settings
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest")
+OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save")
 MAX_SUGGESTIONS = 12
 
 
@@ -24,10 +26,12 @@ def reply_expression(reply: dict) -> str:
 
 
 class Bridge:
-    def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None) -> None:
+    def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None,
+                 settings_path: Optional[Path] = None) -> None:
         self._log = log
         self._desktop = desktop
         self._lexicons = lexicons
+        self._settings_path = settings_path
 
     async def handle(self, payload: str) -> dict:
         try:
@@ -55,6 +59,8 @@ class Bridge:
     async def _dispatch(self, op: str, request: dict) -> dict:
         if op == "suggest":
             return self._suggest(request)
+        if op == "settings.save":
+            return self._save_settings(request)
         if self._desktop is None:
             return {"ok": False, "error": "desktop-paste-off"}
         if op == "desktop.prepare":
@@ -72,6 +78,22 @@ class Bridge:
         timeout = request.get("timeoutMs")
         seconds = min(max(timeout / 1000, 0), 5) if isinstance(timeout, (int, float)) else 2.0
         return {"ok": True, "pasted": await self._desktop.wait(seconds)}
+
+    def _save_settings(self, request: dict) -> dict:
+        """Save the settings the page may change: theme id, haptics, suggestions."""
+        changes = request.get("settings")
+        if self._settings_path is None or not isinstance(changes, dict):
+            return {"ok": False, "error": "bad-settings"}
+        allowed = {"theme": str, "haptics": bool, "suggestions": bool}
+        clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
+        if not clean or len(clean) != len(changes) or len(str(clean.get("theme", ""))) > 80:
+            return {"ok": False, "error": "bad-settings"}
+        try:
+            save_settings(self._settings_path, clean)
+        except OSError as error:
+            self._log.info(f"settings not saved: {type(error).__name__}")
+            return {"ok": False, "error": "not-saved"}
+        return {"ok": True}
 
     def _suggest(self, request: dict) -> dict:
         prefix, lexicon_id, limit = request.get("prefix"), request.get("lexicon"), request.get("limit", 3)

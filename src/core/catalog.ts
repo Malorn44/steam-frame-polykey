@@ -28,7 +28,7 @@ export interface ThemeColors {
 export interface Theme { id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors }
 export interface Boot {
   catalog: { layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme> };
-  settings: { keyboards: string[]; theme: string };
+  settings: { keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean };
   errors: string[];
 }
 

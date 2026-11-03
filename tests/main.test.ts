@@ -157,6 +157,57 @@ describe('suggestions', () => {
   });
 });
 
+describe('settings', () => {
+  const opts = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')];
+  const pick = async (popup: FakePopupWindow, text: string, nth = 0) => {
+    const el = opts(popup).filter((o) => o.textContent === text)[nth]!;
+    el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+  };
+
+  it('⚙ opens settings; changes apply at once, are saved, and ✕ returns to the keys', async () => {
+    const { popup, g } = setup();
+    const saved: unknown[] = [];
+    const haptics: unknown[] = [];
+    Object.assign(popup, { SteamClient: { OpenVR: { TriggerOverlayHapticEffect: (...a: unknown[]) => haptics.push(a) } } });
+    g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      if (req.op === 'settings.save') saved.push(req.settings);
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: [] }), 1);
+    };
+    await tap(popup, 'settings');
+    expect(shadowOf(popup)!.querySelector('.kb')).toBeNull();
+    expect(shadowOf(popup)!.querySelector('.panel')!.textContent).toContain('polykey test');
+    await pick(popup, 'Night Owl');
+    expect(saved).toEqual([{ theme: 'themes/night-owl' }]);
+    expect(shadowOf(popup)!.querySelector<HTMLElement>('.panel')!.style.getPropertyValue('--surface').trim()).toBe('#011627');
+    await pick(popup, 'Off', 0); // haptics off
+    expect(saved).toEqual([{ theme: 'themes/night-owl' }, { haptics: false }]);
+    const before = haptics.length;
+    const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
+    close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5); // the keys are back
+    await tap(popup, 'q');
+    expect(haptics.length).toBe(before); // no tick with haptics off
+  });
+
+  it('suggestions off: no suggest requests', async () => {
+    const boot = bundledBoot();
+    boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
+    boot.settings.suggestions = false;
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked: string[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => asked.push(JSON.parse(payload).op);
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'h');
+    expect(asked).toEqual([]);
+  });
+});
+
 describe('failing safe', () => {
   it('does nothing without packs from the sidecar', () => {
     const popup = fakePopupWindow();

@@ -15,7 +15,7 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english"], "theme": "themes/steam"}
+DEFAULT_SETTINGS = {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 
 
 def user_dir() -> Path:
@@ -136,7 +136,25 @@ def load_settings(path: Path, errors: list[str]) -> dict:
             settings["keyboards"] = data["keyboards"]
         if isinstance(data.get("theme"), str):
             settings["theme"] = data["theme"]
+        for flag in ("haptics", "suggestions"):
+            if isinstance(data.get(flag), bool):
+                settings[flag] = data[flag]
     return settings
+
+
+def save_settings(path: Path, changes: dict) -> None:
+    """Merge changes into settings.json, keeping other fields; written atomically."""
+    try:
+        current = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(current, dict):
+            current = {}
+    except (OSError, ValueError):
+        current = {}
+    current.update(changes)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(current, indent=1) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
