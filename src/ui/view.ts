@@ -70,9 +70,9 @@ const CSS = `
 .kb.side .list { flex-wrap: wrap; align-content: flex-start; gap: 2px; }
 .kb.side .cand { height: 36px; font-size: 19px; }
 .kb.side .cand + .cand { border-left: none; }
-.hint { flex: 1 1 100%; align-self: stretch; display: flex; align-items: center; justify-content: center;
+.list > .placeholder { flex: 1 1 100%; align-self: stretch; display: flex; align-items: center; justify-content: center;
   text-align: center; color: var(--legend); font-size: 13px; }
-.kb.side .list:has(.hint) { align-content: stretch; }
+.kb.side .list:has(> .placeholder) { align-content: stretch; }
 .kb.side .bar { border-top: 1px solid var(--mod); padding-top: 3px; }
 .kb.side .bar .cands { visibility: hidden; }
 .key { flex: 1 1 0; position: relative; display: flex; align-items: center; justify-content: center;
@@ -225,10 +225,10 @@ export const createView = (
   onCandidate: (text: string, index: number) => void = () => {},
   /**
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
-   * hints: each flick key's other kana at its edges. idleHint: shown where candidates appear, while empty.
+   * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, idleHint = '', latin: startLatin = false, romaji = false, keyboardMenu }:
-    { side?: boolean; hints?: boolean; idleHint?: string; latin?: boolean; romaji?: boolean;
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, keyboardMenu }:
+    { side?: boolean; hints?: boolean; placeholder?: string; latin?: boolean; romaji?: boolean;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
       keyboardMenu?: { ids: readonly string[]; names: readonly string[] } } = {},
 ): View => {
@@ -667,7 +667,7 @@ export const createView = (
       latin = next;
     },
     setComposition: (c) => {
-      const showing = c !== null || side || idleHint !== '';
+      const showing = c !== null || side || placeholder !== '';
       comp.classList.toggle('on', showing);
       if (!side) cands.style.display = showing ? 'none' : '';
       pre.textContent = '';
@@ -675,7 +675,7 @@ export const createView = (
       candidates = [];
       hoveredCand = undefined;
       if (!c) {
-        if (idleHint) list.append(Object.assign(doc.createElement('div'), { className: 'hint', textContent: idleHint }));
+        if (placeholder) list.append(Object.assign(doc.createElement('div'), { className: 'placeholder', textContent: placeholder }));
         return;
       }
       const span = (text: string, cls: string): HTMLElement => {

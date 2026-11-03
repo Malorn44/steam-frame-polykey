@@ -568,7 +568,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
           }) },
-          ...(keyboard?.composer === 'kana' || keyboard?.composer === 'romaji' ? { idleHint: '入力すると、ここに変換候補が出ます' } : {}) });
+          ...(keyboard?.composer === 'kana' || keyboard?.composer === 'romaji' ? { placeholder: '入力すると、ここに変換候補が出ます' } : {}) });
       view.update(mods);
       applyBounds();
       refreshSuggestions();

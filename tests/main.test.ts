@@ -309,7 +309,7 @@ describe('Japanese 12-key', () => {
   };
   const bar = (popup: FakePopupWindow) => ({
     pre: shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null, // empty: no reading (the hint shows)
-    hint: shadowOf(popup)!.querySelector('.comp.on .hint')?.textContent ?? null,
+    placeholder: shadowOf(popup)!.querySelector('.comp.on .placeholder')?.textContent ?? null,
     cands: [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')].map((c) => c.textContent),
   });
   const pickCand = async (popup: FakePopupWindow, text: string) => {
@@ -333,7 +333,7 @@ describe('Japanese 12-key', () => {
     await tap(popup, 'Enter'); // 確定
     expect(manager.calls).toEqual([['た', false]]);
     expect(bar(popup).pre).toBeNull();
-    expect(bar(popup).hint).toBe('入力すると、ここに変換候補が出ます'); // on top, too
+    expect(bar(popup).placeholder).toBe('入力すると、ここに変換候補が出ます'); // on top, too
     await tap(popup, 'Enter'); // nothing in the buffer: a real Enter
     expect(manager.calls.at(-1)).toEqual(['Enter', false]);
   });
