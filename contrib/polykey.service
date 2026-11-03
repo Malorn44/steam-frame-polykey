@@ -1,0 +1,20 @@
+[Unit]
+Description=polykey keyboard for the Steam Frame (injects into Steam over the local debugger)
+# Steam's session target varies with how the session started, so we do not bind to it. The
+# sidecar waits for Steam's SharedJSContext with backoff and re-injects after every restart.
+After=graphical-session.target
+
+[Service]
+Type=simple
+# -I isolated (no user site-packages, no PYTHON* variables), -B no .pyc files, -u unbuffered logs.
+ExecStart=/usr/bin/python3 -I -B -u %h/.local/share/polykey/sidecar/run.py run
+Restart=on-failure
+RestartSec=5
+# Stopping removes polykey from Steam first (up to 2 s), restoring the stock keyboard.
+TimeoutStopSec=5
+# The sidecar is idle almost all the time; keep it out of the way of games.
+Nice=10
+MemoryHigh=96M
+
+[Install]
+WantedBy=default.target

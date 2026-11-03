@@ -1,0 +1,23 @@
+{
+  "name": "polykey",
+  "version": "0.0.1",
+  "description": "Modular on-screen keyboard for the Valve Steam Frame, drawn inside Steam's own keyboard popup",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:debug": "node scripts/build.mjs --debug",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:py": ".venv/bin/python -m pytest sidecar/tests -q",
+    "check": "npm run typecheck && npm test && npm run test:py && npm run build"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
