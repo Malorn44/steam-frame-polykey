@@ -98,7 +98,9 @@ const CSS = `
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: 26px; }
 .kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: 20px; }
-.kb.large .key[data-k="modify"] { font-size: 21px; }
+.kb.large .key[data-k="modify"] { font-size: 21px; container-type: inline-size; }
+/* ゛゜小 on one line, shrinking on a narrow key (the 五十音 grid). */
+.kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(21px, 27cqw); }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: 11px; line-height: 1; color: var(--legend); pointer-events: none; }
 .key .fh.l { left: 5px; top: 50%; transform: translateY(-50%); }
@@ -144,7 +146,9 @@ const CSS = `
 .key .pair { font-weight: 300; opacity: 0.7; }
 .key .pair.now { font-weight: 700; opacity: 1; }
 .key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
-.kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; }
+.kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
+/* The label sits across both rows (the rows are the same height). */
+.kb .key.tall-top > .lbl { position: relative; top: calc(50% + 1.5px); }
 .kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 `;
 
@@ -172,6 +176,9 @@ const iconFor = (key: KeyDef, mods: Mods, large: boolean): IconName | undefined 
   if (key.mod === 'caps') return mods.caps ? 'capsOn' : 'caps';
   return undefined;
 };
+
+/** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
+const tallOf = (key: KeyDef): 'top' | 'bottom' | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
 
 /** Small legends: the Shift character (not for letters) and the Fn variant. */
 const legends = (key: KeyDef, mods: Mods): { sh: string; fn: string } => {
@@ -263,7 +270,8 @@ export const createView = (
       quad = { ls: q('ls'), ll: q('ll'), ks: q('ks'), kl: q('kl') };
       el.append(quad.ls, quad.ll, quad.ks, quad.kl);
     }
-    if (key.type === 'key' && key.tall) el.classList.add(`tall-${key.tall}`);
+    const tall = tallOf(key);
+    if (tall) el.classList.add(`tall-${tall}`);
     if (key.type === 'char' && key.hint) el.append(Object.assign(doc.createElement('span'), { className: 'hn', textContent: key.hint }));
     if (key.type === 'mod' && key.label) el.classList.add('labelled'); // text, not an icon (a↔A)
     if (key.type === 'flick' && key.sub && !(hints || key.hints)) {
@@ -319,9 +327,8 @@ export const createView = (
     keysEl.append(rowEl);
   }
   // A two-row key's halves act as one: each hovers and presses with the other.
-  for (const top of keys.filter((e) => e.key.type === 'key' && e.key.tall === 'top')) {
-    const bottom = keys.find((e) => e.key.type === 'key' && e.key.tall === 'bottom' && !e.twin
-      && top.key.type === 'key' && e.key.key === top.key.key);
+  for (const top of keys.filter((e) => tallOf(e.key) === 'top')) {
+    const bottom = keys.find((e) => tallOf(e.key) === 'bottom' && !e.twin && e.el.dataset['k'] === top.el.dataset['k']);
     if (bottom) {
       top.twin = bottom;
       bottom.twin = top;
@@ -613,7 +620,7 @@ export const createView = (
           showQuad(quad, key);
           continue;
         }
-        if (key.type === 'key' && key.tall === 'bottom') continue; // the label is on the top half
+        if (tallOf(key) === 'bottom') continue; // the label is on the top half
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);

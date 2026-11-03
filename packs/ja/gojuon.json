@@ -1,0 +1,81 @@
+{
+  "$schema": "../../schema/pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ja/gojuon",
+  "name": "Japanese 五十音",
+  "description": "The 50-sound table as keys, read right to left (あ か さ … わ), as Gboard's 五十音 layout: tap a kana, ゛゜小 changes the one before. あa switches to letters, ?123 to the symbols pages.",
+  "large": true,
+  "toolbar": [
+    {
+      "type": "action",
+      "action": "settings"
+    },
+    {
+      "type": "action",
+      "action": "emoji"
+    },
+    {
+      "type": "action",
+      "action": "dictate"
+    },
+    {
+      "type": "action",
+      "action": "copy"
+    },
+    {
+      "type": "action",
+      "action": "cut"
+    },
+    {
+      "type": "action",
+      "action": "paste"
+    },
+    {
+      "type": "action",
+      "action": "menu"
+    },
+    {
+      "type": "action",
+      "action": "hide"
+    }
+  ],
+  "modify": [
+    "あぁ",
+    "いぃ",
+    "うぅゔ",
+    "えぇ",
+    "おぉ",
+    "かが",
+    "きぎ",
+    "くぐ",
+    "けげ",
+    "こご",
+    "さざ",
+    "しじ",
+    "すず",
+    "せぜ",
+    "そぞ",
+    "ただ",
+    "ちぢ",
+    "つっづ",
+    "てで",
+    "とど",
+    "はばぱ",
+    "ひびぴ",
+    "ふぶぷ",
+    "へべぺ",
+    "ほぼぽ",
+    "やゃ",
+    "ゆゅ",
+    "よょ",
+    "わゎ"
+  ],
+  "rows": [
+    [{"type": "action", "action": "undo", "w": 1.5}, {"type": "char", "char": "、"}, {"type": "char", "char": "わ"}, {"type": "char", "char": "ら"}, {"type": "char", "char": "や"}, {"type": "char", "char": "ま"}, {"type": "char", "char": "は"}, {"type": "char", "char": "な"}, {"type": "char", "char": "た"}, {"type": "char", "char": "さ"}, {"type": "char", "char": "か"}, {"type": "char", "char": "あ"}, {"type": "key", "key": "Backspace", "w": 1.5}],
+    [{"type": "action", "action": "symbols", "w": 1.5}, {"type": "char", "char": "。"}, {"type": "char", "char": "を"}, {"type": "char", "char": "り"}, {"type": "gap", "w": 1}, {"type": "char", "char": "み"}, {"type": "char", "char": "ひ"}, {"type": "char", "char": "に"}, {"type": "char", "char": "ち"}, {"type": "char", "char": "し"}, {"type": "char", "char": "き"}, {"type": "char", "char": "い"}, {"type": "key", "key": "ArrowLeft", "w": 0.75}, {"type": "key", "key": "ArrowRight", "w": 0.75}],
+    [{"type": "action", "action": "eisu", "label": "あ a", "w": 1.5, "tall": "top"}, {"type": "char", "char": "？"}, {"type": "char", "char": "ん"}, {"type": "char", "char": "る"}, {"type": "char", "char": "ゆ"}, {"type": "char", "char": "む"}, {"type": "char", "char": "ふ"}, {"type": "char", "char": "ぬ"}, {"type": "char", "char": "つ"}, {"type": "char", "char": "す"}, {"type": "char", "char": "く"}, {"type": "char", "char": "う"}, {"type": "char", "char": " ", "w": 1.5}],
+    [{"type": "action", "action": "eisu", "label": "あ a", "w": 1.5, "tall": "bottom"}, {"type": "char", "char": "！"}, {"type": "char", "char": "ー"}, {"type": "char", "char": "れ"}, {"type": "gap", "w": 1}, {"type": "char", "char": "め"}, {"type": "char", "char": "へ"}, {"type": "char", "char": "ね"}, {"type": "char", "char": "て"}, {"type": "char", "char": "せ"}, {"type": "char", "char": "け"}, {"type": "char", "char": "え"}, {"type": "key", "key": "Enter", "w": 1.5, "tall": "top"}],
+    [{"type": "action", "action": "next-keyboard", "w": 1.5}, {"type": "char", "char": "「", "long": ["」"], "label": "「」"}, {"type": "action", "action": "modify", "label": "゛ ゜ 小"}, {"type": "char", "char": "ろ"}, {"type": "char", "char": "よ"}, {"type": "char", "char": "も"}, {"type": "char", "char": "ほ"}, {"type": "char", "char": "の"}, {"type": "char", "char": "と"}, {"type": "char", "char": "そ"}, {"type": "char", "char": "こ"}, {"type": "char", "char": "お"}, {"type": "key", "key": "Enter", "w": 1.5, "tall": "bottom"}]
+  ]
+}

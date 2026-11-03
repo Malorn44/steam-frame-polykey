@@ -15,7 +15,7 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
 KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin")
 

@@ -19,9 +19,10 @@ export type CharKey = {
   hint?: string;
 };
 /** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey; tall?: 'top' | 'bottom' };
+export type Tall = 'top' | 'bottom';
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey; tall?: Tall };
 export type ModKey = { type: 'mod'; mod: ModName; label?: string; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; w?: number };
+export type ActionKey = { type: 'action'; action: ActionName; label?: string; w?: number; tall?: Tall };
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what

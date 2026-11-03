@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import type { Boot } from '../src/core/catalog.js';
 
 export const bundledBoot = (): Boot => {
-  const boot: Boot = { catalog: { layouts: {}, keyboards: {}, themes: {}, tables: {} }, settings: { keyboards: ['en/english', 'ja/12key', 'ja/romaji', 'ja/jis'], theme: 'themes/steam' }, errors: [] };
+  const boot: Boot = { catalog: { layouts: {}, keyboards: {}, themes: {}, tables: {} }, settings: { keyboards: ['en/english', 'ja/12key', 'ja/50on', 'ja/romaji', 'ja/jis'], theme: 'themes/steam' }, errors: [] };
   for (const ns of readdirSync('packs')) {
     for (const file of readdirSync(`packs/${ns}`).filter((f) => f.endsWith('.json'))) {
       const item = JSON.parse(readFileSync(`packs/${ns}/${file}`, 'utf8'));

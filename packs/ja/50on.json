@@ -1,0 +1,19 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "ja/50on",
+ "name": "日本語 五十音",
+ "language": "ja",
+ "layout": "ja/gojuon",
+ "latinLayout": "ja/flick-abc",
+ "qwertyLayout": "ja/flick-qwerty",
+ "symbolsLayout": "ja/flick-symbols",
+ "moreSymbolsLayout": "ja/flick-symbols2",
+ "composer": "kana",
+ "options": {
+  "qwertyLatin": true
+ },
+ "converter": "anthy",
+ "lexicon": "en/words"
+}

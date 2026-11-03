@@ -83,7 +83,7 @@ describe('installPolykey', () => {
     const { popup, api } = setup();
     await tap(popup, 'next-keyboard');
     expect(key(popup, 'あ')).toBeDefined(); // the 12-key
-    for (const next of ['ja/romaji', 'ja/jis', 'en/english']) {
+    for (const next of ['ja/50on', 'ja/romaji', 'ja/jis', 'en/english']) {
       await tap(popup, 'next-keyboard');
       expect(api.debug.status()).toContain(`keyboard=${next}`); // never Steam's
     }
@@ -447,6 +447,26 @@ describe('12-key ABC', () => {
     await tap(popup, 'kana');
     expect(manager.calls.map((c) => c[0]).join('')).toBe('あaDd ');
     expect(key(popup, 'あ')).toBeDefined();
+  });
+});
+
+describe('五十音', () => {
+  it('kana keys go into the reading; ゛゜小 voices the one before; the two-row あa switches to letters', async () => {
+    const { popup, manager, api } = setup();
+    api.debug.use('ja/50on');
+    await tap(popup, 'か');
+    await tap(popup, 'modify');
+    await tap(popup, 'な');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('がな');
+    const halves = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'eisu');
+    expect(halves.map((el) => el.className.includes('tall'))).toEqual([true, true]);
+    halves[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    halves[1]!.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('がな'); // あa sends the reading first
+    expect(key(popup, 'q')).toBeDefined(); // the QWERTY letters
+    await tap(popup, 'kana');
+    expect(key(popup, 'か')).toBeDefined();
   });
 });
 
