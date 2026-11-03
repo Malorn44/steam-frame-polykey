@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build polykey, copy it to the Frame, re-inject, and follow the log. Run from WSL.
 #
-#   scripts/deploy.sh            build, copy, restart the user service, follow its journal
+#   scripts/deploy.sh            check (npm run check: types, tests, build), copy, restart the user
+#                                service, follow its journal; a failing check deploys nothing
 #   scripts/deploy.sh --fg       build, copy, run the sidecar in the foreground over ssh (Ctrl-C stops
 #                                it and removes polykey from Steam)
 #   scripts/deploy.sh --no-tail  as the default, without following the journal
@@ -28,7 +29,7 @@ for arg in "$@"; do
     --no-tail) tail=0 ;;
     --stop) mode=stop ;;
     --probe) mode=probe ;;
-    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -46,8 +47,13 @@ if [ "$mode" = probe ]; then
   exit $?
 fi
 
-echo "→ building"
-npm run --silent build
+# Nothing goes to the Frame unless the full check passes (typecheck, vitest, pytest, build).
+echo "→ checking and building"
+if ! npm run --silent check >/tmp/polykey-check.log 2>&1; then
+  grep -E "error|×|FAILED|Error" /tmp/polykey-check.log | head -20 >&2
+  echo "✗ check failed; not deployed (full log: /tmp/polykey-check.log)" >&2
+  exit 1
+fi
 
 echo "→ other keyboards on $HOST (read-only)"
 remote 'printf "  frame-jp-keyboard service: %s\n" "$(systemctl --user is-active frame-jp-keyboard 2>/dev/null || true)"

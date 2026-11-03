@@ -16,6 +16,7 @@ from typing import Awaitable, Optional, TextIO
 
 import aiohttp
 
+from .anthy import Converter
 from . import packs as pack_loader
 from .bridge import BINDING_NAME, Bridge, reply_expression
 from .cdp import CdpError, CdpSession, check_loopback, find_target, list_targets
@@ -257,7 +258,7 @@ async def watch_target(http: aiohttp.ClientSession, target: dict, cfg: Config, l
 async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
     check_loopback(cfg.devtools)
     desktop = DesktopPaste(cfg.desktop_socket, cfg.focus_display) if cfg.desktop_paste else None
-    bridge = Bridge(log, desktop, Lexicons([cfg.user_dir / "packs", cfg.packs]), cfg.user_dir / "settings.json")
+    bridge = Bridge(log, desktop, Lexicons([cfg.user_dir / "packs", cfg.packs]), cfg.user_dir / "settings.json", Converter())
     try:
         await _serve_forever(cfg, log, stop, bridge)
     finally:

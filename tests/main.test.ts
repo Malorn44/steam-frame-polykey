@@ -253,19 +253,105 @@ describe('emoji', () => {
 });
 
 describe('Japanese 12-key', () => {
-  it('types kana; with "Next kana" chosen in settings, tapping again cycles, and the choice is saved', async () => {
-    const { popup, manager, g } = setup();
+  /** A fake sidecar: settings saves are kept; convert and predict answer from a tiny dictionary. */
+  const withConverter = (g: Record<string, unknown>) => {
     const saved: unknown[] = [];
+    const asked: string[] = [];
+    const learned: unknown[] = [];
     g['polykeyBridge'] = (payload: string) => {
       const req = JSON.parse(payload);
+      asked.push(req.op);
+      let reply: Record<string, unknown> = { ok: true };
       if (req.op === 'settings.save') saved.push(req.settings);
-      const reply = req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : { ok: true };
+      if (req.op === 'learn') learned.push({ reading: req.reading, lengths: req.lengths, choices: req.choices, texts: req.texts });
+      if (req.op === 'desktop.prepare') reply = { ok: false, error: 'not-desktop' };
+      if (req.op === 'predict') reply = { ok: true, predictions: [] };
+      if (req.op === 'convert') {
+        const cut = req.lengths?.[0] === 2 && req.resize?.[1] === 1 ? 3 : 2;
+        const r: string = req.reading;
+        reply = { ok: true, segments: r === 'かんじ'
+          ? [{ reading: r.slice(0, cut), candidates: cut === 2 ? ['漢', '感'] : ['漢字'] }, ...(cut < 3 ? [{ reading: r.slice(cut), candidates: ['字', 'じ'] }] : [])]
+          : [{ reading: r, candidates: [r] }] };
+      }
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
     };
+    return { saved, asked, learned };
+  };
+  const bar = (popup: FakePopupWindow) => ({
+    pre: shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null, // empty: no reading (the hint shows)
+    hint: shadowOf(popup)!.querySelector('.comp.on .hint')?.textContent ?? null,
+    cands: [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')].map((c) => c.textContent),
+  });
+  const pickCand = async (popup: FakePopupWindow, text: string) => {
+    const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
+    el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+  };
+
+  it('kana wait in the buffer, shown in the bar; 確定 sends them; nothing reaches the app before', async () => {
+    const { popup, manager, g } = setup();
+    withConverter(g);
     await tap(popup, 'next-keyboard');
     await tap(popup, 'た');
     await tap(popup, 'た');
-    expect(manager.calls).toEqual([['た', false], ['た', false]]); // types it again by default
+    expect(manager.calls).toEqual([]);
+    expect(bar(popup).pre).toBe('たた');
+    expect(key(popup, ' ').textContent).toBe('変換');
+    await tap(popup, 'Backspace'); // deletes in the buffer, not in the app
+    expect(bar(popup).pre).toBe('た');
+    await tap(popup, 'Enter'); // 確定
+    expect(manager.calls).toEqual([['た', false]]);
+    expect(bar(popup).pre).toBeNull();
+    expect(bar(popup).hint).toBe('入力すると、ここに変換候補が出ます'); // on top, too
+    await tap(popup, 'Enter'); // nothing in the buffer: a real Enter
+    expect(manager.calls.at(-1)).toEqual(['Enter', false]);
+  });
+
+  it('変換 converts into segments; picking a candidate per segment sends the result; ← → resize', async () => {
+    const { popup, manager, g } = setup();
+    const { learned } = withConverter(g);
+    await tap(popup, 'next-keyboard');
+    /** Press a flick key and move the given way before releasing (the view's own touch flow). */
+    const flickTo = async (id: string, dir: 'tap' | 'left' | 'up' | 'right' | 'down') => {
+      const offsets: Record<typeof dir, [number, number]> = { tap: [0, 0], left: [-40, 0], up: [0, -40], right: [40, 0], down: [0, 40] };
+      const [dx, dy] = offsets[dir];
+      const el = key(popup, id);
+      const ev = (type: string, x: number, y: number) => {
+        const e = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+        el.dispatchEvent(e);
+      };
+      ev('touchstart', 100, 100);
+      ev('touchmove', 100 + dx, 100 + dy);
+      ev('touchend', 100 + dx, 100 + dy);
+      await vi.advanceTimersByTimeAsync(50);
+    };
+    await flickTo('か', 'tap');
+    await flickTo('わ', 'up'); // ん
+    await flickTo('さ', 'left'); // し
+    await tap(popup, 'modify'); // し → じ
+    expect(bar(popup).pre).toBe('かんじ');
+    expect(bar(popup).cands).toContain('カンジ'); // live: katakana as well
+    await tap(popup, ' '); // 変換
+    expect(bar(popup).cands).toEqual(['漢', '感']);
+    expect(key(popup, ' ').textContent).toBe('次変換');
+    await tap(popup, 'ArrowRight'); // lengthen the first segment: かん → かんじ
+    expect(bar(popup).cands).toEqual(['漢字']);
+    await tap(popup, 'ArrowLeft'); // and back
+    expect(bar(popup).cands).toEqual(['漢', '感']);
+    await pickCand(popup, '漢');
+    expect(manager.calls).toEqual([]); // one segment left
+    await pickCand(popup, '字');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('漢字'); // sent once the last segment is picked
+    expect(learned).toEqual([{ reading: 'かんじ', lengths: [2, 1], choices: [0, 0], texts: ['漢', '字'] }]);
+    expect(bar(popup).pre).toBeNull();
+  });
+
+  it('with "Next kana" chosen in settings, tapping again cycles in the buffer, and the choice is saved', async () => {
+    const { popup, manager, g } = setup();
+    const { saved } = withConverter(g);
+    await tap(popup, 'next-keyboard');
     await tap(popup, 'settings');
     const opt = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Next kana (→ moves on)')!;
     opt.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
@@ -275,11 +361,15 @@ describe('Japanese 12-key', () => {
     const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
     close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
-    manager.calls.length = 0;
     await tap(popup, 'は');
     await tap(popup, 'は');
     await tap(popup, 'modify');
-    expect(manager.calls).toEqual([['は', false], ['Backspace', false], ['ひ', false], ['Backspace', false], ['び', false]]);
+    await tap(popup, 'ArrowRight'); // ends the cycle (not sent)
+    await tap(popup, 'は');
+    expect(bar(popup).pre).toBe('びは');
+    expect(manager.calls).toEqual([]);
+    await tap(popup, 'emoji'); // any other key sends the buffer first
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('びは');
   });
 });
 

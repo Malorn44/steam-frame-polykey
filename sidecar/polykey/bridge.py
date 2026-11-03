@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from .anthy import Converter
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
 from .packs import clean_emoji_state, clean_keyboard_options, save_settings, write_json
@@ -16,7 +17,7 @@ from .wayland import WaylandError
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save")
+OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn")
 MAX_SUGGESTIONS = 12
 
 
@@ -27,8 +28,9 @@ def reply_expression(reply: dict) -> str:
 
 class Bridge:
     def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None,
-                 settings_path: Optional[Path] = None) -> None:
+                 settings_path: Optional[Path] = None, converter: Optional[Converter] = None) -> None:
         self._log = log
+        self._converter = converter
         self._desktop = desktop
         self._lexicons = lexicons
         self._settings_path = settings_path
@@ -63,6 +65,8 @@ class Bridge:
             return self._save_settings(request)
         if op == "emoji.save":
             return self._save_emoji(request)
+        if op in ("convert", "predict", "learn"):
+            return self._converter.handle(op, request) if self._converter else {"ok": False, "error": "unavailable"}
         if self._desktop is None:
             return {"ok": False, "error": "desktop-paste-off"}
         if op == "desktop.prepare":

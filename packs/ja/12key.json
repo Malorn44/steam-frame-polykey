@@ -6,8 +6,11 @@
  "name": "日本語 12キー",
  "language": "ja",
  "layout": "ja/flick",
- "composer": "direct",
+ "composer": "kana",
  "options": {
-  "tapCycle": false
- }
+  "tapCycle": false,
+  "candidatesLeft": false,
+  "flickHints": false
+ },
+ "converter": "anthy"
 }

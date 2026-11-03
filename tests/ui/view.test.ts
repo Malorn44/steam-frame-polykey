@@ -31,7 +31,7 @@ describe('createView', () => {
   it('renders the toolbar and five rows with width weights', () => {
     const { shadow, rows, keyIn } = setup();
     const bar = [...shadow.querySelectorAll<HTMLElement>('.bar > *')].map((el) => el.dataset['k'] ?? el.className);
-    expect(bar).toEqual(['settings', 'emoji', 'dictate', 'copy', 'cut', 'paste', 'menu', 'cands', 'hide']); // close at the right end
+    expect(bar).toEqual(['settings', 'emoji', 'dictate', 'copy', 'cut', 'paste', 'menu', 'cands', 'comp', 'hide']); // close at the right end
     expect(rows).toHaveLength(5);
     expect(parseFloat(keyIn(4, ' ').style.flexBasis)).toBeCloseTo((7.25 / 15) * 100, 3); // exact share of the row
     // ↓ starts exactly where ↑ does: the same share of their rows before them.
@@ -265,6 +265,54 @@ describe('hold to repeat', () => {
     at('touchstart', 100, 100);
     at('touchend', 104, 102); // a tap: the keyboard decides what it types
     expect(got).toEqual([['か', 'く'], ['か', undefined]]);
+  });
+
+  it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
+    const boot = bundledBoot();
+    const make = (side: boolean) => {
+      const host = document.createElement('div');
+      document.body.append(host);
+      const shadow = host.attachShadow({ mode: 'open' });
+      const picked: string[] = [];
+      const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
+        () => {}, () => {}, (text) => picked.push(text), { side });
+      view.update(NO_MODS);
+      view.setComposition({ before: 'かんじ', after: '', candidates: ['漢字', '感じ', '幹事'], selected: -1 });
+      return { shadow, picked };
+    };
+    const { shadow, picked } = make(false);
+    const cand = [...shadow.querySelectorAll<HTMLElement>('.cand')][1]!;
+    const at = (type: string, x: number) => {
+      const e = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: 10 }] });
+      cand.dispatchEvent(e);
+    };
+    at('touchstart', 200);
+    at('touchmove', 150); // a drag: scrolls, no pick
+    at('touchend', 150);
+    at('touchstart', 200);
+    at('touchend', 203); // a press: picks
+    expect(picked).toEqual(['感じ']);
+    const left = make(true).shadow;
+    // Flick hints: the other four kana at the key's edges, left, up, right, down.
+    const host = document.createElement('div');
+    document.body.append(host);
+    const hinted = host.attachShadow({ mode: 'open' });
+    createView(document, hinted, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}, () => {}, () => {}, { hints: true }).update(NO_MODS);
+    const ka = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
+    expect([...ka.querySelectorAll('.fh')].map((h) => `${h.className}:${h.textContent}`)).toEqual(['fh l:き', 'fh u:く', 'fh r:け', 'fh d:こ']);
+    const punct = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === '、')!;
+    expect(punct.querySelector('.lbl')!.textContent).toBe('、'); // with hints, just its tap kana
+    // The punctuation key always shows its directions, hints option or not.
+    const plain = document.createElement('div');
+    document.body.append(plain);
+    const noHints = plain.attachShadow({ mode: 'open' });
+    createView(document, noHints, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
+    const keysOf = (id: string) => [...noHints.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+    expect([...keysOf('、').querySelectorAll('.fh')].map((h) => h.textContent)).toEqual(['。', '？', '！', '…']);
+    expect(keysOf('か').querySelectorAll('.fh')).toHaveLength(0);
+    expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
+    expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
 });
 

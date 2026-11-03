@@ -21,7 +21,8 @@ import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
-import { NO_KANA, modifyTable, pressKana, type KanaState } from './core/kana.js';
+import { modifyTable } from './core/kana.js';
+import { NO_IME, composing, flush, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
 import { createSettingsView, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
@@ -82,10 +83,17 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let current = 0;
   /** Showing Steam's own keyboard, with a button back to polykey. */
   let stock = false;
-  // 12-key state (the cycle and the last kana typed), and each keyboard's options as the user set them.
-  let kana: KanaState = NO_KANA;
+  // Each keyboard's options as the user set them.
   const keyboardOptions: Record<string, KeyboardOptions> = { ...(boot?.settings.keyboardOptions ?? {}) };
   const modifyTables = new Map<string, ReadonlyMap<string, string>>();
+  // The reading buffer of a keyboard with composer "kana" (core/ime.ts): typed kana wait here, shown in
+  // the bar, until confirmed. `live` are the candidates while typing; a generation drops stale replies.
+  let ime: Ime = NO_IME;
+  let live: string[] = [];
+  // Where the live candidates came from, so a picked one can be learned.
+  let liveSource: { reading: string; segments: Omit<Segment, 'index'>[]; predictions: string[] } | null = null;
+  let imeGeneration = 0;
+  let converterDown = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
   let view: View | null = null;
@@ -210,18 +218,108 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     const keyboard = currentKeyboard();
-    const kanaResult = keyboard && page === 'keys'
-      ? pressKana(kana, key, alternate, optionsFor(keyboard, keyboardOptions[keyboard.id]), modifyFor(keyboard.layout))
-      : null;
-    kana = kanaResult?.state ?? NO_KANA;
-    const result = kanaResult ? { mods, effects: kanaResult.effects }
-      : alternate === undefined ? press(mods, key) : pressText(mods, alternate);
+    const options = optionsFor(keyboard, keyboard ? keyboardOptions[keyboard.id] : undefined);
+    if (keyboard?.composer === 'kana' && page === 'keys') {
+      const handled = pressIme(ime, key, alternate, options, modifyFor(keyboard.layout));
+      if (handled) {
+        applyIme(handled);
+        return;
+      }
+      if (composing(ime)) applyIme(flush(ime)); // any other key: the buffer goes out first
+    }
+    const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);
     const tracked = trackWord(word, result.effects);
     if (tracked.ended) boost(tracked.ended);
     setWord(tracked.state);
     enqueue(result.effects);
+  };
+
+  const segmentsOf = (reply: Record<string, unknown>): Omit<Segment, 'index'>[] =>
+    (reply['ok'] && Array.isArray(reply['segments']) ? reply['segments'] as Omit<Segment, 'index'>[] : []);
+  const noteConverter = (reply: Record<string, unknown>): void => {
+    if (reply['error'] === 'unavailable' && !converterDown) {
+      converterDown = true;
+      warn('conversion unavailable (libanthy did not load); 確定 still sends the kana');
+    }
+  };
+
+  /** Ask the converter for live candidates or a conversion of the buffer; stale replies are dropped. */
+  const requestIme = (request: ImeRequest): void => {
+    const generation = ++imeGeneration;
+    const forReading = reading(ime);
+    if (!forReading || !bridge.available()) {
+      live = forReading ? liveCandidates(forReading, [], []) : [];
+      showIme();
+      return;
+    }
+    if (request.kind === 'live') {
+      live = liveCandidates(forReading, [], []); // the kana themselves until the converter answers
+      void Promise.all([
+        bridge.call('convert', { reading: forReading }),
+        bridge.call('predict', { reading: forReading }),
+      ]).then(([converted, predicted]) => {
+        noteConverter(converted);
+        if (generation !== imeGeneration) return;
+        const predictions = predicted.ok && Array.isArray(predicted['predictions']) ? predicted['predictions'] as string[] : [];
+        live = liveCandidates(forReading, segmentsOf(converted), predictions);
+        liveSource = { reading: forReading, segments: segmentsOf(converted), predictions };
+        showIme();
+      });
+    } else {
+      void bridge.call('convert', {
+        reading: forReading,
+        ...(request.lengths ? { lengths: request.lengths } : {}),
+        ...(request.resize ? { resize: request.resize } : {}),
+      }).then((reply) => {
+        noteConverter(reply);
+        if (generation !== imeGeneration) return;
+        ime = withConversion(ime, forReading, segmentsOf(reply));
+        showIme();
+      });
+    }
+    showIme();
+  };
+
+  /** Draw the buffer in the bar (or the word suggestions when it is empty); 空白 becomes 変換 (次変換 once converting), ⏎ 確定. */
+  const showIme = (): void => {
+    if (!view) return;
+    if (!composing(ime)) {
+      view.setComposition(null);
+      view.setLabels({});
+    } else {
+      const focused = ime.segments?.[ime.focus];
+      view.setComposition(ime.segments
+        ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
+          candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
+        : { before: ime.chars.slice(0, ime.caret).join(''), after: ime.chars.slice(ime.caret).join(''), candidates: live, selected: -1 });
+      view.setLabels({ ' ': ime.segments ? '次変換' : '変換', Enter: '確定' }); // once converting, Space goes to the next candidate
+    }
+    view.update(mods);
+  };
+
+  /** Have the converter learn what was sent (anthy's learning data, ~/.anthy). */
+  const learn = (request: Record<string, unknown>): void => {
+    if (bridge.available()) void bridge.call('learn', request);
+  };
+
+  const applyIme = (result: ImeResult): void => {
+    if (result.learned) learn({ ...result.learned });
+    ime = result.ime;
+    if (result.effects.length) enqueue(result.effects);
+    if (result.request) requestIme(result.request);
+    else showIme();
+  };
+
+  const onCandidate = (text: string, index: number): void => {
+    if (surface) tick(surface.win, hand);
+    const source = !ime.segments && liveSource?.reading === reading(ime) ? liveSource : null;
+    if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
+      learn({ reading: source.reading, lengths: source.segments.map((s) => Array.from(s.reading).length),
+        choices: source.segments.map(() => 0), texts: source.segments.map((s) => s.candidates[0] ?? s.reading) });
+    } else if (source?.predictions.includes(text)) learn({ reading: source.reading, prediction: text });
+    applyIme(pickCandidate(ime, text, index));
   };
 
   const onSuggestion = (chosen: string): void => {
@@ -305,6 +403,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name })),
         version: VERSION,
         errors: boot.errors,
+        suggestions: !!keyboard?.lexicon,
         options: offered(keyboard).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
       }, {
         onChange: changeSettings,
@@ -314,10 +413,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       });
       applyBounds();
     } else {
-      view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion);
+      view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
+        { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
+          ...(keyboard?.composer === 'kana' ? { idleHint: '入力すると、ここに変換候補が出ます' } : {}) });
       view.update(mods);
       applyBounds();
       refreshSuggestions();
+      showIme();
     }
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
@@ -381,7 +483,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   /** A keyboard's own option: applies at once; the sidecar saves every keyboard's choices. */
   const changeOption = (keyboardId: string, name: OptionName, value: boolean): void => {
     keyboardOptions[keyboardId] = { ...keyboardOptions[keyboardId], [name]: value };
-    kana = NO_KANA;
+    ime = { ...ime, cycle: null };
     void bridge.call('settings.save', { settings: { keyboardOptions } }).then((reply) => {
       if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
     });
@@ -408,9 +510,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const switchTo = (index: number): void => {
+    if (composing(ime)) enqueue(flush(ime).effects); // switching keyboards sends the buffer
+    ime = NO_IME;
+    live = [];
     keys.releaseAll();
     mods = NO_MODS;
-    kana = NO_KANA;
     current = index;
     render();
     log(`keyboard: ${stock ? STOCK : ring[current]}`);
@@ -437,6 +541,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     if (open !== wasOpen) {
       setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
       if (!open) {
+        ime = NO_IME; // the field is gone: an unsent reading is dropped, not typed elsewhere
+        live = [];
+        showIme();
         keys.releaseAll(); // closing must never leave a key held
         mods = { ...NO_MODS, caps: mods.caps };
         view?.update(mods);

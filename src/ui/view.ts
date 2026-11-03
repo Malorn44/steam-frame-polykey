@@ -18,6 +18,8 @@ export const REPEAT_DELAY_MS = 450;
 export const REPEAT_MS = 60;
 const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
+/** Moving a press on the candidate list further than this scrolls it instead of picking. */
+export const LIST_SLOP_PX = 12;
 /** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
 export const FLICK_CELL_PX = 30;
 /** Alternate cells are a little smaller than the key. */
@@ -39,7 +41,40 @@ const CSS = `
 .sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--mod); }
 .sugg.best { color: var(--accent); font-weight: 600; }
 .sugg.hover { background-color: var(--hover); }
+/* The reading buffer (12-key): underlined, with a caret; while converting, the focused segment is
+   marked. Then the candidates, the picked one in the accent colour. */
+.comp { flex: 1; display: none; align-items: center; min-width: 0; margin: 0 4px; gap: 8px; }
+.comp.on { display: flex; }
+.pre { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; font-size: 16px;
+  border-bottom: 1.5px solid var(--text); padding: 0 2px; }
+.pre:empty { display: none; } /* no reading: no underline (it showed as a dot) */
+.pre .seg { padding: 0 1px; }
+.pre .seg.focus { background: var(--accent); color: var(--surface); border-radius: 3px; }
+.pre.converting .seg:not(.focus) { color: var(--legend); }
+.pre .caret { display: inline-block; width: 1.5px; height: 1em; margin: 0 1px; vertical-align: -2px; background: var(--accent); }
+.list { flex: 1; display: flex; min-width: 0; overflow: hidden; height: 100%; }
+.cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: 16px; white-space: nowrap;
+  border-radius: var(--radius); }
+.cand + .cand { border-left: 1px solid var(--mod); }
+.cand.sel { background: var(--accent); color: var(--surface); font-weight: 600; }
+.cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
+.cand.hover { background-color: var(--hover); }
+.keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .row { flex: 1; display: flex; min-height: 0; }
+/* Candidates on the left (fjk): a panel with the reading, a wrapping list that scrolls down, the toolbar. */
+.kb.side { flex-direction: row; gap: 4px; }
+.sidep { flex: 0 0 40%; display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius);
+  background: var(--key); padding: 4px; box-sizing: border-box; }
+.kb.side .comp { flex: 1; flex-direction: column; align-items: stretch; margin: 0; gap: 4px; min-height: 0; }
+.kb.side .pre { max-width: none; align-self: flex-start; font-size: 18px; }
+.kb.side .list { flex-wrap: wrap; align-content: flex-start; gap: 2px; }
+.kb.side .cand { height: 36px; font-size: 19px; }
+.kb.side .cand + .cand { border-left: none; }
+.hint { flex: 1 1 100%; align-self: stretch; display: flex; align-items: center; justify-content: center;
+  text-align: center; color: var(--legend); font-size: 13px; }
+.kb.side .list:has(.hint) { align-content: stretch; }
+.kb.side .bar { border-top: 1px solid var(--mod); padding-top: 3px; }
+.kb.side .bar .cands { visibility: hidden; }
 .key { flex: 1 1 0; position: relative; display: flex; align-items: center; justify-content: center;
   box-sizing: border-box; border: 1.5px solid transparent; background: var(--key); background-clip: padding-box;
   border-radius: var(--radius); overflow: hidden; min-width: 0; }
@@ -63,7 +98,13 @@ const CSS = `
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: 26px; }
 .kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: 20px; }
-.kb.large .key[data-k="modify"], .kb.large .key[data-k="、"] { font-size: 21px; }
+.kb.large .key[data-k="modify"] { font-size: 21px; }
+/* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
+.key .fh { position: absolute; font-size: 11px; line-height: 1; color: var(--legend); pointer-events: none; }
+.key .fh.l { left: 5px; top: 50%; transform: translateY(-50%); }
+.key .fh.u { top: 3px; left: 50%; transform: translateX(-50%); }
+.key .fh.r { right: 5px; top: 50%; transform: translateY(-50%); }
+.key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
 .kb.large .bar .key { font-size: 14px; }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
@@ -111,8 +152,18 @@ const legends = (key: KeyDef, mods: Mods): { sh: string; fn: string } => {
   return { sh: shown === key.shift ? key.char : key.shift, fn };
 };
 
+/** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
+export type CompositionView = (
+  | { readonly before: string; readonly after: string }
+  | { readonly segments: readonly string[]; readonly focus: number }
+) & { readonly candidates: readonly string[]; readonly selected: number };
+
 export interface View {
   update(mods: Mods): void;
+  /** Show the reading buffer and its candidates in the bar instead of word suggestions (null: hide). */
+  setComposition(composition: CompositionView | null): void;
+  /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
+  setLabels(labels: Readonly<Record<string, string>>): void;
   /** Fill the three suggestion slots ([left, best, right]); undefined leaves a slot empty. */
   setSuggestions(words: readonly (string | undefined)[]): void;
   /** Hover the key at popup coordinates (the laser); returns true when the hovered key changed. */
@@ -129,6 +180,13 @@ export const createView = (
   /** A tap, a long press that chose `alternate` (its text), or a repeat of a held key. */
   onKey: (key: KeyDef, alternate?: string, repeat?: boolean) => void,
   onSuggestion: (word: string) => void = () => {},
+  /** A candidate picked in the bar: its text and its place in the list. */
+  onCandidate: (text: string, index: number) => void = () => {},
+  /**
+   * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
+   * hints: each flick key's other kana at its edges. idleHint: shown where candidates appear, while empty.
+   */
+  { side = false, hints = false, idleHint = '' }: { side?: boolean; hints?: boolean; idleHint?: string } = {},
 ): View => {
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS;
@@ -156,6 +214,16 @@ export const createView = (
     const fn = doc.createElement('span');
     fn.className = 'fn';
     el.append(sh, label, fn);
+    if (key.type === 'flick' && (hints || key.hints)) {
+      key.flick.slice(1).forEach((text, i) => {
+        if (!text) return;
+        const hint = doc.createElement('span');
+        hint.className = `fh ${'lurd'[i]}`;
+        hint.textContent = text;
+        el.append(hint);
+      });
+      if (key.label) label.textContent = key.flick[0]; // the hints show the rest
+    }
     keys.push({ el, key, label, sh, fn });
     return el;
   };
@@ -173,20 +241,52 @@ export const createView = (
     return { el, word: undefined as string | undefined };
   });
   bar.append(cands);
+  const comp = doc.createElement('div');
+  comp.className = 'comp';
+  const pre = doc.createElement('div');
+  pre.className = 'pre';
+  const list = doc.createElement('div');
+  list.className = 'list';
+  comp.append(pre, list);
+  bar.append(comp);
+  let candidates: { el: HTMLElement; text: string; index: number }[] = [];
+  let labels: Readonly<Record<string, string>> = {};
   for (const key of toolbar.filter((k) => k.action === 'hide')) bar.append(makeKey(key)); // close sits at the right end
-  if (toolbar.length) root.append(bar);
+  const keysEl = doc.createElement('div');
+  keysEl.className = 'keys';
   for (const row of layout.rows) {
     const rowEl = doc.createElement('div');
     rowEl.className = 'row';
     const defs = row.map(normalizeKey);
     const units = defs.reduce((sum, key) => sum + widthOf(key), 0);
     for (const key of defs) rowEl.append(makeKey(key, units));
-    root.append(rowEl);
+    keysEl.append(rowEl);
+  }
+  if (side && toolbar.length) {
+    // fjk's arrangement: reading and candidates on the left above the toolbar, keys on the right.
+    root.classList.add('side');
+    const panel = doc.createElement('div');
+    panel.className = 'sidep';
+    comp.classList.add('on');
+    panel.append(comp, bar);
+    root.append(panel, keysEl);
+  } else {
+    if (toolbar.length) root.append(bar);
+    root.append(keysEl);
   }
 
   const entryFor = (target: EventTarget | null): Entry | undefined =>
     keys.find(({ el }) => el === target || el.contains(target as Node));
   const slotFor = (target: EventTarget | null) => slots.find(({ el, word }) => word && (el === target || el.contains(target as Node)));
+  const candFor = (target: EventTarget | null) => candidates.find(({ el }) => el === target || el.contains(target as Node));
+  let hoveredCand: HTMLElement | undefined;
+  const setCandHover = (el: HTMLElement | undefined): boolean => {
+    if (el === hoveredCand) return false;
+    hoveredCand?.classList.remove('hover');
+    hoveredCand = el;
+    el?.classList.add('hover');
+    return true;
+  };
   let hoveredSlot: (typeof slots)[number] | undefined;
   const setSlotHover = (slot: (typeof slots)[number] | undefined): boolean => {
     if (slot === hoveredSlot) return false;
@@ -279,9 +379,27 @@ export const createView = (
     hovered?.el.classList.add('hover');
     return true;
   };
+  // Dragging the candidate list scrolls it (across on top, down on the left); a press that does not
+  // move past the slop picks the candidate under it on release.
+  let listDrag: { x: number; y: number; left: number; top: number; moved: boolean; cand: ReturnType<typeof candFor> } | null = null;
+  const scrollList = (dx: number, dy: number): void => {
+    if (side) list.scrollTop += dy;
+    else list.scrollLeft += Math.abs(dx) > Math.abs(dy) ? dx : dy;
+  };
+  root.addEventListener('wheel', (e) => {
+    if (!list.contains(e.target as Node) && e.target !== list) return;
+    e.preventDefault();
+    scrollList(e.deltaX, e.deltaY);
+  }, { passive: false });
+
   root.addEventListener('touchstart', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (list.contains(e.target as Node) || e.target === list) {
+      const t = (e as TouchEvent).changedTouches?.[0];
+      listDrag = { x: t?.clientX ?? 0, y: t?.clientY ?? 0, left: list.scrollLeft, top: list.scrollTop, moved: false, cand: candFor(e.target) };
+      return;
+    }
     pressed = entryFor(e.target);
     pressed?.el.classList.add('down');
     clearHold();
@@ -311,6 +429,16 @@ export const createView = (
     const touch = (e as TouchEvent).changedTouches?.[0];
     if (!touch) return;
     lastPoint = { x: touch.clientX, y: touch.clientY };
+    if (listDrag) {
+      const dx = touch.clientX - listDrag.x;
+      const dy = touch.clientY - listDrag.y;
+      if (Math.hypot(dx, dy) > LIST_SLOP_PX) listDrag.moved = true;
+      if (listDrag.moved) {
+        if (side) list.scrollTop = listDrag.top - dy;
+        else list.scrollLeft = listDrag.left - dx;
+      }
+      return;
+    }
     if (flick) moveFlick(lastPoint);
     else pickAt(touch.clientX, touch.clientY);
   }, { passive: false });
@@ -322,6 +450,12 @@ export const createView = (
     const hit = pressed;
     pressed = undefined;
     hit?.el.classList.remove('down');
+    if (listDrag) {
+      const { moved, cand } = listDrag;
+      listDrag = null;
+      if (!moved && cand) onCandidate(cand.text, cand.index);
+      return;
+    }
     if (flick) {
       if (lastPoint) moveFlick(lastPoint);
       const { key, pick } = flick;
@@ -333,6 +467,11 @@ export const createView = (
     const slot = slotFor(e.target);
     if (slot?.word) {
       onSuggestion(slot.word);
+      return;
+    }
+    const cand = candFor(e.target);
+    if (cand) {
+      onCandidate(cand.text, cand.index);
       return;
     }
     if (popup) {
@@ -349,6 +488,7 @@ export const createView = (
     clearHold();
     closePopup();
     closeFlick();
+    listDrag = null;
     pressed?.el.classList.remove('down');
     pressed = undefined;
   });
@@ -361,6 +501,11 @@ export const createView = (
     const slot = slotFor(e.target);
     if (slot?.word) {
       onSuggestion(slot.word);
+      return;
+    }
+    const cand = candFor(e.target);
+    if (cand) {
+      onCandidate(cand.text, cand.index);
       return;
     }
     const hit = entryFor(e.target);
@@ -378,8 +523,11 @@ export const createView = (
           el.classList.toggle('on', state.on);
           el.classList.toggle('locked', state.locked);
         }
-        const icon = iconFor(key, mods, layout.large === true);
-        if (icon) label.innerHTML = ICONS[icon];
+        const id = el.dataset['k'] ?? '';
+        const icon = labels[id] === undefined ? iconFor(key, mods, layout.large === true) : undefined;
+        if (labels[id] !== undefined) label.textContent = labels[id]!;
+        else if (key.type === 'flick' && (hints || key.hints)) label.textContent = key.flick[0];
+        else if (icon) label.innerHTML = ICONS[icon];
         else label.textContent = keyLabel(key, mods);
         const small = legends(key, mods);
         sh.textContent = small.sh;
@@ -389,6 +537,40 @@ export const createView = (
         el.classList.toggle('tri', small.fn !== '');
         el.classList.toggle('stack', small.fn === '' && small.sh !== '');
       }
+    },
+    setComposition: (c) => {
+      const showing = c !== null || side || idleHint !== '';
+      comp.classList.toggle('on', showing);
+      if (!side) cands.style.display = showing ? 'none' : '';
+      pre.textContent = '';
+      list.textContent = '';
+      candidates = [];
+      hoveredCand = undefined;
+      if (!c) {
+        if (idleHint) list.append(Object.assign(doc.createElement('div'), { className: 'hint', textContent: idleHint }));
+        return;
+      }
+      const span = (text: string, cls: string): HTMLElement => {
+        const el = doc.createElement('span');
+        el.className = cls;
+        el.textContent = text;
+        return el;
+      };
+      pre.classList.toggle('converting', 'segments' in c);
+      if ('segments' in c) c.segments.forEach((text, i) => pre.append(span(text, i === c.focus ? 'seg focus' : 'seg')));
+      else pre.append(span(c.before, 'seg'), span('', 'caret'), span(c.after, 'seg'));
+      c.candidates.forEach((text, index) => {
+        const el = span(text, index === c.selected ? 'cand sel' : 'cand');
+        list.append(el);
+        candidates.push({ el, text, index });
+      });
+      // Keep the picked candidate in view; otherwise start from the top of the list.
+      const sel = candidates[c.selected]?.el;
+      list.scrollLeft = !side && sel && sel.offsetLeft + sel.offsetWidth > list.clientWidth ? sel.offsetLeft - 8 : 0;
+      list.scrollTop = side && sel && sel.offsetTop + sel.offsetHeight > list.clientHeight ? sel.offsetTop - 4 : 0;
+    },
+    setLabels: (next) => {
+      labels = next;
     },
     setSuggestions: (words) => {
       slots.forEach((slot, i) => {
@@ -404,7 +586,8 @@ export const createView = (
         return false;
       }
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-      const slotChanged = setSlotHover(hits.map(slotFor).find(Boolean));
+      const candChanged = setCandHover(hits.map(candFor).find(Boolean)?.el);
+      const slotChanged = setSlotHover(hits.map(slotFor).find(Boolean)) || candChanged;
       return setHover(hits.map(entryFor).find(Boolean)) || slotChanged;
     },
     setBounds: ({ top, left, width, height }) => {

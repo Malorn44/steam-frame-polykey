@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { FlickKey, KeyDef } from '../../src/core/catalog.js';
-import { NO_KANA, flickDirection, modifyTable, pressKana, type KanaState } from '../../src/core/kana.js';
+import { NO_IME, composing, pressIme, reading, type Ime } from '../../src/core/ime.js';
+import { flickDirection, modifyTable } from '../../src/core/kana.js';
 import { optionsFor } from '../../src/core/options.js';
 
 const ta: FlickKey = { type: 'flick', flick: ['た', 'ち', 'つ', 'て', 'と'], cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'] };
 const ha: FlickKey = { type: 'flick', flick: ['は', 'ひ', 'ふ', 'へ', 'ほ'] };
 const modify = modifyTable(['はばぱ', 'つっづ']);
 const action = (a: 'modify' | 'undo'): KeyDef => ({ type: 'action', action: a });
-const right: KeyDef = { type: 'key', key: 'ArrowRight' };
+const named = (key: 'ArrowRight' | 'ArrowLeft' | 'Backspace' | 'Enter'): KeyDef => ({ type: 'key', key });
 
-/** Press keys in turn; returns the text the app would show (Backspace removes the last character). */
-const typeOut = (presses: [KeyDef, string?][], tapCycle: boolean): string => {
-  let state: KanaState = NO_KANA;
-  let text = '';
+/** Press keys in turn: the reading left in the buffer, and what was sent to the app. */
+const run = (presses: [KeyDef, string?][], tapCycle: boolean): { buffer: string; sent: string } => {
+  let ime: Ime = NO_IME;
+  let sent = '';
   for (const [key, flicked] of presses) {
-    const result = pressKana(state, key, flicked, { tapCycle }, modify);
-    state = result?.state ?? NO_KANA;
-    for (const effect of result?.effects ?? [{ kind: 'key', key: (key as { key: string }).key }]) {
-      if (effect.kind === 'text') text += effect.text;
-      else if (effect.kind === 'key' && effect.key === 'Backspace') text = Array.from(text).slice(0, -1).join('');
-      else if (effect.kind === 'key') text += `<${effect.key}>`;
-      else if (effect.kind === 'chord') text += '<undo>';
+    const result = pressIme(ime, key, flicked, { tapCycle }, modify);
+    if (!result) {
+      sent += `<${(key as { key?: string }).key ?? '?'}>`;
+      continue;
     }
+    ime = result.ime;
+    for (const effect of result.effects) sent += effect.kind === 'text' ? effect.text : '<undo>';
   }
-  return text;
+  return { buffer: reading(ime), sent };
 };
 
 describe('flick direction', () => {
@@ -36,32 +36,35 @@ describe('flick direction', () => {
   });
 });
 
-describe('12-key', () => {
-  it('a flick types its kana', () => {
-    expect(typeOut([[ta, 'つ'], [ha, 'ほ']], false)).toBe('つほ');
+describe('reading buffer', () => {
+  it('kana wait in the buffer; 確定 (Enter) sends them', () => {
+    expect(run([[ta, 'つ'], [ha, 'ほ']], false)).toEqual({ buffer: 'つほ', sent: '' });
+    expect(run([[ta, 'つ'], [ha, 'ほ'], [named('Enter')]], false)).toEqual({ buffer: '', sent: 'つほ' });
   });
 
-  it('tapping the same key again types it again (the default)', () => {
-    expect(typeOut([[ta], [ta]], false)).toBe('たた');
+  it('tapping the same key again adds it again (the default)', () => {
+    expect(run([[ta], [ta]], false).buffer).toBe('たた');
   });
 
-  it('with tapCycle, tapping again goes through its cycle; → ends it, and is not sent', () => {
-    expect(typeOut([[ta], [ta], [ta]], true)).toBe('つ');
-    expect(typeOut([[ta], [ta], [right], [ta]], true)).toBe('ちた');
-    expect(typeOut([[ta], [ta], [ta], [ta], [ta], [ta], [ta]], true)).toBe('た'); // past っ it wraps
-    expect(typeOut([[ta], [ha], [ha]], true)).toBe('たひ'); // another key starts its own cycle
-    expect(typeOut([[right]], true)).toBe('<ArrowRight>'); // no cycle open: → moves the cursor
+  it('with tapCycle, tapping again goes through its cycle; → ends it and stays in the buffer', () => {
+    expect(run([[ta], [ta], [ta]], true).buffer).toBe('つ');
+    expect(run([[ta], [ta], [named('ArrowRight')], [ta]], true).buffer).toBe('ちた');
+    expect(run([[ta], [ta], [ta], [ta], [ta], [ta], [ta]], true).buffer).toBe('た'); // past っ it wraps
+    expect(run([[ta], [ha], [ha]], true).buffer).toBe('たひ'); // another key starts its own cycle
   });
 
-  it('↶ steps back through the cycle, or undoes in the app', () => {
-    expect(typeOut([[ta], [ta], [ta], [action('undo')]], true)).toBe('ち');
-    expect(typeOut([[ta], [action('undo')]], false)).toBe('た<undo>');
+  it('↶ steps back through the cycle; with an empty buffer it undoes in the app', () => {
+    expect(run([[ta], [ta], [ta], [action('undo')]], true).buffer).toBe('ち');
+    expect(run([[action('undo')]], false).sent).toBe('<undo>');
   });
 
-  it('゛゜小 changes the kana just typed, and only that', () => {
-    expect(typeOut([[ha], [action('modify')], [action('modify')]], false)).toBe('ぱ');
-    expect(typeOut([[ta, 'つ'], [action('modify')]], false)).toBe('っ');
-    expect(typeOut([[ha], [right], [action('modify')]], false)).toBe('は<ArrowRight>'); // the cursor moved: nothing to change
+  it('゛゜小 changes the kana before the caret; ⌫ and ← → edit the buffer', () => {
+    expect(run([[ha], [action('modify')], [action('modify')]], false).buffer).toBe('ぱ');
+    expect(run([[ta, 'つ'], [action('modify')]], false).buffer).toBe('っ');
+    expect(run([[ha], [ta], [named('ArrowLeft')], [action('modify')]], false).buffer).toBe('ばた');
+    expect(run([[ha], [ta], [named('Backspace')]], false).buffer).toBe('は');
+    expect(composing(NO_IME)).toBe(false);
+    expect(run([[named('ArrowRight')]], false).sent).toBe('<ArrowRight>'); // nothing typed: → moves the cursor
   });
 });
 

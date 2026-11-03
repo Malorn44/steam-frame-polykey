@@ -17,7 +17,11 @@ export type GapKey = { type: 'gap'; w: number };
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
  * tapping it again goes through when the keyboard's tapCycle option is on (default: its flicks).
  */
-export type FlickKey = { type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; w?: number };
+export type FlickKey = {
+  type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; w?: number;
+  /** Always show the other directions at the key's edges (whatever the flick hints option says). */
+  hints?: boolean;
+};
 export type KeyDef = CharKey | NamedKeyKey | ModKey | ActionKey | GapKey | FlickKey;
 export type FnKey = string | Omit<CharKey, 'w' | 'fn'> | Omit<NamedKeyKey, 'w' | 'fn'>;
 
@@ -32,9 +36,13 @@ export interface Layout {
   modify?: string[];
 }
 /** Per-keyboard choices; a keyboard lists the ones it has, with its default. */
-export interface KeyboardOptions { tapCycle?: boolean }
+export interface KeyboardOptions { tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean }
 export interface KeyboardDef {
   id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
+  /** direct: keys type at once; kana: a reading buffer, sent when confirmed (core/ime.ts). */
+  composer?: 'direct' | 'kana';
+  /** The engine that converts the reading (with composer kana). */
+  converter?: 'anthy';
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;

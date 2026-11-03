@@ -15,6 +15,8 @@ export interface SettingsInfo {
   themes: { id: string; name: string }[];
   version: string;
   errors: string[];
+  /** Whether the current keyboard has word suggestions (a word list); without, that row is hidden. */
+  suggestions: boolean;
   /** The current keyboard's options: a name and its two choices. */
   options: { id: string; name: string; off: string; on: string; value: boolean }[];
 }
@@ -27,14 +29,14 @@ export interface SettingsHandlers {
 }
 
 const CSS = `
-.panel { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px;
+.panel { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 4px 10px;
   background: var(--surface); color: var(--text); font: 400 15px/1.2 var(--font);
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 .head { display: flex; align-items: center; height: 26px; font-size: 16px; font-weight: 600; }
 .head .title { flex: 1; }
-.row { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
 .row .name { width: 120px; color: var(--legend); }
-.opt { display: flex; align-items: center; justify-content: center; min-width: 90px; height: 32px; padding: 0 12px;
+.opt { display: flex; align-items: center; justify-content: center; min-width: 90px; height: 29px; padding: 0 12px;
   box-sizing: border-box; background: var(--mod); border-radius: var(--radius); }
 .opt.close { min-width: 32px; width: 32px; padding: 0; }
 .opt.stock { margin-right: 6px; font-size: 13px; }
@@ -113,7 +115,7 @@ export const createSettingsView = (
     head,
     row('Theme', ...info.themes.map((t) => option(t.name, t.id === values.theme, () => onChange({ theme: t.id })))),
     row('Haptics', ...onOff('haptics')),
-    row('Suggestions', ...onOff('suggestions')),
+    ...(info.suggestions ? [row('Suggestions', ...onOff('suggestions'))] : []),
     ...info.options.map((o) => row(o.name, option(o.off, !o.value, () => onOption(o.id, false)), option(o.on, o.value, () => onOption(o.id, true)))),
     about,
   );

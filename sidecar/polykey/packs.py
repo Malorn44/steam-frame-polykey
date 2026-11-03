@@ -17,7 +17,7 @@ MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes"}
 DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
-KEYBOARD_OPTIONS = ("tapCycle",)
+KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints")
 
 
 def clean_keyboard_options(value: object) -> Optional[dict]:

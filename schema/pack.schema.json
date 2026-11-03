@@ -391,8 +391,10 @@
         },
         "composer": {
           "enum": [
-            "direct"
-          ]
+            "direct",
+            "kana"
+          ],
+          "description": "direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換)."
         },
         "lexicon": {
           "$ref": "#/$defs/id",
@@ -406,8 +408,22 @@
             "tapCycle": {
               "type": "boolean",
               "description": "Tapping a flick key again goes to its next kana (→ moves on); off: it types the kana again."
+            },
+            "candidatesLeft": {
+              "type": "boolean",
+              "description": "Reading and candidates in a panel left of the keys (fjk), instead of the top bar."
+            },
+            "flickHints": {
+              "type": "boolean",
+              "description": "Show each flick key's other kana small at its edges."
             }
           }
+        },
+        "converter": {
+          "enum": [
+            "anthy"
+          ],
+          "description": "The engine that converts the reading (with composer kana): anthy, from the system's libanthy."
         }
       }
     },
@@ -536,6 +552,10 @@
         },
         "w": {
           "$ref": "#/$defs/width"
+        },
+        "hints": {
+          "type": "boolean",
+          "description": "Always show the other directions small at the key's edges, whatever the flick hints option says (e.g. a punctuation key)."
         }
       }
     }

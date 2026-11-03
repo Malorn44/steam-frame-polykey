@@ -54,6 +54,6 @@ describe('built bundle', () => {
   });
 
   it('is small', async () => {
-    expect((await bundle()).length).toBeLessThan(60 * 1024);
+    expect((await bundle()).length).toBeLessThan(80 * 1024);
   });
 });
