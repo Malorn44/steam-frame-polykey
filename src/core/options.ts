@@ -6,12 +6,20 @@ import type { KeyboardDef, KeyboardOptions } from './catalog.js';
 
 export type OptionName = keyof KeyboardOptions;
 
-export const OPTIONS: Record<OptionName, { name: string; off: string; on: string }> = {
-  tapCycle: { name: 'Same key again', off: 'Types it again', on: 'Next kana (→ moves on)' },
-  candidatesLeft: { name: 'Candidates', off: 'On top', on: 'On the left' },
-  flickHints: { name: 'Flick hints', off: 'Off', on: 'On' },
-  romajiInput: { name: 'Input', off: 'かな', on: 'ローマ字' },
-  qwertyLatin: { name: 'ABC keys', off: 'Flick (abc)', on: 'QWERTY' },
+/**
+ * How the settings page shows an option: two named choices, or (toggle) a switch beside a statement,
+ * worded as Gboard's settings are; invert: the switch is on when the option is off.
+ */
+export interface OptionInfo { name: string; off: string; on: string; toggle?: boolean; invert?: boolean }
+
+/** In the order the settings page lists them. */
+export const OPTIONS: Record<OptionName, OptionInfo> = {
+  qwertyLatin: { name: '英字入力はQWERTY', off: 'Flick (abc)', on: 'QWERTY', toggle: true },
+  // Gboard's フリックのみ: on, tapping a key again types it again; off, it steps to the next kana.
+  tapCycle: { name: 'フリックのみ', off: 'Types it again', on: 'Next kana (→ moves on)', toggle: true, invert: true },
+  flickHints: { name: 'フリックガイドを表示', off: 'Off', on: 'On', toggle: true },
+  candidatesLeft: { name: '候補を左に表示', off: 'On top', on: 'On the left', toggle: true },
+  romajiInput: { name: 'ローマ字入力', off: 'かな', on: 'ローマ字', toggle: true },
 };
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */

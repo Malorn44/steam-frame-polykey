@@ -191,7 +191,11 @@ describe('settings', () => {
     await pick(popup, 'Night Owl');
     expect(saved).toEqual([{ theme: 'themes/night-owl' }]);
     expect(shadowOf(popup)!.querySelector<HTMLElement>('.panel')!.style.getPropertyValue('--surface').trim()).toBe('#011627');
-    await pick(popup, 'Off', 0); // haptics off
+    const hapticsSwitch = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Haptics')!
+      .querySelector<HTMLElement>('.switch.on')!;
+    hapticsSwitch.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    hapticsSwitch.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true })); // haptics off
+    await vi.advanceTimersByTimeAsync(50);
     expect(saved).toEqual([{ theme: 'themes/night-owl' }, { haptics: false }]);
     const before = haptics.length;
     const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
@@ -374,12 +378,13 @@ describe('Japanese 12-key', () => {
     expect(bar(popup).pre).toBeNull();
   });
 
-  it('with "Next kana" chosen in settings, tapping again cycles in the buffer, and the choice is saved', async () => {
+  it('with フリックのみ switched off in settings, tapping again cycles in the buffer, and the choice is saved', async () => {
     const { popup, manager, g } = setup();
     const { saved } = withConverter(g);
     await tap(popup, 'next-keyboard');
     await tap(popup, 'settings');
-    const opt = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Next kana (→ moves on)')!;
+    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'フリックのみ')!;
+    const opt = row.querySelector<HTMLElement>('.switch.on')!; // on by default (tapCycle off)
     opt.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     opt.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(50);

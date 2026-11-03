@@ -134,7 +134,7 @@ def test_bridge_saves_only_known_settings(tmp_path):
 def test_the_japanese_12key_pack_loads():
     boot = packs.load(BUNDLED, SCHEMA, None)
     assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": False, "flickHints": False, "qwertyLatin": True}
+    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": True, "flickHints": False, "qwertyLatin": True}
     layout = boot["catalog"]["layouts"]["ja/flick"]
     assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
     assert "はばぱ" in layout["modify"]

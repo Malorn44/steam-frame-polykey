@@ -13,7 +13,7 @@
  "composer": "kana",
  "options": {
   "tapCycle": false,
-  "candidatesLeft": false,
+  "candidatesLeft": true,
   "flickHints": false,
   "qwertyLatin": true
  },

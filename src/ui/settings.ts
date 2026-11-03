@@ -1,6 +1,7 @@
-// The settings page, drawn in the keyboard area instead of the keys while open: theme, haptics,
-// suggestions, the current keyboard's own options, and an About line. Changes apply at once; ✕ goes
-// back to the keys, and "Steam keyboard" hands over to Steam's own (🌐 skips it).
+// The settings page, drawn in the keyboard area instead of the keys while open: General (theme,
+// haptics, suggestions) on the left, the current keyboard's own options on the right, and the version
+// and any pack errors at the bottom. Changes apply at once; ✕ goes back to the keys, and "Steam
+// keyboard" hands over to Steam's own (🌐 skips it).
 
 import type { Theme } from '../core/catalog.js';
 import { ICONS } from './icons.js';
@@ -17,8 +18,10 @@ export interface SettingsInfo {
   errors: string[];
   /** Whether the current keyboard has word suggestions (a word list); without, that row is hidden. */
   suggestions: boolean;
+  /** The current keyboard's name, heading its options. */
+  keyboardName: string;
   /** The current keyboard's options: a name and its two choices. */
-  options: { id: string; name: string; off: string; on: string; value: boolean }[];
+  options: { id: string; name: string; off: string; on: string; toggle?: boolean; invert?: boolean; value: boolean }[];
 }
 
 export interface SettingsHandlers {
@@ -34,15 +37,30 @@ const CSS = `
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 .head { display: flex; align-items: center; height: 26px; font-size: 16px; font-weight: 600; }
 .head .title { flex: 1; }
-.row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
-.row .name { width: 120px; color: var(--legend); }
-.opt { display: flex; align-items: center; justify-content: center; min-width: 90px; height: 29px; padding: 0 12px;
-  box-sizing: border-box; background: var(--mod); border-radius: var(--radius); }
+.cols { flex: 1; display: flex; gap: 14px; min-height: 0; }
+.col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sect { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
+  border-bottom: 1px solid var(--mod); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
+.none { color: var(--legend); font-size: 13px; padding-top: 4px; }
+.row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.row .name { flex: none; width: 104px; color: var(--text); font-size: 14px; }
+.opt { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 29px; padding: 2px 8px;
+  box-sizing: border-box; background: var(--mod); border-radius: var(--radius); font-size: 14px; line-height: 1.1;
+  text-align: center; }
+.head .opt { flex: none; }
 .opt.close { min-width: 32px; width: 32px; padding: 0; }
 .opt.stock { margin-right: 6px; font-size: 13px; }
 .opt.on { background: var(--accent); color: var(--surface); }
 .opt.hover { box-shadow: inset 0 0 0 2px var(--accent); }
-.about { color: var(--legend); font-size: 13px; }
+/* A switch (Gboard's style settings): the statement on the left, the switch at the right. */
+.row.sw .name { flex: 1; width: auto; }
+.switch { flex: none; position: relative; width: 46px; height: 26px; border-radius: 13px; background: var(--mod); }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--legend); transition: left 0.12s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 23px; background: var(--surface); }
+.switch.hover { box-shadow: 0 0 0 2px var(--accent); }
+.about { color: var(--legend); font-size: 12px; border-top: 1px solid var(--mod); padding-top: 3px; }
 .about .err { color: var(--fn); }
 `;
 
@@ -95,10 +113,15 @@ export const createSettingsView = (
   title.textContent = 'Settings';
   head.append(title, option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
 
-  const onOff = (key: 'haptics' | 'suggestions') => [
-    option('On', values[key], () => onChange({ [key]: true })),
-    option('Off', !values[key], () => onChange({ [key]: false })),
-  ];
+  /** A general on/off setting as a switch. */
+  const onOff = (name: string, key: 'haptics' | 'suggestions'): HTMLElement => {
+    const sw = doc.createElement('div');
+    sw.className = `switch${values[key] ? ' on' : ''}`;
+    actions.set(sw, () => onChange({ [key]: !values[key] }));
+    const el = row(name, sw);
+    el.classList.add('sw');
+    return el;
+  };
 
   const about = doc.createElement('div');
   about.className = 'about';
@@ -111,14 +134,36 @@ export const createSettingsView = (
   }
   if (info.errors.length > 3) about.append(`… and ${info.errors.length - 3} more pack errors`);
 
-  root.append(
-    head,
-    row('Theme', ...info.themes.map((t) => option(t.name, t.id === values.theme, () => onChange({ theme: t.id })))),
-    row('Haptics', ...onOff('haptics')),
-    ...(info.suggestions ? [row('Suggestions', ...onOff('suggestions'))] : []),
-    ...info.options.map((o) => row(o.name, option(o.off, !o.value, () => onOption(o.id, false)), option(o.on, o.value, () => onOption(o.id, true)))),
-    about,
+  /** A switch row; tapping the switch flips it (an inverted option is stored the other way round). */
+  const toggle = (o: SettingsInfo['options'][number]): HTMLElement => {
+    const shown = o.invert ? !o.value : o.value;
+    const sw = doc.createElement('div');
+    sw.className = `switch${shown ? ' on' : ''}`;
+    actions.set(sw, () => onOption(o.id, o.invert ? shown : !shown));
+    const el = row(o.name, sw);
+    el.classList.add('sw');
+    return el;
+  };
+  const column = (heading: string, ...rows: HTMLElement[]): HTMLElement => {
+    const el = doc.createElement('div');
+    el.className = 'col';
+    el.append(Object.assign(doc.createElement('div'), { className: 'sect', textContent: heading }), ...rows);
+    return el;
+  };
+  const cols = doc.createElement('div');
+  cols.className = 'cols';
+  cols.append(
+    column('General',
+      row('Theme', ...info.themes.map((t) => option(t.name, t.id === values.theme, () => onChange({ theme: t.id })))),
+      onOff('Haptics', 'haptics'),
+      ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : [])),
+    column(info.keyboardName,
+      ...(info.options.length
+        ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
+          option(o.on, o.value, () => onOption(o.id, true)))))
+        : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })])),
   );
+  root.append(head, cols, about);
 
   const optionAt = (target: EventTarget | null): HTMLElement | undefined =>
     [...actions.keys()].find((el) => el === target || el.contains(target as Node));

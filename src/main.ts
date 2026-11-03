@@ -528,6 +528,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         version: VERSION,
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,
+        keyboardName: keyboard?.name ?? id,
         options: offered(keyboard).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
       }, {
         onChange: changeSettings,

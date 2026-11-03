@@ -9,9 +9,9 @@ A modular on-screen keyboard for the Valve Steam Frame. It draws inside Steam's 
 - **Toolbar:** settings (theme, haptics, suggestions), emoji, dictate, copy, cut, paste and menu.
 - **Emoji:** Recent, Favorites (drag and drop), skin tones, and your Steam emoticons, stickers and room effects.
 - **Japanese:** three keyboards that type into a reading buffer, converted with Anthy (SteamOS's libanthy), which learns from what you send:
-  - **12-key:** flick input. Options: ABC keys (QWERTY or flick letters), tap again to cycle, candidates on top or on the left, flick hints.
+  - **12-key:** flick input. Options, worded as in Gboard: 英字入力はQWERTY (ABC mode as QWERTY or flick letters), フリックのみ (off: tapping a key again steps to its next kana), フリックガイドを表示 (flick hints), 候補を左に表示 (candidates on the left, the default).
   - **Romaji:** the English layout with 英数 and かな beside Space; in かな, letters become kana as you type (ka → か), and `, . - [ ]` become 、。ー「」.
-  - **Kana (JIS):** the JIS layout, Mac style. Each key has its Latin and kana legends: 英数 types the Latin ones, かな the kana (Shift: the upper legend). ゛ and ゜ join the kana before them. Option: ローマ字 input, where the keys type their Latin legends as romaji. かな while typing shows the reading as カタカナ, then ﾊﾝｶｸ (on the romaji keyboard too).
+  - **Kana (JIS):** the JIS layout, Mac style. Each key has its Latin and kana legends: 英数 types the Latin ones, かな the kana (Shift: the upper legend). ゛ and ゜ join the kana before them. Option: ローマ字入力, where the keys type their Latin legends as romaji. かな while typing shows the reading as カタカナ, then ﾊﾝｶｸ (on the romaji keyboard too).
 - **🌐** switches between polykey's keyboards; settings hands over to Steam's own keyboard.
 
 Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json`). A user pack in `~/.config/polykey/packs/<namespace>/` replaces a bundled item with the same id. KDE Desktop Mode gets non-ASCII text by paste.
