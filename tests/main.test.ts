@@ -585,6 +585,23 @@ describe('Japanese romaji and JIS kana', () => {
     expect(manager.calls).toEqual([]);
   });
 
+  it('JIS: Fn+1 is F1 (the reading goes first, Fn is one-shot); Esc is its own key', async () => {
+    const { popup, manager, state, api } = setup();
+    api.debug.use('ja/jis');
+    await tap(popup, 'q'); // た in the reading
+    await tap(popup, 'fn');
+    expect(key(popup, '1').querySelector('.lbl')!.textContent).toBe('F1'); // shown only while Fn is on
+    await tap(popup, '1');
+    expect(key(popup, '1').querySelector('.lbl')!.textContent).toBe('');
+    expect(manager.calls.map((c) => c[0]).join('')).toBe('た');
+    expect(state.keyEvents).toEqual([[58, true], [58, false]]);
+    await tap(popup, '1'); // Fn was one-shot: ぬ again
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('ぬ');
+    await tap(popup, 'Enter');
+    await tap(popup, 'Escape');
+    expect(state.keyEvents.slice(2)).toEqual([[41, true], [41, false]]);
+  });
+
   it('JIS: 英数 sends the reading and types the Latin legends; かな goes back to kana', async () => {
     const { popup, manager, api } = setup();
     api.debug.use('ja/jis');

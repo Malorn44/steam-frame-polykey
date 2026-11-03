@@ -265,6 +265,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     return table;
   };
 
+  /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
+  const fnKey = (key: KeyDef): boolean => mods.fn !== 'off' && (key.type === 'char' || key.type === 'key') && !!key.fn;
+
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     if (key.type === 'action' && key.action === 'next-keyboard' && alternate !== undefined) {
@@ -303,7 +306,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     }
     // 英数 mode on a Japanese keyboard: English words wait in the bar with their suggestions.
     if (keyboard && buffered(keyboard) && page === 'keys' && latin) {
-      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off';
+      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const typed = chording ? undefined
         : key.type === 'char' ? (alternate ?? charText(key, mods))
           : key.type === 'flick' ? flickText(alternate ?? key.flick[0], mods) : undefined;
@@ -325,7 +328,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     if (keyboard && buffered(keyboard) && page === 'keys' && !latin) {
       const romaji = romajiFor(keyboard);
       // A typed key goes into the buffer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
-      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off';
+      const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const side = kanaSide(key, !romaji); // a JIS key types its kana (its Latin legend with romaji input)
       const typed = side.type === 'char' && !chording ? (alternate ?? charText(side, mods)) : undefined;
       const handled = pressIme(ime, key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) },

@@ -128,6 +128,7 @@ const CSS = `
 .key.dual .q.ks { top: 4px; right: 5px; }
 .key.dual .q.kl { bottom: 5px; right: 5px; }
 .key.dual .q.cur { color: var(--text); font-size: var(--label); } /* the English keys' sizes */
+.key.dual.fnon .q { display: none; }
 .key.dual .q.dot { outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
   line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: 1px; } /* a tight square round the legend, as on a keycap */
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
@@ -626,7 +627,11 @@ export const createView = (
           el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
         }
         if (quad && key.type === 'char') {
-          showQuad(quad, key);
+          // While Fn is on, a key with an Fn variant shows it (F1) in place of its legends; otherwise no Fn legend.
+          const fnShown = mods.fn !== 'off' && key.fn ? keyLabel(normalizeFn(key.fn), mods) : '';
+          el.classList.toggle('fnon', fnShown !== '');
+          label.textContent = fnShown;
+          if (!fnShown) showQuad(quad, key);
           continue;
         }
         if (tallOf(key) === 'bottom') continue; // the label is on the top half
