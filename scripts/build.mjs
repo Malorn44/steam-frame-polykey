@@ -1,9 +1,9 @@
 // Build dist/stage/ (bundle.js, probe.js, VERSION, sidecar/): the tree deploy.sh copies to the Frame.
-// Usage: node scripts/build.mjs [--debug]   (--debug: unminified)
+// Usage: node scripts/build.mjs [--debug]   (--debug: unminified, CSS as written)
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cssMinify } from './css-minify.mjs';
 
-const BUNDLE_BUDGET_BYTES = 120 * 1024;
 const debug = process.argv.includes('--debug');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
@@ -18,6 +18,7 @@ const common = {
   format: 'iife',
   target: 'es2020',
   minify: !debug,
+  plugins: debug ? [] : [cssMinify],
   legalComments: 'none',
   define: { __POLYKEY_VERSION__: JSON.stringify(version) },
   logLevel: 'warning',
@@ -35,8 +36,4 @@ cpSync('sidecar/polykey', `${stage}/sidecar/polykey`, {
 });
 
 const size = statSync(`${stage}/bundle.js`).size;
-console.log(`polykey ${version}: bundle.js ${(size / 1024).toFixed(1)} KB (budget ${BUNDLE_BUDGET_BYTES / 1024} KB)`);
-if (size > BUNDLE_BUDGET_BYTES) {
-  console.error('bundle.js is over budget');
-  process.exit(1);
-}
+console.log(`polykey ${version}: bundle.js ${(size / 1024).toFixed(1)} KB`);

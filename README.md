@@ -59,7 +59,7 @@ src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, Desktop Mode clipboard (Wayland)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
-scripts/        build.mjs, deploy.sh
+scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh
 contrib/        polykey.service
 ```
 

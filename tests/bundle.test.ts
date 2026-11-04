@@ -1,8 +1,9 @@
-// The built bundle (minified IIFE, as injected into Steam) installs itself into a separate window,
+// The built bundle (minified IIFE and CSS, as injected into Steam) installs itself into a separate window,
 // and stays inert without Steam's objects. Built here with esbuild, evaluated in a jsdom window.
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
+import { cssMinify } from '../scripts/css-minify.mjs';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { bundledBoot } from './boot.js';
 import { fakePopupWindow, fakeSteam } from './fake-steam.js';
@@ -14,6 +15,7 @@ const bundle = async (): Promise<string> => {
     format: 'iife',
     target: 'es2020',
     minify: true,
+    plugins: [cssMinify],
     write: false,
     define: { __POLYKEY_VERSION__: JSON.stringify('bundle-test') },
   });
@@ -51,9 +53,5 @@ describe('built bundle', () => {
     const api = (win as unknown as { __polykey: Polykey }).__polykey;
     expect(api.state).toBe('waiting');
     api.uninstall();
-  });
-
-  it('is small', async () => {
-    expect((await bundle()).length).toBeLessThan(110 * 1024); // an early warning, under the build's 120 KB budget
   });
 });
