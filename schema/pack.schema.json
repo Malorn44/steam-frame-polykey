@@ -317,12 +317,17 @@
         "fn": {
           "$ref": "#/$defs/fnKey"
         },
-        "tall": {
+        "rows": {
           "enum": [
-            "top",
-            "bottom"
+            2
           ],
-          "description": "The top or bottom half of a key two rows high (the JIS Enter); the halves act as one key."
+          "description": "A key two rows high, written once in the upper row: the row below leaves room for it, in the same columns (less the notch)."
+        },
+        "notch": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "How much narrower the lower half is, on the left (the JIS Enter: 0.25)."
         }
       }
     },
@@ -453,12 +458,17 @@
         "w": {
           "$ref": "#/$defs/width"
         },
-        "tall": {
+        "rows": {
           "enum": [
-            "top",
-            "bottom"
+            2
           ],
-          "description": "The top or bottom half of a key two rows high; the halves act as one key."
+          "description": "A key two rows high, written once in the upper row: the row below leaves room for it, in the same columns (less the notch)."
+        },
+        "notch": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "How much narrower the lower half is, on the left (the JIS Enter: 0.25)."
         }
       }
     },

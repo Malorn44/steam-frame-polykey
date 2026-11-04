@@ -32,11 +32,15 @@ export type CharKey = {
   /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
   hint?: string;
 };
-/** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
+/**
+ * tall: the top or bottom half of a key two rows high; both halves are one key. A pack writes the key
+ * once (rows: 2, notch: the lower half that much narrower on the left, the JIS Enter); the loader
+ * splits it into halves.
+ */
 export type Tall = 'top' | 'bottom';
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall };
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall; notch?: number };
 export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall };
+export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall; notch?: number };
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what

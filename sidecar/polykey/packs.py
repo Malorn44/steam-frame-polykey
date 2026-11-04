@@ -292,40 +292,47 @@ def _key_id(key: Any) -> str:
     return str(key["flick"][0]) if key.get("type") == "flick" and key.get("flick") else ""
 
 
-def _check_rows(layout_id: str, layout: dict, errors: list[str]) -> None:
-    """Report rows that are not all as wide as the first, and two-row keys whose halves do not meet:
-    a "tall": "top" key needs a "bottom" one doing the same in the row below, sharing columns with it (the
-    JIS Enter is wider above, so the halves need only overlap)."""
-    rows = layout["rows"]
+def _width(key: Any) -> float:
+    return key.get("w", 1) if isinstance(key, dict) else 1
 
-    def spans(row: list) -> list[tuple[float, float, Any]]:
-        out, at = [], 0.0
-        for key in row:
-            width = key.get("w", 1) if isinstance(key, dict) else 1
-            out.append((at, at + width, key))
+
+def _expand_spans(layout_id: str, layout: dict, errors: list[str]) -> bool:
+    """Split each two-row key ("rows": 2, written once in the upper row) into the halves the page draws:
+    "tall": "top" there, and "tall": "bottom" in the row below at the same columns, "notch" narrower on
+    the left (the JIS Enter). False (reported) when the row below has no room there."""
+    rows = [list(row) for row in layout["rows"]]
+    for index, row in enumerate(rows):
+        at = 0.0
+        for position, key in enumerate(row):
+            width = _width(key)
+            if isinstance(key, dict) and key.get("rows") == 2:
+                notch = key.get("notch", 0)
+                below = rows[index + 1] if index + 1 < len(rows) else None
+                start, x, slot = at + notch, 0.0, None
+                for place in range(len(below) + 1 if below is not None else 0):
+                    if abs(x - start) < 1e-6:
+                        slot = place
+                        break
+                    if place < len(below):
+                        x += _width(below[place])
+                if below is None or slot is None or notch >= width:
+                    errors.append(f"{layout_id}: row {index}: {_key_id(key)} is two rows high but the row below has no room for it")
+                    return False
+                top = {k: v for k, v in key.items() if k != "rows"}
+                bottom = {k: v for k, v in key.items() if k not in ("rows", "notch")}
+                row[position] = {**top, "tall": "top"}
+                below.insert(slot, {**bottom, "w": width - notch, "tall": "bottom"})
             at += width
-        return out
+    layout["rows"] = rows
+    return True
 
-    laid = [spans(row) for row in rows]
-    width = laid[0][-1][1] if laid[0] else 0
-    for index, row in enumerate(laid[1:], start=1):
-        if row and abs(row[-1][1] - width) > 1e-6:
-            errors.append(f"{layout_id}: row {index} is {row[-1][1]:g} wide, row 0 is {width:g}")
 
-    def tall(key: Any) -> Optional[str]:
-        return key.get("tall") if isinstance(key, dict) else None
-
-    def half(row: int, start: float, end: float, kind: str, key: Any) -> bool:
-        return 0 <= row < len(laid) and any(
-            tall(k) == kind and s < end - 1e-6 and start < e - 1e-6 and _key_id(k) == _key_id(key)
-            for s, e, k in laid[row])
-
-    for index, row in enumerate(laid):
-        for start, end, key in row:
-            if tall(key) == "top" and not half(index + 1, start, end, "bottom", key):
-                errors.append(f"{layout_id}: row {index}: the top half of {_key_id(key)} has no bottom half below it")
-            if tall(key) == "bottom" and not half(index - 1, start, end, "top", key):
-                errors.append(f"{layout_id}: row {index}: the bottom half of {_key_id(key)} has no top half above it")
+def _check_rows(layout_id: str, layout: dict, errors: list[str]) -> None:
+    """Report rows that are not all as wide as the first."""
+    widths = [sum(_width(key) for key in row) for row in layout["rows"]]
+    for index, width in enumerate(widths[1:], start=1):
+        if abs(width - widths[0]) > 1e-6:
+            errors.append(f"{layout_id}: row {index} is {width:g} wide, row 0 is {widths[0]:g}")
 
 
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
@@ -343,6 +350,7 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
             else:
                 errors.append(f"{layout_id}: modify table {layout['modify']} not found")
                 del layout["modify"]
+        _expand_spans(layout_id, layout, errors)
         _check_rows(layout_id, layout, errors)
         has_modify_key = any(isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row)
         if has_modify_key and not layout.get("modify"):

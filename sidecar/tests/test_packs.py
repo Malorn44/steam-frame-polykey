@@ -113,27 +113,30 @@ def test_rows_must_be_as_wide_as_the_first(tmp_path):
     assert "mine/short" in boot["catalog"]["layouts"]  # reported, still usable
 
 
-def test_two_row_keys_need_both_halves_sharing_columns(tmp_path):
+def test_a_two_row_key_is_written_once_and_split_into_halves(tmp_path):
     a = {"type": "char", "char": "a"}
+    enter = {"type": "key", "key": "Enter", "w": 1.5, "rows": 2}
+    # Same columns below (五十音); and notched, narrower below on the left (the JIS Enter).
+    write(tmp_path / "packs", "mine/even.json", layout("mine/even", rows=[[a, enter], [a]]))
+    write(tmp_path / "packs", "mine/jis.json", layout("mine/jis", rows=[[a, {**enter, "notch": 0.25}], [a, {**a, "w": 0.25}]]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == []
+    even = boot["catalog"]["layouts"]["mine/even"]["rows"]
+    assert even[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "tall": "top"}
+    assert even[1] == [a, {"type": "key", "key": "Enter", "w": 1.5, "tall": "bottom"}]
+    jis = boot["catalog"]["layouts"]["mine/jis"]["rows"]
+    assert jis[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "notch": 0.25, "tall": "top"}
+    assert jis[1][2] == {"type": "key", "key": "Enter", "w": 1.25, "tall": "bottom"}  # after the 0.25 key under the notch
 
-    def enter(tall, w=1):
-        return {"type": "key", "key": "Enter", "tall": tall, "w": w}
-    # Paired: same columns; or overlapping, as the JIS Enter (wider above).
-    write(tmp_path / "packs", "mine/paired.json", layout("mine/paired", rows=[[a, enter("top")], [a, enter("bottom")]]))
-    write(tmp_path / "packs", "mine/notch.json", layout("mine/notch", rows=[[enter("top", 1.5), a], [a, enter("bottom", 0.5), a]]))
-    # Broken: no bottom; halves in different columns; halves that do different things.
-    write(tmp_path / "packs", "mine/lonely.json", layout("mine/lonely", rows=[[a, enter("top")], [a, a]]))
-    write(tmp_path / "packs", "mine/apart.json", layout("mine/apart", rows=[[a, enter("top")], [enter("bottom"), a]]))
-    write(tmp_path / "packs", "mine/other.json",
-          layout("mine/other", rows=[[a, enter("top")], [a, {"type": "key", "key": "Tab", "tall": "bottom"}]]))
+
+def test_a_two_row_key_needs_room_below(tmp_path):
+    a = {"type": "char", "char": "a"}
+    enter = {"type": "key", "key": "Enter", "rows": 2}
+    write(tmp_path / "packs", "mine/last.json", layout("mine/last", rows=[[a, a], [a, enter]]))  # no row below
+    write(tmp_path / "packs", "mine/full.json", layout("mine/full", rows=[[a, {**a, "w": 0.5}, {**enter, "w": 0.5}], [a, a]]))
     errors = packs.load(BUNDLED, SCHEMA, tmp_path)["errors"]
-    assert errors == [
-        "mine/apart: row 0: the top half of Enter has no bottom half below it",
-        "mine/apart: row 1: the bottom half of Enter has no top half above it",
-        "mine/lonely: row 0: the top half of Enter has no bottom half below it",
-        "mine/other: row 0: the top half of Enter has no bottom half below it",
-        "mine/other: row 1: the bottom half of Tab has no top half above it",
-    ]
+    assert "mine/last: row 1: Enter is two rows high but the row below has no room for it" in errors
+    assert "mine/full: row 0: Enter is two rows high but the row below has no room for it" in errors
 
 
 def test_a_table_has_entries_or_cycles(tmp_path):

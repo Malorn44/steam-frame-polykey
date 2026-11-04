@@ -177,7 +177,9 @@ const CSS = `
 .key .pair { font-weight: 300; opacity: var(--opacity-muted); }
 .key .pair.now { font-weight: 700; opacity: 1; }
 .key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
-.kb .key.tall-top { border-bottom-width: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
+.kb .key.tall-top { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
+/* Notched (the JIS Enter, wider above): the top half's lower left is a corner of the key. */
+.kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
 /* The label sits across both rows (the rows are the same height). */
 .kb .key.tall-top > .lbl { position: relative; top: calc(50% + 1.5px); }
 .kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
@@ -283,6 +285,7 @@ export const createView = (
     el.append(label);
     const tall = tallOf(key);
     if (tall) el.classList.add(`tall-${tall}`);
+    if (tall === 'top' && 'notch' in key && key.notch) el.classList.add('notched');
     if (key.type === 'mod' && key.label) el.classList.add('labelled'); // text, not an icon (a↔A)
     keys.push({ el, key, label, slots: {} });
     return el;
