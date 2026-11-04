@@ -25,7 +25,7 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
     '--size-base': 'var(--text-sm)', // the keyboard's own text size (what popups and plain keys inherit)
     '--size-label': 'var(--text-sm)', // the main character or word on a key
     '--size-dual': 'var(--text-sm)', // the main character on a key with Latin and kana legends (JIS)
-    '--size-legend': 'var(--text-3xs)', // Shift, Fn and the other alphabet's legends; the corner hint
+    '--size-legend': 'var(--text-2xs)', // Shift, Fn and the other alphabet's legends; the corner hint
     '--size-hint': 'var(--text-2xs)', // flick directions at a key's edges
     '--size-sub': 'var(--text-xs)', // small text beneath the label (the 2 under abc)
     '--size-mod': 'var(--text-xs)', // text on modifier and named keys (Ctrl, Tab, Enter)
