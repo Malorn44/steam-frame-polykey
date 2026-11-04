@@ -38,6 +38,19 @@ def test_every_bundled_layout_row_is_15_units(tmp_path):
     assert widths == [15] * len(widths)
 
 
+def layout(item_id: str, **fields) -> dict:
+    return {"schemaVersion": 1, "kind": "layout", "id": item_id, "name": item_id,
+            "rows": [[{"type": "char", "char": "a"}]], **fields}
+
+
+def test_a_layout_without_a_toolbar_gets_the_default(tmp_path):
+    write(tmp_path / "packs", "mine/plain.json", layout("mine/plain"))
+    write(tmp_path / "packs", "mine/bare.json", layout("mine/bare", toolbar=[]))
+    layouts = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]
+    assert layouts["mine/plain"]["toolbar"] == packs.DEFAULT_TOOLBAR
+    assert layouts["mine/bare"]["toolbar"] == []
+
+
 def test_a_user_item_replaces_the_bundled_one(tmp_path):
     write(tmp_path / "packs", "themes/night-owl.json", theme("themes/night-owl", "#123456"))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)

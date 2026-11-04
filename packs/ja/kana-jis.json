@@ -6,40 +6,6 @@
   "name": "Japanese kana (JIS)",
   "description": "The JIS keyboard, Mac style: 英数 types each key's Latin legends, かな its kana (Shift: the upper legend). かな while typing changes the reading to カタカナ, then ﾊﾝｶｸ. ゛ and ゜ join the kana before them.",
   "large": true,
-  "toolbar": [
-    {
-      "type": "action",
-      "action": "settings"
-    },
-    {
-      "type": "action",
-      "action": "emoji"
-    },
-    {
-      "type": "action",
-      "action": "dictate"
-    },
-    {
-      "type": "action",
-      "action": "copy"
-    },
-    {
-      "type": "action",
-      "action": "cut"
-    },
-    {
-      "type": "action",
-      "action": "paste"
-    },
-    {
-      "type": "action",
-      "action": "menu"
-    },
-    {
-      "type": "action",
-      "action": "hide"
-    }
-  ],
   "dotted": "\"'=-~^`ー「」。・_.,、",
   "rows": [
     [{"type": "key", "key": "Escape"}, {"type": "char", "char": "1", "shift": "!", "kana": "ぬ", "fn": {"type": "key", "key": "F1"}}, {"type": "char", "char": "2", "shift": "\"", "kana": "ふ", "fn": {"type": "key", "key": "F2"}}, {"type": "char", "char": "3", "shift": "#", "kana": "あ", "kanaShift": "ぁ", "fn": {"type": "key", "key": "F3"}}, {"type": "char", "char": "4", "shift": "$", "kana": "う", "kanaShift": "ぅ", "fn": {"type": "key", "key": "F4"}}, {"type": "char", "char": "5", "shift": "%", "kana": "え", "kanaShift": "ぇ", "fn": {"type": "key", "key": "F5"}}, {"type": "char", "char": "6", "shift": "&", "kana": "お", "kanaShift": "ぉ", "fn": {"type": "key", "key": "F6"}}, {"type": "char", "char": "7", "shift": "'", "kana": "や", "kanaShift": "ゃ", "fn": {"type": "key", "key": "F7"}}, {"type": "char", "char": "8", "shift": "(", "kana": "ゆ", "kanaShift": "ゅ", "fn": {"type": "key", "key": "F8"}}, {"type": "char", "char": "9", "shift": ")", "kana": "よ", "kanaShift": "ょ", "fn": {"type": "key", "key": "F9"}}, {"type": "char", "char": "0", "kana": "わ", "kanaShift": "を", "fn": {"type": "key", "key": "F10"}}, {"type": "char", "char": "-", "shift": "=", "kana": "ほ", "fn": {"type": "key", "key": "F11"}}, {"type": "char", "char": "^", "shift": "~", "kana": "へ", "fn": {"type": "key", "key": "F12"}}, {"type": "char", "char": "¥", "shift": "|", "kana": "ー"}, {"type": "key", "key": "Backspace", "w": 1}],

@@ -6,40 +6,6 @@
   "name": "Japanese 12-key letters (ABC)",
   "description": "The phone 12-key's letters mode: tap a key for its first letter, flick left, up or right for the next, down for its digit. a/A is Shift (twice: caps lock). あいう goes back to kana.",
   "large": true,
-  "toolbar": [
-    {
-      "type": "action",
-      "action": "settings"
-    },
-    {
-      "type": "action",
-      "action": "emoji"
-    },
-    {
-      "type": "action",
-      "action": "dictate"
-    },
-    {
-      "type": "action",
-      "action": "copy"
-    },
-    {
-      "type": "action",
-      "action": "cut"
-    },
-    {
-      "type": "action",
-      "action": "paste"
-    },
-    {
-      "type": "action",
-      "action": "menu"
-    },
-    {
-      "type": "action",
-      "action": "hide"
-    }
-  ],
   "rows": [
     [{"type": "action", "action": "undo"}, {"type": "flick", "flick": ["@", "-", "_", "/", "1"], "label": "@-_/", "sub": "1"}, {"type": "flick", "flick": ["a", "b", "c", "", "2"], "label": "abc", "sub": "2"}, {"type": "flick", "flick": ["d", "e", "f", "", "3"], "label": "def", "sub": "3"}, {"type": "key", "key": "Backspace"}],
     [{"type": "key", "key": "ArrowLeft"}, {"type": "flick", "flick": ["g", "h", "i", "", "4"], "label": "ghi", "sub": "4"}, {"type": "flick", "flick": ["j", "k", "l", "", "5"], "label": "jkl", "sub": "5"}, {"type": "flick", "flick": ["m", "n", "o", "", "6"], "label": "mno", "sub": "6"}, {"type": "key", "key": "ArrowRight"}],

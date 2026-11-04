@@ -1,15 +1,10 @@
-// The boot catalog built from the real bundled packs, as the sidecar would send it.
-import { readdirSync, readFileSync } from 'node:fs';
+// The boot catalog built from the real bundled packs, resolved by the sidecar as it would send it.
+import { execFileSync } from 'node:child_process';
 import type { Boot } from '../src/core/catalog.js';
 
 export const bundledBoot = (): Boot => {
-  const boot: Boot = { catalog: { layouts: {}, keyboards: {}, themes: {}, tables: {} }, settings: { keyboards: ['en/english', 'ja/12key', 'ja/50on', 'ja/romaji', 'ja/jis'], theme: 'themes/steam' }, errors: [] };
-  for (const ns of readdirSync('packs')) {
-    for (const file of readdirSync(`packs/${ns}`).filter((f) => f.endsWith('.json'))) {
-      const item = JSON.parse(readFileSync(`packs/${ns}/${file}`, 'utf8'));
-      delete item.$schema;
-      boot.catalog[`${item.kind}s` as 'layouts'][item.id] = item;
-    }
-  }
-  return boot;
+  const out = execFileSync('python3', ['-m', 'polykey.packs', 'packs', 'schema/pack.schema.json'],
+    { env: { ...process.env, PYTHONPATH: 'sidecar' }, encoding: 'utf8' });
+  const { catalog, errors } = JSON.parse(out) as Pick<Boot, 'catalog' | 'errors'>;
+  return { catalog, settings: { keyboards: ['en/english', 'ja/12key', 'ja/50on', 'ja/romaji', 'ja/jis'], theme: 'themes/steam' }, errors };
 };

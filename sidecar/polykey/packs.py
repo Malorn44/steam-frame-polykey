@@ -20,6 +20,11 @@ DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaj
 KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin")
 
 
+# The strip above the keys, for a layout that does not set its own ("toolbar": [] means none).
+DEFAULT_TOOLBAR = [{"type": "action", "action": a}
+                   for a in ("settings", "emoji", "dictate", "copy", "cut", "paste", "menu", "hide")]
+
+
 MAX_KEYBOARDS = 20
 KEYBOARD_ID = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 
@@ -227,6 +232,12 @@ def save_settings(path: Path, changes: dict) -> None:
     write_json(path, current)
 
 
+def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
+    """Fill in what a layout leaves to defaults, so the page gets every layout complete."""
+    for layout in catalog["layouts"].values():
+        layout.setdefault("toolbar", [dict(key) for key in DEFAULT_TOOLBAR])
+
+
 def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     """The boot data for the page: {catalog, settings, errors}."""
     errors: list[str] = []
@@ -242,6 +253,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     catalog: dict[str, dict] = {kind: {} for kind in KINDS.values()}
     for item_id, item in items.items():
         catalog[KINDS[item["kind"]]][item_id] = item
+    _resolve_layouts(catalog, errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in (keyboard["layout"], keyboard.get("latinLayout"), keyboard.get("symbolsLayout"), keyboard.get("qwertyLayout"),
                                                 keyboard.get("moreSymbolsLayout")) if lay and lay not in catalog["layouts"]]
@@ -266,3 +278,14 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     emoji = load_emoji([user / "packs", bundled], errors)
     return {"catalog": catalog, "settings": settings, "errors": errors,
             "emoji": emoji, "emojiState": load_emoji_state(user / "emoji.json")}
+
+
+if __name__ == "__main__":
+    # The resolved catalog of bundled packs, as the page gets it (no user packs or settings), for tests
+    # and tools: python3 -m polykey.packs <packs dir> <schema>
+    import sys
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as empty:
+        result = load(Path(sys.argv[1]), Path(sys.argv[2]), user=Path(empty))
+    json.dump({"catalog": result["catalog"], "errors": result["errors"]}, sys.stdout, ensure_ascii=False)

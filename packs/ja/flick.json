@@ -6,40 +6,6 @@
   "name": "Japanese 12-key (flick)",
   "description": "The phone 12-key: tap a key for its あ-row kana, flick left, up, right or down for the rest. Same arrangement as frame-jp-keyboard (MIT) and phones.",
   "large": true,
-  "toolbar": [
-    {
-      "type": "action",
-      "action": "settings"
-    },
-    {
-      "type": "action",
-      "action": "emoji"
-    },
-    {
-      "type": "action",
-      "action": "dictate"
-    },
-    {
-      "type": "action",
-      "action": "copy"
-    },
-    {
-      "type": "action",
-      "action": "cut"
-    },
-    {
-      "type": "action",
-      "action": "paste"
-    },
-    {
-      "type": "action",
-      "action": "menu"
-    },
-    {
-      "type": "action",
-      "action": "hide"
-    }
-  ],
   "rows": [
     [{"type": "action", "action": "undo"}, {"type": "flick", "flick": ["あ", "い", "う", "え", "お"], "cycle": ["あ", "い", "う", "え", "お", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"]}, {"type": "flick", "flick": ["か", "き", "く", "け", "こ"]}, {"type": "flick", "flick": ["さ", "し", "す", "せ", "そ"]}, {"type": "key", "key": "Backspace"}],
     [{"type": "key", "key": "ArrowLeft"}, {"type": "flick", "flick": ["た", "ち", "つ", "て", "と"], "cycle": ["た", "ち", "つ", "て", "と", "っ"]}, {"type": "flick", "flick": ["な", "に", "ぬ", "ね", "の"]}, {"type": "flick", "flick": ["は", "ひ", "ふ", "へ", "ほ"]}, {"type": "key", "key": "ArrowRight"}],

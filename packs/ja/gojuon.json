@@ -6,40 +6,6 @@
   "name": "Japanese 五十音",
   "description": "The 50-sound table as keys, read right to left (あ か さ … わ), as Gboard's 五十音 layout: tap a kana, ゛゜小 changes the one before. あa switches to letters, ?123 to the symbols pages.",
   "large": true,
-  "toolbar": [
-    {
-      "type": "action",
-      "action": "settings"
-    },
-    {
-      "type": "action",
-      "action": "emoji"
-    },
-    {
-      "type": "action",
-      "action": "dictate"
-    },
-    {
-      "type": "action",
-      "action": "copy"
-    },
-    {
-      "type": "action",
-      "action": "cut"
-    },
-    {
-      "type": "action",
-      "action": "paste"
-    },
-    {
-      "type": "action",
-      "action": "menu"
-    },
-    {
-      "type": "action",
-      "action": "hide"
-    }
-  ],
   "modify": [
     "あぁ",
     "いぃ",

@@ -6,40 +6,6 @@
   "name": "Japanese 12-key more symbols",
   "description": "The 12-key's second symbols page (=\\<): typed in the mode it was opened from. 123 goes back to the numbers, あいう to the letters.",
   "large": true,
-  "toolbar": [
-    {
-      "type": "action",
-      "action": "settings"
-    },
-    {
-      "type": "action",
-      "action": "emoji"
-    },
-    {
-      "type": "action",
-      "action": "dictate"
-    },
-    {
-      "type": "action",
-      "action": "copy"
-    },
-    {
-      "type": "action",
-      "action": "cut"
-    },
-    {
-      "type": "action",
-      "action": "paste"
-    },
-    {
-      "type": "action",
-      "action": "menu"
-    },
-    {
-      "type": "action",
-      "action": "hide"
-    }
-  ],
   "rows": [
     [{"type": "char", "char": "~"}, {"type": "char", "char": "`"}, {"type": "char", "char": "|"}, {"type": "char", "char": "·"}, {"type": "char", "char": "√"}, {"type": "char", "char": "π"}, {"type": "char", "char": "÷"}, {"type": "char", "char": "×"}, {"type": "char", "char": "§"}, {"type": "char", "char": "Δ"}],
     [{"type": "char", "char": "£"}, {"type": "char", "char": "€"}, {"type": "char", "char": "$"}, {"type": "char", "char": "¢"}, {"type": "char", "char": "^"}, {"type": "char", "char": "°"}, {"type": "char", "char": "="}, {"type": "char", "char": "{"}, {"type": "char", "char": "}"}, {"type": "char", "char": "\\"}],

@@ -350,6 +350,7 @@
         "toolbar": {
           "type": "array",
           "maxItems": 10,
+          "description": "The strip above the keys. Leave it out for the default (settings, emoji, dictate, copy, cut, paste, menu, hide); [] means none.",
           "items": {
             "$ref": "#/$defs/actionKey"
           }
