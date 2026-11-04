@@ -128,7 +128,7 @@ const CSS = `
 .key.down { filter: var(--pressed); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: var(--size-flick); }
-.kb.large .key.named, .kb.large .key.action, .kb.large .key.char { font-size: var(--size-label); }
+.kb.large .key.named, .kb.large .key.action, .kb.large .key.char, .kb.large .key.mod { font-size: var(--size-label); }
 .kb.large .key[data-k="modify"] { font-size: var(--size-modify); container-type: inline-size; }
 /* ゛゜小 on one line, shrinking on a narrow key (the 五十音 grid). */
 .kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
