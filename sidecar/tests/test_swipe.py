@@ -189,5 +189,7 @@ def test_the_bridge_answers_swipe_and_never_logs_the_path_or_words(capsys):
     assert reply["id"] == 4 and reply["ok"] and reply["words"][0] == "hello"
     broken = asyncio.run(bridge.handle(json.dumps({"id": 5, "op": "swipe", **request(keys=None)})))
     assert broken == {"id": 5, "ok": False, "error": "bad-keys"}
+    asyncio.run(bridge.handle(json.dumps({"id": 6, "op": "swipe", **request(prepare=True)})))
+    assert any(line.startswith("swipe: en/words ready in ") for line in lines)  # a timing, nothing typed
     assert not any("hello" in line for line in lines)
     assert "hello" not in capsys.readouterr().out

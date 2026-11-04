@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import time
 import unicodedata
 from collections import OrderedDict
 from itertools import accumulate
@@ -52,6 +53,8 @@ MAX_INDEXES = 2
 MAX_POINTS = 512
 MAX_KEYS = 64
 MAX_LIMIT = 8
+# A decode slower than this is logged (its time only), to see how the Frame's CPU copes.
+SLOW_MS = 100
 
 
 class Decoder(Protocol):
@@ -256,11 +259,13 @@ def _point(value: object) -> Optional[Point]:
 class Swipe:
     """The `swipe` bridge op: checks the request, then asks the decoder with the keyboard's word list."""
 
-    def __init__(self, lexicons, decoder: Optional[Decoder] = None) -> None:
+    def __init__(self, lexicons, decoder: Optional[Decoder] = None, log=None) -> None:
         self._lexicons = lexicons
         self._decoder = decoder or GeometricDecoder()
+        self._log = log
 
     def handle(self, request: dict) -> dict:
+        started = time.perf_counter()  # loading the word list counts too
         lexicon_id, raw_path, raw_keys = request.get("lexicon"), request.get("path"), request.get("keys")
         limit, key_width = request.get("limit", 5), request.get("keyWidth")
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
@@ -275,6 +280,7 @@ class Swipe:
             prepare = getattr(self._decoder, "prepare", None)
             if prepare:
                 prepare(lexicon_id, lexicon.counts(), frozenset(keys))
+                self._note(f"swipe: {lexicon_id} ready in {(time.perf_counter() - started) * 1000:.0f} ms")
             return {"ok": True, "words": []}
         if not isinstance(raw_path, list) or not 2 <= len(raw_path) <= MAX_POINTS:
             return {"ok": False, "error": "bad-path"}
@@ -286,4 +292,12 @@ class Swipe:
         if not isinstance(key_width, (int, float)) or isinstance(key_width, bool) or not 1 <= key_width <= 1000:
             return {"ok": False, "error": "bad-key-width"}
         words = self._decoder.decode(lexicon_id, lexicon.counts(), path, keys, float(key_width), limit)  # type: ignore[arg-type]
+        elapsed = (time.perf_counter() - started) * 1000
+        if elapsed > SLOW_MS:
+            self._note(f"swipe: a decode took {elapsed:.0f} ms")
         return {"ok": True, "words": words, "engine": self._decoder.id}
+
+    def _note(self, message: str) -> None:
+        """Timings only: never the path or the words."""
+        if self._log is not None:
+            self._log.info(message)

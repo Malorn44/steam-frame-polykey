@@ -32,7 +32,7 @@ class Bridge:
                  settings_path: Optional[Path] = None, converter: Optional[Converter] = None,
                  swipe: Optional[Swipe] = None) -> None:
         self._log = log
-        self._swipe = swipe or (Swipe(lexicons) if lexicons else None)
+        self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._converter = converter
         self._desktop = desktop
         self._lexicons = lexicons
