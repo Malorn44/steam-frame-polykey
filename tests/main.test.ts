@@ -114,7 +114,7 @@ describe('suggestions', () => {
     const asked: string[] = [];
     g['polykeyBridge'] = (payload: string) => {
       const req = JSON.parse(payload);
-      asked.push(req.prefix);
+      if (req.op === 'suggest') asked.push(req.prefix);
       const found = words.filter((w) => w.startsWith(String(req.prefix).toLowerCase()));
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: found }), 1);
     };
@@ -248,7 +248,142 @@ describe('settings', () => {
     steam.g['polykeyBridge'] = (payload: string) => asked.push(JSON.parse(payload).op);
     installed.push(installPolykey(steam.g));
     await tap(popup, 'h');
-    expect(asked).toEqual([]);
+    expect(asked).not.toContain('suggest');
+  });
+});
+
+describe('swipe typing', () => {
+  /** A fake sidecar: `swipe` answers with the next words from `replies`; every request is kept. */
+  const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
+    const requests: Record<string, unknown>[] = [];
+    g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      requests.push(req);
+      const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 5);
+    };
+    return requests;
+  };
+  /** Lay the keys out on a grid of 40×30 px cells (row, column), as jsdom draws nothing. */
+  const layOut = (popup: FakePopupWindow) => {
+    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+    }));
+  };
+  const touch = (el: Element, type: string, x: number, y: number) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+    el.dispatchEvent(e);
+  };
+  /** Swipe from the centre of one letter key to another's (the touches all go to the first key, as a laser's do). */
+  const swipe = async (popup: FakePopupWindow, from: string, to: string, wait = 200) => {
+    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+    const a = centre(from);
+    const b = centre(to);
+    const el = key(popup, from);
+    touch(el, 'touchstart', a.x, a.y);
+    for (let i = 1; i <= 10; i++) touch(el, 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
+    touch(el, 'touchend', b.x, b.y);
+    await vi.advanceTimersByTimeAsync(wait);
+  };
+  const typed = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
+  const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+
+  it('types the best word, a space before the next, and offers the others; a pick replaces the word', async () => {
+    const { popup, manager, g } = setup();
+    const requests = withSwipe(g, [['hello', 'hell', 'help'], ['world', 'would']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    const sent = requests.find((r) => r['op'] === 'swipe' && !r['prepare'])!;
+    expect(sent['lexicon']).toBe('en/words');
+    expect(sent['keyWidth']).toBe(40);
+    expect((sent['path'] as number[][])[0]).toEqual([260, 75]); // h: row 2, column 6
+    expect(Object.keys(sent['keys'] as object).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz');
+    expect(typed(manager)).toBe('hello');
+    expect(slots(popup)).toEqual(['hell', 'hello', 'help']); // the word typed in the middle
+    await swipe(popup, 'w', 'd');
+    expect(typed(manager)).toBe('hello world');
+    const would = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].find((el) => el.textContent === 'would')!;
+    would.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    would.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would');
+    expect(slots(popup)).toEqual(['would', 'world', '']); // still offered: another pick replaces it again
+  });
+
+  it('the word list is loaded when the keyboard shows, once', async () => {
+    const { popup, g } = setup();
+    const requests = withSwipe(g, []);
+    // The bridge came after the first draw, so the next English draw asks; later ones do not.
+    for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
+    expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number),
+      keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
+  });
+
+  it('Shift capitalises the word; Backspace right after a swipe takes the whole word back', async () => {
+    const { popup, manager, g } = setup();
+    withSwipe(g, [['hello'], ['there']]);
+    layOut(popup);
+    await tap(popup, 'shift');
+    await swipe(popup, 'h', 'o');
+    expect(typed(manager)).toBe('Hello');
+    await swipe(popup, 't', 'e');
+    await tap(popup, 'Backspace');
+    expect(typed(manager)).toBe('Hello there⌫⌫⌫⌫⌫'); // there, not Hello: Shift was used up
+    await tap(popup, 'Backspace');
+    expect(typed(manager)).toBe('Hello there⌫⌫⌫⌫⌫⌫'); // then one character at a time
+  });
+
+  it('keys pressed while the word is decoding wait for it, and end its alternatives', async () => {
+    const { popup, manager, g } = setup();
+    withSwipe(g, [['hello', 'help']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o', 0);
+    await tap(popup, '.');
+    expect(typed(manager)).toBe('hello.');
+    expect(slots(popup)).toEqual(['', '', '']);
+  });
+
+  it('after a tapped word or punctuation a swiped word gets a space; after a space, or in a new field, none', async () => {
+    const { popup, manager, g } = setup();
+    withSwipe(g, [['one'], ['two'], ['three']]);
+    layOut(popup);
+    await swipe(popup, 'o', 'e');
+    await tap(popup, ',');
+    await swipe(popup, 't', 'o');
+    await tap(popup, ' ');
+    await swipe(popup, 't', 'e');
+    expect(typed(manager)).toBe('one, two three');
+  });
+
+  it('no word: nothing is typed, and nothing typed is logged', async () => {
+    const { popup, manager, g } = setup();
+    withSwipe(g, [[], ['secret']]);
+    layOut(popup);
+    await swipe(popup, 'q', 'p');
+    expect(typed(manager)).toBe('');
+    await swipe(popup, 's', 't');
+    expect(typed(manager)).toBe('secret');
+    expect(logged.join('\n')).not.toContain('secret');
+  });
+
+  it('switched off in settings: the option is saved, and a press that moves off a letter types the letter', async () => {
+    const { popup, manager, g } = setup();
+    const requests = withSwipe(g, [['hello']]);
+    await tap(popup, 'settings');
+    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Swipe typing')!;
+    const on = row.querySelector<HTMLElement>('.switch.on')!; // on by default
+    on.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    on.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(requests.find((r) => r['op'] === 'settings.save')!['settings']).toEqual({ keyboardOptions: { 'en/english': { swipe: false } } });
+    const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
+    close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    expect(typed(manager)).toBe('h');
+    expect(requests.filter((r) => r['op'] === 'swipe' && !r['prepare'])).toEqual([]);
   });
 });
 

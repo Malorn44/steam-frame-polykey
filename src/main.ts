@@ -3,10 +3,10 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Theme } from './core/catalog.js';
+import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
-import { chooseDelivery } from './core/output/plan.js';
+import { chooseDelivery, graphemes } from './core/output/plan.js';
 import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
 import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
@@ -27,10 +27,11 @@ import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
 import { NO_IME, composing, flush, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
-import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js';
+import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
+import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
 import { fullName, languageName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
-import { createView, type View } from './ui/view.js';
+import { createView, type SwipeHandler, type View } from './ui/view.js';
 import { ICONS } from './ui/icons.js';
 import { themeVars } from './ui/theme.js';
 
@@ -52,6 +53,8 @@ const NON_ASCII = /[^\x20-\x7e]/;
 const EMOJI_ROW = 'internal/emoji-row';
 const EMOJI_ROW_PX = 44;
 const EMOJI_SAVE_DELAY_MS = 1500;
+/** A swipe's words come back in tens of ms; keys pressed meanwhile wait for them, at most this long. */
+const SWIPE_TIMEOUT_MS = 1500;
 
 export type State = 'waiting' | 'blocked' | 'running' | 'inactive' | 'uninstalled';
 
@@ -127,6 +130,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   let word: WordState = NO_WORD;
   const session = new Map<string, number>();
   let suggestGeneration = 0;
+  // Swipe typing: the last characters sent into this field (for the space before a swiped word; null
+  // when unknown), the swiped word and its alternatives while a pick can still replace it, and the
+  // decode in flight, which presses wait for so they never overtake the word.
+  let recent: string | null = null;
+  let swiped: { word: string; words: string[] } | null = null;
+  let swipeWait: Promise<void> | null = null;
+  const swipePrepared = new Set<string>();
   // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
   const settings: SettingsValues = {
     theme: boot?.settings.theme ?? '',
@@ -187,6 +197,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const enqueue = (effects: readonly Effect[]): void => {
+    recent = recentAfter(recent, effects);
     // In order, one press after another, so fast typing never interleaves.
     queue = queue.then(async () => {
       for (const effect of effects) await apply(effect);
@@ -223,6 +234,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const refreshSuggestions = (): void => {
     const generation = ++suggestGeneration;
+    if (swiped) {
+      showWords(swiped.words); // the swiped word in the middle, its alternatives beside it
+      return;
+    }
     const inBar = buffered(boot?.catalog.keyboards[ring[current] as string]);
     const prefix = inBar ? englishText(en) || null : suggestPrefix(word);
     const lexicon = lexiconId();
@@ -265,8 +280,25 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
   const fnKey = (key: KeyDef): boolean => mods.fn !== 'off' && (key.type === 'char' || key.type === 'key') && !!key.fn;
 
+  /** While a swipe is decoding, run this after its word instead (true: deferred). */
+  const afterSwipe = (fn: () => void): boolean => {
+    if (!swipeWait) return false;
+    void swipeWait.then(fn);
+    return true;
+  };
+
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
+    if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
+    if (swiped && key.type !== 'mod') { // Shift or Caps for the next word keeps them
+      const word = swiped.word;
+      swiped = null; // any other key ends the alternatives
+      // Backspace straight after a swipe takes the whole word back, as phones do.
+      if (key.type === 'key' && key.key === 'Backspace' && !repeat && mods.ctrl === 'off' && mods.alt === 'off') {
+        sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
+        return;
+      }
+    }
     if (key.type === 'action' && key.action === 'next-keyboard' && alternate !== undefined) {
       const index = ring.indexOf(alternate); // picked from the menu held on 🌐
       if (index >= 0 && index !== current) switchTo(index);
@@ -434,6 +466,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const onCandidate = (text: string, index: number): void => {
+    if (afterSwipe(() => onCandidate(text, index))) return;
     if (!composing(ime) && en.chars.length) {
       // A suggestion for the English word: sent in its place, with a space.
       if (surface) tick(surface.win, hand);
@@ -453,11 +486,60 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const onSuggestion = (chosen: string): void => {
+    if (afterSwipe(() => onSuggestion(chosen))) return;
     if (surface) tick(surface.win, hand);
+    if (swiped) {
+      // An alternative replaces the swiped word (no space after: the next swipe brings one).
+      const before = swiped.word;
+      swiped = { ...swiped, word: chosen };
+      boost(chosen);
+      if (chosen !== before) sendEffects([...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text: chosen }]);
+      return;
+    }
     const typed = word.word;
     boost(chosen);
     setWord(NO_WORD);
     enqueue(replaceWord(typed, chosen));
+  };
+
+  /** A swipe on the letters: the sidecar decodes it; the best word is typed, the others offered. */
+  const onSwipe: SwipeHandler = (path, letters, keyWidth) => {
+    if (afterSwipe(() => onSwipe(path, letters, keyWidth))) return;
+    const keyboard = currentKeyboard();
+    const lexicon = keyboard && !buffered(keyboard) ? swipeLexicon(keyboard, keyboardOptions[keyboard.id]) : undefined;
+    if (!lexicon || !bridge.available()) return;
+    if (surface) tick(surface.win, hand);
+    swiped = null;
+    // Shift applies to the word as it does to a letter: once for a capital, locked (or Caps) for all.
+    const { shift, caps } = mods;
+    mods = pressText(mods, '').mods;
+    view?.update(mods);
+    const round = (v: number): number => Math.round(v * 10) / 10;
+    swipeWait = bridge.call('swipe', { lexicon, path: path.map((p) => [round(p.x), round(p.y)]), keys: letters, keyWidth: round(keyWidth),
+      limit: SWIPE_WORDS }, SWIPE_TIMEOUT_MS).then((reply) => {
+      swipeWait = null;
+      const found = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '') : [];
+      if (!found.length) {
+        log(reply.ok ? 'swipe: no word matched' : `swipe failed: ${reply.error ?? '?'}`); // never the path or words
+        return;
+      }
+      const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
+      const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
+      boost(words[0]!);
+      swiped = { word: words[0]!, words };
+      sendEffects([{ kind: 'text', text }]);
+    }).catch((error) => {
+      swipeWait = null; // presses waiting for the word go on
+      warn('swipe failed:', errorKind(error));
+    });
+  };
+
+  /** Have the sidecar load the word list a swipe needs before the first swipe (once per list). */
+  const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
+    if (!lexicon || swipePrepared.has(lexicon) || !bridge.available()) return;
+    swipePrepared.add(lexicon);
+    const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
   };
 
   const unmountView = (): void => {
@@ -564,8 +646,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       });
       applyBounds();
     } else {
+      const swipes = keyboard && !buffered(keyboard) ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
+      prepareSwipe(swipes, layout);
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
+          onSwipe: swipes ? onSwipe : undefined,
           latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
@@ -605,6 +690,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const typeEmoji = (base: string, fromRecent: boolean): void => {
     if (surface) tick(surface.win, hand);
+    swiped = null;
     sendEffects([{ kind: 'text', text: withTone(base, emoji.tone, tones) }]);
     emoji = { ...emoji, recent: useRecent(emoji.recent, base, fromRecent, RECENT_MAX) };
     picker?.update(emoji);
@@ -613,6 +699,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const onSteam = (item: Parameters<typeof steamItemEffects>[0], fromRecent: boolean): void => {
     if (surface) tick(surface.win, hand);
+    swiped = null;
     sendEffects(steamItemEffects(item));
     emoji = { ...emoji, recent: useRecent(emoji.recent, steamKey(item), fromRecent, RECENT_MAX) };
     picker?.update(emoji);
@@ -686,6 +773,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   };
 
   const switchTo = (index: number): void => {
+    swiped = null;
     if (composing(ime)) enqueue(flush(ime, romajiFor(currentKeyboard())).effects); // switching keyboards sends the buffer
     if (en.chars.length) enqueue(commitEnglish(en));
     en = NO_ENGLISH;
@@ -718,6 +806,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     const status = readStatus(statusStore);
     const open = status?.bIsOpen === true;
     if (open !== wasOpen) {
+      swiped = null;
+      recent = null; // a new field: what is before the cursor is unknown
       setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
       if (!open) {
         ime = NO_IME; // the field is gone: an unsent reading is dropped, not typed elsewhere
