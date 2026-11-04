@@ -10,8 +10,10 @@
  "converter": "anthy",
  "table": "ja/romaji-table",
  "options": {
-  "romajiInput": false
+  "romajiInput": false,
+  "swipe": false
  },
+ "features": {"swipe": {"lexicon": "en/words"}},
  "lexicon": "en/words",
  "modes": [
   {"id": "kana", "letters": "あいう"},

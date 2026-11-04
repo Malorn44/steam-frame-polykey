@@ -192,8 +192,10 @@ def test_a_keyboard_extends_another(tmp_path):
 
 
 def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
-    english = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]["en/english"]
-    assert english["features"] == {"swipe": {"lexicon": "en/words"}} and english["options"] == {"swipe": True}
+    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
+    for keyboard_id in ("en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"):  # 50on through extends
+        assert keyboards[keyboard_id]["features"] == {"swipe": {"lexicon": "en/words"}}, keyboard_id
+        assert keyboards[keyboard_id]["options"]["swipe"] is False, keyboard_id  # off until turned on
     write(tmp_path / "packs", "mine/qwerty.json", keyboard("mine/qwerty", layout="en/qwerty", options={"swipe": True}))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == ["mine/qwerty: the swipe option needs features.swipe"]
@@ -284,7 +286,7 @@ def test_bridge_saves_only_known_settings(tmp_path):
 def test_the_japanese_12key_pack_loads():
     boot = packs.load(BUNDLED, SCHEMA, None)
     assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": True, "flickHints": False, "qwertyLatin": True}
+    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": True, "flickHints": False, "qwertyLatin": True, "swipe": False}
     layout = boot["catalog"]["layouts"]["ja/flick"]
     assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
     assert "はばぱ" in layout["modify"]

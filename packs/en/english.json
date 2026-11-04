@@ -9,5 +9,5 @@
  "composer": "direct",
  "lexicon": "en/words",
  "features": {"swipe": {"lexicon": "en/words"}},
- "options": {"swipe": true}
+ "options": {"swipe": false}
 }

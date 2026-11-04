@@ -15,8 +15,10 @@
   "tapCycle": false,
   "candidatesLeft": true,
   "flickHints": false,
-  "qwertyLatin": true
+  "qwertyLatin": true,
+  "swipe": false
  },
+ "features": {"swipe": {"lexicon": "en/words"}},
  "converter": "anthy",
  "lexicon": "en/words",
  "modes": [

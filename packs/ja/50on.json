@@ -8,6 +8,7 @@
  "layout": "ja/gojuon",
  "options": {
   "qwertyLatin": true,
-  "tapCycle": false
+  "tapCycle": false,
+  "swipe": false
  }
 }

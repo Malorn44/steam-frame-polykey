@@ -255,14 +255,17 @@ describe('settings', () => {
 describe('swipe typing', () => {
   /** polykey with a fake sidecar (there from the start, as the injector adds the binding first): `swipe`
    * answers with the next words from `replies`; every request is kept. */
-  const setupSwipe = (replies: string[][]) => {
+  const setupSwipe = (replies: string[][], on: string[] = ['en/english']) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
-    steam.g[BOOT_GLOBAL] = bundledBoot();
+    const boot = bundledBoot();
+    boot.settings.keyboardOptions = Object.fromEntries(on.map((id) => [id, { swipe: true }])); // off by default
+    steam.g[BOOT_GLOBAL] = boot;
     const requests = withSwipe(steam.g, replies);
-    installed.push(installPolykey(steam.g));
-    return { popup, manager, requests };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    return { popup, manager, requests, api };
   };
   const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
     const requests: Record<string, unknown>[] = [];
@@ -381,22 +384,24 @@ describe('swipe typing', () => {
     expect(manager.calls).toEqual([['h', false]]);
   });
 
-  it('switched off in settings: the option is saved, and a press that moves off a letter types the letter', async () => {
-    const { popup, manager, requests } = setupSwipe([['hello']]);
+  it('off by default; switched on in settings it is saved and swipes', async () => {
+    const { popup, manager, requests } = setupSwipe([['hello']], []);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    expect(typed(manager)).toBe('h'); // off: the press types its letter
     await tap(popup, 'settings');
     const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Swipe typing')!;
-    const on = row.querySelector<HTMLElement>('.switch.on')!; // on by default
-    on.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-    on.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    const off = row.querySelector<HTMLElement>('.switch:not(.on)')!;
+    off.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    off.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(50);
-    expect(requests.find((r) => r['op'] === 'settings.save')!['settings']).toEqual({ keyboardOptions: { 'en/english': { swipe: false } } });
+    expect(requests.find((r) => r['op'] === 'settings.save')!['settings']).toEqual({ keyboardOptions: { 'en/english': { swipe: true } } });
     const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
     close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     layOut(popup);
     await swipe(popup, 'h', 'o');
-    expect(typed(manager)).toBe('h');
-    expect(requests.filter((r) => r['op'] === 'swipe' && !r['prepare'])).toEqual([]);
+    expect(typed(manager)).toBe('h hello'); // after a letter, as after a word: a space
   });
 });
 
