@@ -365,6 +365,39 @@ def _check_tables(catalog: dict, errors: list[str]) -> None:
             del catalog["tables"][table_id]
 
 
+def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
+    """Keyboards with what they extend filled in: the base's fields, each replaced by the keyboard's own
+    (options as a whole); the name and description are never inherited. Reported and dropped: a missing
+    base, a loop, and a keyboard with no layout."""
+    done: dict[str, Optional[dict]] = {}
+
+    def resolve(keyboard_id: str, chain: tuple[str, ...]) -> Optional[dict]:
+        if keyboard_id in done:
+            return done[keyboard_id]
+        keyboard = keyboards[keyboard_id]
+        base_id = keyboard.get("extends")
+        result: Optional[dict] = keyboard
+        if base_id is not None:
+            if base_id in chain or base_id == keyboard_id or len(chain) >= MAX_EXTENDS:
+                errors.append(f"{keyboard_id}: extends {base_id} in a loop or too deep")
+                result = None
+            elif base_id not in keyboards:
+                errors.append(f"{keyboard_id}: extends {base_id}, which was not found")
+                result = None
+            else:
+                base = resolve(base_id, chain + (keyboard_id,))
+                inherited = {k: json.loads(json.dumps(v)) for k, v in (base or {}).items() if k not in ("id", "name", "description", "extends")}
+                result = None if base is None else {**inherited, **{k: v for k, v in keyboard.items() if k != "extends"}}
+        if result is not None and "layout" not in result:
+            errors.append(f"{keyboard_id}: needs a layout, or extends a keyboard with one")
+            result = None
+        done[keyboard_id] = result
+        return result
+
+    resolved = {keyboard_id: resolve(keyboard_id, ()) for keyboard_id in keyboards}
+    return {k: v for k, v in resolved.items() if v is not None}
+
+
 def _pages(keyboard: dict) -> list[str]:
     """Every layout a keyboard can show: its layout, its 英数 page(s) and its symbols pages."""
     pages = keyboard.get("pages", {})
@@ -390,6 +423,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         catalog[KINDS[item["kind"]]][item_id] = item
     _check_tables(catalog, errors)
     _resolve_layouts(catalog, errors)
+    catalog["keyboards"] = _extend_keyboards(catalog["keyboards"], errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in _pages(keyboard) if lay not in catalog["layouts"]]
         if missing:

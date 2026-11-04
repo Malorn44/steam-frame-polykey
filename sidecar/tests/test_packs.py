@@ -176,6 +176,33 @@ def test_a_keyboard_needs_its_layout(tmp_path):
     assert boot["errors"] == ["fr/azerty: layout fr/azerty not found"]
 
 
+def keyboard(item_id: str, **fields) -> dict:
+    return {"schemaVersion": 1, "kind": "keyboard", "id": item_id, "name": item_id, **fields}
+
+
+def test_a_keyboard_extends_another(tmp_path):
+    write(tmp_path / "packs", "ja/mine.json", keyboard("ja/mine", extends="ja/12key", layout="ja/gojuon", options={"flickHints": True}))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == []
+    mine, base = boot["catalog"]["keyboards"]["ja/mine"], boot["catalog"]["keyboards"]["ja/12key"]
+    assert mine["layout"] == "ja/gojuon" and mine["name"] == "ja/mine" and "extends" not in mine
+    assert mine["pages"] == base["pages"] and mine["converter"] == "anthy" and mine["language"] == "ja"
+    assert mine["options"] == {"flickHints": True}  # options replace the base's as a whole
+    assert base["options"]["candidatesLeft"] is True  # the base is untouched
+
+
+def test_a_keyboard_that_cannot_be_extended_is_reported(tmp_path):
+    write(tmp_path / "packs", "mine/lost.json", keyboard("mine/lost", extends="mine/nope"))
+    write(tmp_path / "packs", "mine/loop-a.json", keyboard("mine/loop-a", extends="mine/loop-b"))
+    write(tmp_path / "packs", "mine/loop-b.json", keyboard("mine/loop-b", extends="mine/loop-a"))
+    write(tmp_path / "packs", "mine/bare.json", keyboard("mine/bare"))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert not {"mine/lost", "mine/loop-a", "mine/loop-b", "mine/bare"} & set(boot["catalog"]["keyboards"])
+    assert "mine/lost: extends mine/nope, which was not found" in boot["errors"]
+    assert any(e.startswith("mine/loop-") and "in a loop" in e for e in boot["errors"])
+    assert "mine/bare: needs a layout, or extends a keyboard with one" in boot["errors"]
+
+
 def test_settings_are_read_and_checked(tmp_path):
     write(tmp_path, "settings.json", {"keyboards": ["xx/nope", "en/english"], "theme": "themes/nope"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)

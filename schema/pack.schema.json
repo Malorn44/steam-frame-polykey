@@ -622,8 +622,7 @@
         "schemaVersion",
         "kind",
         "id",
-        "name",
-        "layout"
+        "name"
       ],
       "additionalProperties": false,
       "properties": {
@@ -651,6 +650,10 @@
         "language": {
           "type": "string",
           "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+        },
+        "extends": {
+          "$ref": "#/$defs/id",
+          "description": "Start from this keyboard: everything not set here (except name and description) comes from it; a field set here (e.g. options) replaces its."
         },
         "layout": {
           "$ref": "#/$defs/id"

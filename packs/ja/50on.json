@@ -4,16 +4,9 @@
  "kind": "keyboard",
  "id": "ja/50on",
  "name": "五十音",
- "language": "ja",
+ "extends": "ja/12key",
  "layout": "ja/gojuon",
- "pages": {
-  "latin": {"flick": "ja/flick-abc", "qwerty": "ja/flick-qwerty"},
-  "symbols": ["ja/flick-symbols", "ja/flick-symbols2"]
- },
- "composer": "kana",
  "options": {
   "qwertyLatin": true
- },
- "converter": "anthy",
- "lexicon": "en/words"
+ }
 }
