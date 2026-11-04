@@ -63,6 +63,7 @@
         "caps",
         "capsOn",
         "frame",
+        "translate",
         null
       ],
       "description": "The icon the key draws (src/ui/icons.ts), instead of its default; null: text, never an icon."

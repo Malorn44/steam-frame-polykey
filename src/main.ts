@@ -31,6 +31,8 @@ import { OPTIONS, offered, optionsFor, type OptionName } from './core/options.js
 import { fullName, languageName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type View } from './ui/view.js';
+import { ICONS } from './ui/icons.js';
+import { themeVars } from './ui/theme.js';
 
 declare const __POLYKEY_VERSION__: string;
 export const VERSION: string = typeof __POLYKEY_VERSION__ === 'string' ? __POLYKEY_VERSION__ : 'dev';
@@ -491,10 +493,14 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     const id = ring[current] ?? '';
     if (stock) {
       guard?.setActive(false);
+      // Back to polykey: the 文A icon in the current theme's colours, radius and shadow.
       const button = surface.doc.createElement('div');
-      button.textContent = '🌐 polykey';
-      button.style.cssText = 'position:fixed;top:4px;right:4px;padding:6px 10px;border-radius:8px;background:#011627;'
-        + 'color:#d6deeb;font:600 14px system-ui,sans-serif;pointer-events:auto;';
+      button.innerHTML = ICONS.translate;
+      button.setAttribute('role', 'button');
+      button.setAttribute('aria-label', 'Back to polykey');
+      const theme = themeFor(surface.win);
+      button.style.cssText = `${theme ? themeVars(theme) : ''}position:fixed;top:4px;right:4px;padding:7px;display:flex;font-size:22px;`
+        + 'border-radius:var(--radius, 6px);background:var(--surface, #23262e);color:var(--text, #fff);box-shadow:var(--shadow);pointer-events:auto;';
       const back = (e: Event): void => {
         e.preventDefault();
         e.stopPropagation();

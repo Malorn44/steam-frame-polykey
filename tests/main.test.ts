@@ -93,7 +93,8 @@ describe('installPolykey', () => {
     stockButton.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     expect(shadowOf(popup)!.querySelector('.kb')).toBeNull();
     expect(popup.document.getElementById('polykey-stock-guard')).toBeNull();
-    const back = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('div')].find((el) => el.textContent === '🌐 polykey')!;
+    const back = shadowOf(popup)!.querySelector<HTMLElement>('[aria-label="Back to polykey"]')!;
+    expect(back.querySelector('svg')).not.toBeNull(); // the 文A icon, no text
     back.click();
     expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5);
   });
