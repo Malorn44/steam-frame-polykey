@@ -9,8 +9,8 @@ export const HOLD_POPUP_CSS = `
   border-radius: var(--radius); background-color: var(--key);
   background-image: linear-gradient(var(--raised), var(--raised)); }
 /* The keyboards menu (holding 🌐): the language small above the layout, each on one line. */
-.alts.menu .key { flex-direction: column; font-size: 16px; line-height: 1.1; white-space: nowrap; overflow: hidden; padding: 0 6px; }
-.alts.menu .key .lang { font-size: 11px; opacity: 0.75; }
+.alts.menu .key { flex-direction: column; font-size: var(--ui-title); line-height: 1.1; white-space: nowrap; overflow: hidden; padding: 0 6px; }
+.alts.menu .key .lang { font-size: var(--ui-tiny); opacity: 0.75; }
 /* Lighten the cell's background only: a filter would also lighten the choice (an emoji's skin tone). */
 .alts .key.pick { background-color: var(--accent); background-image: none; color: var(--accent-text); }
 `;

@@ -19,6 +19,29 @@ export const SCALE = {
 
 export type SizePreset = 'normal' | 'large';
 
+/** The bar's height (the toolbar, the emoji tabs, the settings header), for layout maths. */
+export const BAR_PX = 26;
+
+/**
+ * The views around the keys (settings, the Keyboards page, the emoji picker, popups): shared dimensions
+ * and their text sizes, one role each.
+ */
+const UI: Record<string, string> = {
+  '--bar-height': `${BAR_PX}px`, // the toolbar, the emoji tabs, the settings header
+  '--row-height': '29px', // a settings option, a Keyboards row
+  '--ui-text': '15px', // settings' own text
+  '--ui-title': '16px', // the settings header; a layout's name in the keyboards menu
+  '--ui-control': '14px', // tabs, options, rows' names, Keyboards rows, the emoji picker's text
+  '--ui-small': '13px', // the Steam keyboard button, a row's mark, "no options"
+  '--ui-caption': '12px', // section headings, the about and hint lines, emoji notes
+  '--ui-tiny': '11px', // an effect's name, the language above a layout in the keyboards menu
+  '--ui-label': '10px', // the emoji picker's section labels
+  '--ui-icon': '18px', // the emoji tabs' icons
+  '--ui-icon-lg': '20px', // the Recent bin
+  '--size-emoji': 'var(--text-xl)', // an emoji in the picker, and its skin tones
+  '--ui-emoji-lifted': '34px', // an emoji being dragged
+};
+
 /** What each part of a key uses, by preset. */
 const ROLES: Record<SizePreset, Record<string, string>> = {
   normal: {
@@ -50,4 +73,4 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
 
 /** The scale and a preset's roles, as a style attribute value. */
 export const sizeVars = (preset: SizePreset): string =>
-  Object.entries({ ...SCALE, ...ROLES.normal, ...ROLES[preset] }).map(([name, value]) => `${name}:${value};`).join('');
+  Object.entries({ ...SCALE, ...ROLES.normal, ...ROLES[preset], ...UI }).map(([name, value]) => `${name}:${value};`).join('');

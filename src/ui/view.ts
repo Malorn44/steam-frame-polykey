@@ -13,7 +13,6 @@ import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
-export const TOOLBAR_PX = 26;
 const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
 /** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
@@ -44,7 +43,7 @@ const CSS = `
 .kb { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
   background: var(--surface); color: var(--text); font: 400 var(--size-base)/1 var(--font);
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
-.bar { height: ${TOOLBAR_PX}px; display: flex; flex: none; }
+.bar { height: var(--bar-height); display: flex; flex: none; }
 .bar .key { flex: none; width: 30px; font-size: var(--size-bar-key); }
 .bar .key[data-k="hide"] { width: 24px; }
 .cands { flex: 1; display: flex; min-width: 0; margin: 0 4px; }

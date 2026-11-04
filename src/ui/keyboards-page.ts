@@ -29,10 +29,10 @@ export const KEYBOARDS_CSS = `
 .kbs .col.langs { flex: 0 0 22%; }
 .kbs .col.lays { flex: 0 0 34%; }
 .kbs .list { flex: 1; display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow: hidden; }
-.item { display: flex; align-items: center; gap: 6px; height: 29px; flex: none; padding: 0 8px; box-sizing: border-box;
-  background: var(--mod); border-radius: var(--radius); font-size: 14px; white-space: nowrap; overflow: hidden; }
+.item { display: flex; align-items: center; gap: 6px; height: var(--row-height); flex: none; padding: 0 8px; box-sizing: border-box;
+  background: var(--mod); border-radius: var(--radius); font-size: var(--ui-control); white-space: nowrap; overflow: hidden; }
 .item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.item .mark { flex: none; color: var(--legend); font-size: 13px; }
+.item .mark { flex: none; color: var(--legend); font-size: var(--ui-small); }
 .item.sel { box-shadow: inset 0 0 0 2px var(--ring); }
 .item.added .mark { color: var(--accent); }
 .item .grip { flex: none; display: flex; color: var(--legend); }
@@ -42,11 +42,11 @@ export const KEYBOARDS_CSS = `
 .item .x.hover { background: var(--accent); color: var(--accent-text); }
 .item.hover { box-shadow: inset 0 0 0 2px var(--ring); }
 .item.dragging { display: none; }
-.kbs .ph { height: 29px; flex: none; border-radius: var(--radius); background: var(--hover);
+.kbs .ph { height: var(--row-height); flex: none; border-radius: var(--radius); background: var(--hover);
   box-shadow: inset 0 0 0 2px var(--ring); opacity: 0.6; }
 .ghost { position: fixed; z-index: 3; pointer-events: none; opacity: 0.9; box-shadow: var(--shadow); }
 .ghost.out { opacity: 0.45; }
-.hintline { color: var(--legend); font-size: 12px; border-top: 1px solid var(--divider); padding-top: 3px; }
+.hintline { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 `;
 
 /** A language's own name for itself (日本語, English), or its code. */

@@ -7,6 +7,7 @@
 import type { Theme } from '../core/catalog.js';
 import { touchGuard } from '../core/interaction.js';
 import { ICONS } from './icons.js';
+import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 
@@ -42,25 +43,25 @@ export interface SettingsHandlers extends KeyboardsHandlers {
 
 const CSS = `
 .panel { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; padding: 4px 10px;
-  background: var(--surface); color: var(--text); font: 400 15px/1.2 var(--font);
+  background: var(--surface); color: var(--text); font: 400 var(--ui-text)/1.2 var(--font);
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
-.head { display: flex; align-items: center; height: 26px; font-size: 16px; font-weight: 600; }
+.head { display: flex; align-items: center; height: var(--bar-height); font-size: var(--ui-title); font-weight: 600; }
 .head .title { flex: 1; }
-.head .tab { flex: none; min-width: 0; margin-right: 6px; padding: 2px 12px; font-size: 14px; }
+.head .tab { flex: none; min-width: 0; margin-right: 6px; padding: 2px 12px; font-size: var(--ui-control); }
 .head .tab.on { background: var(--accent); color: var(--accent-text); }
 .cols { flex: 1; display: flex; gap: 14px; min-height: 0; }
 .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.sect { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
+.sect { font-size: var(--ui-caption); font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
   border-bottom: 1px solid var(--divider); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
-.none { color: var(--legend); font-size: 13px; padding-top: 4px; }
+.none { color: var(--legend); font-size: var(--ui-small); padding-top: 4px; }
 .row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
-.row .name { flex: none; width: 104px; color: var(--text); font-size: 14px; }
-.opt { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 29px; padding: 2px 8px;
-  box-sizing: border-box; background: var(--mod); border-radius: var(--radius); font-size: 14px; line-height: 1.1;
+.row .name { flex: none; width: 104px; color: var(--text); font-size: var(--ui-control); }
+.opt { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: var(--row-height); padding: 2px 8px;
+  box-sizing: border-box; background: var(--mod); border-radius: var(--radius); font-size: var(--ui-control); line-height: 1.1;
   text-align: center; }
 .head .opt { flex: none; }
 .opt.close { min-width: 32px; width: 32px; padding: 0; }
-.opt.stock { margin-right: 6px; font-size: 13px; }
+.opt.stock { margin-right: 6px; font-size: var(--ui-small); }
 .opt.on { background: var(--accent); color: var(--accent-text); }
 .opt.hover { box-shadow: inset 0 0 0 2px var(--ring); }
 /* A switch (Gboard's style settings): the statement on the left, the switch at the right. */
@@ -71,7 +72,7 @@ const CSS = `
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
-.about { color: var(--legend); font-size: 12px; border-top: 1px solid var(--divider); padding-top: 3px; }
+.about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--fn); }
 `;
 
@@ -93,7 +94,7 @@ export const createSettingsView = (
   style.textContent = CSS + KEYBOARDS_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
-  root.style.cssText = themeVars(theme);
+  root.style.cssText = themeVars(theme) + sizeVars('normal');
 
   const actions = new Map<HTMLElement, () => void>();
   const option = (label: string, on: boolean, action: () => void, extra = ''): HTMLElement => {

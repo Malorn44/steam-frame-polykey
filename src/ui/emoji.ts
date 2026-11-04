@@ -10,45 +10,45 @@ import type { Theme } from '../core/catalog.js';
 import { HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
+import { BAR_PX, sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { MAX_FAVORITES, TONES, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf, type EmojiData, type EmojiState, type SteamItem, type Tone } from '../core/emoji.js';
 
 export const RECENT_COLUMNS = 6;
 /** Recent's block is 6 × 4; its last place holds the bin. */
 export const RECENT_MAX = RECENT_COLUMNS * 4 - 1;
-export const TABS_PX = 26;
 const GLIDE_TAU_S = 0.35;
 const GLIDE_MIN_SPEED = 300;
 
 const CSS = `
 .emoji { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
-  background: var(--surface); color: var(--text); font: 400 14px/1 var(--font); overflow: hidden;
+  background: var(--surface); color: var(--text); font: 400 var(--ui-control)/1 var(--font); overflow: hidden;
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
-.tabs { height: ${TABS_PX}px; display: flex; flex: none; gap: 2px; overflow: hidden; }
+.tabs { height: var(--bar-height); display: flex; flex: none; gap: 2px; overflow: hidden; }
 .tab { flex: none; min-width: 30px; height: 100%; display: flex; align-items: center; justify-content: center;
-  padding: 0 6px; box-sizing: border-box; border-radius: var(--radius); font-size: 18px; color: var(--legend); }
+  padding: 0 6px; box-sizing: border-box; border-radius: var(--radius); font-size: var(--ui-icon); color: var(--legend); }
 .tab.on { background: var(--mod); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .trash { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
-  border-radius: var(--radius); font-size: 20px; color: var(--legend); }
+  border-radius: var(--radius); font-size: var(--ui-icon-lg); color: var(--legend); }
 .trash.hover { background: var(--hover); color: var(--text); }
 .grid { position: relative; flex: 1; overflow: hidden; margin-top: 2px; }
 .strip { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; }
 .cell { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
-  font-size: 26px; border-radius: var(--radius); }
+  font-size: var(--size-emoji); border-radius: var(--radius); }
 .cell img { max-width: 80%; max-height: 80%; pointer-events: none; }
-.cell.effect { font-size: 11px; text-align: center; color: var(--legend); }
+.cell.effect { font-size: var(--ui-tiny); text-align: center; color: var(--legend); }
 .cell.hover { background: var(--hover); }
 .cell.lifted { opacity: var(--opacity-dim); }
 .cell.fav { transition: left 0.12s ease-out, top 0.12s ease-out; }
 .cell.away { visibility: hidden; }
 .note { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
-  padding: 0 8px; box-sizing: border-box; font-size: 12px; line-height: 1.3; color: var(--legend); white-space: normal; }
+  padding: 0 8px; box-sizing: border-box; font-size: var(--ui-caption); line-height: 1.3; color: var(--legend); white-space: normal; }
 .placeholder { position: absolute; box-sizing: border-box; border-radius: var(--radius); background: var(--hover); }
 .divider { position: absolute; top: 8%; height: 84%; width: 1px; background: var(--mod); }
-.label { position: absolute; top: 0; font-size: 10px; color: var(--legend); writing-mode: vertical-rl; transform: rotate(180deg); }
+.label { position: absolute; top: 0; font-size: var(--ui-label); color: var(--legend); writing-mode: vertical-rl; transform: rotate(180deg); }
 .ghost { position: fixed; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center;
-  font-size: 34px; background: var(--mod); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
-.alts .key { font-size: 26px; }
+  font-size: var(--ui-emoji-lifted); background: var(--mod); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.alts .key { font-size: var(--size-emoji); }
 `;
 
 export interface EmojiHandlers {
@@ -102,7 +102,7 @@ export const createEmojiView = (
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
   root.className = 'emoji';
-  root.style.cssText = themeVars(theme);
+  root.style.cssText = themeVars(theme) + sizeVars('normal');
   const tabsEl = doc.createElement('div');
   tabsEl.className = 'tabs';
   const grid = doc.createElement('div');
@@ -548,7 +548,7 @@ export const createEmojiView = (
     },
     setBounds: ({ top, left, width: w, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${w}px`, height: `${height}px` });
-      const gridHeight = Math.max(0, height - TABS_PX - 6);
+      const gridHeight = Math.max(0, height - BAR_PX - 6);
       const nextRows = Math.max(2, Math.floor(gridHeight / 40));
       const nextSize = Math.floor(gridHeight / nextRows) || 40;
       if (built && nextRows === rows && nextSize === cellSize) return; // the periodic check: nothing changed
