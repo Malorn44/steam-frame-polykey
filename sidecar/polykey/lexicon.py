@@ -20,7 +20,8 @@ import heapq
 import re
 import unicodedata
 from pathlib import Path
-from typing import Optional
+from types import MappingProxyType
+from typing import Mapping, Optional
 
 ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 MAX_WORD_CHARS = 40
@@ -113,6 +114,10 @@ class Lexicon:
 
     def __len__(self) -> int:
         return len(self._keys)
+
+    def counts(self) -> Mapping[str, int]:
+        """Every word with its count (read-only), for engines that rank whole words (swipe)."""
+        return MappingProxyType(self._counts)
 
     def complete(self, prefix: str, limit: int) -> list[str]:
         """The most frequent words starting with prefix (case-insensitive), most frequent first."""

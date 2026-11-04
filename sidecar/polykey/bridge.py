@@ -12,12 +12,13 @@ from .anthy import Converter
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
 from .packs import clean_keyboard_list, clean_emoji_state, clean_keyboard_options, save_settings, write_json
+from .swipe import Swipe
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn")
+OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn", "swipe")
 MAX_SUGGESTIONS = 12
 
 
@@ -28,8 +29,10 @@ def reply_expression(reply: dict) -> str:
 
 class Bridge:
     def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None,
-                 settings_path: Optional[Path] = None, converter: Optional[Converter] = None) -> None:
+                 settings_path: Optional[Path] = None, converter: Optional[Converter] = None,
+                 swipe: Optional[Swipe] = None) -> None:
         self._log = log
+        self._swipe = swipe or (Swipe(lexicons) if lexicons else None)
         self._converter = converter
         self._desktop = desktop
         self._lexicons = lexicons
@@ -61,6 +64,8 @@ class Bridge:
     async def _dispatch(self, op: str, request: dict) -> dict:
         if op == "suggest":
             return self._suggest(request)
+        if op == "swipe":
+            return self._swipe.handle(request) if self._swipe else {"ok": False, "error": "no-lexicon"}
         if op == "settings.save":
             return self._save_settings(request)
         if op == "emoji.save":
