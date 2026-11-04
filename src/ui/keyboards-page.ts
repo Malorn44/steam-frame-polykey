@@ -4,6 +4,11 @@
 // one stays. A gap opens where a dragged keyboard will land.
 
 import { SLOP_PX } from '../core/interaction.js';
+import { ICONS, type IconName } from './icons.js';
+
+/** An icon inside a line of text, at the text's size (the icons draw at 1em). */
+export const inlineIcon = (doc: Document, name: IconName): HTMLElement =>
+  Object.assign(doc.createElement('span'), { className: 'ic', innerHTML: ICONS[name] });
 
 export interface KeyboardsInfo {
   /** Every keyboard there is: id, name, language code. */
@@ -30,7 +35,8 @@ export const KEYBOARDS_CSS = `
 .item .mark { flex: none; color: var(--legend); font-size: 13px; }
 .item.sel { box-shadow: inset 0 0 0 2px var(--ring); }
 .item.added .mark { color: var(--accent); }
-.item .grip { flex: none; color: var(--legend); }
+.item .grip { flex: none; display: flex; color: var(--legend); }
+.ic { display: inline-flex; vertical-align: -0.15em; }
 .item .x { flex: none; width: 24px; height: 22px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius); color: var(--legend); }
 .item .x.hover { background: var(--accent); color: var(--accent-text); }
@@ -75,14 +81,17 @@ export const buildKeyboardsPage = (
   actions: Map<HTMLElement, () => void>,
 ): HTMLElement => {
   const el = (cls: string, text = ''): HTMLElement => Object.assign(doc.createElement('div'), { className: cls, textContent: text });
+  const icon = (cls: string, name: IconName): HTMLElement => Object.assign(el(cls), { innerHTML: ICONS[name] });
   // A layout's pack name is the layout alone (12キー); your list shows its language too.
   const nameOf = new Map(info.all.map((k) => [k.id, fullName(k)]));
   const root = el('kbs');
 
-  const column = (cls: string, heading: string): { col: HTMLElement; list: HTMLElement } => {
+  const column = (cls: string, heading: string | (string | Node)[]): { col: HTMLElement; list: HTMLElement } => {
     const col = el(`col ${cls}`);
     const list = el('list');
-    col.append(el('sect', heading), list);
+    const sect = el('sect');
+    sect.append(...(typeof heading === 'string' ? [heading] : heading));
+    col.append(sect, list);
     root.append(col);
     return { col, list };
   };
@@ -112,11 +121,11 @@ export const buildKeyboardsPage = (
   }
 
   // Yours, in 🌐's order.
-  const mine = column('mine', 'Your keyboards (🌐 order)');
+  const mine = column('mine', ['Your keyboards (', inlineIcon(doc, 'globe'), ' order)']);
   const ringItems = info.ring.map((id) => {
     const item = el('item');
-    const x = el('x', '✕');
-    item.append(el('grip', '≡'), el('nm', nameOf.get(id) ?? id), x);
+    const x = icon('x', 'hide');
+    item.append(icon('grip', 'menu'), el('nm', nameOf.get(id) ?? id), x);
     if (info.ring.length > 1) actions.set(x, () => onKeyboards(info.ring.filter((k) => k !== id)));
     else x.style.visibility = 'hidden'; // the last one stays
     draggable.set(item, { id, from: 'ring', source: item });

@@ -8,7 +8,7 @@ import type { Theme } from '../core/catalog.js';
 import { touchGuard } from '../core/interaction.js';
 import { ICONS } from './icons.js';
 import { themeVars } from './theme.js';
-import { KEYBOARDS_CSS, buildKeyboardsPage, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
+import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 
 export type SettingsTab = 'general' | 'keyboards';
 
@@ -175,8 +175,9 @@ export const createSettingsView = (
         : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })])),
   );
   if (info.tab === 'keyboards') {
-    const hint = Object.assign(doc.createElement('div'), { className: 'hintline',
-      textContent: 'Tap or drag a layout into your list · drag to reorder · drag out or ✕ to remove · hold 🌐 to jump to one' });
+    const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
+    hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'hide'), ' to remove · hold ',
+      inlineIcon(doc, 'globe'), ' to jump to one');
     root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions), hint);
   } else root.append(head, cols, about);
 
