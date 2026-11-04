@@ -1,12 +1,13 @@
 // Japanese input with a reading buffer. Pure. Kana go into the buffer (shown in the bar), not into
 // the app; nothing is sent until it is confirmed: 確定 (Enter) sends the reading as it is, or 変換
 // (Space) converts it into segments whose candidates are picked one segment at a time, and the
-// converted text is sent once the last segment is picked (or 確定). While only typing, live candidates
+// converted text is sent once the last segment is picked or confirmed. While only typing, live candidates
 // (the best conversion and predictions) can be picked to send at once.
 //
 // Keys while typing: ⌫ deletes in the buffer, ← → move the caret (→ first ends an open tap cycle),
 // ゛゜小 changes the kana before the caret, ↶ steps a tap cycle back. While converting: 変換 = next
-// candidate, ← → shorten or lengthen the focused segment, ⌫ or ↶ go back to the reading, 確定 sends.
+// candidate, ← → shorten or lengthen the focused segment, ⌫ or ↶ go back to the reading, 確定 confirms the
+// focused segment and moves to the next (on the last, it sends).
 // Any other key sends the buffer first, then acts as usual (the caller does that on null).
 //
 // Typed keys (a JIS kana key, or a letter on the romaji keyboard) go into the buffer too: with a romaji
@@ -191,7 +192,8 @@ export const pressIme = (
       const lengths = ime.segments.map((s) => Array.from(s.reading).length);
       return { ime, effects: [], request: { kind: 'convert', lengths, resize: [ime.focus, isKey(key, 'ArrowLeft') ? -1 : 1] } };
     }
-    if (isKey(key, 'Enter')) return commit(ime);
+    // 確定 confirms the focused segment as it is and moves on; after the last, everything is sent.
+    if (isKey(key, 'Enter')) return ime.focus + 1 < ime.segments.length ? { ime: { ...ime, focus: ime.focus + 1 }, effects: [] } : commit(ime);
     if (isKey(key, 'Backspace') || isAction(key, 'undo')) {
       return { ime: { ...ime, segments: null, focus: 0 }, effects: [], request: { kind: 'live' } };
     }

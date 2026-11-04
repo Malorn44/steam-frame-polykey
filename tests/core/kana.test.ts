@@ -85,6 +85,17 @@ describe('reading forms', () => {
     expect(toHalfwidth('ヶ')).toBe('ヶ'); // no half-width form
   });
 
+  it('while converting, 確定 confirms the focused segment and moves on; it sends after the last', () => {
+    const enter = (ime: Ime) => pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!;
+    const converting: Ime = { ...NO_IME, chars: Array.from('きょうははれ'), caret: 6,
+      segments: [{ reading: 'きょうは', candidates: ['今日は'], index: 0 }, { reading: 'はれ', candidates: ['晴れ', '張れ'], index: 1 }], focus: 0 };
+    const first = enter(converting);
+    expect([first.ime.focus, first.effects]).toEqual([1, []]); // nothing sent yet
+    const last = enter(first.ime);
+    expect(last.effects).toEqual([{ kind: 'text', text: '今日は張れ' }]); // each segment as picked
+    expect(last.ime).toEqual(NO_IME);
+  });
+
   it('かな cycles the reading; editing goes back to ひらがな; while converting it returns to カタカナ', () => {
     const kana: KeyDef = { type: 'action', action: 'kana' };
     let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.ime;
