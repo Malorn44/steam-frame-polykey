@@ -54,7 +54,7 @@ const CSS = `
 .sect { font-size: var(--ui-caption); font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
   border-bottom: 1px solid var(--divider); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
 .none { color: var(--legend); font-size: var(--ui-small); padding-top: 4px; }
-.row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.row { display: flex; align-items: center; gap: 6px; min-height: var(--row-height); }
 .row .name { flex: none; width: 104px; color: var(--text); font-size: var(--ui-control); }
 .opt { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: var(--row-height); padding: 2px 8px;
   box-sizing: border-box; background: var(--mod); border-radius: var(--radius); font-size: var(--ui-control); line-height: 1.1;

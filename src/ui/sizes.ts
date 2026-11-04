@@ -29,15 +29,15 @@ export const BAR_PX = 26;
 const UI: Record<string, string> = {
   '--bar-height': `${BAR_PX}px`, // the toolbar, the emoji tabs, the settings header
   '--row-height': '29px', // a settings option, a Keyboards row
-  '--ui-text': '15px', // settings' own text
-  '--ui-title': '16px', // the settings header; a layout's name in the keyboards menu
-  '--ui-control': '14px', // tabs, options, rows' names, Keyboards rows, the emoji picker's text
-  '--ui-small': '13px', // the Steam keyboard button, a row's mark, "no options"
-  '--ui-caption': '12px', // section headings, the about and hint lines, emoji notes
-  '--ui-tiny': '11px', // an effect's name, the language above a layout in the keyboards menu
-  '--ui-label': '10px', // the emoji picker's section labels
-  '--ui-icon': '18px', // the emoji tabs' icons
-  '--ui-icon-lg': '20px', // the Recent bin
+  '--ui-text': 'var(--text-xs)', // settings' own text
+  '--ui-title': 'var(--text-sm)', // the settings header; a layout's name in the keyboards menu
+  '--ui-control': 'var(--text-xs)', // tabs, options, rows' names, Keyboards rows, the emoji picker's text
+  '--ui-small': 'var(--text-xs)', // the Steam keyboard button, a row's mark, "no options"
+  '--ui-caption': 'var(--text-2xs)', // section headings, the about and hint lines, emoji notes
+  '--ui-tiny': 'var(--text-2xs)', // an effect's name, the language above a layout in the keyboards menu
+  '--ui-label': 'var(--text-3xs)', // the emoji picker's section labels
+  '--ui-icon': 'var(--text-sm)', // the emoji tabs' icons
+  '--ui-icon-lg': 'var(--text-md)', // the Recent bin
   '--size-emoji': 'var(--text-xl)', // an emoji in the picker, and its skin tones
   '--ui-emoji-lifted': '34px', // an emoji being dragged
 };
