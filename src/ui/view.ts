@@ -497,10 +497,11 @@ export const createView = (
       texts: menu ? [...menu.ids] : texts, key: entry.key };
   };
   const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
-  const setHover = (entry: Entry | undefined): boolean => {
+  const setHover = (target: Entry | undefined): boolean => {
+    const entry = target?.key.type === 'gap' ? undefined : target; // a gap is nothing to hover
     if (entry === hovered || (entry && entry === hovered?.twin)) return false;
     mark(hovered, 'hover', false);
-    hovered = entry && entry.key.type !== 'gap' ? entry : undefined;
+    hovered = entry;
     mark(hovered, 'hover', true);
     return true;
   };

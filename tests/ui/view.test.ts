@@ -89,6 +89,25 @@ describe('hover', () => {
     expect(view.hoverAt(0, 0)).toBe(true);
     expect(q.classList.contains('hover')).toBe(false);
   });
+
+  it('a gap is nothing to hover: no change while the laser stays on it (no haptic buzz)', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ja/gojuon']!, boot.catalog.themes['themes/steam']!, () => {});
+    view.update(NO_MODS);
+    const gap = shadow.querySelector<HTMLElement>('.key.gap')!;
+    const wa = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'わ')!;
+    Object.defineProperty(shadow, 'elementsFromPoint', { value: (x: number) => (x === 10 ? [gap] : x === 20 ? [wa] : []) });
+    expect(view.hoverAt(10, 10)).toBe(false); // from nothing to a gap: still nothing
+    expect(view.hoverAt(10, 11)).toBe(false);
+    expect(view.hoverAt(10, 12)).toBe(false);
+    expect(gap.classList.contains('hover')).toBe(false);
+    expect(view.hoverAt(20, 10)).toBe(true); // onto a key
+    expect(view.hoverAt(10, 10)).toBe(true); // off it, into the gap: the hover ends, once
+    expect(view.hoverAt(10, 11)).toBe(false);
+  });
 });
 
 describe('long press', () => {
