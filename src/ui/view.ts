@@ -105,7 +105,7 @@ const CSS = `
 .kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
 /* The modify key without a label of its own: ゛゜ boxed, 大⇔小 small beneath (as on Gboard's 12-key). */
 .key .mk { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
-.key .mk-marks { display: flex; gap: 0.2em; }
+.key .mk-marks { display: flex; gap: 0.35em; }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
@@ -135,11 +135,14 @@ const CSS = `
 .key.dual .q.kl { bottom: 5px; right: 5px; }
 .key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
 .key.dual.fnon .q { display: none; }
-.key .dot, .key.dual .q.dot { display: inline-block; outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
-  line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: var(--radius-box); } /* a tight square round the legend, as on a keycap */
-/* A full-width character's box is its whole cell, so it shows where in the cell the character sits
-   (、。 low left, ゛゜ high right). */
-.key .dot.cell, .key.dual .q.dot.cell { width: 1em; height: 1em; min-width: 0; line-height: 1em; text-align: left;
+/* A dotted box is the character's cell, as on JIS keycaps: one height for all, half width for a
+   half-width character, full width for a full-width one, so it shows where in the cell the character
+   sits (、。 low left, 「 and ゛゜ high right). */
+.key .dot, .key.dual .q.dot { display: inline-block; box-sizing: border-box; height: 1em; min-width: 0.55em; line-height: 1em;
+  text-align: center; outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0.06em;
+  border-radius: var(--radius-box); }
+/* 0.888em puts Noto Sans CJK's em square exactly in the 1em box (its ascent is 1.16, descent 0.29). */
+.key .dot.cell, .key.dual .q.dot.cell { width: 1em; min-width: 0; line-height: 0.888em; text-align: left;
   font-family: var(--font-cjk), var(--font); }
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
 /* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
