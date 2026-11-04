@@ -51,6 +51,8 @@ export const ICONS = {
   right: svg('<path d="M-8 0 H8 M2 -6 L8 0 L2 6"/>'),
   up: svg('<path d="M0 8 V-8 M-6 -2 L0 -8 L6 -2"/>'),
   down: svg('<path d="M0 -8 V8 M-6 2 L0 8 L6 2"/>'),
+  /** A dropdown's arrow (settings' theme picker); ours. */
+  chevron: svg('<path d="M-6 -3 L0 3 L6 -3"/>'),
   globe: svg('<circle r="10"/><ellipse rx="4.5" ry="10"/><path d="M-10 0 H10 M-8.5 -5 H8.5 M-8.5 5 H8.5"/>'),
   shift: svg(`<path d="${SHIFT_ARROW}"/>`),
   shiftLocked: svg(`<path d="${SHIFT_ARROW}" fill="currentColor"/>`),
