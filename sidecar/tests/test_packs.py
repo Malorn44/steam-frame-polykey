@@ -67,6 +67,43 @@ def test_a_layout_names_its_modify_table(tmp_path):
     assert "mine/none: has a ゛゜小 key but no modify table" in boot["errors"]
 
 
+def test_a_layout_extends_another(tmp_path):
+    base = layout("mine/base", description="the base", large=True,
+                  rows=[[{"type": "char", "char": "a"}], [{"type": "char", "char": "b"}]])
+    write(tmp_path / "packs", "mine/base.json", base)
+    write(tmp_path / "packs", "mine/child.json",
+          layout("mine/child", extends="mine/base", toolbar=[], rows={"1": [{"type": "char", "char": "c"}]}))
+    same = layout("mine/same", extends="mine/child")
+    del same["rows"]
+    write(tmp_path / "packs", "mine/same.json", same)
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    layouts = boot["catalog"]["layouts"]
+    assert boot["errors"] == []
+    assert layouts["mine/child"]["rows"] == [[{"type": "char", "char": "a"}], [{"type": "char", "char": "c"}]]
+    assert layouts["mine/child"]["large"] is True and "description" not in layouts["mine/child"]
+    assert layouts["mine/child"]["name"] == "mine/child" and "extends" not in layouts["mine/child"]
+    assert layouts["mine/child"]["toolbar"] == [] and layouts["mine/base"]["toolbar"] == packs.DEFAULT_TOOLBAR
+    assert layouts["mine/same"]["rows"] == layouts["mine/child"]["rows"] and layouts["mine/same"]["toolbar"] == []
+    assert layouts["mine/base"]["rows"][1] == [{"type": "char", "char": "b"}]  # the base is untouched
+
+
+def test_a_layout_that_cannot_be_extended_is_reported(tmp_path):
+    def child(item_id, **fields):
+        return {k: v for k, v in layout(item_id, **fields).items() if k != "rows" or "rows" in fields}
+    write(tmp_path / "packs", "mine/lost.json", child("mine/lost", extends="mine/nope"))
+    write(tmp_path / "packs", "mine/loop-a.json", child("mine/loop-a", extends="mine/loop-b"))
+    write(tmp_path / "packs", "mine/loop-b.json", child("mine/loop-b", extends="mine/loop-a"))
+    write(tmp_path / "packs", "mine/past.json", child("mine/past", extends="en/qwerty", rows={"7": [{"type": "char", "char": "x"}]}))
+    write(tmp_path / "packs", "mine/rowless.json", child("mine/rowless"))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert not {"mine/lost", "mine/loop-a", "mine/loop-b", "mine/past", "mine/rowless"} & set(boot["catalog"]["layouts"])
+    assert "mine/lost: extends mine/nope, which was not found" in boot["errors"]
+    assert any(e.startswith("mine/loop-") and "in a loop" in e for e in boot["errors"])
+    assert "mine/past: row 7 replaces nothing (en/qwerty has 5 rows)" in boot["errors"]
+    assert "mine/rowless: needs rows (a list), or extends" in boot["errors"]
+    assert len(boot["errors"]) == 4
+
+
 def test_a_table_has_entries_or_cycles(tmp_path):
     table = {"schemaVersion": 1, "kind": "table", "id": "mine/empty", "name": "empty"}
     write(tmp_path / "packs", "mine/empty.json", table)

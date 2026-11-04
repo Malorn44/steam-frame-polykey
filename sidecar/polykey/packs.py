@@ -113,9 +113,13 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
             if name not in value:
                 errors.append(f"{where}: missing {name}")
         properties = schema.get("properties", {})
+        patterns = schema.get("patternProperties", {})
         for name, item in value.items():
             if name in properties:
                 errors += validate(item, properties[name], root, f"{path}/{name}")
+            elif any(re.search(p, name) for p in patterns):
+                pattern = next(p for p in patterns if re.search(p, name))
+                errors += validate(item, patterns[pattern], root, f"{path}/{name}")
             elif schema.get("additionalProperties") is False:
                 errors.append(f"{where}: unknown field {name}")
     return errors
@@ -232,9 +236,59 @@ def save_settings(path: Path, changes: dict) -> None:
     write_json(path, current)
 
 
+MAX_EXTENDS = 4  # how deep "extends" may chain
+NOT_INHERITED = ("id", "name", "description", "extends", "rows")
+
+
+def _extend(layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]],
+            chain: tuple[str, ...] = ()) -> Optional[dict]:
+    """The layout with what it extends filled in, or None (reported once) if that cannot be done."""
+    if layout_id in done:
+        return done[layout_id]
+    done[layout_id] = _extend_one(layouts, layout_id, errors, done, chain)
+    return done[layout_id]
+
+
+def _extend_one(layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]],
+                chain: tuple[str, ...]) -> Optional[dict]:
+    layout = layouts[layout_id]
+    base_id = layout.get("extends")
+    if base_id is None:
+        if not isinstance(layout.get("rows"), list):
+            errors.append(f"{layout_id}: needs rows (a list), or extends")
+            return None
+        return layout
+    if base_id in chain or base_id == layout_id or len(chain) >= MAX_EXTENDS:
+        errors.append(f"{layout_id}: extends {base_id} in a loop or too deep")
+        return None
+    if base_id not in layouts:
+        errors.append(f"{layout_id}: extends {base_id}, which was not found")
+        return None
+    base = _extend(layouts, base_id, errors, done, chain + (layout_id,))
+    if base is None:
+        return None
+    rows = [list(row) for row in base["rows"]]
+    own = layout.get("rows", {})
+    if isinstance(own, list):
+        rows = own
+    else:
+        for index, row in own.items():
+            if int(index) >= len(rows):
+                errors.append(f"{layout_id}: row {index} replaces nothing ({base_id} has {len(rows)} rows)")
+                return None
+            rows[int(index)] = row
+    inherited = {k: json.loads(json.dumps(v)) for k, v in base.items() if k not in NOT_INHERITED}
+    own_fields = {k: v for k, v in layout.items() if k not in ("extends", "rows")}
+    return {**inherited, **own_fields, "rows": rows}
+
+
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
     """Fill in what a layout leaves to defaults or to other packs, so the page gets every layout complete."""
-    for layout_id, layout in catalog["layouts"].items():
+    layouts = catalog["layouts"]
+    done: dict[str, Optional[dict]] = {}
+    resolved = {layout_id: _extend(layouts, layout_id, errors, done) for layout_id in layouts}
+    catalog["layouts"] = layouts = {k: v for k, v in resolved.items() if v is not None}
+    for layout_id, layout in layouts.items():
         layout.setdefault("toolbar", [dict(key) for key in DEFAULT_TOOLBAR])
         if isinstance(layout.get("modify"), str):
             table = catalog["tables"].get(layout["modify"], {})
