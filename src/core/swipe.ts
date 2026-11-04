@@ -67,6 +67,8 @@ export const swipeCase = (word: string, shift: 'off' | 'once' | 'locked', caps: 
 
 /** Where a space before a swiped word belongs: after a word, a number or closing punctuation (phones' rule). */
 const SPACE_AFTER = /[\p{L}\p{N}\p{M}\p{Extended_Pictographic}.,!?;:)\]}%”’…]$/u;
+/** Among Japanese, only after Latin text: an English word right after kana or 。 goes in without one. */
+const SPACE_AFTER_LATIN = /[A-Za-z0-9\u00c0-\u024f.,!?;:)\]}%]$/u;
 const RECENT_MAX = 64; // more than a word (40), so deleting one still knows what is before it
 
 /**
@@ -85,4 +87,5 @@ export const recentAfter = (recent: string | null, effects: readonly Effect[]): 
 };
 
 /** A swiped word goes in with a space before it when it follows a word (it never joins the one before). */
-export const spaceBefore = (recent: string | null): boolean => recent !== null && SPACE_AFTER.test(recent);
+export const spaceBefore = (recent: string | null, latinOnly = false): boolean =>
+  recent !== null && (latinOnly ? SPACE_AFTER_LATIN : SPACE_AFTER).test(recent);

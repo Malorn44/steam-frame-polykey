@@ -293,9 +293,12 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     if (swiped && key.type !== 'mod') { // Shift or Caps for the next word keeps them
       const word = swiped.word;
       swiped = null; // any other key ends the alternatives
-      // Backspace straight after a swipe takes the whole word back, as phones do.
+      // Backspace straight after a swipe takes the whole word back, as phones do (in 英数 mode, out of the bar).
       if (key.type === 'key' && key.key === 'Backspace' && !repeat && mods.ctrl === 'off' && mods.alt === 'off') {
-        sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
+        if (buffered(currentKeyboard())) {
+          en = NO_ENGLISH;
+          refreshSuggestions();
+        } else sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
         return;
       }
     }
@@ -467,6 +470,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const onCandidate = (text: string, index: number): void => {
     if (afterSwipe(() => onCandidate(text, index))) return;
+    swiped = null; // in 英数 mode a pick sends the word, as for any suggestion
     if (!composing(ime) && en.chars.length) {
       // A suggestion for the English word: sent in its place, with a space.
       if (surface) tick(surface.win, hand);
@@ -502,11 +506,36 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     enqueue(replaceWord(typed, chosen));
   };
 
+  /**
+   * The word list a swipe decodes against now, if the keyboard swipes: while its swipe option is on, and
+   * on a Japanese keyboard only in 英数 mode on its letters (never in kana mode or on a symbols page).
+   */
+  const swipeNow = (): string | undefined => {
+    const keyboard = currentKeyboard();
+    if (!keyboard || page !== 'keys' || (buffered(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
+    return swipeLexicon(keyboard, keyboardOptions[keyboard.id]);
+  };
+
+  /**
+   * A swiped word on a Japanese keyboard in 英数 mode joins the English word flow (core/english.ts): a
+   * word waiting in the bar is sent with a space, the swiped one waits there in its place, its
+   * alternatives where the suggestions go; Space, 確定, a pick or a mode switch sends it as usual.
+   */
+  const swipeIntoBar = (words: string[]): void => {
+    const waiting = englishText(en);
+    if (waiting) boost(waiting);
+    const before = waiting ? `${waiting} ` : spaceBefore(recent, true) ? ' ' : '';
+    if (before) enqueue([{ kind: 'text', text: before }]);
+    const chars = graphemes(words[0]!);
+    en = { chars, caret: chars.length, cycle: null };
+    swiped = { word: words[0]!, words };
+    refreshSuggestions();
+  };
+
   /** A swipe on the letters: the sidecar decodes it; the best word is typed, the others offered. */
   const onSwipe: SwipeHandler = (path, letters, keyWidth) => {
     if (afterSwipe(() => onSwipe(path, letters, keyWidth))) return;
-    const keyboard = currentKeyboard();
-    const lexicon = keyboard && !buffered(keyboard) ? swipeLexicon(keyboard, keyboardOptions[keyboard.id]) : undefined;
+    const lexicon = swipeNow();
     if (!lexicon || !bridge.available()) return;
     if (surface) tick(surface.win, hand);
     swiped = null;
@@ -524,6 +553,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         return;
       }
       const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
+      if (buffered(currentKeyboard())) {
+        swipeIntoBar(words);
+        return;
+      }
       const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
       boost(words[0]!);
       swiped = { word: words[0]!, words };
@@ -537,8 +570,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   /** Have the sidecar load the word list a swipe needs before the first swipe (once per list). */
   const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
     if (!lexicon || swipePrepared.has(lexicon) || !bridge.available()) return;
-    swipePrepared.add(lexicon);
     const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+    if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
+    swipePrepared.add(lexicon);
     void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
   };
 
@@ -647,11 +681,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       applyBounds();
     } else {
       // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
-      const swipes = keyboard && !buffered(keyboard) && bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
+      const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
       prepareSwipe(swipes, layout);
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          onSwipe: swipes ? onSwipe : undefined,
+          onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
           latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {

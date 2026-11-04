@@ -405,6 +405,119 @@ describe('swipe typing', () => {
   });
 });
 
+describe('swipe typing on the Japanese keyboards (英数 only)', () => {
+  const swipeRequests = (requests: Record<string, unknown>[]) => requests.filter((r) => r['op'] === 'swipe' && !r['prepare']);
+  const pre = (popup: FakePopupWindow) => shadowOf(popup)!.querySelector('.pre')?.textContent ?? '';
+  const cands = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].map((el) => el.textContent);
+  const pickCand = async (popup: FakePopupWindow, text: string) => {
+    const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
+    el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+  };
+  const layOut = (popup: FakePopupWindow) => {
+    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+    }));
+  };
+  const touch = (el: Element, type: string, x: number, y: number) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+    el.dispatchEvent(e);
+  };
+  const swipe = async (popup: FakePopupWindow, from: string, to: string) => {
+    layOut(popup);
+    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+    const a = centre(from);
+    const b = centre(to);
+    const el = key(popup, from);
+    touch(el, 'touchstart', a.x, a.y);
+    for (let i = 1; i <= 10; i++) touch(el, 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
+    touch(el, 'touchend', b.x, b.y);
+    await vi.advanceTimersByTimeAsync(200);
+  };
+  const setupJa = (keyboard: string, replies: string[][], on = true) => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    if (on) boot.settings.keyboardOptions = { [keyboard]: { swipe: true } };
+    steam.g[BOOT_GLOBAL] = boot;
+    const requests: Record<string, unknown>[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = JSON.parse(payload);
+      requests.push(req);
+      const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words, segments: [], predictions: [] }), 5);
+    };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use(keyboard);
+    return { popup, manager, requests };
+  };
+  const sent = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => k).join('');
+
+  it('romaji: in かな mode a press that moves off a letter is romaji; in 英数 the swiped word waits in the bar', async () => {
+    const { popup, manager, requests } = setupJa('ja/romaji', [['hello', 'help', 'hell'], ['world', 'would'], ['there', 'three'], ['oops']]);
+    await swipe(popup, 'k', 'a');
+    expect(swipeRequests(requests)).toEqual([]);
+    expect(pre(popup)).toBe('k'); // the letter, into the reading
+    await tap(popup, 'eisu'); // sends the reading, then 英数
+    await tap(popup, ' ');
+    manager.calls.length = 0;
+    await swipe(popup, 'h', 'o');
+    expect([pre(popup), cands(popup), sent(manager)]).toEqual(['hello', ['hello', 'help', 'hell'], '']);
+    await swipe(popup, 'w', 'd'); // the waiting word goes, with a space
+    expect([pre(popup), sent(manager)]).toEqual(['world', 'hello ']);
+    await tap(popup, ' ');
+    expect(sent(manager)).toBe('hello world ');
+    await swipe(popup, 't', 'e');
+    await pickCand(popup, 'three'); // a pick sends it in place of the swiped word
+    expect([sent(manager), pre(popup)]).toEqual(['hello world three ', '']);
+    await swipe(popup, 'o', 's');
+    await tap(popup, 'Backspace'); // takes the whole word back out of the bar
+    expect([sent(manager), pre(popup), cands(popup)]).toEqual(['hello world three ', '', []]);
+  });
+
+  it('a swiped word after Japanese text gets no space; after an English word sent with 確定, one', async () => {
+    const { popup, manager } = setupJa('ja/romaji', [['one'], ['two']]);
+    await tap(popup, 'eisu');
+    await swipe(popup, 'o', 'e');
+    await tap(popup, 'Enter'); // 確定: sends it alone
+    await swipe(popup, 't', 'o');
+    await tap(popup, 'Enter');
+    expect(sent(manager)).toBe('one two');
+  });
+
+  it('JIS: no swipe in かな mode (the same keys type kana); in 英数 it swipes', async () => {
+    const { popup, requests } = setupJa('ja/jis', [['hello']]);
+    await swipe(popup, 'h', 'o');
+    expect(swipeRequests(requests)).toEqual([]);
+    await tap(popup, 'Backspace');
+    await tap(popup, 'eisu');
+    await swipe(popup, 'h', 'o');
+    expect(swipeRequests(requests)).toHaveLength(1);
+    expect(pre(popup)).toBe('hello');
+  });
+
+  it('12-key: swipes on its QWERTY ABC page, with the candidates on the left', async () => {
+    const { popup, manager, requests } = setupJa('ja/12key', [['hello', 'help']]);
+    await tap(popup, 'eisu'); // the QWERTY ABC page (英字入力はQWERTY is on)
+    await swipe(popup, 'h', 'o');
+    expect([pre(popup), cands(popup), swipeRequests(requests).length]).toEqual(['hello', ['hello', 'help'], 1]);
+    await tap(popup, 'Enter');
+    expect(sent(manager)).toBe('hello');
+  });
+
+  it('off by default on the Japanese keyboards', async () => {
+    const { popup, requests } = setupJa('ja/romaji', [['hello']], false);
+    await tap(popup, 'eisu');
+    await swipe(popup, 'h', 'o');
+    expect(swipeRequests(requests)).toEqual([]);
+    expect(pre(popup)).toBe('h'); // the press typed its letter into the word
+  });
+});
+
 describe('emoji', () => {
   it('😀 opens the picker over a key row; a tap types the emoji, updates Recent and is saved; ABC returns', async () => {
     const boot = bundledBoot();

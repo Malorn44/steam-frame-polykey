@@ -61,6 +61,8 @@ describe('the swiped word', () => {
     expect(after('(')).toBe(false);
     expect(spaceBefore('')).toBe(false); // nothing typed before it
     expect(spaceBefore(null)).toBe(false); // unknown: never guess a space
+    // On a Japanese keyboard, only after Latin text.
+    expect([spaceBefore('hello', true), spaceBefore('3.', true), spaceBefore('日本', true), spaceBefore('です。', true)]).toEqual([true, true, false, false]);
   });
 
   it('follows Backspace, and forgets on keys that may move the cursor', () => {
