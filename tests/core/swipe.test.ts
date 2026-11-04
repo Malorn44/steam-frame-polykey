@@ -69,7 +69,7 @@ describe('the swiped word', () => {
     expect(recentAfter('ab', [{ kind: 'key', key: 'ArrowLeft' }])).toBeNull();
     expect(recentAfter('ab', [{ kind: 'key', key: 'Enter' }])).toBe('\n');
     expect(recentAfter(null, [{ kind: 'text', text: 'x' }])).toBe('x');
-    expect(recentAfter('', [{ kind: 'text', text: 'a long sentence' }])).toBe(' sentence'.slice(-8));
+    expect(recentAfter('', [{ kind: 'text', text: 'x'.repeat(100) }])).toBe('x'.repeat(64));
   });
 });
 

@@ -67,7 +67,7 @@ export const swipeCase = (word: string, shift: 'off' | 'once' | 'locked', caps: 
 
 /** Where a space before a swiped word belongs: after a word, a number or closing punctuation (phones' rule). */
 const SPACE_AFTER = /[\p{L}\p{N}\p{M}\p{Extended_Pictographic}.,!?;:)\]}%”’…]$/u;
-const RECENT_MAX = 8;
+const RECENT_MAX = 64; // more than a word (40), so deleting one still knows what is before it
 
 /**
  * The last few characters this keyboard sent into the field, following one press's effects; null when
