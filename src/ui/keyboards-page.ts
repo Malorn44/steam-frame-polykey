@@ -172,7 +172,7 @@ export const buildKeyboardsPage = (
     const t = point(e);
     if (!t) return;
     if (!ghost) {
-      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < SLOP_PX.reorder) return;
+      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < SLOP_PX.list) return;
       const r = start.drag.source.getBoundingClientRect();
       ghost = start.drag.source.cloneNode(true) as HTMLElement;
       ghost.classList.add('ghost');

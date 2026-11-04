@@ -12,10 +12,8 @@ export const RELEASE_LOST_MS = 600;
 export const SLOP_PX = {
   /** …a flick on a 12-key key (fjk: 24). */
   flick: 20,
-  /** …a scroll of the candidate list instead of a pick. */
+  /** …a scroll of the candidate list instead of a pick, or a drag on the Keyboards page. */
   list: 12,
-  /** …a drag on the Keyboards page. */
-  reorder: 10,
   /** …a scroll of the emoji grid instead of a tap. */
   scroll: 24,
   /** …a scroll, while an emoji hold may still follow (Full Keyboard). */
