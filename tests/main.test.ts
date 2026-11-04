@@ -440,6 +440,9 @@ describe('12-key ABC', () => {
     await tap(popup, 'symbols'); // あいう: back to the QWERTY letters
     expect(key(popup, 'q')).toBeDefined();
     await tap(popup, '.');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('qW.'); // a symbol waits in the word too
+    expect(manager.calls).toEqual([]);
+    await tap(popup, 'Enter'); // 確定
     expect(manager.calls.map((c) => c[0]).join('')).toBe('qW.');
   });
 
@@ -536,7 +539,7 @@ describe('五十音', () => {
 });
 
 describe('12-key ?123', () => {
-  it('digits go into the reading in kana mode, and end the English word in ABC mode', async () => {
+  it('digits and symbols wait in the reading in kana mode, and in the English word in ABC mode', async () => {
     const { popup, manager, api } = setup();
     api.debug.use('ja/12key');
     await tap(popup, 'symbols');
@@ -550,6 +553,8 @@ describe('12-key ?123', () => {
     await tap(popup, 'a');
     await tap(popup, 'symbols');
     await tap(popup, '!');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('a!');
+    await tap(popup, 'Enter');
     expect(manager.calls.map((c) => c[0]).join('')).toBe('3たa!');
   });
 
@@ -634,8 +639,9 @@ describe('Japanese romaji and JIS kana', () => {
     await tap(popup, 'q');
     await tap(popup, 'shift');
     await tap(popup, '2');
+    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('q"'); // the symbol waits in the word
+    await tap(popup, 'kana'); // かな sends the word first
     expect(manager.calls.map((c) => c[0]).join('')).toBe('たq"');
-    await tap(popup, 'kana');
     await tap(popup, 'q');
     expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('た');
     expect(key(popup, 'kana').classList.contains('on')).toBe(true);

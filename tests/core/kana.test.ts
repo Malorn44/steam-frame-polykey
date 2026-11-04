@@ -85,6 +85,16 @@ describe('reading forms', () => {
     expect(toHalfwidth('ヶ')).toBe('ヶ'); // no half-width form
   });
 
+  it('symbols typed in kana mode wait in the reading too (?123, the punctuation key)', () => {
+    const at: KeyDef = { type: 'char', char: '@' };
+    const punct: FlickKey = { type: 'flick', flick: ['、', '。', '？', '！', '…'] };
+    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.ime;
+    const typed = pressIme(ime, at, { typed: '@' }, { tapCycle: false }, { modify })!;
+    expect([reading(typed.ime), typed.effects]).toEqual(['は@', []]);
+    ime = pressIme(typed.ime, punct, { flicked: '？' }, { tapCycle: false }, { modify })!.ime;
+    expect(reading(ime)).toBe('は@？');
+  });
+
   it('while converting, 確定 confirms the focused segment and moves on; it sends after the last', () => {
     const enter = (ime: Ime) => pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!;
     const converting: Ime = { ...NO_IME, chars: Array.from('きょうははれ'), caret: 6,

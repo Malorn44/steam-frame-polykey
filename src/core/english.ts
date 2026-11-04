@@ -1,8 +1,8 @@
 // The English word being typed in a Japanese keyboard's 英数 (ABC) mode: kept in the bar until it is
 // committed, like the kana reading (and like frame-jp-keyboard's QWERTY page). Pure.
 //
-// Letters, digits and the apostrophe go into the word (as a phone keyboard keeps them); any other
-// character typed (space, punctuation) sends the word followed by it. While there is a word: ⌫ and ← → edit it, 確定 (Enter) sends it,
+// Everything typed goes into the word (letters, digits, @ and other symbols), as a Japanese phone
+// keyboard composes; a space sends the word followed by it. While there is a word: ⌫ and ← → edit it, 確定 (Enter) sends it,
 // ↶ drops it, and a picked suggestion is sent in its place with a space. Any other key sends the
 // word first, then acts as usual (the caller does that on null). With tapCycle, tapping an ABC key again
 // steps its letter on (a → b → c → 2), as the kana keys do; → ends the cycle.
@@ -18,8 +18,8 @@ export interface EnglishWord {
 }
 export const NO_ENGLISH: EnglishWord = { chars: [], caret: 0 };
 
-/** Characters that belong to a word (so "don't" and "3rd" stay one word). */
-const WORD_CHAR = /^[A-Za-z0-9'’]$/;
+/** What waits in the word: anything but whitespace (a space sends it). */
+const WORD_CHAR = /^\S+$/u;
 const MAX_WORD = 40;
 
 export const englishText = (word: EnglishWord): string => word.chars.join('');
