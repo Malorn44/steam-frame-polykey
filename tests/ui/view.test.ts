@@ -2,7 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
-import { LONG_PRESS_MS, REPEAT_DELAY_MS, REPEAT_MS, createView } from '../../src/ui/view.js';
+import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../../src/core/interaction.js';
+import { createView } from '../../src/ui/view.js';
 import { bundledBoot } from '../boot.js';
 
 const setup = () => {
@@ -102,7 +103,7 @@ describe('long press', () => {
     const { keyIn, shadow, pressed, chosen } = setup();
     const e = keyIn(1, 'e');
     touch(e, 'touchstart');
-    vi.advanceTimersByTime(LONG_PRESS_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
     expect(cells.map((c) => c.textContent)).toEqual(['e', 'è', 'é', 'ê', 'ë', 'ē', 'ė', 'ę']);
     expect(cells[0]!.classList.contains('pick')).toBe(true);
@@ -123,7 +124,7 @@ describe('long press', () => {
     const rect = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
     e.getBoundingClientRect = () => rect(100, 60); // the held key
     touch(e, 'touchstart', 110, 75);
-    vi.advanceTimersByTime(LONG_PRESS_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
     cells.forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
     Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
@@ -134,7 +135,7 @@ describe('long press', () => {
     touch(e, 'touchend');
     expect(chosen).toEqual(['é']);
     touch(e, 'touchstart');
-    vi.advanceTimersByTime(LONG_PRESS_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     [...shadow.querySelectorAll<HTMLElement>('.alts .key')].forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
     touch(e, 'touchmove', 110, 200); // well below the key
     touch(e, 'touchend');
@@ -158,7 +159,7 @@ describe('long press', () => {
       return realAppend.apply(this, nodes);
     };
     touch(e, 'touchstart', 150, 75); // laser under the second cell
-    vi.advanceTimersByTime(LONG_PRESS_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     HTMLElement.prototype.append = realAppend;
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
     expect(cells.map((c) => c.classList.contains('pick'))).toEqual([false, true, false, false, false, false, false, false]);
@@ -170,7 +171,7 @@ describe('long press', () => {
     const { keyIn, pressed } = setup();
     const e = keyIn(1, 'e');
     touch(e, 'touchstart');
-    vi.advanceTimersByTime(LONG_PRESS_MS - 50);
+    vi.advanceTimersByTime(HOLD_MS - 50);
     touch(e, 'touchend');
     expect(pressed.map((k) => k.type === 'char' && k.char)).toEqual(['e']);
     vi.useRealTimers();
@@ -181,7 +182,7 @@ describe('long press', () => {
     const { keyIn, shadow, pressed } = setup();
     const q = keyIn(1, 'q'); // no variants, and its capital is not one
     touch(q, 'touchstart');
-    vi.advanceTimersByTime(LONG_PRESS_MS * 2);
+    vi.advanceTimersByTime(HOLD_MS * 2);
     expect(shadow.querySelector('.alts')).toBeNull();
     touch(q, 'touchend');
     expect(pressed).toHaveLength(1);

@@ -3,6 +3,8 @@
 // should go; drag your keyboards to reorder them, and out of the list (or ✕) to remove them. The last
 // one stays. A gap opens where a dragged keyboard will land.
 
+import { SLOP_PX } from '../core/interaction.js';
+
 export interface KeyboardsInfo {
   /** Every keyboard there is: id, name, language code. */
   all: { id: string; name: string; language: string }[];
@@ -61,8 +63,6 @@ export const dropInto = (ring: readonly string[], id: string, index: number): st
   const at = Math.min(Math.max(0, index), rest.length);
   return [...rest.slice(0, at), id, ...rest.slice(at)];
 };
-
-const SLOP_PX = 10;
 
 /**
  * Build the page. Taps go through `actions` (the settings page's tap and laser-hover handling);
@@ -163,7 +163,7 @@ export const buildKeyboardsPage = (
     const t = point(e);
     if (!t) return;
     if (!ghost) {
-      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < SLOP_PX) return;
+      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < SLOP_PX.reorder) return;
       const r = start.drag.source.getBoundingClientRect();
       ghost = start.drag.source.cloneNode(true) as HTMLElement;
       ghost.classList.add('ghost');

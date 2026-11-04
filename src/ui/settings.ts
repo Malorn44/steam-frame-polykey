@@ -5,6 +5,7 @@
 // hands over to Steam's own (🌐 skips it).
 
 import type { Theme } from '../core/catalog.js';
+import { touchGuard } from '../core/interaction.js';
 import { ICONS } from './icons.js';
 import { themeVars } from './theme.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
@@ -190,7 +191,7 @@ export const createSettingsView = (
     return true;
   };
   let pressed: HTMLElement | undefined;
-  let lastTouchAt = -Infinity;
+  const guard = touchGuard();
   root.addEventListener('touchstart', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -200,7 +201,7 @@ export const createSettingsView = (
   root.addEventListener('touchend', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    lastTouchAt = Date.now();
+    guard.touched();
     const hit = pressed;
     pressed = undefined;
     if (hit) actions.get(hit)?.();
@@ -209,7 +210,7 @@ export const createSettingsView = (
   root.addEventListener('mousedown', (e) => e.stopPropagation());
   root.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (Date.now() - lastTouchAt < 600) return;
+    if (guard.ghost()) return;
     const hit = optionAt(e.target);
     if (hit) actions.get(hit)?.();
   });

@@ -1,14 +1,14 @@
 // 12-key kana helpers: flick directions and the ゛゜小 table. Pure. The reading buffer they feed is
 // core/ime.ts.
 
-/** How far the pointer must travel before a press counts as a flick (fjk: 24 CSS px). */
-export const FLICK_PX = 20;
+import { SLOP_PX } from './interaction.js';
+
 /** Directions in the order of a flick key's list. */
 export const DIRECTIONS = ['tap', 'left', 'up', 'right', 'down'] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
 /** Tap below the threshold; otherwise the nearest axis (90° sectors, so a slanted flick still counts). */
-export const flickDirection = (dx: number, dy: number, threshold = FLICK_PX): Direction => {
+export const flickDirection = (dx: number, dy: number, threshold = SLOP_PX.flick): Direction => {
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < threshold) return 'tap';
   const angle = (Math.atan2(-dy, dx) * 180) / Math.PI;
   if (angle >= -45 && angle < 45) return 'right';

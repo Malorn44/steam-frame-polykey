@@ -5,6 +5,7 @@
 
 import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
 import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, type IconName } from './icons.js';
@@ -12,16 +13,8 @@ import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
 export const TOOLBAR_PX = 26;
-const TOUCH_MOUSE_GUARD_MS = 600;
-/** Hold this long for a key's alternates. */
-export const LONG_PRESS_MS = 400;
-/** Held Space, Backspace, Delete and arrows repeat: first after REPEAT_DELAY_MS, then every REPEAT_MS. */
-export const REPEAT_DELAY_MS = 450;
-export const REPEAT_MS = 60;
 const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
-/** Moving a press on the candidate list further than this scrolls it instead of picking. */
-export const LIST_SLOP_PX = 12;
 /** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
 export const FLICK_CELL_PX = 30;
 /** Alternate cells are a little smaller than the key. */
@@ -375,7 +368,7 @@ export const createView = (
   };
   let pressed: Entry | undefined;
   let hovered: Entry | undefined;
-  let lastTouchAt = -Infinity;
+  const guard = touchGuard();
   let mods: Mods = NO_MODS;
   let holdTimer: ReturnType<typeof setTimeout> | null = null;
   let repeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -506,7 +499,7 @@ export const createView = (
     } else if (held) holdTimer = setTimeout(() => {
       holdTimer = null;
       openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
-    }, LONG_PRESS_MS);
+    }, HOLD_MS);
   }, { passive: false });
   root.addEventListener('touchmove', (e) => {
     e.preventDefault();
@@ -517,7 +510,7 @@ export const createView = (
     if (listDrag) {
       const dx = touch.clientX - listDrag.x;
       const dy = touch.clientY - listDrag.y;
-      if (Math.hypot(dx, dy) > LIST_SLOP_PX) listDrag.moved = true;
+      if (Math.hypot(dx, dy) > SLOP_PX.list) listDrag.moved = true;
       if (listDrag.moved) {
         if (side) list.scrollTop = listDrag.top - dy;
         else list.scrollLeft = listDrag.left - dx;
@@ -530,7 +523,7 @@ export const createView = (
   root.addEventListener('touchend', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    lastTouchAt = Date.now();
+    guard.touched();
     clearHold();
     const hit = pressed;
     pressed = undefined;
@@ -582,7 +575,7 @@ export const createView = (
   root.addEventListener('mousedown', (e) => e.stopPropagation());
   root.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (Date.now() - lastTouchAt < TOUCH_MOUSE_GUARD_MS) return;
+    if (guard.ghost()) return;
     const slot = slotFor(e.target);
     if (slot?.word) {
       onSuggestion(slot.word);

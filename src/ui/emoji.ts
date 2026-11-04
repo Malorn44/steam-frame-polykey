@@ -7,6 +7,7 @@
 // across the whole shadow root, and ended if its release is lost. Like Full Keyboard: no haptics here.
 
 import type { Theme } from '../core/catalog.js';
+import { EMOJI_HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
 import { themeVars } from './theme.js';
@@ -16,14 +17,7 @@ export const RECENT_COLUMNS = 6;
 /** Recent's block is 6 × 4; its last place holds the bin. */
 export const RECENT_MAX = RECENT_COLUMNS * 4 - 1;
 export const TABS_PX = 26;
-/** A press that moves further than this scrolls instead (more while a hold may follow). */
-export const SCROLL_SLOP_PX = 24;
-export const HOLD_MS = 500;
-/** While a hold may follow (toned, Recent, Favorites), the laser may wander this far (Full Keyboard). */
-export const HOLD_SLOP_PX = 32;
 const GLIDE_TAU_S = 0.35;
-/** The laser moving this long without a touch move means the trigger was released unseen. */
-export const RELEASE_LOST_MS = 600;
 const GLIDE_MIN_SPEED = 300;
 
 const CSS = `
@@ -272,6 +266,7 @@ export const createEmojiView = (
   let hovered: HTMLElement | undefined;
   const win = doc.defaultView;
   const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const guard = touchGuard(now);
 
   const cellAt = (target: EventTarget | null): Cell | undefined => cells.find((c) => c.el === target || c.el.contains(target as Node));
   const cellAtPoint = (x: number, y: number): Cell | undefined => {
@@ -389,6 +384,7 @@ export const createEmojiView = (
   root.addEventListener('touchstart', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    guard.touched();
     stopGlide();
     clearOverlays();
     const p = point(e) ?? { x: 0, y: 0 };
@@ -413,9 +409,9 @@ export const createEmojiView = (
     clearHold();
     const held = pressed;
     if (held && (held.section === 'recent' || held.section === 'favorites')) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, HOLD_MS);
+      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, EMOJI_HOLD_MS);
     } else if (held?.toned) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, HOLD_MS);
+      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, EMOJI_HOLD_MS);
     }
   }, { passive: false });
   let last = { x: 0, y: 0 };
@@ -431,7 +427,7 @@ export const createEmojiView = (
     if (!p) return;
     last = p;
     lastTouchAt = now();
-    const slop = pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? HOLD_SLOP_PX : SCROLL_SLOP_PX;
+    const slop = pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? SLOP_PX.holdWander : SLOP_PX.scroll;
     if (mode === 'press' && Math.hypot(p.x - start.x, p.y - start.y) > slop) {
       clearHold();
       mode = 'scroll';
@@ -487,7 +483,7 @@ export const createEmojiView = (
   }, { passive: false });
   root.addEventListener('click', (e) => {
     // Desktop fallback (mouse); touch already handled the press.
-    if ((e as MouseEvent).detail === 0) return;
+    if (guard.ghost()) return;
     if ((e.target as HTMLElement | null)?.closest?.('.trash')) {
       handlers.onClearRecent();
       return;
@@ -529,7 +525,7 @@ export const createEmojiView = (
       // While the trigger is held, the laser's moves come as touch moves too. The laser moving on with
       // no touch moves means the release was lost somewhere: end the gesture there and then.
       if ((mode === 'drag' || mode === 'tones' || mode === 'scroll') && now() - lastTouchAt > RELEASE_LOST_MS
-        && Math.hypot(x - last.x, y - last.y) > SCROLL_SLOP_PX) finish();
+        && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) finish();
       if (mode === 'tones') {
         pickTone(x, y);
         return false;
