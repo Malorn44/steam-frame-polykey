@@ -126,7 +126,7 @@ export interface Theme {
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */
   tone?: 'dark' | 'light';
   /** Smaller radii: a focused segment (default 3), a dotted legend box (1), a switch (13). */
-  radiusSmall?: number; radiusBox?: number; radiusPill?: number;
+  radiusSmall?: number; radiusPill?: number;
   /** Japanese fonts tried first where Japanese is drawn as text (default Noto Sans CJK JP). */
   fontCjk?: string;
   /** Shadows: popups and the drag ghost, and the larger emoji preview (CSS box-shadow values). */

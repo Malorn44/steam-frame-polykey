@@ -894,12 +894,6 @@
           "maximum": 20,
           "description": "A focused reading segment; default 3."
         },
-        "radiusBox": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 20,
-          "description": "A dotted legend box (JIS); default 1."
-        },
         "radiusPill": {
           "type": "number",
           "minimum": 0,

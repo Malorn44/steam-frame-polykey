@@ -8,7 +8,7 @@ describe('themeVars', () => {
       + '--legend:#000003;--fn:#000005;--hover:#000004;');
     expect(vars).toContain('--accent-text:#000001;--fn-text:#000001;--divider:#000004;--ring:#000005;--indicator:#000005;');
     expect(vars).toContain('--pressed:brightness(1.5);--raised:rgba(255, 255, 255, 0.1);');
-    expect(vars).toContain('--radius:6px;--radius-sm:3px;--radius-box:1px;--radius-pill:13px;');
+    expect(vars).toContain('--radius:6px;--radius-sm:3px;--radius-pill:13px;');
   });
 
   it('a light theme shifts its states darker', () => {

@@ -6,7 +6,7 @@ import type { Theme } from '../core/catalog.js';
 
 /** What a theme leaves out falls back to these (the colours fall back to other colours of the theme). */
 export const THEME_DEFAULTS = {
-  radius: 6, radiusSmall: 3, radiusBox: 1, radiusPill: 13,
+  radius: 6, radiusSmall: 3, radiusPill: 13,
   font: 'system-ui, sans-serif',
   fontCjk: '"Noto Sans CJK JP", "Noto Sans JP"',
   shadow: '0 2px 10px rgba(0, 0, 0, 0.6)',
@@ -44,7 +44,6 @@ export const themeVars = (theme: Theme): string => {
     '--opacity-muted': '0.7',
     '--radius': `${theme.radius ?? THEME_DEFAULTS.radius}px`,
     '--radius-sm': `${theme.radiusSmall ?? THEME_DEFAULTS.radiusSmall}px`,
-    '--radius-box': `${theme.radiusBox ?? THEME_DEFAULTS.radiusBox}px`,
     '--radius-pill': `${theme.radiusPill ?? THEME_DEFAULTS.radiusPill}px`,
     '--font': theme.font ?? THEME_DEFAULTS.font,
     '--font-cjk': theme.fontCjk ?? THEME_DEFAULTS.fontCjk,
