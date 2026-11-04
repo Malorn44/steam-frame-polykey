@@ -31,7 +31,9 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
     '--size-mod': 'var(--text-xs)', // text on modifier and named keys (Ctrl, Tab, Enter)
     '--size-flick': 'var(--text-xl)', // a flick key's kana
     '--size-arrow': 'var(--text-lg)', // arrows drawn as text (JIS)
-    '--size-modify': '21px', // ゛゜小
+    '--size-modify': '21px', // ゛゜小 as plain text
+    // ゛ and ゜ on their own (boxed) fill only a corner of their cell, so they are set larger than a label.
+    '--size-mark': 'var(--text-xl)', // on the ゛゜ key, and as a JIS key's kana legend
     '--size-icon': '18px', // key icons (large layouts draw them at 1.35em of this)
     '--size-bar-key': '14px', // toolbar keys
     '--size-suggestion': '15px', // word suggestions

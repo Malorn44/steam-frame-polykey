@@ -23,6 +23,14 @@ const isWide = (text: string): boolean => /^[\u3000-\u30ff\u3400-\u9fff\uff01-\u
  * where the spacing forms sit in their own cell (high left). */
 const CELL_TEXT: Record<string, string> = { '゛': '\u3000\u3099', '゜': '\u3000\u309a' };
 const cellText = (text: string): string => (isWide(text) && CELL_TEXT[text]) || text;
+const isMark = (text: string): boolean => text === '゛' || text === '゜';
+
+/** A dotted box's outline: a rectangle (rounded 2px) that fills whatever box it is drawn in, stroked
+ * with dots 1px long, 2px apart. The stroke is 2px on the edge; the image's edge clips its outer half,
+ * leaving 1px. */
+const DOT_BOX = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'><rect width='100%' height='100%' rx='2'"
+  + " fill='none' stroke='black' stroke-width='2' stroke-dasharray='1 2'/></svg>")}")`;
 
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
@@ -105,7 +113,8 @@ const CSS = `
 .kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
 /* The modify key without a label of its own: ゛゜ boxed, 大⇔小 small beneath (as on Gboard's 12-key). */
 .key .mk { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
-.key .mk-marks { display: flex; gap: 0.35em; }
+/* The boxes at the label's size (shrinking on the narrow 五十音 key); the marks larger. */
+.key .mk-marks { display: flex; gap: 0.35em; --mark-size: var(--size-mark); }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
@@ -134,16 +143,28 @@ const CSS = `
 .key.dual .q.ks { top: 4px; right: 5px; }
 .key.dual .q.kl { bottom: 5px; right: 5px; }
 .key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
+.key.dual .q.cur.mark { --mark-size: var(--size-mark); }
 .key.dual.fnon .q { display: none; }
-/* A dotted box is the character's cell, as on JIS keycaps: one height for all, half width for a
+/* A box only shows placement: it never sets a size (that is the legend's role; see sizes.ts).
+   A dotted box is the character's cell, as on JIS keycaps: one height for all, half width for a
    half-width character, full width for a full-width one, so it shows where in the cell the character
    sits (、。 low left, 「 and ゛゜ high right). */
 .key .dot, .key.dual .q.dot { display: inline-block; box-sizing: border-box; height: 1em; min-width: 0.55em; line-height: 1em;
-  text-align: center; outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0.06em;
-  border-radius: var(--radius-box); }
+  text-align: center; }
+.key .dot:not(.q) { position: relative; } /* a legend (.q) is already positioned */
+/* Dots we space ourselves (CSS dotted runs 1px dots 1px apart, which reads as a grey line): a rounded
+   rectangle stroked with 1px dots 2px apart (DOT_BOX), as a mask over the legend's colour, just
+   outside the box. */
+.key .dot::before { content: ''; position: absolute; inset: -0.06em; pointer-events: none;
+  background-color: color-mix(in srgb, currentColor 60%, transparent);
+  -webkit-mask: ${DOT_BOX} 0 0 / 100% 100% no-repeat; mask: ${DOT_BOX} 0 0 / 100% 100% no-repeat; }
 /* 0.888em puts Noto Sans CJK's em square exactly in the 1em box (its ascent is 1.16, descent 0.29). */
 .key .dot.cell, .key.dual .q.dot.cell { width: 1em; min-width: 0; line-height: 0.888em; text-align: left;
   font-family: var(--font-cjk), var(--font); }
+/* ゛ and ゜ fill only a corner of their cell, so they can be set larger (--mark-size) than their box:
+   the box keeps the legend's size, and the mark's own cell is pinned to its top-right corner. */
+.key .dot.mark .ch { position: absolute; top: 0; right: 0; width: 1em; height: 1em; line-height: 0.888em;
+  text-align: left; font-size: var(--mark-size, 1em); }
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
 /* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
    a letter alone in the middle). */
@@ -251,8 +272,12 @@ export const createView = (
   const latinKeys = (): boolean => latin || romaji;
   const dotted = new Set(Array.from(layout.dotted ?? ''));
   /** A dotted box round a legend: a full-width character's box is its whole cell. */
-  const boxed = (text: string): HTMLElement => Object.assign(doc.createElement('span'),
-    { className: isWide(text) ? 'dot cell' : 'dot', textContent: cellText(text) });
+  const glyph = (text: string): HTMLElement => Object.assign(doc.createElement('span'), { className: 'ch', textContent: cellText(text) });
+  const boxed = (text: string): HTMLElement => {
+    const box = Object.assign(doc.createElement('span'), { className: `dot${isWide(text) ? ' cell' : ''}${isMark(text) ? ' mark' : ''}` });
+    box.append(glyph(text));
+    return box;
+  };
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
@@ -638,7 +663,9 @@ export const createView = (
       el.classList.toggle('cur', active && current);
       el.classList.toggle('dot', dotted.has(text));
       el.classList.toggle('cell', dotted.has(text) && isWide(text));
-      el.textContent = dotted.has(text) ? cellText(text) : text;
+      el.classList.toggle('mark', dotted.has(text) && isMark(text));
+      if (dotted.has(text)) el.replaceChildren(glyph(text));
+      else el.textContent = text;
     };
     // A letter has one Latin legend, in the case it types now.
     const onLatin = latinKeys();

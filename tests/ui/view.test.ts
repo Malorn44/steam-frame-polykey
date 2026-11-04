@@ -248,7 +248,7 @@ describe('hold to repeat', () => {
     const keys = [...shadow.querySelectorAll<HTMLElement>('.key')];
     const modify = keys.find((el) => el.dataset['k'] === 'modify')!;
     // Full-width cells; the marks as combining marks on a full-width space, so they sit high right.
-    expect([...modify.querySelectorAll('.mk-marks .dot.cell')].map((el) => el.textContent)).toEqual(['\u3000\u3099', '\u3000\u309a']);
+    expect([...modify.querySelectorAll('.mk-marks .dot.cell.mark .ch')].map((el) => el.textContent)).toEqual(['\u3000\u3099', '\u3000\u309a']);
     expect(modify.querySelector('.mk-size')?.textContent).toBe('大⇔小');
     const punct = keys.find((el) => el.dataset['k'] === '、')!;
     expect(punct.querySelector('.lbl .dot.cell')?.textContent).toBe('、');
