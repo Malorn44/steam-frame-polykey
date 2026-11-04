@@ -541,7 +541,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       applyBounds();
     } else if (page === 'settings') {
       panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
-        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name })),
+        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
         version: VERSION,
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,

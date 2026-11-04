@@ -189,9 +189,15 @@ describe('settings', () => {
     await tap(popup, 'settings');
     expect(shadowOf(popup)!.querySelector('.kb')).toBeNull();
     expect(shadowOf(popup)!.querySelector('.panel')!.textContent).toContain('polykey test');
-    await pick(popup, 'Night Owl');
+    const themeControl = () => shadowOf(popup)!.querySelector<HTMLElement>('.panel .pick > .opt')!;
+    expect(themeControl().textContent).toBe('Steam');
+    await pick(popup, 'Steam'); // the dropdown...
+    expect(shadowOf(popup)!.querySelector('.pick.open')).not.toBeNull();
+    await pick(popup, 'Night Owl'); // ...and a theme in its list
     expect(saved).toEqual([{ theme: 'themes/night-owl' }]);
     expect(shadowOf(popup)!.querySelector<HTMLElement>('.panel')!.style.getPropertyValue('--surface').trim()).toBe('#011627');
+    expect(themeControl().textContent).toBe('Night Owl');
+    expect(shadowOf(popup)!.querySelector('.pick.open')).toBeNull();
     const hapticsSwitch = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Haptics')!
       .querySelector<HTMLElement>('.switch.on')!;
     hapticsSwitch.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));

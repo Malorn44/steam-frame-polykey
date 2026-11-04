@@ -10,6 +10,7 @@ import { listenTouch } from './gesture.js';
 import { ICONS } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
+import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 
 export type SettingsTab = 'general' | 'keyboards';
@@ -21,7 +22,7 @@ export interface SettingsValues {
 }
 
 export interface SettingsInfo {
-  themes: { id: string; name: string }[];
+  themes: ThemeChoice[];
   version: string;
   errors: string[];
   /** Whether the current keyboard has word suggestions (a word list); without, that row is hidden. */
@@ -92,7 +93,7 @@ export const createSettingsView = (
   { onTab, onChange, onOption, onStock, onClose, onLanguage, onKeyboards }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS + KEYBOARDS_CSS;
+  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   root.style.cssText = themeVars(theme) + sizeVars('normal');
@@ -164,11 +165,12 @@ export const createSettingsView = (
     el.append(Object.assign(doc.createElement('div'), { className: 'sect', textContent: heading }), ...rows);
     return el;
   };
+  const themes = buildThemePicker(doc, info.themes, values.theme, (theme) => onChange({ theme }), actions);
   const cols = doc.createElement('div');
   cols.className = 'cols';
   cols.append(
     column('General',
-      row('Theme', ...info.themes.map((t) => option(t.name, t.id === values.theme, () => onChange({ theme: t.id })))),
+      row('Theme', themes.el),
       onOff('Haptics', 'haptics'),
       ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : [])),
     column(info.keyboardName,
@@ -196,27 +198,32 @@ export const createSettingsView = (
   };
   let pressed: HTMLElement | undefined;
   listenTouch(root, {
-    start: (_p, e) => { pressed = optionAt(e.target); },
-    move: () => {},
+    start: (p, e) => {
+      pressed = optionAt(e.target);
+      themes.start(p, e.target);
+    },
+    move: (p) => { themes.move(p); },
     end: () => {
       const hit = pressed;
       pressed = undefined;
+      if (themes.end()) return; // the theme list scrolled, or closed
       if (hit) actions.get(hit)?.();
     },
     click: (e) => {
       e.stopPropagation();
+      if (themes.end(e.target)) return;
       const hit = optionAt(e.target);
       if (hit) actions.get(hit)?.();
     },
   }, { guard });
-  root.addEventListener('mouseover', (e) => setHover(optionAt(e.target)));
+  root.addEventListener('mouseover', (e) => setHover(themes.reaches(e.target) ? optionAt(e.target) : undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
 
   shadow.append(style, root);
   return {
     hoverAt: (x, y) => {
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-      return setHover(hits.map(optionAt).find(Boolean));
+      return setHover(hits.filter(themes.reaches).map(optionAt).find(Boolean));
     },
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
