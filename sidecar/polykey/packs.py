@@ -365,6 +365,14 @@ def _check_tables(catalog: dict, errors: list[str]) -> None:
             del catalog["tables"][table_id]
 
 
+def _pages(keyboard: dict) -> list[str]:
+    """Every layout a keyboard can show: its layout, its 英数 page(s) and its symbols pages."""
+    pages = keyboard.get("pages", {})
+    latin = pages.get("latin")
+    latins = [latin["flick"], latin["qwerty"]] if isinstance(latin, dict) else [latin] if latin else []
+    return [keyboard["layout"], *latins, *pages.get("symbols", [])]
+
+
 def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     """The boot data for the page: {catalog, settings, errors}."""
     errors: list[str] = []
@@ -383,8 +391,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     _check_tables(catalog, errors)
     _resolve_layouts(catalog, errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
-        missing = [lay for lay in (keyboard["layout"], keyboard.get("latinLayout"), keyboard.get("symbolsLayout"), keyboard.get("qwertyLayout"),
-                                                keyboard.get("moreSymbolsLayout")) if lay and lay not in catalog["layouts"]]
+        missing = [lay for lay in _pages(keyboard) if lay not in catalog["layouts"]]
         if missing:
             errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]

@@ -6,10 +6,10 @@
  "name": "12キー",
  "language": "ja",
  "layout": "ja/flick",
- "latinLayout": "ja/flick-abc",
- "qwertyLayout": "ja/flick-qwerty",
- "symbolsLayout": "ja/flick-symbols",
- "moreSymbolsLayout": "ja/flick-symbols2",
+ "pages": {
+  "latin": {"flick": "ja/flick-abc", "qwerty": "ja/flick-qwerty"},
+  "symbols": ["ja/flick-symbols", "ja/flick-symbols2"]
+ },
  "composer": "kana",
  "options": {
   "tapCycle": false,

@@ -22,6 +22,7 @@ import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withT
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
+import { pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
@@ -288,7 +289,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         latinMode.delete(keyboard.id);
       }
       setWord(NO_WORD); // suggestions only for words typed in 英数 mode
-      if (keyboard.latinLayout) render(); // the 12-key: ABC keys in 英数 mode
+      if (keyboard.pages?.latin) render(); // the 12-key: ABC keys in 英数 mode
       else {
         view?.setMode(latinMode.has(keyboard.id));
         view?.update(mods);
@@ -296,7 +297,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       return;
     }
     // ?123: the numbers and symbols page, and back; what is being typed stays (3 + じ → 3時).
-    if (keyboard?.symbolsLayout && key.type === 'action' && (key.action === 'symbols' || key.action === 'more-symbols')) {
+    if (keyboard?.pages?.symbols && key.type === 'action' && (key.action === 'symbols' || key.action === 'more-symbols')) {
       const shown = symbolsOn.get(keyboard.id);
       if (key.action === 'more-symbols') symbolsOn.set(keyboard.id, shown === 2 ? 1 : 2); // =\< and back to 123
       else if (shown) symbolsOn.delete(keyboard.id); // back to the letters
@@ -513,11 +514,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       return;
     }
     const keyboard = boot.catalog.keyboards[id];
-    const symbolsPage = keyboard ? symbolsOn.get(keyboard.id) : undefined;
-    const layout = keyboard && boot.catalog.layouts[(symbolsPage === 2 && keyboard.moreSymbolsLayout)
-      || (symbolsPage && keyboard.symbolsLayout)
-      || (latinMode.has(keyboard.id) && ((optionsFor(keyboard, keyboardOptions[id]).qwertyLatin && keyboard.qwertyLayout)
-        || keyboard.latinLayout)) || keyboard.layout];
+    const layout = keyboard && boot.catalog.layouts[pageLayout(keyboard, {
+      latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[id]).qwertyLatin,
+    })];
     const theme = themeFor(surface.win);
     if (!layout || !theme) {
       warn(`keyboard ${id} has no layout or theme; showing Steam's keyboard`);

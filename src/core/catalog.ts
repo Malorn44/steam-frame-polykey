@@ -76,6 +76,13 @@ export interface Layout {
 export interface KeyboardOptions {
   tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean; qwertyLatin?: boolean;
 }
+/**
+ * latin: the layout shown in 英数 mode instead (the 12-key's ABC keys), or two that the qwertyLatin
+ * option picks between. symbols: the ?123 pages, the first opened by the symbols key and the second
+ * reached with more-symbols (=\\<).
+ */
+export interface KeyboardPages { latin?: string | { flick: string; qwerty: string }; symbols?: string[] }
+
 export interface KeyboardDef {
   id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   /**
@@ -85,14 +92,8 @@ export interface KeyboardDef {
   composer?: 'direct' | 'kana' | 'romaji';
   /** The romaji table (a table pack) for composer romaji, or a kana keyboard's romajiInput option. */
   table?: string;
-  /** The layout shown in 英数 mode instead (the 12-key's ABC keys); default: the same layout. */
-  latinLayout?: string;
-  /** The 英数 layout with the qwertyLatin option on (the 12-key's QWERTY page). */
-  qwertyLayout?: string;
-  /** The layout the symbols key (?123) shows: numbers and symbols, typed in the current mode. */
-  symbolsLayout?: string;
-  /** The second symbols page (=\\<), and back to the first. */
-  moreSymbolsLayout?: string;
+  /** The keyboard's other pages (src/core/pages.ts); layout is the main one. */
+  pages?: KeyboardPages;
   /** The engine that converts the reading (with composer kana). */
   converter?: 'anthy';
 }

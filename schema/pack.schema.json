@@ -655,21 +655,45 @@
         "layout": {
           "$ref": "#/$defs/id"
         },
-        "latinLayout": {
-          "$ref": "#/$defs/id",
-          "description": "The layout shown in 英数 mode instead (the 12-key's ABC keys); default: the same layout."
-        },
-        "qwertyLayout": {
-          "$ref": "#/$defs/id",
-          "description": "The 英数 layout when the qwertyLatin option is on."
-        },
-        "symbolsLayout": {
-          "$ref": "#/$defs/id",
-          "description": "The layout the symbols key (?123) shows: numbers and symbols, typed in the current mode."
-        },
-        "moreSymbolsLayout": {
-          "$ref": "#/$defs/id",
-          "description": "The second symbols page, from the more-symbols key (=\\<) on the first."
+        "pages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "latin": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/id"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "flick",
+                    "qwerty"
+                  ],
+                  "properties": {
+                    "flick": {
+                      "$ref": "#/$defs/id"
+                    },
+                    "qwerty": {
+                      "$ref": "#/$defs/id"
+                    }
+                  }
+                }
+              ],
+              "description": "The layout shown in 英数 mode instead (the 12-key's ABC keys), or two: the qwertyLatin option picks flick or qwerty. Default: the main layout."
+            },
+            "symbols": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "description": "The symbols pages: the symbols key (?123) opens the first, the more-symbols key (=\\<) goes between them. Typed in the current mode."
+            }
+          },
+          "description": "The keyboard's other pages; its layout is the main one."
         },
         "composer": {
           "enum": [
@@ -706,7 +730,7 @@
             },
             "qwertyLatin": {
               "type": "boolean",
-              "description": "英数 mode shows the keyboard's qwertyLayout instead of its latinLayout (the 12-key: QWERTY or flick letters)."
+              "description": "英数 mode shows the keyboard's qwerty latin page instead of its flick one (the 12-key: QWERTY or flick letters)."
             }
           }
         },
