@@ -256,12 +256,14 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu, onSwipe }:
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu, onSwipe, canSwipe }:
     { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
       keyboardMenu?: { ids: readonly string[]; names: readonly string[] };
       /** Swipe typing on: a press on a letter that leaves its key traces a word instead of typing. */
-      onSwipe?: SwipeHandler | undefined } = {},
+      onSwipe?: SwipeHandler | undefined;
+      /** Whether a press may swipe now (a Japanese keyboard swipes only in 英数 mode); default yes. */
+      canSwipe?: (() => boolean) | undefined } = {},
 ): View => {
   /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
   let latin = startLatin;
@@ -548,7 +550,7 @@ export const createView = (
     repeated = false;
     endSwipe(false);
     // A letter may start a swipe; not while Ctrl, Alt, Super or Fn makes it a shortcut.
-    if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char)
+    if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char) && (canSwipe?.() ?? true)
       && mods.ctrl === 'off' && mods.alt === 'off' && mods.super === 'off' && mods.fn === 'off') {
       swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false, at: Date.now() };
     }

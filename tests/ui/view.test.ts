@@ -427,7 +427,7 @@ describe('swipe', () => {
     el.dispatchEvent(e);
   };
   /** The view with swipe on, its keys laid out on a grid of 40×30 px cells (row r, column c). */
-  const swipeSetup = () => {
+  const swipeSetup = (canSwipe?: () => boolean) => {
     const boot = bundledBoot();
     const host = document.createElement('div');
     document.body.append(host);
@@ -437,7 +437,7 @@ describe('swipe', () => {
     const swipes: { path: { x: number; y: number }[]; keys: Record<string, [number, number]>; width: number }[] = [];
     const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
       (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)), undefined, undefined,
-      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }) });
+      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }), canSwipe });
     view.update(NO_MODS);
     const rows = [...shadow.querySelectorAll('.row')];
     rows.forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
@@ -547,6 +547,22 @@ describe('swipe', () => {
     expect(swipes).toEqual([]);
     expect(pressed.map((k) => (k.type === 'char' ? k.char : k.type === 'key' ? k.key : ''))).toEqual([' ', '1', 'Backspace', 'Backspace']);
     vi.useRealTimers();
+  });
+
+  it('not while the keyboard says no (a Japanese keyboard in kana mode), checked at each press', () => {
+    let allowed = false;
+    const { keyIn, pressed, swipes } = swipeSetup(() => allowed);
+    const q = keyIn(1, 'q');
+    const trace = () => {
+      touch(q, 'touchstart', 60, 45);
+      touch(q, 'touchmove', 140, 45);
+      touch(q, 'touchend', 140, 45);
+    };
+    trace();
+    expect([pressed.length, swipes.length]).toEqual([1, 0]);
+    allowed = true;
+    trace();
+    expect([pressed.length, swipes.length]).toEqual([1, 1]);
   });
 
   it('not while Ctrl makes letters shortcuts', () => {
