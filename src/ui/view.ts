@@ -17,6 +17,13 @@ const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Ar
 const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
 /** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
 export const FLICK_CELL_PX = 30;
+/** Full width: kana, CJK punctuation and ideographs, full-width forms (one character). */
+const isWide = (text: string): boolean => /^[\u3000-\u30ff\u3400-\u9fff\uff01-\uff60\uffe0-\uffe6]$/u.test(text);
+/** ゛゜ as combining marks on a full-width space: drawn where they sit on a kana (high right), not
+ * where the spacing forms sit in their own cell (high left). */
+const CELL_TEXT: Record<string, string> = { '゛': '\u3000\u3099', '゜': '\u3000\u309a' };
+const cellText = (text: string): string => (isWide(text) && CELL_TEXT[text]) || text;
+
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
 
@@ -99,7 +106,6 @@ const CSS = `
 /* The modify key without a label of its own: ゛゜ boxed, 大⇔小 small beneath (as on Gboard's 12-key). */
 .key .mk { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
 .key .mk-marks { display: flex; gap: 0.2em; }
-.key .dot.cell { line-height: 1.25; font-family: var(--font-cjk), var(--font); } /* the whole character cell: ゛゜ sit at its top */
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
@@ -131,6 +137,10 @@ const CSS = `
 .key.dual.fnon .q { display: none; }
 .key .dot, .key.dual .q.dot { display: inline-block; outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
   line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: var(--radius-box); } /* a tight square round the legend, as on a keycap */
+/* A full-width character's box is its whole cell, so it shows where in the cell the character sits
+   (、。 low left, ゛゜ high right). */
+.key .dot.cell, .key.dual .q.dot.cell { width: 1em; height: 1em; min-width: 0; line-height: 1em; text-align: left;
+  font-family: var(--font-cjk), var(--font); }
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
 /* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
    a letter alone in the middle). */
@@ -237,6 +247,9 @@ export const createView = (
   /** Romaji input: JIS keys type their Latin legends in かな mode too. */
   const latinKeys = (): boolean => latin || romaji;
   const dotted = new Set(Array.from(layout.dotted ?? ''));
+  /** A dotted box round a legend: a full-width character's box is its whole cell. */
+  const boxed = (text: string): HTMLElement => Object.assign(doc.createElement('span'),
+    { className: isWide(text) ? 'dot cell' : 'dot', textContent: cellText(text) });
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
@@ -282,8 +295,9 @@ export const createView = (
       key.flick.slice(1).forEach((text, i) => {
         if (!text) return;
         const hint = doc.createElement('span');
-        hint.className = `fh ${'lurd'[i]}${dotted.has(text) ? ' dot' : ''}`;
-        hint.textContent = text;
+        hint.className = `fh ${'lurd'[i]}`;
+        if (dotted.has(text)) hint.append(boxed(text));
+        else hint.textContent = text;
         el.append(hint);
       });
       if (key.label) label.textContent = key.flick[0]; // the hints show the rest
@@ -597,19 +611,15 @@ export const createView = (
 
   /** A label's text, in a dotted box when the layout lists it (、。 on the 12-key). */
   const setText = (label: HTMLElement, text: string): void => {
-    if (!dotted.has(text)) {
-      label.textContent = text;
-      return;
-    }
-    label.textContent = '';
-    label.append(Object.assign(doc.createElement('span'), { className: 'dot', textContent: text }));
+    if (dotted.has(text)) label.replaceChildren(boxed(text));
+    else label.textContent = text;
   };
   /** ゛゜ (boxed when listed) above 大⇔小. */
   const showModify = (label: HTMLElement): void => {
     if (label.querySelector('.mk')) return;
     const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
     const marks = span('mk-marks', '');
-    for (const mark of ['゛', '゜']) marks.append(span(dotted.has(mark) ? 'dot cell' : '', mark));
+    for (const mark of ['゛', '゜']) marks.append(boxed(mark));
     const box = span('mk', '');
     box.append(marks, span('mk-size', '大⇔小'));
     label.replaceChildren(box);
@@ -621,10 +631,11 @@ export const createView = (
     const shiftOn = mods.shift !== 'off';
     const latinNow = charText(key, mods);
     const set = (el: HTMLElement, text: string, active: boolean, current: boolean): void => {
-      el.textContent = text;
       el.classList.toggle('act', active);
       el.classList.toggle('cur', active && current);
       el.classList.toggle('dot', dotted.has(text));
+      el.classList.toggle('cell', dotted.has(text) && isWide(text));
+      el.textContent = dotted.has(text) ? cellText(text) : text;
     };
     // A letter has one Latin legend, in the case it types now.
     const onLatin = latinKeys();
