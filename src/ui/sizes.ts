@@ -3,8 +3,8 @@
 // A preset ('normal', or 'large' for layouts read on phone-sized keys, like the 12-key) only re-points
 // roles, so retuning the scale or moving one role changes every keyboard consistently.
 //
-// Values are today's look. Roles not on the scale yet (bar text, ゛゜小) keep their own value until
-// they are settled.
+// Every key role is a step on the scale. The candidate bar's text (suggestions, candidates, the side
+// panel) still has its own values.
 
 /** The type scale. */
 export const SCALE = {
@@ -30,11 +30,12 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
     '--size-sub': 'var(--text-xs)', // small text beneath the label (the 2 under abc)
     '--size-mod': 'var(--text-xs)', // text on modifier and named keys (Ctrl, Tab, Enter)
     '--size-flick': 'var(--text-xl)', // a flick key's kana
-    '--size-modify': '21px', // ゛゜小 as plain text
+    '--size-modify': 'var(--text-md)', // ゛゜小 as plain text
     // ゛ and ゜ on their own (boxed) fill only a corner of their cell, so they are set larger than a label.
     '--size-mark': 'var(--text-xl)', // on the ゛゜ key, and as a JIS key's kana legend
-    '--size-icon': '18px', // key icons (large layouts draw them at 1.35em of this)
-    '--size-bar-key': '14px', // toolbar keys
+    '--size-icon': 'var(--text-sm)', // key icons
+    '--size-bar-icon': 'var(--text-sm)', // toolbar icons
+    '--size-bar-key': 'var(--text-xs)', // toolbar text
     '--size-suggestion': '15px', // word suggestions
     '--size-candidate': '16px', // conversion candidates and the reading, on top
     '--size-side-reading': '18px', // the reading, in the side panel
@@ -43,6 +44,7 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
   },
   large: {
     '--size-label': 'var(--text-md)',
+    '--size-icon': 'var(--text-xl)', // read through the headset (fjk)
   },
 };
 

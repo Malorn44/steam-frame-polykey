@@ -94,6 +94,7 @@ const CSS = `
 .key.mod, .key.named, .key.action { background-color: var(--mod); font-size: var(--size-mod); }
 .key.gap { background: none; }
 .key svg { font-size: var(--size-icon); }
+.bar .key svg { font-size: var(--size-bar-icon); }
 /* Legends round the label (src/core/legends.ts), by slot: tl t tr / l r / bl b br, inset by arrangement
    (plain and tri, the long-press character and Shift/Fn: 6px across; quad, a JIS key's four legends:
    5px; edges, flick hints: 5px across, 3px down). The label (c) is in the flow, in the middle, except
@@ -137,9 +138,7 @@ const CSS = `
 /* The boxes at the label's size (shrinking on the narrow 五十音 key); the marks larger. */
 .key .mk-marks { display: flex; gap: 0.35em; --mark-size: var(--size-mark); }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
-.kb.large .key svg { width: 1.35em; height: 1.35em; }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
-.kb.large .bar .key svg { width: 1em; height: 1em; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
 .fl { position: absolute; z-index: 2; pointer-events: none; }
 .fl div { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
