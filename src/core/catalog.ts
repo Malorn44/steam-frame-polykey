@@ -8,28 +8,42 @@ export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
 export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate' | 'abc'
   | 'modify' | 'undo' | 'eisu' | 'kana' | 'symbols' | 'more-symbols';
 
+/** Where on a key a legend sits: c is the label; the rest are small legends round it. */
+export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
+/**
+ * A legend a pack puts in a slot (src/core/legends.ts): text, or null for none; or one of text, parts
+ * (two halves, the second bold in 英数 mode: あ a) or marks (゛゜, side by side), with what is drawn
+ * small beneath it (under), and its size, tone and box when not the slot's default.
+ */
+export type LegendDef = string | null | {
+  text?: string; parts?: [string, string]; marks?: string[]; under?: string;
+  size?: 'key' | 'dual' | 'legend' | 'hint' | 'sub'; tone?: 'text' | 'legend' | 'fn'; boxed?: boolean;
+};
+/** A key's own legends, by slot: they replace what its other fields would put there. */
+export type LegendDefs = Partial<Record<LegendSlot, LegendDef>>;
+
 /**
  * A key. On a JIS key, char and shift are its Latin legends (typed in 英数 mode) and kana and kanaShift
  * its kana legends (typed in かな mode).
  */
 export type CharKey = {
-  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; w?: number; fn?: FnKey;
+  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey;
   kana?: string; kanaShift?: string;
   /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
   hint?: string;
 };
 /** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
 export type Tall = 'top' | 'bottom';
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; w?: number; fn?: FnKey; tall?: Tall };
-export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; w?: number; tall?: Tall };
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall };
+export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number };
+export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall };
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
  * tapping it again goes through when the keyboard's tapCycle option is on (default: its flicks).
  */
 export type FlickKey = {
-  type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; w?: number;
+  type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; legends?: LegendDefs; w?: number;
   /** Always show the other directions at the key's edges (whatever the flick hints option says). */
   hints?: boolean;
   /** A small legend beneath the label (the ABC keys' digit). */

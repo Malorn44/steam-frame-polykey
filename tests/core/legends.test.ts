@@ -70,13 +70,32 @@ describe('keyLegends', () => {
     expect(slots.t).toMatchObject({ boxed: false });
   });
 
-  it('the ゛゜ key: marks over 大⇔小, unless it has its own label; the mode key: あ a, the mode bold', () => {
-    const modify = keyLegends({ type: 'action', action: 'modify' }, mods(), ctx({ dotted: new Set(['゛', '゜']) })).slots.c;
-    expect(modify).toMatchObject({ kind: 'marks', marks: [{ text: '゛', boxed: true }, { text: '゜', boxed: true }], under: { text: '大⇔小', size: 'hint' } });
-    expect(shown({ type: 'action', action: 'modify', label: '゛゜小' })).toEqual({ arrangement: 'plain', c: '゛゜小' });
-    const mode: KeyDef = { type: 'action', action: 'eisu', label: 'あ a' };
+  it('a key\'s own legends replace what its fields put there; null empties a slot', () => {
+    const slash: KeyDef = { type: 'char', char: '/', shift: '?', legends: { tr: '÷', t: null } };
+    expect(shown(slash)).toEqual({ arrangement: 'stack', tr: '÷', c: '/' }); // ? (t) gone, ÷ added
+    expect(keyLegends(slash, mods(), ctx()).slots.tr).toMatchObject({ size: 'legend', tone: 'legend' }); // a small legend
+    const big = keyLegends({ type: 'char', char: 'x', legends: { c: { text: 'X', size: 'dual', tone: 'fn', boxed: true } } }, mods(), ctx()).slots.c;
+    expect(big).toEqual({ kind: 'text', text: 'X', size: 'dual', tone: 'fn', boxed: true });
+    expect(keyLegends({ type: 'char', char: '、', legends: { c: '、' } }, mods(), ctx({ dotted: new Set(['、']) })).slots.c).toMatchObject({ boxed: true });
+  });
+
+  it('the ゛゜ key and the mode key as legends: marks over 大⇔小, and あ a with the mode\'s half bold', () => {
+    const modify: KeyDef = { type: 'action', action: 'modify', legends: { c: { marks: ['゛', '゜'], under: '大⇔小' } } };
+    expect(keyLegends(modify, mods(), ctx({ dotted: new Set(['゛', '゜']) })).slots.c)
+      .toMatchObject({ kind: 'marks', marks: [{ text: '゛', boxed: true }, { text: '゜', boxed: true }], under: { text: '大⇔小', size: 'hint' } });
+    expect(shown({ type: 'action', action: 'modify' })).toEqual({ arrangement: 'plain', c: '゛゜小' }); // no legends: its name
+    expect(shown({ type: 'action', action: 'modify', legends: { c: '゛゜小' } })).toEqual({ arrangement: 'plain', c: '゛゜小' });
+    const mode: KeyDef = { type: 'action', action: 'eisu', legends: { c: { parts: ['あ', 'a'] } } };
     expect(keyLegends(mode, mods(), ctx()).slots.c).toEqual({ kind: 'pair', parts: ['あ', 'a'], now: 0 });
     expect(keyLegends(mode, mods(), ctx({ latin: true })).slots.c).toMatchObject({ now: 1 });
+    const abc: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', ''], legends: { c: { text: 'abc', under: '2' } } };
+    expect(keyLegends(abc, mods(), ctx()).slots.c).toMatchObject({ text: 'abc', under: { text: '2', size: 'sub' } });
+  });
+
+  it('the page\'s label still wins in c; the bottom half of a two-row key shows nothing', () => {
+    const enter: KeyDef = { type: 'key', key: 'Enter', legends: { c: 'Go', tr: '↵' } };
+    expect(shown(enter, mods(), ctx({ label: '確定' }))).toEqual({ arrangement: 'plain', c: '確定', tr: '↵' });
+    expect(shown({ type: 'action', action: 'eisu', tall: 'bottom', legends: { c: 'x' } })).toEqual({ arrangement: 'plain' });
   });
 
   it('a page label replaces the label only; gaps and the bottom of a two-row key show nothing', () => {

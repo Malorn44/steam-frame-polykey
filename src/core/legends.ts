@@ -11,10 +11,10 @@
 // (Shift and Fn above, the label at the bottom), quad (a JIS key's four legends) and edges (flick hints
 // at the edges).
 
-import { normalizeFn, type KeyDef } from './catalog.js';
+import { normalizeFn, type KeyDef, type LegendDef, type LegendSlot } from './catalog.js';
 import { charText, keyLabel, type Mods } from './keyboard.js';
 
-export type SlotName = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
+export type SlotName = LegendSlot;
 export type Arrangement = 'plain' | 'stack' | 'tri' | 'quad' | 'edges';
 
 /**
@@ -67,8 +67,40 @@ export const smallLegends = (key: KeyDef, mods: Mods): { sh: string; fn: string 
   return { sh: shown === key.shift ? key.char : key.shift, fn };
 };
 
-/** What the key shows now. */
+/** What the key shows now: what its fields put where, then its own legends (the page's label wins in c). */
 export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => {
+  const derived = fromFields(key, mods, ctx);
+  const own = 'legends' in key ? key.legends : undefined;
+  if (!own || derived === NONE) return derived;
+  const slots = { ...derived.slots };
+  for (const [slot, def] of Object.entries(own) as [SlotName, LegendDef | undefined][]) {
+    if (def === undefined || (slot === 'c' && ctx.label !== undefined)) continue;
+    const legend = def === null ? undefined : fromDef(def, slot, ctx);
+    if (legend) slots[slot] = legend;
+    else delete slots[slot];
+  }
+  return { arrangement: derived.arrangement, slots };
+};
+
+/** A pack's legend: a string is text at the slot's usual size and tone (a label in c, a small legend elsewhere). */
+const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext): Legend | undefined => {
+  const spec = typeof def === 'string' ? { text: def } : def;
+  const small = slot !== 'c';
+  const text = (value: string, size: LegendSize, tone: Tone): Legend =>
+    ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
+  if (spec.parts) return { kind: 'pair', parts: spec.parts, now: ctx.latin ? 1 : 0 };
+  // Beneath marks small as a hint (大⇔小); beneath text as the ABC keys' digit.
+  if (spec.marks) return { kind: 'marks', marks: spec.marks.map((mark) => text(mark, 'key', 'text')), under: text(spec.under ?? '', 'hint', 'legend') };
+  const under = spec.under === undefined ? undefined : text(spec.under, 'sub', 'legend');
+  if (spec.text === undefined) return undefined;
+  return {
+    kind: 'text', text: spec.text, size: spec.size ?? (small ? 'legend' : 'key'), tone: spec.tone ?? (small ? 'legend' : 'text'),
+    boxed: spec.boxed ?? ctx.dotted.has(spec.text), ...(under ? { under } : {}),
+  };
+};
+
+/** What the key's fields (char, shift, fn, kana, hint, sub, flick) put where. */
+const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => {
   const text = (value: string, size: LegendSize, tone: Tone): Legend =>
     ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
 
@@ -106,14 +138,7 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
 
   const label = ((): Legend => {
     if (ctx.label !== undefined) return text(ctx.label, 'key', 'text');
-    if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana' || key.action === 'symbols') && key.label?.includes(' ')) {
-      const [a = '', b = ''] = key.label.split(' ');
-      return { kind: 'pair', parts: [a, b], now: ctx.latin ? 1 : 0 };
-    }
     if (key.type === 'flick' && (ctx.hints || key.hints)) return text(key.flick[0], 'key', 'text');
-    if (key.type === 'action' && key.action === 'modify' && !key.label) {
-      return { kind: 'marks', marks: [text('゛', 'key', 'text'), text('゜', 'key', 'text')], under: text('大⇔小', 'hint', 'legend') };
-    }
     if (ctx.icon) return { kind: 'icon', icon: ctx.icon };
     return text(keyLabel(key, mods), 'key', 'text');
   })();

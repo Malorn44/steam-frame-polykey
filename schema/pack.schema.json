@@ -67,6 +67,108 @@
       ],
       "description": "The icon the key draws (src/ui/icons.ts), instead of its default; null: text, never an icon."
     },
+    "legendDef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 16
+        },
+        {
+          "enum": [
+            null
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "parts": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "string",
+                "maxLength": 8
+              },
+              "description": "Two halves side by side, the second bold in 英数 mode (the 12-key's あ a)."
+            },
+            "marks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "items": {
+                "type": "string",
+                "maxLength": 2
+              },
+              "description": "Marks side by side, each boxed when the layout's dotted lists it (゛゜)."
+            },
+            "under": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "Drawn small beneath (大⇔小 under ゛゜, the digit under abc)."
+            },
+            "size": {
+              "enum": [
+                "key",
+                "dual",
+                "legend",
+                "hint",
+                "sub"
+              ]
+            },
+            "tone": {
+              "enum": [
+                "text",
+                "legend",
+                "fn"
+              ]
+            },
+            "boxed": {
+              "type": "boolean"
+            }
+          }
+        }
+      ],
+      "description": "Text, null for nothing, or {text | parts | marks, under, size, tone, boxed}; a string is text at the slot's usual size and colour."
+    },
+    "legends": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tl": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "t": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "tr": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "l": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "c": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "r": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "bl": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "b": {
+          "$ref": "#/$defs/legendDef"
+        },
+        "br": {
+          "$ref": "#/$defs/legendDef"
+        }
+      },
+      "description": "What goes where on the key, by slot (tl t tr / l c r / bl b br; c is the label). Replaces what the key's other fields put in those slots."
+    },
     "row": {
       "type": "array",
       "minItems": 1,
@@ -152,6 +254,9 @@
         "label": {
           "$ref": "#/$defs/label"
         },
+        "legends": {
+          "$ref": "#/$defs/legends"
+        },
         "icon": {
           "$ref": "#/$defs/icon"
         },
@@ -199,6 +304,9 @@
         },
         "label": {
           "$ref": "#/$defs/label"
+        },
+        "legends": {
+          "$ref": "#/$defs/legends"
         },
         "icon": {
           "$ref": "#/$defs/icon"
@@ -291,6 +399,9 @@
         "label": {
           "$ref": "#/$defs/label"
         },
+        "legends": {
+          "$ref": "#/$defs/legends"
+        },
         "icon": {
           "$ref": "#/$defs/icon"
         },
@@ -332,6 +443,9 @@
         },
         "label": {
           "$ref": "#/$defs/label"
+        },
+        "legends": {
+          "$ref": "#/$defs/legends"
         },
         "icon": {
           "$ref": "#/$defs/icon"
@@ -781,6 +895,9 @@
         },
         "label": {
           "$ref": "#/$defs/label"
+        },
+        "legends": {
+          "$ref": "#/$defs/legends"
         },
         "w": {
           "$ref": "#/$defs/width"

@@ -9,7 +9,7 @@
   "rows": [
     [{"type": "action", "action": "undo"}, {"type": "flick", "flick": ["@", "-", "_", "/", "1"], "label": "@-_/", "sub": "1"}, {"type": "flick", "flick": ["a", "b", "c", "", "2"], "label": "abc", "sub": "2"}, {"type": "flick", "flick": ["d", "e", "f", "", "3"], "label": "def", "sub": "3"}, {"type": "key", "key": "Backspace"}],
     [{"type": "key", "key": "ArrowLeft"}, {"type": "flick", "flick": ["g", "h", "i", "", "4"], "label": "ghi", "sub": "4"}, {"type": "flick", "flick": ["j", "k", "l", "", "5"], "label": "jkl", "sub": "5"}, {"type": "flick", "flick": ["m", "n", "o", "", "6"], "label": "mno", "sub": "6"}, {"type": "key", "key": "ArrowRight"}],
-    [{"type": "action", "action": "kana", "label": "あ a"}, {"type": "flick", "flick": ["p", "q", "r", "s", "7"], "label": "pqrs", "sub": "7"}, {"type": "flick", "flick": ["t", "u", "v", "", "8"], "label": "tuv", "sub": "8"}, {"type": "flick", "flick": ["w", "x", "y", "z", "9"], "label": "wxyz", "sub": "9"}, {"type": "char", "char": " "}],
+    [{"type": "action", "action": "kana", "legends": {"c": {"parts": ["あ", "a"]}}}, {"type": "flick", "flick": ["p", "q", "r", "s", "7"], "label": "pqrs", "sub": "7"}, {"type": "flick", "flick": ["t", "u", "v", "", "8"], "label": "tuv", "sub": "8"}, {"type": "flick", "flick": ["w", "x", "y", "z", "9"], "label": "wxyz", "sub": "9"}, {"type": "char", "char": " "}],
     [{"type": "action", "action": "next-keyboard", "w": 0.5}, {"type": "action", "action": "symbols", "w": 0.5}, {"type": "mod", "mod": "shift", "label": "a⇔A"}, {"type": "flick", "flick": ["'", "\"", ":", ";", "0"], "label": "'\":;", "sub": "0"}, {"type": "flick", "flick": [".", ",", "?", "!", ""], "label": ".,?!"}, {"type": "key", "key": "Enter"}]
   ]
 }
