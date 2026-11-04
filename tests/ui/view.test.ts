@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, Layout } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
-import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../../src/core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../../src/core/interaction.js';
 import { createView } from '../../src/ui/view.js';
 import { bundledBoot } from '../boot.js';
 
@@ -419,3 +419,154 @@ describe('hold to repeat', () => {
   });
 });
 
+
+describe('swipe', () => {
+  const touch = (el: Element, type: string, x = 0, y = 0) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+    el.dispatchEvent(e);
+  };
+  /** The view with swipe on, its keys laid out on a grid of 40×30 px cells (row r, column c). */
+  const swipeSetup = () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const pressed: KeyDef[] = [];
+    const chosen: string[] = [];
+    const swipes: { path: { x: number; y: number }[]; keys: Record<string, [number, number]>; width: number }[] = [];
+    const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
+      (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)), undefined, undefined,
+      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }) });
+    view.update(NO_MODS);
+    const rows = [...shadow.querySelectorAll('.row')];
+    rows.forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+    }));
+    const keyIn = (row: number, id: string) => [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+    return { view, shadow, keyIn, pressed, chosen, swipes };
+  };
+
+  it('a press that leaves its letter key traces a path instead of typing, with a trail that fades', () => {
+    vi.useFakeTimers();
+    const { keyIn, shadow, pressed, swipes } = swipeSetup();
+    const q = keyIn(1, 'q'); // row 1, column 1: x 40-80, y 30-60
+    touch(q, 'touchstart', 60, 45);
+    touch(q, 'touchmove', 75, 45); // still on q
+    expect(shadow.querySelector('.trail')).toBeNull();
+    touch(q, 'touchmove', 100, 45); // on w, a third of a key past q's edge: a swipe
+    expect(q.classList.contains('down')).toBe(false);
+    expect(shadow.querySelector('.trail polyline')!.getAttribute('points')).toBe('60,45 75,45 100,45 ');
+    touch(q, 'touchmove', 140, 45);
+    touch(q, 'touchend', 140, 45); // on e
+    expect(pressed).toEqual([]);
+    expect(swipes).toHaveLength(1);
+    const { path, keys, width } = swipes[0]!;
+    expect([path[0], path[path.length - 1]]).toEqual([{ x: 60, y: 45 }, { x: 140, y: 45 }]);
+    expect(keys['q']).toEqual([60, 45]);
+    expect(keys['a']).toEqual([60, 75]); // after Caps, a row down
+    expect(Object.keys(keys).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz'); // letters only
+    expect(width).toBe(40);
+    expect(shadow.querySelector('.trail')!.classList.contains('fade')).toBe(true);
+    vi.advanceTimersByTime(300);
+    expect(shadow.querySelector('.trail')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('a tap, and a wobble near the key\'s edge, still type the letter', () => {
+    const { keyIn, pressed, swipes } = swipeSetup();
+    const w = keyIn(1, 'w'); // x 80-120
+    touch(w, 'touchstart', 115, 45);
+    touch(w, 'touchend', 115, 45);
+    touch(w, 'touchstart', 115, 45);
+    touch(w, 'touchmove', 130, 45); // outside, but not by a third of a key
+    touch(w, 'touchend', 130, 45);
+    expect(pressed.map((k) => k.type === 'char' && k.char)).toEqual(['w', 'w']);
+    expect(swipes).toEqual([]);
+  });
+
+  it('holding a letter still opens its alternates, and moving then picks one (no swipe)', () => {
+    vi.useFakeTimers();
+    const { keyIn, shadow, chosen, swipes } = swipeSetup();
+    const e = keyIn(1, 'e'); // x 120-160
+    touch(e, 'touchstart', 140, 45);
+    vi.advanceTimersByTime(HOLD_MS);
+    const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
+    cells.forEach((cell, i) => { cell.getBoundingClientRect = () => ({ left: 120 + i * 40, right: 160 + i * 40, top: 10, bottom: 40, width: 40, height: 30 }) as DOMRect; });
+    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
+    touch(e, 'touchmove', 220, 45); // well outside e: the third choice, not a swipe
+    touch(e, 'touchend', 220, 45);
+    expect(chosen).toEqual(['é']);
+    expect(swipes).toEqual([]);
+    expect(shadow.querySelector('.trail')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('a swipe that starts quickly never opens the alternates', () => {
+    vi.useFakeTimers();
+    const { keyIn, shadow, swipes } = swipeSetup();
+    const e = keyIn(1, 'e');
+    touch(e, 'touchstart', 140, 45);
+    touch(e, 'touchmove', 190, 45);
+    vi.advanceTimersByTime(HOLD_MS * 2); // a slow swipe
+    expect(shadow.querySelector('.alts')).toBeNull();
+    touch(e, 'touchend', 200, 45);
+    expect(swipes).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('only letters start a swipe; Space, Backspace and digits keep their taps and repeats', () => {
+    vi.useFakeTimers();
+    const { keyIn, pressed, swipes } = swipeSetup();
+    const space = keyIn(4, ' ');
+    touch(space, 'touchstart', 180, 135);
+    touch(space, 'touchmove', 300, 135);
+    touch(space, 'touchend', 300, 135);
+    const one = keyIn(0, '1');
+    touch(one, 'touchstart', 60, 15);
+    touch(one, 'touchmove', 140, 15);
+    touch(one, 'touchend', 140, 15);
+    const backspace = keyIn(0, 'Backspace');
+    touch(backspace, 'touchstart', 540, 15);
+    vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS);
+    touch(backspace, 'touchend', 540, 15);
+    expect(swipes).toEqual([]);
+    expect(pressed.map((k) => (k.type === 'char' ? k.char : k.type === 'key' ? k.key : ''))).toEqual([' ', '1', 'Backspace', 'Backspace']);
+    vi.useRealTimers();
+  });
+
+  it('not while Ctrl makes letters shortcuts', () => {
+    const { view, keyIn, pressed, swipes } = swipeSetup();
+    view.update({ ...NO_MODS, ctrl: 'once' });
+    const q = keyIn(1, 'q');
+    touch(q, 'touchstart', 60, 45);
+    touch(q, 'touchmove', 140, 45);
+    touch(q, 'touchend', 140, 45);
+    expect(swipes).toEqual([]);
+    expect(pressed).toHaveLength(1);
+  });
+
+  it('a lost release (the laser moves on without touch moves) ends the swipe without typing', () => {
+    vi.useFakeTimers();
+    const { view, keyIn, shadow, pressed, swipes } = swipeSetup();
+    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
+    const q = keyIn(1, 'q');
+    touch(q, 'touchstart', 60, 45);
+    touch(q, 'touchmove', 120, 45);
+    vi.advanceTimersByTime(RELEASE_LOST_MS + 10);
+    view.hoverAt(300, 100);
+    expect(shadow.querySelector('.trail')).toBeNull();
+    touch(q, 'touchend', 300, 100);
+    expect([pressed, swipes]).toEqual([[], []]);
+    vi.useRealTimers();
+  });
+
+  it('without onSwipe, moving off a letter is still a plain tap', () => {
+    const { keyIn, pressed } = setup();
+    const q = keyIn(1, 'q');
+    touch(q, 'touchstart', 60, 45);
+    touch(q, 'touchmove', 300, 45);
+    touch(q, 'touchend', 300, 45);
+    expect(pressed).toHaveLength(1);
+  });
+});

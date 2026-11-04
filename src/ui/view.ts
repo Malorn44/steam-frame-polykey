@@ -5,9 +5,10 @@
 
 import { normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
 import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
-import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core/legends.js';
+import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, type Point } from '../core/swipe.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { listenTouch, type TouchPoint } from './gesture.js';
@@ -38,6 +39,9 @@ const SLOTS = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'] as const;
 
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
+/** The swipe trail fades out this long after the release. */
+const TRAIL_FADE_MS = 250;
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const CSS = `
 :host { all: initial; }
@@ -139,6 +143,11 @@ const CSS = `
 .key .mk-marks { display: flex; gap: 0.35em; --mark-size: var(--size-mark); }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
+/* The swipe trail, under the laser: one polyline, faded out by a transition after the release. */
+.trail { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; overflow: visible; }
+.trail polyline { fill: none; stroke: var(--accent); stroke-width: 4px; stroke-linecap: round; stroke-linejoin: round;
+  opacity: 0.7; transition: opacity ${TRAIL_FADE_MS}ms ease-out; }
+.trail.fade polyline { opacity: 0; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
 .fl { position: absolute; z-index: 2; pointer-events: none; }
 .fl div { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
@@ -214,6 +223,9 @@ export type CompositionView = (
   | { readonly segments: readonly string[]; readonly focus: number }
 ) & { readonly candidates: readonly string[]; readonly selected: number };
 
+/** A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup px. */
+export type SwipeHandler = (path: Point[], keys: Record<string, [number, number]>, keyWidth: number) => void;
+
 export interface View {
   update(mods: Mods): void;
   /** 英数 (true) or かな mode, for JIS keys' legends; shown at the next update(). */
@@ -244,10 +256,12 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu }:
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu, onSwipe }:
     { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
-      keyboardMenu?: { ids: readonly string[]; names: readonly string[] } } = {},
+      keyboardMenu?: { ids: readonly string[]; names: readonly string[] };
+      /** Swipe typing on: a press on a letter that leaves its key traces a word instead of typing. */
+      onSwipe?: SwipeHandler | undefined } = {},
 ): View => {
   /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
   let latin = startLatin;
@@ -378,6 +392,10 @@ export const createView = (
   let repeated = false;
   let lastPoint: { x: number; y: number } | null = null;
   let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
+  // A press on a letter that may become a swipe: where it started, the path so far, and (once it left
+  // the key) its trail. Only a swipe that left its key is one; until then it is a tap or a hold.
+  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean; at: number;
+    trail?: { svg: SVGSVGElement; line: SVGPolylineElement; origin: DOMRect; drawn: string } } | null = null;
   // A held flick key: where the press started and its guide (one cell per direction that has a kana).
   let flick: { key: Extract<KeyDef, { type: 'flick' }>; start: { x: number; y: number }; el: HTMLElement;
     cells: HTMLElement[]; pick: number } | null = null;
@@ -424,6 +442,46 @@ export const createView = (
   const closeFlick = (): void => {
     flick?.el.remove();
     flick = null;
+  };
+
+  const trailPoint = (origin: DOMRect, p: Point): string => `${Math.round(p.x - origin.left)},${Math.round(p.y - origin.top)} `;
+  const drawTrail = (p: Point): void => {
+    if (!swipe?.trail) return;
+    swipe.trail.drawn += trailPoint(swipe.trail.origin, p);
+    swipe.trail.line.setAttribute('points', swipe.trail.drawn);
+  };
+  const openTrail = (): void => {
+    if (!swipe) return;
+    const svg = doc.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
+    svg.setAttribute('class', 'trail');
+    const line = doc.createElementNS(SVG_NS, 'polyline') as SVGPolylineElement;
+    svg.append(line);
+    root.append(svg);
+    const origin = root.getBoundingClientRect();
+    swipe.trail = { svg, line, origin, drawn: swipe.points.map((p) => trailPoint(origin, p)).join('') };
+    line.setAttribute('points', swipe.trail.drawn);
+  };
+  /** End the swipe; its trail fades (after a swipe that typed) or goes at once. */
+  const endSwipe = (fade: boolean): void => {
+    const svg = swipe?.trail?.svg;
+    swipe = null;
+    if (!svg) return;
+    if (!fade) {
+      svg.remove();
+      return;
+    }
+    svg.classList.add('fade');
+    setTimeout(() => svg.remove(), TRAIL_FADE_MS);
+  };
+  /** Each letter key's centre (lower case), as drawn now: the swipe engine matches the path against them. */
+  const letterCentres = (): Record<string, [number, number]> => {
+    const out: Record<string, [number, number]> = {};
+    for (const { el, key } of keys) {
+      if (key.type !== 'char' || !swipeLetter(key.char)) continue;
+      const r = el.getBoundingClientRect();
+      out[key.char.toLowerCase()] = [Math.round((r.left + r.width / 2) * 10) / 10, Math.round((r.top + r.height / 2) * 10) / 10];
+    }
+    return out;
   };
 
   const clearHold = (): void => {
@@ -488,6 +546,12 @@ export const createView = (
     const held = pressed;
     lastPoint = start;
     repeated = false;
+    endSwipe(false);
+    // A letter may start a swipe; not while Ctrl, Alt, Super or Fn makes it a shortcut.
+    if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char)
+      && mods.ctrl === 'off' && mods.alt === 'off' && mods.super === 'off' && mods.fn === 'off') {
+      swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false, at: Date.now() };
+    }
     if (held?.key.type === 'flick') {
       openFlick(held, lastPoint ?? { x: 0, y: 0 });
       return;
@@ -501,6 +565,7 @@ export const createView = (
       }, REPEAT_DELAY_MS);
     } else if (held) holdTimer = setTimeout(() => {
       holdTimer = null;
+      swipe = null; // held: the alternates, not a swipe
       openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
     }, HOLD_MS);
   };
@@ -518,13 +583,41 @@ export const createView = (
       return;
     }
     if (flick) moveFlick(lastPoint);
+    else if (swipe) moveSwipe(touch);
     else pickAt(touch.x, touch.y);
   };
-  const onEnd = (_p: TouchPoint | null, e: Event): void => {
+  const moveSwipe = (touch: TouchPoint): void => {
+    if (!swipe) return;
+    swipe.at = Date.now();
+    if (swipe.points.length >= SWIPE_MAX_POINTS) {
+      endSwipe(false); // stuck, not a word: it types nothing
+      if (pressed) mark(pressed, 'down', false);
+      pressed = undefined;
+      return;
+    }
+    swipe.points.push(touch);
+    if (swipe.on) drawTrail(touch);
+    else if (leftKey(swipe.start, touch, swipe.rect, swipe.rect.width)) {
+      // Leaving the key makes it a swipe: no tap, no alternates, no repeat.
+      swipe.on = true;
+      clearHold();
+      mark(pressed, 'down', false);
+      openTrail();
+    }
+  };
+  const onEnd = (end: TouchPoint | null, e: Event): void => {
     clearHold();
     const hit = pressed;
     pressed = undefined;
     mark(hit, 'down', false);
+    if (swipe?.on) {
+      if (end) swipe.points.push(end);
+      const { points, rect } = swipe;
+      endSwipe(true);
+      onSwipe?.(resample(points), letterCentres(), rect.width);
+      return;
+    }
+    swipe = null;
     if (listDrag) {
       const { moved, cand } = listDrag;
       listDrag = null;
@@ -561,6 +654,7 @@ export const createView = (
   };
   const onCancel = (): void => {
     clearHold();
+    endSwipe(false);
     closePopup();
     closeFlick();
     listDrag = null;
@@ -709,6 +803,12 @@ export const createView = (
     },
     hoverAt: (x, y) => {
       if (flick) return false; // a flick follows the touch alone
+      // The laser moving on with no touch moves: the release was lost. A swipe then types nothing.
+      const last = swipe?.points[swipe.points.length - 1];
+      if (swipe?.on && last && Date.now() - swipe.at > RELEASE_LOST_MS && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) {
+        endSwipe(false);
+        pressed = undefined;
+      }
       if (popup) {
         pickAt(x, y);
         const moved = pickMoved;
@@ -723,6 +823,6 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
-    destroy: () => { clearHold(); closePopup(); closeFlick(); style.remove(); root.remove(); },
+    destroy: () => { clearHold(); closePopup(); closeFlick(); endSwipe(false); style.remove(); root.remove(); },
   };
 };
