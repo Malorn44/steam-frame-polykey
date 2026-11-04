@@ -104,6 +104,38 @@ def test_a_layout_that_cannot_be_extended_is_reported(tmp_path):
     assert len(boot["errors"]) == 4
 
 
+def test_rows_must_be_as_wide_as_the_first(tmp_path):
+    char = {"type": "char", "char": "a"}
+    write(tmp_path / "packs", "mine/even.json", layout("mine/even", rows=[[char, char], [{**char, "w": 2}]]))
+    write(tmp_path / "packs", "mine/short.json", layout("mine/short", rows=[[char, char], [char]]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == ["mine/short: row 1 is 1 wide, row 0 is 2"]
+    assert "mine/short" in boot["catalog"]["layouts"]  # reported, still usable
+
+
+def test_two_row_keys_need_both_halves_sharing_columns(tmp_path):
+    a = {"type": "char", "char": "a"}
+
+    def enter(tall, w=1):
+        return {"type": "key", "key": "Enter", "tall": tall, "w": w}
+    # Paired: same columns; or overlapping, as the JIS Enter (wider above).
+    write(tmp_path / "packs", "mine/paired.json", layout("mine/paired", rows=[[a, enter("top")], [a, enter("bottom")]]))
+    write(tmp_path / "packs", "mine/notch.json", layout("mine/notch", rows=[[enter("top", 1.5), a], [a, enter("bottom", 0.5), a]]))
+    # Broken: no bottom; halves in different columns; halves that do different things.
+    write(tmp_path / "packs", "mine/lonely.json", layout("mine/lonely", rows=[[a, enter("top")], [a, a]]))
+    write(tmp_path / "packs", "mine/apart.json", layout("mine/apart", rows=[[a, enter("top")], [enter("bottom"), a]]))
+    write(tmp_path / "packs", "mine/other.json",
+          layout("mine/other", rows=[[a, enter("top")], [a, {"type": "key", "key": "Tab", "tall": "bottom"}]]))
+    errors = packs.load(BUNDLED, SCHEMA, tmp_path)["errors"]
+    assert errors == [
+        "mine/apart: row 0: the top half of Enter has no bottom half below it",
+        "mine/apart: row 1: the bottom half of Enter has no top half above it",
+        "mine/lonely: row 0: the top half of Enter has no bottom half below it",
+        "mine/other: row 0: the top half of Enter has no bottom half below it",
+        "mine/other: row 1: the bottom half of Tab has no top half above it",
+    ]
+
+
 def test_a_table_has_entries_or_cycles(tmp_path):
     table = {"schemaVersion": 1, "kind": "table", "id": "mine/empty", "name": "empty"}
     write(tmp_path / "packs", "mine/empty.json", table)

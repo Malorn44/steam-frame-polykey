@@ -282,6 +282,52 @@ def _extend_one(layouts: dict, layout_id: str, errors: list[str], done: dict[str
     return {**inherited, **own_fields, "rows": rows}
 
 
+def _key_id(key: Any) -> str:
+    """What a key does, as the page tells keys apart (data-k): the two halves of a two-row key match."""
+    if not isinstance(key, dict):
+        return str(key)
+    field = {"char": "char", "key": "key", "mod": "mod", "action": "action"}.get(key.get("type", ""))
+    if field:
+        return str(key.get(field, ""))
+    return str(key["flick"][0]) if key.get("type") == "flick" and key.get("flick") else ""
+
+
+def _check_rows(layout_id: str, layout: dict, errors: list[str]) -> None:
+    """Report rows that are not all as wide as the first, and two-row keys whose halves do not meet:
+    a "tall": "top" key needs a "bottom" one doing the same in the row below, sharing columns with it (the
+    JIS Enter is wider above, so the halves need only overlap)."""
+    rows = layout["rows"]
+
+    def spans(row: list) -> list[tuple[float, float, Any]]:
+        out, at = [], 0.0
+        for key in row:
+            width = key.get("w", 1) if isinstance(key, dict) else 1
+            out.append((at, at + width, key))
+            at += width
+        return out
+
+    laid = [spans(row) for row in rows]
+    width = laid[0][-1][1] if laid[0] else 0
+    for index, row in enumerate(laid[1:], start=1):
+        if row and abs(row[-1][1] - width) > 1e-6:
+            errors.append(f"{layout_id}: row {index} is {row[-1][1]:g} wide, row 0 is {width:g}")
+
+    def tall(key: Any) -> Optional[str]:
+        return key.get("tall") if isinstance(key, dict) else None
+
+    def half(row: int, start: float, end: float, kind: str, key: Any) -> bool:
+        return 0 <= row < len(laid) and any(
+            tall(k) == kind and s < end - 1e-6 and start < e - 1e-6 and _key_id(k) == _key_id(key)
+            for s, e, k in laid[row])
+
+    for index, row in enumerate(laid):
+        for start, end, key in row:
+            if tall(key) == "top" and not half(index + 1, start, end, "bottom", key):
+                errors.append(f"{layout_id}: row {index}: the top half of {_key_id(key)} has no bottom half below it")
+            if tall(key) == "bottom" and not half(index - 1, start, end, "top", key):
+                errors.append(f"{layout_id}: row {index}: the bottom half of {_key_id(key)} has no top half above it")
+
+
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
     """Fill in what a layout leaves to defaults or to other packs, so the page gets every layout complete."""
     layouts = catalog["layouts"]
@@ -297,6 +343,7 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
             else:
                 errors.append(f"{layout_id}: modify table {layout['modify']} not found")
                 del layout["modify"]
+        _check_rows(layout_id, layout, errors)
         has_modify_key = any(isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row)
         if has_modify_key and not layout.get("modify"):
             errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")
