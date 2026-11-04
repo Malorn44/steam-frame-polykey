@@ -26,7 +26,9 @@ import { modeLetters, pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
-import { NO_IME, composing, flush, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
+import { NO_IME, composing, flush, insertText, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
+import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
+import { createDictation, createSpeechModels } from './dictation.js';
 import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
 import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
 import { fullName, languageName } from './ui/keyboards-page.js';
@@ -142,6 +144,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     theme: boot?.settings.theme ?? '',
     haptics: boot?.settings.haptics !== false,
     suggestions: boot?.settings.suggestions !== false,
+    dictation: boot?.settings.dictation === true, // off until turned on
+    dictationContinuous: boot?.settings.dictationContinuous === true,
   };
   const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
@@ -151,6 +155,27 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   });
   const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g) });
   const bridge = createBridge(g);
+  const dictation = createDictation({
+    call: bridge.call, onState: (state) => view?.setMic(state), onText: (text) => placeDictated(text), log,
+    onLevels: (levels) => view?.setMicLevels(levels), onListening: (on) => { if (on) dictatedTail = null; },
+    continuous: () => settings.dictationContinuous, onPhrase: (text) => placePhrase(text),
+    onRecognizing: (busy) => view?.setMicBusy(busy), onEnd: () => endPhrases(),
+    onError: (code) => { if (code === 'no-model' || code === 'no-engine') showDictationTab(currentDictationLanguage()); },
+  });
+  const onDictationTab = (): boolean => page === 'settings' && settingsTab === 'dictation';
+  const speech = createSpeechModels({
+    call: bridge.call, active: () => settings.dictation && bridge.available(), warn,
+    onCatalog: () => { if (onDictationTab()) render(); },
+    // In place on the Dictation tab (drawn again when a model came or went), and on the mic key's foot.
+    onStatus: (status) => {
+      if (onDictationTab() && panel && !panel.setDictation(status)) render();
+      view?.setMicProgress(speech.progress(currentDictationLanguage()));
+    },
+  });
+  /** The language the Dictation tab shows; the current keyboard's until one is picked there. */
+  let speechLanguage: string | undefined;
+  /** A continuous session's last phrase while nothing else was typed since: what the next one joins. */
+  let dictatedTail: string | null = null;
 
   const stopTimer = (): void => {
     if (timer !== null) clearInterval(timer);
@@ -178,7 +203,11 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const runAction = (action: ActionName): void => {
     if (action === 'hide') void output([{ key: 'VKClose' }]);
     else if (action === 'next-keyboard') switchTo((current + 1) % Math.max(1, ring.length));
-    else if (action === 'settings' || action === 'emoji' || action === 'abc') {
+    else if (action === 'dictate' && settings.dictation) {
+      const language = currentDictationLanguage();
+      // Disabled while what it needs downloads (its foot shows the progress).
+      if (dictation.state() !== 'idle' || speech.progress(language) === null) dictation.toggle(language);
+    } else if (action === 'settings' || action === 'emoji' || action === 'abc') {
       if (page === 'emoji') saveEmoji(0);
       page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
       if (action === 'emoji' && !boot?.emoji) log('emoji: no emoji data from the sidecar');
@@ -277,6 +306,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     return table;
   };
 
+  /** The mic leaves the reading or English word where it is: the dictated text joins it. */
+  const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
   const fnKey = (key: KeyDef): boolean => mods.fn !== 'off' && (key.type === 'char' || key.type === 'key') && !!key.fn;
 
@@ -290,6 +321,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
+    if (!dictates(key)) dictatedTail = null; // typed in between: the next phrase joins what is known now
     if (swiped && key.type !== 'mod') { // Shift or Caps for the next word keeps them
       const word = swiped.word;
       swiped = null; // any other key ends the alternatives
@@ -355,7 +387,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         showIme();
         return;
       }
-      if (key.type !== 'mod') sendEnglish(); // any other key sends the word first
+      if (key.type !== 'mod' && !dictates(key)) sendEnglish(); // any other key sends the word first
     }
     if (keyboard && buffered(keyboard) && page === 'keys' && !latin) {
       const romaji = romajiFor(keyboard);
@@ -374,7 +406,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         return;
       }
       // Any other key sends the buffer first (a modifier only arms, so it does not).
-      if (composing(ime) && key.type !== 'mod') applyIme(flush(ime, romaji));
+      if (composing(ime) && key.type !== 'mod' && !dictates(key)) applyIme(flush(ime, romaji));
     }
     const result = alternate === undefined ? press(mods, key)
       : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
@@ -489,6 +521,67 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     applyIme(pickCandidate(ime, text, index));
   };
 
+  /**
+   * Dictated text, where typing would put it: a Japanese keyboard's reading buffer (or typed at once,
+   * as set), else sent with the spacing a typed phrase would have. No modifier stays armed or held.
+   */
+  const placeDictated = (text: string, join?: (before: string) => string): void => {
+    if (afterSwipe(() => placeDictated(text, join))) return;
+    swiped = null; // the swiped word's alternatives would replace the wrong text
+    keys.releaseAll();
+    mods = { ...NO_MODS, caps: mods.caps };
+    view?.update(mods);
+    const keyboard = currentKeyboard();
+    const latin = keyboard ? latinMode.has(keyboard.id) : false;
+    if (buffered(keyboard) && !latin) {
+      const romaji = romajiFor(keyboard);
+      if (ime.segments) applyIme(flush(ime, romaji)); // a conversion under way is sent first
+      const commit = optionsFor(keyboard, keyboardOptions[keyboard!.id]).dictationCommit;
+      const into = commit ? null : insertText(settleRomaji(ime, romaji), text);
+      if (into) applyIme({ ime: into, effects: [], request: { kind: 'live' } });
+      else {
+        if (composing(ime)) applyIme(flush(ime, romaji));
+        enqueue([{ kind: 'text', text }]);
+      }
+      return;
+    }
+    const language = dictationLanguage(keyboard, latin);
+    const before = buffered(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
+    const typed = join ? join(before) : spacedText(text, language, before !== '');
+    if (buffered(keyboard)) sendEnglish(); // 英数 mode: the English word goes first
+    else setWord(NO_WORD);
+    enqueue([{ kind: 'text', text: typed }]);
+  };
+
+  /** A continuous session's phrase: joined to the one before (or the word being typed) by the space rule. */
+  const placePhrase = (text: string): void => {
+    const tail = dictatedTail;
+    placeDictated(text, (before) => joinPhrase(tail ?? before, text));
+    dictatedTail = text.trim();
+  };
+  /** The session ended: a space after its last phrase, where the next typed word would need one. */
+  const endPhrases = (): void => {
+    if (afterSwipe(endPhrases)) return;
+    const keyboard = currentKeyboard();
+    const japanese = buffered(keyboard) && !(keyboard && latinMode.has(keyboard.id));
+    if (dictatedTail && !japanese && spaceAfter(dictatedTail)) enqueue([{ kind: 'text', text: ' ' }]);
+    dictatedTail = null;
+  };
+
+  const currentDictationLanguage = (): string => {
+    const keyboard = currentKeyboard();
+    return dictationLanguage(keyboard, keyboard ? latinMode.has(keyboard.id) : false);
+  };
+
+  /** Settings → Dictation at `language` (the mic without the engine, or without a model for the language). */
+  const showDictationTab = (language: string): void => {
+    if (page === 'emoji') saveEmoji(0);
+    page = 'settings';
+    settingsTab = 'dictation';
+    speechLanguage = language;
+    render();
+  };
+
   const onSuggestion = (chosen: string): void => {
     if (afterSwipe(() => onSuggestion(chosen))) return;
     if (surface) tick(surface.win, hand);
@@ -539,6 +632,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     if (!lexicon || !bridge.available()) return;
     if (surface) tick(surface.win, hand);
     swiped = null;
+    dictatedTail = null; // typed in between: the next phrase joins what is known now
     // Shift applies to the word as it does to a letter: once for a capital, locked (or Caps) for all.
     const { shift, caps } = mods;
     mods = pressText(mods, '').mods;
@@ -662,12 +756,18 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,
         keyboardName: keyboard ? fullName(keyboard) : id,
-        options: offered(keyboard).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
+        // The dictation row only while dictation is on.
+        options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
         tab: settingsTab,
         keyboards: {
           all: Object.values(boot.catalog.keyboards).map((k) => ({ id: k.id, name: k.name, language: k.language ?? 'und' })),
           ring,
           language: settingsLanguage ?? keyboard?.language ?? 'en',
+        },
+        dictation: {
+          catalog: speech.catalog, status: speech.status,
+          languages: dictationLanguages(Object.values(boot.catalog.keyboards)),
+          language: speechLanguage ?? currentDictationLanguage(),
         },
       }, {
         onTab: (tab) => { settingsTab = tab; render(); },
@@ -675,6 +775,14 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         onKeyboards: changeKeyboards,
         onChange: changeSettings,
         onOption: (name, value) => changeOption(id, name as OptionName, value),
+        onSpeechLanguage: (code) => { speechLanguage = code; render(); },
+        onChoose: (language, model) => {
+          speech.choose(language, model);
+          if (surface) tick(surface.win, hand);
+          render();
+        },
+        onDownload: speech.download,
+        onDelete: speech.delete,
         onStock: () => { page = 'keys'; stock = true; switchTo(current); },
         onClose: () => { page = 'keys'; render(); },
       });
@@ -683,7 +791,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
       const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
       prepareSwipe(swipes, layout);
-      view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
+      // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
+      const shown = settings.dictation ? layout
+        : { ...layout, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
+      view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
           latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
@@ -698,6 +809,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       refreshSuggestions();
       showIme();
     }
+    view?.setMic(dictation.state());
+    view?.setMicProgress(speech.progress(currentDictationLanguage()));
+    if (!speech.status || onDictationTab()) speech.follow();
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
       // A tick as the laser crosses keys, and as a held key's or emoji's pick moves between choices.
@@ -792,8 +906,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   /** Apply settings at once and have the sidecar save them (a failed save is logged, not fatal). */
   const changeSettings = (changes: Partial<SettingsValues>): void => {
     Object.assign(settings, changes);
+    if (changes.dictation === false) {
+      dictation.cancel(); // the sidecar also stops its helper and its downloads
+      speech.forget();
+    }
     void bridge.call('settings.save', { settings: changes }).then((reply) => {
       if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
+      else if (changes.dictation) speech.follow(); // turning it on starts the engine download
     });
     if (surface) tick(surface.win, hand);
     render();
@@ -809,6 +928,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
 
   const switchTo = (index: number): void => {
     swiped = null;
+    dictation.cancel(); // its language was the keyboard's
     if (composing(ime)) enqueue(flush(ime, romajiFor(currentKeyboard())).effects); // switching keyboards sends the buffer
     if (en.chars.length) enqueue(commitEnglish(en));
     en = NO_ENGLISH;
@@ -849,6 +969,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         live = [];
         showIme();
         keys.releaseAll(); // closing must never leave a key held
+        dictation.cancel(); // nor the mic listening
         mods = { ...NO_MODS, caps: mods.caps };
         view?.update(mods);
       }
@@ -920,6 +1041,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     state: 'waiting',
     uninstall: () => {
       stopTimer();
+      dictation.cancel();
       if (emojiSave !== null) {
         clearTimeout(emojiSave);
         void bridge.call('emoji.save', { state: emoji }); // a pending save is sent, not dropped

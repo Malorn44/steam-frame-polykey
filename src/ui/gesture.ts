@@ -76,8 +76,8 @@ export interface DragScroll {
 
 /**
  * Drag-scroll `list` along `axis` from a touch at `from`: under the slop nothing moves (a release there
- * is still a tap), past it the list follows the touch. Used by the candidate list; the laser's trigger
- * drags it as a finger would.
+ * is still a tap), past it the list follows the touch. Shared by the candidate list and the Dictation
+ * tab's lists; the laser's trigger drags them as a finger would.
  */
 export const dragScroll = (list: HTMLElement, from: TouchPoint, axis: 'x' | 'y', slop: number): DragScroll => {
   const left = list.scrollLeft;

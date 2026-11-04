@@ -4,6 +4,7 @@
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
 import { normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
+import type { MicState } from '../core/dictation.js';
 import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
 import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
@@ -12,6 +13,7 @@ import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, type Point } from '..
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { dragScroll, listenTouch, type DragScroll, type TouchPoint } from './gesture.js';
+import { MIC_CSS, micKey, type MicKey } from './mic.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
@@ -130,6 +132,7 @@ const CSS = `
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
 .key.action.on { box-shadow: inset 0 -3px 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
+.key.err { color: var(--fn); } /* the mic key after a failed dictation */
 .key.down { filter: var(--pressed); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: var(--size-flick); }
@@ -234,6 +237,14 @@ export interface View {
   setComposition(composition: CompositionView | null): void;
   /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
   setLabels(labels: Readonly<Record<string, string>>): void;
+  /** The mic key's dictation state: listening is lit like a locked key, with bars; recognizing, a circling arc (ui/mic.ts). */
+  setMic(state: MicState): void;
+  /** The speech level's last five steps on the mic key's bars, while listening. */
+  setMicLevels(levels: readonly number[]): void;
+  /** A model download's progress along the mic key's foot (0..1), the key disabled; null: none. */
+  setMicProgress(fraction: number | null): void;
+  /** A phrase being recognized while continuous dictation listens on: the arc around the bars. */
+  setMicBusy(busy: boolean): void;
   /** Fill the three suggestion slots ([left, best, right]); undefined leaves a slot empty. */
   setSuggestions(words: readonly (string | undefined)[]): void;
   /** Hover the key at popup coordinates (the laser); returns true when the hovered key changed. */
@@ -279,7 +290,7 @@ export const createView = (
     return box;
   };
   const style = doc.createElement('style');
-  style.textContent = CSS + HOLD_POPUP_CSS;
+  style.textContent = CSS + HOLD_POPUP_CSS + MIC_CSS;
   const root = doc.createElement('div');
   root.className = layout.large ? 'kb large' : 'kb';
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
@@ -305,6 +316,11 @@ export const createView = (
     keys.push({ el, key, label, slots: {} });
     return el;
   };
+
+  /** The mic keys' visuals, made on first use. */
+  let micKeys: MicKey[] | null = null;
+  const mics = (): MicKey[] =>
+    (micKeys ??= keys.filter((e) => e.key.type === 'action' && e.key.action === 'dictate').map(({ el }) => micKey(doc, el)));
 
   const bar = doc.createElement('div');
   bar.className = 'bar';
@@ -792,6 +808,10 @@ export const createView = (
     setLabels: (next) => {
       labels = next;
     },
+    setMic: (state) => { for (const m of mics()) m.setState(state); },
+    setMicLevels: (levels) => { for (const m of mics()) m.setLevels(levels); },
+    setMicProgress: (fraction) => { for (const m of mics()) m.setProgress(fraction); },
+    setMicBusy: (busy) => { for (const m of mics()) m.setBusy(busy); },
     setSuggestions: (words) => {
       slots.forEach((slot, i) => {
         slot.word = words[i];

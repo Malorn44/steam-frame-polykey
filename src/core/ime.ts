@@ -233,6 +233,13 @@ export const pressIme = (
 /** Everything in the buffer, sent as it stands (another key, switching keyboards). */
 export const flush = (ime: Ime, romaji?: RomajiTable): ImeResult => commit(settleRomaji(ime, romaji));
 
+/** Dictated text into the reading at the caret, for conversion like typed kana; null while converting or if it does not fit. */
+export const insertText = (ime: Ime, text: string): Ime | null => {
+  const chars = Array.from(text);
+  if (ime.segments || !chars.length || ime.chars.length + chars.length > MAX_READING) return null;
+  return { ...ime, chars: [...ime.chars.slice(0, ime.caret), ...chars, ...ime.chars.slice(ime.caret)], caret: ime.caret + chars.length, cycle: null, form: 'hiragana' };
+};
+
 /** Start converting, or show a resized conversion; ignored if the reading changed meanwhile. */
 export const withConversion = (ime: Ime, forReading: string, segments: readonly Omit<Segment, 'index'>[]): Ime => {
   if (reading(ime) !== forReading || !segments.length || segments.map((s) => s.reading).join('') !== forReading) return ime;

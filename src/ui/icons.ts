@@ -69,6 +69,18 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
+/** ⓘ, a model's or the engine's details (Settings → Dictation); not a key icon packs can name. */
+export const INFO_ICON = svg('<circle r="10"/><path d="M0 -1 V6"/><circle cy="-5.2" r="0.4"/>');
+
+/**
+ * A model's speed as four rising bars, like a signal meter: `level` of them filled (currentColor), the
+ * rest faint. Filled shapes, so no stroke.
+ */
+export const signalBars = (level: number): string =>
+  '<svg viewBox="0 0 16 14" width="1.15em" height="1em" fill="currentColor">'
+  + [0, 1, 2, 3].map((i) => `<rect x="${i * 4 + 0.5}" y="${11 - i * 3}" width="3" height="${3 + i * 3}" rx="0.8"`
+    + `${i < level ? '' : ' opacity="0.25"'}/>`).join('') + '</svg>';
+
 /**
  * Desktop icons, and a layout read on phone-sized keys (iconSet "phone", e.g. the 12-key) draws a few
  * more (font glyphs render tiny in the headset, fjk), by what the key does: an action, a named key, a

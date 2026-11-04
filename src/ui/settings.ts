@@ -1,8 +1,9 @@
-// The settings page, drawn in the keyboard area instead of the keys while open. Two tabs: Settings has
+// The settings page, drawn in the keyboard area instead of the keys while open. Three tabs: Settings has
 // General (theme, haptics, suggestions) on the left, the current keyboard's own options on the right,
 // and the version and any pack errors at the bottom; Keyboards picks and orders the keyboards 🌐 goes
-// through (ui/keyboards-page.ts). Changes apply at once; ✕ goes back to the keys, and "Steam keyboard"
-// hands over to Steam's own (🌐 skips it).
+// through (ui/keyboards-page.ts); Dictation turns it on and picks its models (ui/dictation-page.ts).
+// Changes apply at once; ✕ goes back to the keys, and "Steam keyboard" hands over to Steam's own (🌐
+// skips it).
 
 import type { Theme } from '../core/catalog.js';
 import { touchGuard } from '../core/interaction.js';
@@ -12,13 +13,18 @@ import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
+import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
+import type { SpeechStatus } from '../core/dictation.js';
 
-export type SettingsTab = 'general' | 'keyboards';
+export type SettingsTab = 'general' | 'keyboards' | 'dictation';
 
 export interface SettingsValues {
   theme: string;
   haptics: boolean;
   suggestions: boolean;
+  dictation: boolean;
+  /** Pauses type each phrase and listening goes on until the mic is pressed again. */
+  dictationContinuous: boolean;
 }
 
 export interface SettingsInfo {
@@ -33,9 +39,11 @@ export interface SettingsInfo {
   options: { id: string; name: string; off: string; on: string; toggle?: boolean; invert?: boolean; value: boolean }[];
   tab: SettingsTab;
   keyboards: KeyboardsInfo;
+  /** The Dictation tab's models and their state. */
+  dictation?: DictationInfo;
 }
 
-export interface SettingsHandlers extends KeyboardsHandlers {
+export interface SettingsHandlers extends KeyboardsHandlers, Partial<DictationHandlers> {
   onTab(tab: SettingsTab): void;
   onChange(changes: Partial<SettingsValues>): void;
   onOption(id: string, value: boolean): void;
@@ -81,6 +89,8 @@ const CSS = `
 export interface SettingsView {
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
+  /** Show a new dictation.status (download progress) in place; false when the page must be drawn again. */
+  setDictation(status: SpeechStatus | null): boolean;
   destroy(): void;
 }
 
@@ -90,10 +100,10 @@ export const createSettingsView = (
   theme: Theme,
   values: SettingsValues,
   info: SettingsInfo,
-  { onTab, onChange, onOption, onStock, onClose, onLanguage, onKeyboards }: SettingsHandlers,
+  { onTab, onChange, onOption, onStock, onClose, onLanguage, onKeyboards, ...speech }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS;
+  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   root.style.cssText = themeVars(theme) + sizeVars('normal');
@@ -125,11 +135,12 @@ export const createSettingsView = (
   head.append(
     option('Settings', info.tab === 'general', () => onTab('general'), ' tab'),
     option('Keyboards', info.tab === 'keyboards', () => onTab('keyboards'), ' tab'),
+    option('Dictation', info.tab === 'dictation', () => onTab('dictation'), ' tab'),
     title,
     option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
 
   /** A general on/off setting as a switch. */
-  const onOff = (name: string, key: 'haptics' | 'suggestions'): HTMLElement => {
+  const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous'): HTMLElement => {
     const sw = doc.createElement('div');
     sw.className = `switch${values[key] ? ' on' : ''}`;
     actions.set(sw, () => onChange({ [key]: !values[key] }));
@@ -179,11 +190,22 @@ export const createSettingsView = (
           option(o.on, o.value, () => onOption(o.id, true)))))
         : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })])),
   );
+  let dictationPage: DictationPage | undefined;
   if (info.tab === 'keyboards') {
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
     hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'hide'), ' to remove · hold ',
       inlineIcon(doc, 'globe'), ' to jump to one');
     root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions, guard), hint);
+  } else if (info.tab === 'dictation' && info.dictation) {
+    const none = (): void => {};
+    dictationPage = buildDictationPage(doc, info.dictation, { onSpeechLanguage: none, onChoose: none, onDownload: none, onDelete: none, ...speech },
+      { row, option, dictationSwitch: onOff('Dictation', 'dictation'), continuousSwitch: onOff('Continuous dictation', 'dictationContinuous') },
+      actions, values.dictation);
+    const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
+    hint.append(values.dictation
+      ? 'Tap a model to use it for the language (it downloads first) · ✕ deletes it · speed and accuracy are Handy\'s benchmarks, not measured on the Frame'
+      : 'The mic key on the toolbar dictates once this is on');
+    root.append(head, dictationPage.root, hint);
   } else root.append(head, cols, about);
 
   const optionAt = (target: EventTarget | null): HTMLElement | undefined =>
@@ -194,6 +216,7 @@ export const createSettingsView = (
     hovered?.classList.remove('hover');
     hovered = el;
     el?.classList.add('hover');
+    dictationPage?.hover(el); // its ⓘ show their details while hovered
     return true;
   };
   let pressed: HTMLElement | undefined;
@@ -228,6 +251,7 @@ export const createSettingsView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
+    setDictation: (status) => dictationPage?.setStatus(status) ?? true,
     destroy: () => { style.remove(); root.remove(); },
   };
 };

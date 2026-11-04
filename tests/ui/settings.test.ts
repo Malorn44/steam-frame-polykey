@@ -25,7 +25,7 @@ const setup = (extra = 0) => {
   for (let i = 1; i <= extra; i++) themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
   const changes: Partial<SettingsValues>[] = [];
   const view = createSettingsView(document, shadow, boot.catalog.themes['themes/steam']!,
-    { theme: 'themes/steam', haptics: true, suggestions: true }, {
+    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false }, {
       themes, version: 'test', errors: [], suggestions: false, keyboardName: 'English', options: [], tab: 'general',
       keyboards: { all: [], ring: [], language: 'en' },
     }, {

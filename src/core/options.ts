@@ -21,7 +21,12 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
   candidatesLeft: { name: '候補を左に表示', off: 'On top', on: 'On the left', toggle: true },
   romajiInput: { name: 'ローマ字入力', off: 'かな', on: 'ローマ字', toggle: true },
   swipe: { name: 'Swipe typing', off: 'Off', on: 'On', toggle: true },
+  // Where dictated text goes on a keyboard with a reading: into it, for its candidates, or typed at once.
+  dictationCommit: { name: 'Dictation', off: 'Candidates', on: 'Type at once' },
 };
+
+/** A keyboard with a reading buffer (and so candidates) offers dictationCommit; packs do not list it. */
+const hasReading = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
@@ -30,13 +35,14 @@ export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOpt
     name in own ? (typeof saved?.[name] === 'boolean' ? saved[name]! : own[name]!) : false;
   return {
     tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
-    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'),
+    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: hasReading(keyboard) && saved?.dictationCommit === true,
   };
 };
 
 /** The options a keyboard offers, in a stable order. */
 export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
-  (Object.keys(OPTIONS) as OptionName[]).filter((name) => name in (keyboard?.options ?? {}));
+  (Object.keys(OPTIONS) as OptionName[]).filter((name) =>
+    (name === 'dictationCommit' ? hasReading(keyboard) : name in (keyboard?.options ?? {})));
 
 /** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
 export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>

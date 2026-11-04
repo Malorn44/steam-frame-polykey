@@ -77,6 +77,8 @@ export interface KeyboardOptions {
   tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean; qwertyLatin?: boolean;
   /** Swipe typing, for a keyboard with features.swipe. */
   swipe?: boolean;
+  /** On a keyboard with a reading: dictated text typed at once, not into the reading for candidates (not set by packs). */
+  dictationCommit?: boolean;
 }
 /** What a keyboard can do beyond typing keys. swipe: swipe typing, decoded against this word list. */
 export interface KeyboardFeatures { swipe?: { lexicon: string } }
@@ -144,6 +146,8 @@ export interface Boot {
   };
   settings: {
     keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean;
+    /** Dictation, and continuous dictation (both off by default). */
+    dictation?: boolean; dictationContinuous?: boolean;
     /** The user's choices, by keyboard id. */
     keyboardOptions?: Record<string, KeyboardOptions>;
   };
