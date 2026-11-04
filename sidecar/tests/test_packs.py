@@ -28,7 +28,7 @@ def test_bundled_packs_are_valid(tmp_path):
     assert boot["errors"] == []
     assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "internal/emoji-row", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/gojuon", "ja/kana-jis", "ja/qwerty-romaji"}
     assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table"}
-    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
@@ -218,9 +218,25 @@ def test_a_keyboard_that_cannot_be_extended_is_reported(tmp_path):
 def test_settings_are_read_and_checked(tmp_path):
     write(tmp_path, "settings.json", {"keyboards": ["xx/nope", "en/english"], "theme": "themes/nope"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
     assert "settings.json: unknown keyboards xx/nope" in boot["errors"]
     assert "settings.json: unknown theme themes/nope" in boot["errors"]
+
+
+def test_the_dictation_models_setting_is_checked(tmp_path):
+    choices = {"en": "parakeet-tdt-0.6b-v2", "zh-Hant": "sensevoice-small", "fr": "whisper-small"}
+    write(tmp_path, "settings.json", {"dictationModels": choices})
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationModels"] == choices
+    for bad in ({"english": "x"}, {"en": "../x"}, {"en": 1}, ["en"]):
+        write(tmp_path, "settings.json", {"dictationModels": bad})
+        assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationModels"] == {}
+
+
+def test_continuous_dictation_is_a_flag(tmp_path):
+    write(tmp_path, "settings.json", {"dictationContinuous": True})
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationContinuous"] is True
+    write(tmp_path, "settings.json", {"dictationContinuous": "yes"})
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationContinuous"] is False
 
 
 def test_broken_settings_fall_back_to_defaults(tmp_path):
@@ -257,7 +273,7 @@ def test_settings_flags_and_saving(tmp_path):
     packs.save_settings(tmp_path / "settings.json", {"haptics": False})
     packs.save_settings(tmp_path / "settings.json", {"theme": "themes/night-owl"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/night-owl", "haptics": False, "suggestions": True}
+    assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/night-owl", "haptics": False, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
     assert json.loads((tmp_path / "settings.json").read_text()) == {"keyboards": ["en/english"], "custom": 1, "suggestions": False}
@@ -273,7 +289,9 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert ask({"keyboards": []})["error"] == "bad-settings"
     assert ask({"keyboards": ["ja/jis", "ja/jis"]})["error"] == "bad-settings"
     assert ask({"keyboards": ["../etc"]})["error"] == "bad-settings"
+    assert ask({"dictationContinuous": 1})["error"] == "bad-settings"
     assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}
+    assert ask({"keyboardOptions": {"ja/jis": {"dictationCommit": True}}}) == {"id": 1, "ok": True}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": True}}}) == {"id": 1, "ok": True}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": "yes"}}})["error"] == "bad-settings"
     assert ask({"keyboardOptions": {"ja/12key": {"rm -rf": True}}})["error"] == "bad-settings"

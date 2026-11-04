@@ -1,0 +1,270 @@
+{
+ "version": 1,
+ "about": "Speech engine and models dictation can download. Model files, revisions, sizes and SHA-256 seeded from Handy's catalog.json (MIT, github.com/cjpais/Handy, commit 126bed73cb4c3c2afd0b23f3ae4e1ef03981f6c9) and checked against Hugging Face's LFS metadata on 2026-11-04; licences checked against each upstream model card. 'handy' holds Handy's benchmark: cpuRtf is times faster than real time on a Ryzen 7 4750U CPU, error is the FLEURS test error % (Q8_0). Neither was measured on the Steam Frame.",
+ "engine": {
+  "name": "transcribe.cpp",
+  "version": "0.4.1",
+  "licence": "MIT",
+  "attribution": "transcribe.cpp by the transcribe.cpp authors (MIT), with ggml (MIT) and miniz (MIT).",
+  "native": {
+   "aarch64": {
+    "url": "https://github.com/handy-computer/transcribe.cpp/releases/download/v0.4.1/transcribe-native-0.4.1-linux-aarch64-cpu-vulkan.tar.gz",
+    "size": 18137415,
+    "sha256": "3671d8a07e256642d6bb38cc05ad8bbe88c76f814aeb704d1f8b57c61010db02"
+   }
+  },
+  "python": {
+   "url": "https://github.com/handy-computer/transcribe.cpp/releases/download/v0.4.1/transcribe_cpp-0.4.1-py3-none-any.whl",
+   "size": 47639,
+   "sha256": "f373b6e20a4d897ed0dcaa2fe7fae183379777432b3a76641c42506c77b442ad"
+  }
+ },
+ "models": [
+  {
+   "id": "whisper-small",
+   "name": "Whisper small",
+   "engine": "transcribe.cpp",
+   "family": "whisper",
+   "languages": [
+    "*"
+   ],
+   "repo": "handy-computer/whisper-small-gguf",
+   "revision": "c0214bd34be9296695486f838e0142f900803159",
+   "file": "whisper-small-Q8_0.gguf",
+   "size": 269751136,
+   "sha256": "9b9c8811bbcc82a7766f0fb0925614bdacb0923b2cc630daeac17108b655b860",
+   "licence": "Apache-2.0",
+   "attribution": "Whisper small by OpenAI (Apache-2.0), converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "OpenAI · 8-bit GGUF by handy-computer",
+   "ramMB": 450,
+   "handy": {
+    "cpuRtf": 5.86,
+    "error": {
+     "en": 6.51,
+     "ja": 12.81,
+     "zh": 23.06,
+     "ko": 7.7,
+     "de": 9.86,
+     "es": 5.92,
+     "fr": 13.3,
+     "it": 7.97,
+     "pt": 7.65,
+     "nl": 18.48,
+     "ru": 11.9,
+     "pl": 16.82,
+     "uk": 20.42
+    }
+   },
+   "notes": "Pads each phrase to 30 s: slower on short ones than its speed says."
+  },
+  {
+   "id": "whisper-base",
+   "name": "Whisper base",
+   "engine": "transcribe.cpp",
+   "family": "whisper",
+   "languages": [
+    "*"
+   ],
+   "repo": "handy-computer/whisper-base-gguf",
+   "revision": "e0f69524f648720eca44c024d1d0dbb7027d1fa0",
+   "file": "whisper-base-Q8_0.gguf",
+   "size": 84962880,
+   "sha256": "81c069428bc8a24551a8169cf31cf09bcfd9d4cf50389ae281323c9aa9648c81",
+   "licence": "Apache-2.0",
+   "attribution": "Whisper base by OpenAI (Apache-2.0), converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "OpenAI · 8-bit GGUF by handy-computer",
+   "ramMB": 180,
+   "handy": {
+    "cpuRtf": 19.33,
+    "error": {
+     "en": 9.88,
+     "ja": 25.28,
+     "zh": 36.21,
+     "ko": 12.98,
+     "de": 19.69,
+     "es": 11.15,
+     "fr": 27.91,
+     "it": 17.26,
+     "pt": 13.91,
+     "nl": 36.75,
+     "ru": 22.92,
+     "pl": 35.68,
+     "uk": 42.03
+    }
+   },
+   "notes": "Weak outside the major languages."
+  },
+  {
+   "id": "parakeet-tdt-0.6b-v2",
+   "name": "Parakeet TDT 0.6B v2",
+   "engine": "transcribe.cpp",
+   "family": "parakeet",
+   "languages": [
+    "en"
+   ],
+   "repo": "handy-computer/parakeet-tdt-0.6b-v2-gguf",
+   "revision": "07cee0616125a08ef619729bb47f40ef747e4bc4",
+   "file": "parakeet-tdt-0.6b-v2-Q8_0.gguf",
+   "size": 729574912,
+   "sha256": "f0d0e99cebb6d3b83f1f7069b82b5d3c2e39a54545b0da039cb4bafd9c4e5caa",
+   "licence": "CC-BY-4.0",
+   "attribution": "parakeet-tdt-0.6b-v2 by NVIDIA, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "NVIDIA · 8-bit GGUF by handy-computer",
+   "ramMB": 1000,
+   "handy": {
+    "cpuRtf": 14.27,
+    "error": {
+     "en": 4.11
+    }
+   },
+   "notes": "English with punctuation and capitals."
+  },
+  {
+   "id": "parakeet-tdt-ctc-110m",
+   "name": "Parakeet TDT-CTC 110M",
+   "engine": "transcribe.cpp",
+   "family": "parakeet",
+   "languages": [
+    "en"
+   ],
+   "repo": "handy-computer/parakeet-tdt_ctc-110m-gguf",
+   "revision": "9d66d34f9e1594075c5dd72c90c0f4c321b29f21",
+   "file": "parakeet-tdt_ctc-110m-Q8_0.gguf",
+   "size": 135373280,
+   "sha256": "7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296",
+   "licence": "CC-BY-4.0",
+   "attribution": "parakeet-tdt_ctc-110m by NVIDIA, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "NVIDIA · 8-bit GGUF by handy-computer",
+   "ramMB": 250,
+   "handy": {
+    "cpuRtf": 50.03,
+    "error": {
+     "en": 6.11
+    }
+   },
+   "notes": "Small English model."
+  },
+  {
+   "id": "sensevoice-small",
+   "name": "SenseVoice Small",
+   "engine": "transcribe.cpp",
+   "family": "sensevoice",
+   "languages": [
+    "zh",
+    "yue",
+    "en",
+    "ja",
+    "ko"
+   ],
+   "repo": "handy-computer/SenseVoiceSmall-gguf",
+   "revision": "4a08b8e900b38a977e32eb08d5d0697d6e72ba04",
+   "file": "SenseVoiceSmall-Q8_0.gguf",
+   "size": 252684608,
+   "sha256": "6c759ee4c9748c9b3f7a5a60ca74f0f7e685fb9d45d1378fce7cfd62f59adf29",
+   "licence": "FunASR-1.1",
+   "attribution": "SenseVoiceSmall by FunAudioLLM (Alibaba Group), FunASR Model License 1.1, https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE; converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "FunAudioLLM (Alibaba) · 8-bit GGUF by handy-computer",
+   "ramMB": 400,
+   "handy": {
+    "cpuRtf": 19.735,
+    "error": {
+     "en": 7.14,
+     "ja": 7.63,
+     "zh": 10.12,
+     "ko": 8.27,
+     "yue": 37.44
+    }
+   },
+   "notes": "Chinese, Cantonese, English, Japanese, Korean."
+  },
+  {
+   "id": "canary-180m-flash",
+   "name": "Canary 180M Flash",
+   "engine": "transcribe.cpp",
+   "family": "canary",
+   "languages": [
+    "en",
+    "de",
+    "es",
+    "fr"
+   ],
+   "repo": "handy-computer/canary-180m-flash-gguf",
+   "revision": "46b86384d1db59108d6e060a0fc00924cb58499f",
+   "file": "canary-180m-flash-Q8_0.gguf",
+   "size": 218447648,
+   "sha256": "f942ab746040b531a29ab78ca3afc8dc9564efd8e4c942b5541e53644be9c408",
+   "licence": "CC-BY-4.0",
+   "attribution": "canary-180m-flash by NVIDIA, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "NVIDIA · 8-bit GGUF by handy-computer",
+   "ramMB": 330,
+   "handy": {
+    "cpuRtf": 21.73,
+    "error": {
+     "en": 5.98,
+     "de": 7.33,
+     "es": 6.54,
+     "fr": 8.53
+    }
+   },
+   "notes": "English, German, Spanish, French."
+  },
+  {
+   "id": "parakeet-tdt-0.6b-v3",
+   "name": "Parakeet TDT 0.6B v3",
+   "engine": "transcribe.cpp",
+   "family": "parakeet",
+   "languages": [
+    "bg",
+    "hr",
+    "cs",
+    "da",
+    "nl",
+    "en",
+    "et",
+    "fi",
+    "fr",
+    "de",
+    "el",
+    "hu",
+    "it",
+    "lv",
+    "lt",
+    "mt",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "es",
+    "sv",
+    "uk"
+   ],
+   "repo": "handy-computer/parakeet-tdt-0.6b-v3-gguf",
+   "revision": "85ac09ea12fc4b1112fa76810059364bc6adc9de",
+   "file": "parakeet-tdt-0.6b-v3-Q8_0.gguf",
+   "size": 739508576,
+   "sha256": "5859f77944efcd8eafa23a6350731960b2b55b2203df51f319665c807d802cc7",
+   "licence": "CC-BY-4.0",
+   "attribution": "parakeet-tdt-0.6b-v3 by NVIDIA, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; converted to GGUF and quantized to 8 bits by handy-computer.",
+   "credit": "NVIDIA · 8-bit GGUF by handy-computer",
+   "ramMB": 1000,
+   "handy": {
+    "cpuRtf": 13.655,
+    "error": {
+     "en": 4.83,
+     "de": 5.24,
+     "es": 3.65,
+     "fr": 5.3,
+     "it": 3.02,
+     "pt": 4.96,
+     "nl": 7.66,
+     "ru": 6.54,
+     "pl": 7.37,
+     "uk": 6.84
+    }
+   },
+   "notes": "With punctuation and capitals; no Asian languages."
+  }
+ ]
+}

@@ -61,7 +61,8 @@ remote 'printf "  frame-jp-keyboard service: %s\n" "$(systemctl --user is-active
 
 echo "→ copying to $HOST:~/$DEST/"
 remote "mkdir -p ~/$DEST ~/$UNIT_DIR"
-rsync -a --delete --exclude __pycache__ -e "ssh ${SSH_OPTS[*]}" dist/stage/ "$HOST:$DEST/"
+# speech/ holds the speech engine and models dictation downloaded: --delete must not remove them.
+rsync -a --delete --exclude __pycache__ --exclude /speech/ -e "ssh ${SSH_OPTS[*]}" dist/stage/ "$HOST:$DEST/"
 rsync -a -e "ssh ${SSH_OPTS[*]}" contrib/polykey.service "$HOST:$UNIT_DIR/$APP.service"
 remote "systemctl --user daemon-reload"
 

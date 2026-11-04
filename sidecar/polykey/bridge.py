@@ -11,14 +11,17 @@ from typing import Optional
 from .anthy import Converter
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
-from .packs import clean_keyboard_list, clean_emoji_state, clean_keyboard_options, save_settings, write_json
+from .packs import (clean_dictation_models, clean_emoji_state, clean_keyboard_list, clean_keyboard_options,
+                    save_settings, write_json)
+from .speech.session import OPS as DICTATION_OPS, Dictation
 from .swipe import Swipe
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn", "swipe")
+OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn", "swipe",
+       *DICTATION_OPS)
 MAX_SUGGESTIONS = 12
 
 
@@ -30,9 +33,10 @@ def reply_expression(reply: dict) -> str:
 class Bridge:
     def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None,
                  settings_path: Optional[Path] = None, converter: Optional[Converter] = None,
-                 swipe: Optional[Swipe] = None) -> None:
+                 swipe: Optional[Swipe] = None, dictation: Optional[Dictation] = None) -> None:
         self._log = log
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
+        self._dictation = dictation
         self._converter = converter
         self._desktop = desktop
         self._lexicons = lexicons
@@ -67,7 +71,15 @@ class Bridge:
         if op == "swipe":
             return self._swipe.handle(request) if self._swipe else {"ok": False, "error": "no-lexicon"}
         if op == "settings.save":
-            return self._save_settings(request)
+            result = self._save_settings(request)
+            turned = request["settings"].get("dictation") if result["ok"] else None
+            if turned is True and self._dictation:
+                self._dictation.enable()  # fetches the engine if it is not there yet
+            elif turned is False and self._dictation:
+                await self._dictation.disable()
+            return result
+        if op in DICTATION_OPS:
+            return await self._dictation.handle(op, request) if self._dictation else {"ok": False, "error": "unavailable"}
         if op == "emoji.save":
             return self._save_emoji(request)
         if op in ("convert", "predict", "learn"):
@@ -91,18 +103,25 @@ class Bridge:
         return {"ok": True, "pasted": await self._desktop.wait(seconds)}
 
     def _save_settings(self, request: dict) -> dict:
-        """Save the settings the page may change: theme id, haptics, suggestions, keyboard options, and
-        the keyboards 🌐 goes through (ids, in order; unknown ones are dropped at the next load)."""
+        """Save the settings the page may change: theme id, haptics, suggestions, dictation (on/off, the
+        model per language, continuous or not), keyboard options, and the keyboards 🌐 goes through (ids,
+        in order; unknown ones are dropped at the next load)."""
         changes = request.get("settings")
         if self._settings_path is None or not isinstance(changes, dict):
             return {"ok": False, "error": "bad-settings"}
-        allowed = {"theme": str, "haptics": bool, "suggestions": bool, "keyboardOptions": dict, "keyboards": list}
+        allowed = {"theme": str, "haptics": bool, "suggestions": bool, "keyboardOptions": dict, "keyboards": list,
+                   "dictation": bool, "dictationModels": dict, "dictationContinuous": bool}
         clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
         if "keyboardOptions" in clean:
             options = clean_keyboard_options(clean["keyboardOptions"])
             if options is None:
                 return {"ok": False, "error": "bad-settings"}
             clean["keyboardOptions"] = options
+        if "dictationModels" in clean:
+            models = clean_dictation_models(clean["dictationModels"])
+            if models is None:
+                return {"ok": False, "error": "bad-settings"}
+            clean["dictationModels"] = models
         if "keyboards" in clean and not clean_keyboard_list(clean["keyboards"]):
             return {"ok": False, "error": "bad-settings"}
         if not clean or len(clean) != len(changes) or len(str(clean.get("theme", ""))) > 80:

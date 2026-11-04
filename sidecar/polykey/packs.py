@@ -15,9 +15,15 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
+DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True,
+                    "dictation": False, "dictationModels": {}, "dictationContinuous": False}
+# The model dictation uses per language (settings.json "dictationModels": {language: model id}).
+DICTATION_LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
+DICTATION_MODEL = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
-KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin", "swipe")
+# dictationCommit, on a keyboard with a reading: dictated text is typed at once instead of going into the
+# reading for its candidates.
+KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin", "swipe", "dictationCommit")
 
 
 # The strip above the keys, for a layout that does not set its own ("toolbar": [] means none).
@@ -47,6 +53,16 @@ def clean_keyboard_options(value: object) -> Optional[dict]:
             return None
         clean[keyboard] = dict(options)
     return clean
+
+
+def clean_dictation_models(value: object) -> Optional[dict]:
+    """{language: model id}, or None when it is not that shape (unknown ids are ignored later)."""
+    if not isinstance(value, dict) or len(value) > 64:
+        return None
+    if not all(isinstance(k, str) and DICTATION_LANGUAGE.match(k) and isinstance(v, str) and DICTATION_MODEL.match(v)
+               for k, v in value.items()):
+        return None
+    return dict(value)
 
 
 def user_dir() -> Path:
@@ -171,12 +187,15 @@ def load_settings(path: Path, errors: list[str]) -> dict:
             settings["keyboards"] = data["keyboards"]
         if isinstance(data.get("theme"), str):
             settings["theme"] = data["theme"]
-        for flag in ("haptics", "suggestions"):
+        for flag in ("haptics", "suggestions", "dictation", "dictationContinuous"):
             if isinstance(data.get(flag), bool):
                 settings[flag] = data[flag]
         options = clean_keyboard_options(data.get("keyboardOptions"))
         if options is not None:
             settings["keyboardOptions"] = options
+        models = clean_dictation_models(data.get("dictationModels"))
+        if models is not None:
+            settings["dictationModels"] = models
     return settings
 
 
