@@ -5,6 +5,7 @@ A modular on-screen keyboard for the Valve Steam Frame. It draws inside Steam's 
 **Status: milestone 5.** English and Japanese keyboards drawn over Steam's keyboard popup:
 - **Keys:** the number row with an Fn layer (Esc, F1–F12), sticky Ctrl, Alt, Frame (Super) and Fn, and full arrows. Hold a key for its alternates.
 - **Word suggestions** from a bundled word list, with spelling corrections (helo → hello, teh → the) ranked alongside completions. The method follows frame-jp-keyboard (MIT).
+- **Swipe typing** on English QWERTY: hold the trigger and trace a word across the letters. The best word is typed, with a space before it when it follows a word; two alternatives show beside it in the bar, and picking one replaces it. Backspace right after a swipe takes the word back. The sidecar decodes the path by template matching against the word list, so any layout pack that declares `"features": {"swipe": {"lexicon": …}}` can swipe. Settings → Swipe typing turns it off.
 - **English on the Japanese keyboards:** in 英数 (ABC) mode the word waits in the bar like a kana reading, with up to eight suggestions where the candidates go. Space or punctuation sends it, 確定 sends it alone, and a picked suggestion replaces it.
 - **Toolbar:** settings (theme, haptics, suggestions), emoji, dictate, copy, cut, paste and menu.
 - **Emoji:** Recent, Favorites (drag and drop), skin tones, and your Steam emoticons, stickers and room effects.
@@ -65,7 +66,7 @@ contrib/        polykey.service
 ## Credits
 
 - The 12-key's arrangement, flick handling, ゛゜小 table, Anthy binding and undo and backspace icons follow sasaken1102r's [frame-jp-keyboard](https://github.com/sasaken1102r/frame-jp-keyboard) (MIT).
-- Many icons are ported from TaiKeid's [Steam Frame Full Keyboard](https://github.com/TaiKeid/steam-frame-full-keyboard) (MIT).
+- Many icons are ported from TaiKeid's [Steam Frame Full Keyboard](https://github.com/TaiKeid/steam-frame-full-keyboard) (MIT). Swipe typing follows its behaviour and thresholds (no code copied); the decoder is SHARK2-style template matching (Kristensson and Zhai, 2004).
 - The romaji table is Mozc's `romanji-hiragana.tsv` (BSD-3-Clause, `packs/ja/LICENSE.mozc`).
 - The English word list comes from AOSP (Apache-2.0, `packs/en/LICENSE.words`).
 - Emoji data comes from Unicode's `emoji-test.txt` (Unicode License v3, `packs/emoji/LICENSE.unicode`).
