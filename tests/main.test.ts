@@ -409,7 +409,7 @@ describe('12-key ABC', () => {
     const { popup, manager, api } = setup();
     api.debug.use('ja/12key');
     await tap(popup, 'eisu');
-    expect(key(popup, 'q').querySelector('.hn')!.textContent).toBe('1');
+    expect(key(popup, 'q').querySelector('.lg.tr')!.textContent).toBe('1');
     await tap(popup, 'q');
     await tap(popup, 'shift');
     await tap(popup, 'w');
@@ -647,7 +647,7 @@ describe('Japanese romaji and JIS kana', () => {
     api.debug.use('ja/jis');
     for (const c of ['k', 'a', 'n', 'a', ',', '-']) await tap(popup, c);
     expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('かな、ー');
-    expect(key(popup, 'k').querySelector('.ll')!.classList.contains('cur')).toBe(true); // the Latin side is lit
+    expect(key(popup, 'k').querySelector('.lbl')!.classList.contains('s-dual')).toBe(true); // the Latin letter, alone in the middle and lit
     await tap(popup, 'Enter');
     expect(manager.calls.map((c) => c[0]).join('')).toBe('かな、ー');
   });
@@ -656,10 +656,11 @@ describe('Japanese romaji and JIS kana', () => {
     const { popup, api } = setup();
     api.debug.use('ja/jis');
     const three = key(popup, '3');
-    const legends = [...three.querySelectorAll('.q')].map((el) => [el.textContent, el.classList.contains('act')]);
-    expect(legends).toEqual([['#', false], ['3', false], ['ぁ', true], ['あ', true]]);
-    expect(key(popup, ',').querySelector('.kl')!.classList.contains('dot')).toBe(false);
-    expect(key(popup, ',').querySelector('.ks')!.classList.contains('dot')).toBe(true); // 、
+    // Latin left, kana right, Shift above; what the key types now (あ) at the JIS keys' current size.
+    const legends = [...three.querySelectorAll('.lg')].map((el) => [el.classList[1], el.textContent, el.classList.contains('s-dual')]);
+    expect(legends).toEqual([['tl', '#', false], ['tr', 'ぁ', false], ['bl', '3', false], ['br', 'あ', true]]);
+    expect(key(popup, ',').querySelector('.lg.br .dot')).toBeNull();
+    expect(key(popup, ',').querySelector('.lg.tr .dot.cell')?.textContent).toBe('、'); // boxed: a child of the legend
     const enters = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'Enter');
     expect(enters.map((el) => el.className.includes('tall'))).toEqual([true, true]);
     enters[1]!.dispatchEvent(new Event('mouseover', { bubbles: true }));

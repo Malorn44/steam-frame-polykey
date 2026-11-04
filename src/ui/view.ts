@@ -3,10 +3,11 @@
 // the width weights exactly and columns line up across rows. The VR laser arrives as touch events
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
-import { normalizeFn, normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
-import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState, type Mods } from '../core/keyboard.js';
+import { normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
+import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
 import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
+import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core/legends.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { sizeVars } from './sizes.js';
@@ -31,6 +32,9 @@ const isMark = (text: string): boolean => text === '゛' || text === '゜';
 const DOT_BOX = `url("data:image/svg+xml,${encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'><rect width='100%' height='100%' rx='2'"
   + " fill='none' stroke='black' stroke-width='2' stroke-dasharray='1 2'/></svg>")}")`;
+
+/** The small legends' slots round the label (c). */
+const SLOTS = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'] as const;
 
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
@@ -90,12 +94,29 @@ const CSS = `
 .key.mod, .key.named, .key.action { background-color: var(--mod); font-size: var(--size-mod); }
 .key.gap { background: none; }
 .key svg { font-size: var(--size-icon); }
-.sh, .fn { position: absolute; top: 4px; font-size: var(--size-legend); line-height: 1; }
-.sh { color: var(--legend); }
-.fn { color: var(--fn); }
-.key.tri .sh { left: 6px; }
-.key.tri .fn { right: 6px; }
-.key.stack .sh { left: 0; right: 0; text-align: center; }
+/* Legends round the label (src/core/legends.ts), by slot: tl t tr / l r / bl b br, inset by arrangement
+   (plain and tri, the long-press character and Shift/Fn: 6px across; quad, a JIS key's four legends:
+   5px; edges, flick hints: 5px across, 3px down). The label (c) is in the flow, in the middle, except
+   under Shift (stack) or Shift and Fn (tri) legends, where it sits at the bottom. */
+.key { --lg-x: 6px; --lg-top: 4px; --lg-bottom: 5px; }
+.key.quad, .key.edges { --lg-x: 5px; }
+.key.edges { --lg-top: 3px; --lg-bottom: 3px; }
+.key .lg { position: absolute; line-height: 1; pointer-events: none; }
+.lg.tl { top: var(--lg-top); left: var(--lg-x); }
+.lg.tr { top: var(--lg-top); right: var(--lg-x); }
+.lg.bl { bottom: var(--lg-bottom); left: var(--lg-x); }
+.lg.br { bottom: var(--lg-bottom); right: var(--lg-x); }
+.lg.t { top: var(--lg-top); left: 50%; transform: translateX(-50%); }
+.lg.b { bottom: var(--lg-bottom); left: 50%; transform: translateX(-50%); }
+.lg.l { left: var(--lg-x); top: 50%; transform: translateY(-50%); }
+.lg.r { right: var(--lg-x); top: 50%; transform: translateY(-50%); }
+.key .s-legend { font-size: var(--size-legend); }
+.key .s-hint { font-size: var(--size-hint); }
+.key .s-dual { font-size: var(--size-dual); }
+.key .s-dual .mark { --mark-size: var(--size-mark); }
+.key .t-legend { color: var(--legend); }
+.key .t-fn { color: var(--fn); }
+.key .t-text { color: var(--text); }
 .key.tri .lbl, .key.stack .lbl { position: absolute; bottom: 5px; left: 0; right: 0; text-align: center; }
 .key[data-k="fn"] { color: var(--fn); }
 .key[data-k="fn"].on { box-shadow: inset 0 0 0 2px var(--fn); }
@@ -116,12 +137,6 @@ const CSS = `
 /* The boxes at the label's size (shrinking on the narrow 五十音 key); the marks larger. */
 .key .mk-marks { display: flex; gap: 0.35em; --mark-size: var(--size-mark); }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
-/* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
-.key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
-.key .fh.l { left: 5px; top: 50%; transform: translateY(-50%); }
-.key .fh.u { top: 3px; left: 50%; transform: translateX(-50%); }
-.key .fh.r { right: 5px; top: 50%; transform: translateY(-50%); }
-.key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
@@ -133,23 +148,13 @@ const CSS = `
   box-shadow: var(--shadow); }
 .fl div.pick { background-color: var(--accent); background-image: none; color: var(--accent-text); transform: scale(1.08); }
 .fl div.empty { opacity: var(--opacity-dim); }
-/* A JIS key: Latin legends on the left, kana on the right (Shift above, plain below). The mode's side is
-   bright, the character the key types now biggest; the other side is drawn like a Shift legend. */
-.key.dual .q { position: absolute; line-height: 1; font-size: var(--size-legend); color: var(--legend); } /* as a Shift legend */
-.key.dual .q.ls { top: 4px; left: 5px; }
-.key.dual .q.ll { bottom: 5px; left: 5px; }
-.key.dual .q.ks { top: 4px; right: 5px; }
-.key.dual .q.kl { bottom: 5px; right: 5px; }
-.key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
-.key.dual .q.cur.mark { --mark-size: var(--size-mark); }
-.key.dual.fnon .q { display: none; }
 /* A box only shows placement: it never sets a size (that is the legend's role; see sizes.ts).
    A dotted box is the character's cell, as on JIS keycaps: one height for all, half width for a
    half-width character, full width for a full-width one, so it shows where in the cell the character
    sits (、。 low left, 「 and ゛゜ high right). */
-.key .dot, .key.dual .q.dot { display: inline-block; box-sizing: border-box; height: 1em; min-width: 0.55em; line-height: 1em;
+.key .lg > .dot { vertical-align: top; } /* at the top of the small legend's line, as the legend's own text */
+.key .dot { display: inline-block; position: relative; box-sizing: border-box; height: 1em; min-width: 0.55em; line-height: 1em;
   text-align: center; }
-.key .dot:not(.q) { position: relative; } /* a legend (.q) is already positioned */
 /* Dots we space ourselves (CSS dotted runs 1px dots 1px apart, which reads as a grey line): a rounded
    rectangle stroked with 1px dots 2px apart (DOT_BOX), as a mask over the legend's colour, just
    outside the box. */
@@ -157,20 +162,13 @@ const CSS = `
   background-color: color-mix(in srgb, currentColor 60%, transparent);
   -webkit-mask: ${DOT_BOX} 0 0 / 100% 100% no-repeat; mask: ${DOT_BOX} 0 0 / 100% 100% no-repeat; }
 /* 0.888em puts Noto Sans CJK's em square exactly in the 1em box (its ascent is 1.16, descent 0.29). */
-.key .dot.cell, .key.dual .q.dot.cell { width: 1em; min-width: 0; line-height: 0.888em; text-align: left;
+.key .dot.cell { width: 1em; min-width: 0; line-height: 0.888em; text-align: left;
   font-family: var(--font-cjk), var(--font); }
 /* ゛ and ゜ fill only a corner of their cell, so they can be set larger (--mark-size) than their box:
    the box keeps the legend's size, and the mark's own cell is pinned to its top-right corner. */
 .key .dot.mark .ch { position: absolute; top: 0; right: 0; width: 1em; height: 1em; line-height: 0.888em;
   text-align: left; font-size: var(--mark-size, 1em); }
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
-/* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
-   a letter alone in the middle). */
-.kb.romaji .key.dual .q.ks, .kb.romaji .key.dual .q.kl { display: none; }
-.kb.romaji .key.dual .q.ls, .kb.romaji .key.dual .q.ll { left: 50%; transform: translateX(-50%); }
-.kb.romaji .key.dual:has(.q.ls:empty) .q.ll { bottom: auto; top: 50%; transform: translate(-50%, -50%); }
-/* A long press's character, small in the top right (the QWERTY page's digits). */
-.key .hn { position: absolute; top: 4px; right: 6px; font-size: var(--size-legend); line-height: 1; color: var(--legend); }
 /* The ABC keys: the label with its digit small beneath. */
 .key.subbed { flex-direction: column; }
 .key .sub { font-size: var(--size-sub); line-height: 1; margin-top: 3px; color: var(--legend); }
@@ -208,16 +206,6 @@ const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'
 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
 const tallOf = (key: KeyDef): 'top' | 'bottom' | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
-
-/** Small legends: the Shift character (not for letters) and the Fn variant. */
-const legends = (key: KeyDef, mods: Mods): { sh: string; fn: string } => {
-  if (key.type !== 'char' && key.type !== 'key') return { sh: '', fn: '' };
-  const fnOn = mods.fn !== 'off' && key.fn;
-  const fn = key.fn && !fnOn ? keyLabel(normalizeFn(key.fn), mods) : '';
-  if (key.type !== 'char' || fnOn || !key.shift) return { sh: '', fn };
-  const shown = charText(key, mods);
-  return { sh: shown === key.shift ? key.char : key.shift, fn };
-};
 
 /** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
 export type CompositionView = (
@@ -277,12 +265,10 @@ export const createView = (
   style.textContent = CSS + HOLD_POPUP_CSS;
   const root = doc.createElement('div');
   root.className = layout.large ? 'kb large' : 'kb';
-  if (romaji) root.classList.add('romaji');
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
 
-  /** A JIS key's four legends: Latin Shift and plain, kana Shift and plain. */
-  type Quad = { ls: HTMLElement; ll: HTMLElement; ks: HTMLElement; kl: HTMLElement };
-  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; sh: HTMLElement; fn: HTMLElement; quad?: Quad; twin?: Entry };
+  /** A key: its element, its label (slot c) and the small legends it shows now, by slot. */
+  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; twin?: Entry };
   const keys: Entry[] = [];
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
@@ -294,38 +280,11 @@ export const createView = (
       : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : key.type === 'flick' ? key.flick[0] : '';
     const label = doc.createElement('span');
     label.className = 'lbl';
-    const sh = doc.createElement('span');
-    sh.className = 'sh';
-    const fn = doc.createElement('span');
-    fn.className = 'fn';
-    el.append(sh, label, fn);
-    let quad: Quad | undefined;
-    if (key.type === 'char' && key.kana) {
-      el.classList.add('dual');
-      const q = (cls: string): HTMLElement => Object.assign(doc.createElement('span'), { className: `q ${cls}` });
-      quad = { ls: q('ls'), ll: q('ll'), ks: q('ks'), kl: q('kl') };
-      el.append(quad.ls, quad.ll, quad.ks, quad.kl);
-    }
+    el.append(label);
     const tall = tallOf(key);
     if (tall) el.classList.add(`tall-${tall}`);
-    if (key.type === 'char' && key.hint) el.append(Object.assign(doc.createElement('span'), { className: 'hn', textContent: key.hint }));
     if (key.type === 'mod' && key.label) el.classList.add('labelled'); // text, not an icon (a↔A)
-    if (key.type === 'flick' && key.sub && !(hints || key.hints)) {
-      el.classList.add('subbed');
-      el.append(Object.assign(doc.createElement('span'), { className: 'sub', textContent: key.sub }));
-    }
-    if (key.type === 'flick' && (hints || key.hints)) {
-      key.flick.slice(1).forEach((text, i) => {
-        if (!text) return;
-        const hint = doc.createElement('span');
-        hint.className = `fh ${'lurd'[i]}`;
-        if (dotted.has(text)) hint.append(boxed(text));
-        else hint.textContent = text;
-        el.append(hint);
-      });
-      if (key.label) label.textContent = key.flick[0]; // the hints show the rest
-    }
-    keys.push({ el, key, label, sh, fn, ...(quad ? { quad } : {}) });
+    keys.push({ el, key, label, slots: {} });
     return el;
   };
 
@@ -633,42 +592,60 @@ export const createView = (
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   });
 
-  /** A label's text, in a dotted box when the layout lists it (、。 on the 12-key). */
-  const setText = (label: HTMLElement, text: string): void => {
-    if (dotted.has(text)) label.replaceChildren(boxed(text));
-    else label.textContent = text;
+  /** A legend's size and colour classes (its size role; text tone inherits the key's colour in the label). */
+  const sizeClass = (legend: Legend): string => (legend.kind === 'text' && legend.size !== 'key' ? ` s-${legend.size}` : '');
+  const toneClass = (legend: Legend): string => (legend.kind === 'text' && legend.tone !== 'text' ? ` t-${legend.tone}` : '');
+  /** Text into an element: in a dotted box (a child; the element itself positions and sizes it) when listed. */
+  const putText = (el: HTMLElement, legend: Extract<Legend, { kind: 'text' }>): void => {
+    if (legend.boxed) el.replaceChildren(boxed(legend.text));
+    else el.textContent = legend.text;
   };
-  /** ゛゜ (boxed when listed) above 大⇔小. */
-  const showModify = (label: HTMLElement): void => {
-    if (label.querySelector('.mk')) return;
-    const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
-    const marks = span('mk-marks', '');
-    for (const mark of ['゛', '゜']) marks.append(boxed(mark));
-    const box = span('mk', '');
-    box.append(marks, span('mk-size', '大⇔小'));
-    label.replaceChildren(box);
+  /** The label (slot c): text, an icon, the あ a pair, or ゛゜ over 大⇔小; a line beneath it in the flow. */
+  const showLabel = (entry: Entry, legend: Legend | undefined): void => {
+    const { el, label } = entry;
+    label.className = `lbl${legend ? sizeClass(legend) + toneClass(legend) : ''}`;
+    if (!legend) label.textContent = '';
+    else if (legend.kind === 'text') putText(label, legend);
+    else if (legend.kind === 'icon') label.innerHTML = ICONS[legend.icon as IconName] ?? '';
+    else if (legend.kind === 'pair') {
+      label.replaceChildren(...legend.parts.map((text, i) => Object.assign(doc.createElement('span'), {
+        className: i === legend.now ? 'pair now' : 'pair', textContent: text })));
+    } else if (!label.querySelector('.mk')) {
+      const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
+      const marks = span('mk-marks', '');
+      for (const mark of legend.marks) marks.append(mark.kind === 'text' && mark.boxed ? boxed(mark.text) : span('', mark.kind === 'text' ? mark.text : ''));
+      const box = span('mk', '');
+      box.append(marks, span('mk-size', legend.under.kind === 'text' ? legend.under.text : ''));
+      label.replaceChildren(box);
+    }
+    // The ABC keys: the label with its digit small beneath.
+    const under = legend?.kind === 'text' ? legend.under : undefined;
+    el.classList.toggle('subbed', under !== undefined);
+    if (under?.kind === 'text') {
+      entry.under ??= el.appendChild(Object.assign(doc.createElement('span'), { className: 'sub' }));
+      entry.under.textContent = under.text;
+    } else {
+      entry.under?.remove();
+      delete entry.under;
+    }
   };
-
-  /** Fill a JIS key's legends: the mode's side bright, the character it types now biggest. */
-  const showQuad = (quad: Quad, key: Extract<KeyDef, { type: 'char' }>): void => {
-    const letter = key.char.toLowerCase() !== key.char.toUpperCase();
-    const shiftOn = mods.shift !== 'off';
-    const latinNow = charText(key, mods);
-    const set = (el: HTMLElement, text: string, active: boolean, current: boolean): void => {
-      el.classList.toggle('act', active);
-      el.classList.toggle('cur', active && current);
-      el.classList.toggle('dot', dotted.has(text));
-      el.classList.toggle('cell', dotted.has(text) && isWide(text));
-      el.classList.toggle('mark', dotted.has(text) && isMark(text));
-      if (dotted.has(text)) el.replaceChildren(glyph(text));
-      else el.textContent = text;
-    };
-    // A letter has one Latin legend, in the case it types now.
-    const onLatin = latinKeys();
-    set(quad.ll, letter ? latinNow : key.char, onLatin, letter || latinNow === key.char);
-    set(quad.ls, letter ? '' : key.shift ?? '', onLatin, !letter && latinNow !== key.char);
-    set(quad.kl, key.kana ?? '', !onLatin, !shiftOn || !key.kanaShift);
-    set(quad.ks, key.kanaShift ?? '', !onLatin, shiftOn);
+  /** Draw a key's legends: the label, and each small legend in its slot. */
+  const showLegends = (entry: Entry, model: KeyLegends): void => {
+    const { el } = entry;
+    for (const arrangement of ['tri', 'stack', 'quad', 'edges'] as const) el.classList.toggle(arrangement, model.arrangement === arrangement);
+    showLabel(entry, model.slots.c);
+    for (const slot of SLOTS) {
+      const legend = model.slots[slot];
+      if (!legend || legend.kind !== 'text') {
+        entry.slots[slot]?.remove();
+        delete entry.slots[slot];
+        continue;
+      }
+      const span = entry.slots[slot] ?? el.appendChild(doc.createElement('span'));
+      entry.slots[slot] = span;
+      span.className = `lg ${slot}${sizeClass(legend)}${toneClass(legend)}`;
+      putText(span, legend);
+    }
   };
 
   shadow.append(style, root);
@@ -676,46 +653,19 @@ export const createView = (
   return {
     update: (next) => {
       mods = next;
-      for (const { el, key, label, sh, fn, quad } of keys) {
+      for (const entry of keys) {
+        const { el, key } = entry;
         if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana')) {
           el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
         }
-        if (quad && key.type === 'char') {
-          // While Fn is on, a key with an Fn variant shows it (F1) in place of its legends; otherwise no Fn legend.
-          const fnShown = mods.fn !== 'off' && key.fn ? keyLabel(normalizeFn(key.fn), mods) : '';
-          el.classList.toggle('fnon', fnShown !== '');
-          label.textContent = fnShown;
-          if (!fnShown) showQuad(quad, key);
-          continue;
-        }
-        if (tallOf(key) === 'bottom') continue; // the label is on the top half
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);
           el.classList.toggle('locked', state.locked);
         }
-        const id = el.dataset['k'] ?? '';
-        const icon = labels[id] === undefined ? iconFor(key, mods, iconSet, layout.arrowStyle ?? 'icon') : undefined;
-        const pair = key.type === 'action' && (key.action === 'eisu' || key.action === 'kana' || key.action === 'symbols')
-          && key.label?.includes(' ')
-          ? key.label.split(' ') : null;
-        if (labels[id] !== undefined) label.textContent = labels[id]!;
-        else if (pair) {
-          label.textContent = '';
-          pair.forEach((text, i) => label.append(Object.assign(doc.createElement('span'), {
-            className: (i === 1) === latin ? 'pair now' : 'pair', textContent: text })));
-        }
-        else if (key.type === 'flick' && (hints || key.hints)) setText(label, key.flick[0] ?? '');
-        else if (key.type === 'action' && key.action === 'modify' && !key.label) showModify(label);
-        else if (icon) label.innerHTML = ICONS[icon];
-        else setText(label, keyLabel(key, mods));
-        const small = legends(key, mods);
-        sh.textContent = small.sh;
-        fn.textContent = small.fn;
-        // With an Fn legend: Shift top left, Fn top right, label bottom middle; with only a Shift legend:
-        // Shift top middle, label bottom middle, like a keycap.
-        el.classList.toggle('tri', small.fn !== '');
-        el.classList.toggle('stack', small.fn === '' && small.sh !== '');
+        const label = labels[el.dataset['k'] ?? ''];
+        const icon = label === undefined ? iconFor(key, mods, iconSet, layout.arrowStyle ?? 'icon') : undefined;
+        showLegends(entry, keyLegends(key, mods, { latin, romaji, hints, dotted, icon, label }));
       }
     },
     setMode: (next) => {

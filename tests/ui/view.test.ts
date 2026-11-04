@@ -19,7 +19,7 @@ const setup = () => {
   const rows = [...shadow.querySelectorAll('.row')];
   const keyIn = (row: number, id: string) =>
     [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
-  const labelOf = (el: HTMLElement) => el.children[1]!.textContent;
+  const labelOf = (el: HTMLElement) => el.querySelector('.lbl')!.textContent;
   return { view, shadow, rows, keyIn, labelOf, pressed, chosen, host };
 };
 
@@ -47,15 +47,16 @@ describe('createView', () => {
   it('shows small Shift and Fn legends, and labels follow the modifiers', () => {
     const { view, keyIn, rows, labelOf } = setup();
     const one = keyIn(0, '1');
-    expect([one.querySelector('.sh')!.textContent, labelOf(one), one.querySelector('.fn')!.textContent]).toEqual(['!', '1', 'F1']);
-    expect(keyIn(1, 'q').querySelector('.sh')!.textContent).toBe(''); // no Shift legend on letters
+    // Shift top left, Fn top right (in the Fn colour), the label beneath.
+    expect([one.querySelector('.lg.tl')!.textContent, labelOf(one), one.querySelector('.lg.tr.t-fn')!.textContent]).toEqual(['!', '1', 'F1']);
+    expect(keyIn(1, 'q').querySelector('.lg')).toBeNull(); // no Shift legend on letters
     view.update({ ...NO_MODS, shift: 'once' });
     expect(labelOf(keyIn(1, 'q'))).toBe('Q');
-    expect([one.querySelector('.sh')!.textContent, labelOf(one)]).toEqual(['1', '!']);
+    expect([one.querySelector('.lg.tl')!.textContent, labelOf(one)]).toEqual(['1', '!']);
     view.update({ ...NO_MODS, fn: 'locked' });
     expect(labelOf(rows[0]!.querySelector<HTMLElement>('.key')!)).toBe('Esc');
     expect(labelOf(keyIn(0, '=')!)).toBe('F12');
-    expect(one.querySelector('.fn')!.textContent).toBe('');
+    expect(one.querySelector('.lg.tr')).toBeNull();
     const fnKey = rows[4]!.querySelector<HTMLElement>('.key.mod')!;
     expect(fnKey.classList.contains('locked')).toBe(true);
   });
@@ -315,8 +316,8 @@ describe('hold to repeat', () => {
     expect(modify.querySelector('.mk-size')?.textContent).toBe('大⇔小');
     const punct = keys.find((el) => el.dataset['k'] === '、')!;
     expect(punct.querySelector('.lbl .dot.cell')?.textContent).toBe('、');
-    expect(punct.querySelector('.fh.l .dot.cell')?.textContent).toBe('。');
-    expect(punct.querySelector('.fh.u .dot')).toBeNull();
+    expect(punct.querySelector('.lg.l .dot.cell')?.textContent).toBe('。');
+    expect(punct.querySelector('.lg.t .dot')).toBeNull();
   });
 
   it('a flick key shows its kana in a cross while held, and the flick picks one', () => {
@@ -382,7 +383,8 @@ describe('hold to repeat', () => {
     const hinted = host.attachShadow({ mode: 'open' });
     createView(document, hinted, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}, () => {}, () => {}, { hints: true }).update(NO_MODS);
     const ka = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
-    expect([...ka.querySelectorAll('.fh')].map((h) => `${h.className}:${h.textContent}`)).toEqual(['fh l:き', 'fh u:く', 'fh r:け', 'fh d:こ']);
+    expect([...ka.querySelectorAll('.lg')].map((h) => `${h.className}:${h.textContent}`))
+      .toEqual(['lg t s-hint t-legend:く', 'lg l s-hint t-legend:き', 'lg r s-hint t-legend:け', 'lg b s-hint t-legend:こ']);
     const punct = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === '、')!;
     expect(punct.querySelector('.lbl')!.textContent).toBe('、'); // with hints, just its tap kana
     // The punctuation key always shows its directions, hints option or not.
@@ -391,8 +393,8 @@ describe('hold to repeat', () => {
     const noHints = plain.attachShadow({ mode: 'open' });
     createView(document, noHints, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
     const keysOf = (id: string) => [...noHints.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
-    expect([...keysOf('、').querySelectorAll('.fh')].map((h) => h.textContent)).toEqual(['。', '？', '！', '…']);
-    expect(keysOf('か').querySelectorAll('.fh')).toHaveLength(0);
+    expect([...keysOf('、').querySelectorAll('.lg')].map((h) => h.textContent)).toEqual(['？', '。', '！', '…']);
+    expect(keysOf('か').querySelectorAll('.lg')).toHaveLength(0);
     expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
