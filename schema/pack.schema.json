@@ -418,7 +418,7 @@
         "dotted": {
           "type": "string",
           "maxLength": 64,
-          "description": "Legends drawn in a dotted box, as on JIS keycaps (punctuation)."
+          "description": "Characters drawn in a dotted box wherever they appear as a legend, label or flick hint, as on JIS keycaps (punctuation, ゛゜)."
         }
       }
     },

@@ -96,6 +96,13 @@ const CSS = `
 .kb.large .key[data-k="modify"] { font-size: var(--size-modify); container-type: inline-size; }
 /* ゛゜小 on one line, shrinking on a narrow key (the 五十音 grid). */
 .kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
+/* The modify key without a label of its own: ゛゜ boxed, 大⇔小 small beneath (as on Gboard's 12-key). */
+.key .mk { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
+.key .mk-marks { display: flex; gap: 0.35em; padding-top: 0.15em; }
+/* Each mark hangs off its box's top-right corner, where it sits on a kana. */
+.key .mk-marks .dot { position: relative; width: 0.8em; height: 0.8em; min-width: 0; }
+.key .mk-marks .dot span { position: absolute; left: 0.5em; top: -0.3em; line-height: 1; }
+.key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
 .key .fh.l { left: 5px; top: 50%; transform: translateY(-50%); }
@@ -124,7 +131,7 @@ const CSS = `
 .key.dual .q.kl { bottom: 5px; right: 5px; }
 .key.dual .q.cur { color: var(--text); font-size: var(--size-dual); } /* the English keys' sizes */
 .key.dual.fnon .q { display: none; }
-.key.dual .q.dot { outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
+.key .dot, .key.dual .q.dot { display: inline-block; outline: 1px dotted color-mix(in srgb, currentColor 60%, transparent); outline-offset: 0;
   line-height: 0.9; min-width: 0.8em; text-align: center; border-radius: var(--radius-box); } /* a tight square round the legend, as on a keycap */
 /* The JIS Enter: two rows high, wider above; its halves meet across the row gap. */
 /* Romaji input: no kana; the Latin legends sit in the middle like the English keys (Shift above, plain below;
@@ -277,7 +284,7 @@ export const createView = (
       key.flick.slice(1).forEach((text, i) => {
         if (!text) return;
         const hint = doc.createElement('span');
-        hint.className = `fh ${'lurd'[i]}`;
+        hint.className = `fh ${'lurd'[i]}${dotted.has(text) ? ' dot' : ''}`;
         hint.textContent = text;
         el.append(hint);
       });
@@ -590,6 +597,30 @@ export const createView = (
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   });
 
+  /** A label's text, in a dotted box when the layout lists it (、。 on the 12-key). */
+  const setText = (label: HTMLElement, text: string): void => {
+    if (!dotted.has(text)) {
+      label.textContent = text;
+      return;
+    }
+    label.textContent = '';
+    label.append(Object.assign(doc.createElement('span'), { className: 'dot', textContent: text }));
+  };
+  /** ゛゜ (boxed when listed) above 大⇔小. */
+  const showModify = (label: HTMLElement): void => {
+    if (label.querySelector('.mk')) return;
+    const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
+    const marks = span('mk-marks', '');
+    for (const mark of ['゛', '゜']) {
+      const box = span(dotted.has(mark) ? 'dot' : '', '');
+      box.append(span('', mark));
+      marks.append(box);
+    }
+    const box = span('mk', '');
+    box.append(marks, span('mk-size', '大⇔小'));
+    label.replaceChildren(box);
+  };
+
   /** Fill a JIS key's legends: the mode's side bright, the character it types now biggest. */
   const showQuad = (quad: Quad, key: Extract<KeyDef, { type: 'char' }>): void => {
     const letter = key.char.toLowerCase() !== key.char.toUpperCase();
@@ -643,9 +674,10 @@ export const createView = (
           pair.forEach((text, i) => label.append(Object.assign(doc.createElement('span'), {
             className: (i === 1) === latin ? 'pair now' : 'pair', textContent: text })));
         }
-        else if (key.type === 'flick' && (hints || key.hints)) label.textContent = key.flick[0];
+        else if (key.type === 'flick' && (hints || key.hints)) setText(label, key.flick[0] ?? '');
+        else if (key.type === 'action' && key.action === 'modify' && !key.label) showModify(label);
         else if (icon) label.innerHTML = ICONS[icon];
-        else label.textContent = keyLabel(key, mods);
+        else setText(label, keyLabel(key, mods));
         const small = legends(key, mods);
         sh.textContent = small.sh;
         fn.textContent = small.fn;

@@ -238,6 +238,23 @@ describe('hold to repeat', () => {
     vi.useRealTimers();
   });
 
+  it('boxes the dotted characters on the 12-key: ゛゜ on the modify key, 、 and its 。 hint', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {});
+    view.update(NO_MODS);
+    const keys = [...shadow.querySelectorAll<HTMLElement>('.key')];
+    const modify = keys.find((el) => el.dataset['k'] === 'modify')!;
+    expect([...modify.querySelectorAll('.mk-marks .dot')].map((el) => el.textContent)).toEqual(['゛', '゜']);
+    expect(modify.querySelector('.mk-size')?.textContent).toBe('大⇔小');
+    const punct = keys.find((el) => el.dataset['k'] === '、')!;
+    expect(punct.querySelector('.lbl .dot')?.textContent).toBe('、');
+    expect(punct.querySelector('.fh.l.dot')?.textContent).toBe('。');
+    expect(punct.querySelector('.fh.u')?.classList.contains('dot')).toBe(false);
+  });
+
   it('a flick key shows its kana in a cross while held, and the flick picks one', () => {
     const boot = bundledBoot();
     const host = document.createElement('div');
