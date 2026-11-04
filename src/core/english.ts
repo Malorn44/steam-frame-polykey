@@ -1,8 +1,8 @@
 // The English word being typed in a Japanese keyboard's 英数 (ABC) mode: kept in the bar until it is
 // committed, like the kana reading (and like frame-jp-keyboard's QWERTY page). Pure.
 //
-// Letters and the apostrophe go into the word; any other character typed (space, digits, punctuation)
-// sends the word followed by it. While there is a word: ⌫ and ← → edit it, 確定 (Enter) sends it,
+// Letters, digits and the apostrophe go into the word (as a phone keyboard keeps them); any other
+// character typed (space, punctuation) sends the word followed by it. While there is a word: ⌫ and ← → edit it, 確定 (Enter) sends it,
 // ↶ drops it, and a picked suggestion is sent in its place with a space. Any other key sends the
 // word first, then acts as usual (the caller does that on null).
 
@@ -15,8 +15,8 @@ export interface EnglishWord {
 }
 export const NO_ENGLISH: EnglishWord = { chars: [], caret: 0 };
 
-/** Characters that belong to a word (so "don't" stays one word). */
-const WORD_CHAR = /^[A-Za-z'’]$/;
+/** Characters that belong to a word (so "don't" and "3rd" stay one word). */
+const WORD_CHAR = /^[A-Za-z0-9'’]$/;
 const MAX_WORD = 40;
 
 export const englishText = (word: EnglishWord): string => word.chars.join('');

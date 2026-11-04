@@ -23,10 +23,12 @@ const run = (steps: (string | KeyDef)[]): { word: string; caret: number; sent: s
 };
 
 describe('English word in 英数 mode', () => {
-  it('letters and apostrophes wait; anything else sends the word followed by it', () => {
+  it('letters, digits and apostrophes wait; anything else sends the word followed by it', () => {
     expect(run(['d', 'o', 'n', "'", 't'])).toEqual({ word: "don't", caret: 5, sent: '' });
     expect(run(['h', 'i', ' '])).toEqual({ word: '', caret: 0, sent: 'hi ' });
-    expect(run(['h', 'i', '!', '2'])).toEqual({ word: '', caret: 0, sent: 'hi!2' });
+    expect(run(['h', 'i', '!', '2'])).toEqual({ word: '2', caret: 1, sent: 'hi!' });
+    expect(run(['3', 'r', 'd'])).toEqual({ word: '3rd', caret: 3, sent: '' }); // a digit (the ABC keys' down flick) stays
+    expect(run(['1', '2', ' '])).toEqual({ word: '', caret: 0, sent: '12 ' });
   });
 
   it('⌫ and ← → edit the word; 確定 sends it alone; with no word they act as usual', () => {
