@@ -60,6 +60,18 @@ export const languageName = (code: string): string => {
   }
 };
 
+/** A column of a settings page, appended to `root`: its heading, then its list. */
+export const pageColumn = (root: HTMLElement, cls: string, heading: string | (string | Node)[]): { col: HTMLElement; list: HTMLElement } => {
+  const div = (className: string): HTMLElement => Object.assign(root.ownerDocument.createElement('div'), { className });
+  const col = div(`col ${cls}`);
+  const list = div('list');
+  const sect = div('sect');
+  sect.append(...(typeof heading === 'string' ? [heading] : heading));
+  col.append(sect, list);
+  root.append(col);
+  return { col, list };
+};
+
 /** A keyboard where languages are mixed (your list, settings): its language and layout. */
 export const fullName = (k: { name: string; language?: string | undefined }): string =>
   (k.language ? `${languageName(k.language)} · ${k.name}` : k.name);
@@ -88,16 +100,7 @@ export const buildKeyboardsPage = (
   // A layout's pack name is the layout alone (12キー); your list shows its language too.
   const nameOf = new Map(info.all.map((k) => [k.id, fullName(k)]));
   const root = el('kbs');
-
-  const column = (cls: string, heading: string | (string | Node)[]): { col: HTMLElement; list: HTMLElement } => {
-    const col = el(`col ${cls}`);
-    const list = el('list');
-    const sect = el('sect');
-    sect.append(...(typeof heading === 'string' ? [heading] : heading));
-    col.append(sect, list);
-    root.append(col);
-    return { col, list };
-  };
+  const column = (cls: string, heading: string | (string | Node)[]) => pageColumn(root, cls, heading);
 
   // Languages, with how many of yours each has.
   const languages = [...new Set(info.all.map((k) => k.language))].sort((a, b) => languageName(a).localeCompare(languageName(b)));

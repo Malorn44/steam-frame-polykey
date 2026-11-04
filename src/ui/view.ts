@@ -11,7 +11,7 @@ import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core
 import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, type Point } from '../core/swipe.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
-import { listenTouch, type TouchPoint } from './gesture.js';
+import { dragScroll, listenTouch, type DragScroll, type TouchPoint } from './gesture.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
@@ -526,7 +526,7 @@ export const createView = (
   };
   // Dragging the candidate list scrolls it (across on top, down on the left); a press that does not
   // move past the slop picks the candidate under it on release.
-  let listDrag: { x: number; y: number; left: number; top: number; moved: boolean; cand: ReturnType<typeof candFor> } | null = null;
+  let listDrag: { drag: DragScroll; cand: ReturnType<typeof candFor> } | null = null;
   const scrollList = (dx: number, dy: number): void => {
     if (side) list.scrollTop += dy;
     else list.scrollLeft += Math.abs(dx) > Math.abs(dy) ? dx : dy;
@@ -539,7 +539,7 @@ export const createView = (
 
   const onStart = (start: TouchPoint | null, e: Event): void => {
     if (list.contains(e.target as Node) || e.target === list) {
-      listDrag = { x: start?.x ?? 0, y: start?.y ?? 0, left: list.scrollLeft, top: list.scrollTop, moved: false, cand: candFor(e.target) };
+      listDrag = { drag: dragScroll(list, start ?? { x: 0, y: 0 }, side ? 'y' : 'x', SLOP_PX.list), cand: candFor(e.target) };
       return;
     }
     pressed = entryFor(e.target);
@@ -575,13 +575,7 @@ export const createView = (
     if (!touch) return;
     lastPoint = touch;
     if (listDrag) {
-      const dx = touch.x - listDrag.x;
-      const dy = touch.y - listDrag.y;
-      if (Math.hypot(dx, dy) > SLOP_PX.list) listDrag.moved = true;
-      if (listDrag.moved) {
-        if (side) list.scrollTop = listDrag.top - dy;
-        else list.scrollLeft = listDrag.left - dx;
-      }
+      listDrag.drag.move(touch);
       return;
     }
     if (flick) moveFlick(lastPoint);
@@ -623,9 +617,9 @@ export const createView = (
     }
     swipe = null;
     if (listDrag) {
-      const { moved, cand } = listDrag;
+      const { drag, cand } = listDrag;
       listDrag = null;
-      if (!moved && cand) onCandidate(cand.text, cand.index);
+      if (!drag.moved && cand) onCandidate(cand.text, cand.index);
       return;
     }
     if (flick) {

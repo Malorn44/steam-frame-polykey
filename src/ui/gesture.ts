@@ -66,3 +66,32 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
   }
   return () => { for (const [type, listener, opts] of added) el.removeEventListener(type, listener, opts); };
 };
+
+/** A press on a scrolling list, which turns into a drag of it once it moves past `slop`. */
+export interface DragScroll {
+  /** Past the slop: a scroll, not a tap. */
+  readonly moved: boolean;
+  move(point: TouchPoint): void;
+}
+
+/**
+ * Drag-scroll `list` along `axis` from a touch at `from`: under the slop nothing moves (a release there
+ * is still a tap), past it the list follows the touch. Used by the candidate list; the laser's trigger
+ * drags it as a finger would.
+ */
+export const dragScroll = (list: HTMLElement, from: TouchPoint, axis: 'x' | 'y', slop: number): DragScroll => {
+  const left = list.scrollLeft;
+  const top = list.scrollTop;
+  let moved = false;
+  return {
+    get moved() { return moved; },
+    move: (point) => {
+      const dx = point.x - from.x;
+      const dy = point.y - from.y;
+      if (Math.hypot(dx, dy) > slop) moved = true;
+      if (!moved) return;
+      if (axis === 'y') list.scrollTop = top - dy;
+      else list.scrollLeft = left - dx;
+    },
+  };
+};
