@@ -89,7 +89,8 @@ export interface ThemeColors {
   indicator?: string;
 }
 /** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
-export interface TableDef { id: string; name: string; entries: [string, string, string?][] }
+/** entries: romaji to kana; cycles: what ゛゜小 does (layouts get theirs resolved into `modify`). */
+export interface TableDef { id: string; name: string; entries?: [string, string, string?][]; cycles?: string[] }
 export interface Theme {
   id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */

@@ -23,6 +23,17 @@
       "pattern": "^[a-z0-9-]+/[a-z0-9-]+$",
       "maxLength": 80
     },
+    "cycles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 80,
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 8
+      },
+      "description": "What the modify (゛゜小) key cycles the last typed character through; each string is one cycle, e.g. \"はばぱ\"."
+    },
     "label": {
       "type": "string",
       "minLength": 1,
@@ -369,14 +380,15 @@
           }
         },
         "modify": {
-          "type": "array",
-          "maxItems": 80,
-          "items": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 8
-          },
-          "description": "What the modify (゛゜小) key cycles the last typed character through; each string is one cycle, e.g. \"はばぱ\"."
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "$ref": "#/$defs/cycles"
+            }
+          ],
+          "description": "What the modify (゛゜小) key does: a table id (e.g. \"ja/modify\"), or the cycles themselves."
         },
         "large": {
           "type": "boolean",
@@ -698,11 +710,10 @@
         "schemaVersion",
         "kind",
         "id",
-        "name",
-        "entries"
+        "name"
       ],
       "additionalProperties": false,
-      "description": "A conversion table, e.g. romaji to kana.",
+      "description": "A conversion table: entries (romaji to kana) or cycles (゛゜小).",
       "properties": {
         "$schema": {
           "type": "string"
@@ -739,6 +750,9 @@
             }
           },
           "description": "[input, output] or [input, output, letters left pending] (kk → っ, k waits)."
+        },
+        "cycles": {
+          "$ref": "#/$defs/cycles"
         }
       }
     }

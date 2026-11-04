@@ -1,0 +1,16 @@
+{
+  "$schema": "../../schema/pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "table",
+  "id": "ja/modify",
+  "name": "゛゜小",
+  "description": "What the modify key turns the last kana into: each string is one cycle, e.g. はばぱ.",
+  "cycles": [
+    "あぁ", "いぃ", "うぅゔ", "えぇ", "おぉ",
+    "かが", "きぎ", "くぐ", "けげ", "こご",
+    "さざ", "しじ", "すず", "せぜ", "そぞ",
+    "ただ", "ちぢ", "つっづ", "てで", "とど",
+    "はばぱ", "ひびぴ", "ふぶぷ", "へべぺ", "ほぼぽ",
+    "やゃ", "ゆゅ", "よょ", "わゎ"
+  ]
+}

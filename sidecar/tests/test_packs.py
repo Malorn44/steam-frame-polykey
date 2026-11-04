@@ -27,7 +27,7 @@ def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/gojuon", "ja/kana-jis", "ja/qwerty-romaji"}
-    assert set(boot["catalog"]["tables"]) == {"ja/romaji-table"}
+    assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table"}
     assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
@@ -49,6 +49,30 @@ def test_a_layout_without_a_toolbar_gets_the_default(tmp_path):
     layouts = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]
     assert layouts["mine/plain"]["toolbar"] == packs.DEFAULT_TOOLBAR
     assert layouts["mine/bare"]["toolbar"] == []
+
+
+def test_a_layout_names_its_modify_table(tmp_path):
+    modify = {"type": "action", "action": "modify"}
+    write(tmp_path / "packs", "mine/named.json", layout("mine/named", modify="ja/modify", rows=[[modify]]))
+    write(tmp_path / "packs", "mine/own.json", layout("mine/own", modify=["かが"], rows=[[modify]]))
+    write(tmp_path / "packs", "mine/lost.json", layout("mine/lost", modify="mine/nope", rows=[[modify]]))
+    write(tmp_path / "packs", "mine/none.json", layout("mine/none", rows=[[modify]]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    layouts = boot["catalog"]["layouts"]
+    assert layouts["mine/named"]["modify"] == boot["catalog"]["tables"]["ja/modify"]["cycles"]
+    assert "はばぱ" in layouts["mine/named"]["modify"]
+    assert layouts["mine/own"]["modify"] == ["かが"]
+    assert "modify" not in layouts["mine/lost"]
+    assert "mine/lost: modify table mine/nope not found" in boot["errors"]
+    assert "mine/none: has a ゛゜小 key but no modify table" in boot["errors"]
+
+
+def test_a_table_has_entries_or_cycles(tmp_path):
+    table = {"schemaVersion": 1, "kind": "table", "id": "mine/empty", "name": "empty"}
+    write(tmp_path / "packs", "mine/empty.json", table)
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert "mine/empty" not in boot["catalog"]["tables"]
+    assert "mine/empty: needs entries or cycles (one of them)" in boot["errors"]
 
 
 def test_a_user_item_replaces_the_bundled_one(tmp_path):

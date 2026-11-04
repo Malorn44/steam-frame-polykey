@@ -233,9 +233,27 @@ def save_settings(path: Path, changes: dict) -> None:
 
 
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
-    """Fill in what a layout leaves to defaults, so the page gets every layout complete."""
-    for layout in catalog["layouts"].values():
+    """Fill in what a layout leaves to defaults or to other packs, so the page gets every layout complete."""
+    for layout_id, layout in catalog["layouts"].items():
         layout.setdefault("toolbar", [dict(key) for key in DEFAULT_TOOLBAR])
+        if isinstance(layout.get("modify"), str):
+            table = catalog["tables"].get(layout["modify"], {})
+            if "cycles" in table:
+                layout["modify"] = list(table["cycles"])
+            else:
+                errors.append(f"{layout_id}: modify table {layout['modify']} not found")
+                del layout["modify"]
+        has_modify_key = any(isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row)
+        if has_modify_key and not layout.get("modify"):
+            errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")
+
+
+def _check_tables(catalog: dict, errors: list[str]) -> None:
+    """A table is either entries (romaji) or cycles (゛゜小)."""
+    for table_id, table in list(catalog["tables"].items()):
+        if ("entries" in table) == ("cycles" in table):
+            errors.append(f"{table_id}: needs entries or cycles (one of them)")
+            del catalog["tables"][table_id]
 
 
 def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
@@ -253,6 +271,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     catalog: dict[str, dict] = {kind: {} for kind in KINDS.values()}
     for item_id, item in items.items():
         catalog[KINDS[item["kind"]]][item_id] = item
+    _check_tables(catalog, errors)
     _resolve_layouts(catalog, errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in (keyboard["layout"], keyboard.get("latinLayout"), keyboard.get("symbolsLayout"), keyboard.get("qwertyLayout"),
@@ -261,7 +280,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
             errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]
         elif (keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})) \
-                and keyboard.get("table") not in catalog["tables"]:
+                and "entries" not in catalog["tables"].get(keyboard.get("table"), {}):
             errors.append(f"{keyboard_id}: romaji table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
 

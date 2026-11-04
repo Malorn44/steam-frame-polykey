@@ -254,7 +254,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
   const romajiFor = (keyboard: KeyboardDef | undefined): RomajiTable | undefined => {
     const tableId = keyboard?.table;
     const def = tableId ? boot?.catalog.tables?.[tableId] : undefined;
-    if (!tableId || !def || !typesRomaji(keyboard)) return undefined;
+    if (!tableId || !def?.entries || !typesRomaji(keyboard)) return undefined;
     let table = romajiTables.get(tableId);
     if (!table) romajiTables.set(tableId, (table = romajiTable(def.entries)));
     return table;

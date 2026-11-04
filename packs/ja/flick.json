@@ -12,5 +12,5 @@
     [{"type": "action", "action": "eisu", "label": "あ a"}, {"type": "flick", "flick": ["ま", "み", "む", "め", "も"]}, {"type": "flick", "flick": ["や", "「", "ゆ", "」", "よ"], "cycle": ["や", "ゆ", "よ", "ゃ", "ゅ", "ょ"]}, {"type": "flick", "flick": ["ら", "り", "る", "れ", "ろ"]}, {"type": "char", "char": " "}],
     [{"type": "action", "action": "next-keyboard", "w": 0.5}, {"type": "action", "action": "symbols", "w": 0.5}, {"type": "action", "action": "modify", "label": "゛ ゜ 小"}, {"type": "flick", "flick": ["わ", "を", "ん", "ー", "～"], "cycle": ["わ", "を", "ん", "ゎ", "ー", "～"]}, {"type": "flick", "flick": ["、", "。", "？", "！", "…"], "hints": true}, {"type": "key", "key": "Enter"}]
   ],
-  "modify": ["あぁ", "いぃ", "うぅゔ", "えぇ", "おぉ", "かが", "きぎ", "くぐ", "けげ", "こご", "さざ", "しじ", "すず", "せぜ", "そぞ", "ただ", "ちぢ", "つっづ", "てで", "とど", "はばぱ", "ひびぴ", "ふぶぷ", "へべぺ", "ほぼぽ", "やゃ", "ゆゅ", "よょ", "わゎ"]
+  "modify": "ja/modify"
 }
