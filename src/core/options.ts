@@ -20,6 +20,7 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
   flickHints: { name: 'フリックガイドを表示', off: 'Off', on: 'On', toggle: true },
   candidatesLeft: { name: '候補を左に表示', off: 'On top', on: 'On the left', toggle: true },
   romajiInput: { name: 'ローマ字入力', off: 'かな', on: 'ローマ字', toggle: true },
+  swipe: { name: 'Swipe typing', off: 'Off', on: 'On', toggle: true },
 };
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */
@@ -29,10 +30,14 @@ export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOpt
     name in own ? (typeof saved?.[name] === 'boolean' ? saved[name]! : own[name]!) : false;
   return {
     tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
-    qwertyLatin: pick('qwertyLatin'),
+    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'),
   };
 };
 
 /** The options a keyboard offers, in a stable order. */
 export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
   (Object.keys(OPTIONS) as OptionName[]).filter((name) => name in (keyboard?.options ?? {}));
+
+/** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
+export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>
+  (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? keyboard.features.swipe.lexicon : undefined);

@@ -75,7 +75,11 @@ export interface Layout {
 /** Per-keyboard choices; a keyboard lists the ones it has, with its default. */
 export interface KeyboardOptions {
   tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean; qwertyLatin?: boolean;
+  /** Swipe typing, for a keyboard with features.swipe. */
+  swipe?: boolean;
 }
+/** What a keyboard can do beyond typing keys. swipe: swipe typing, decoded against this word list. */
+export interface KeyboardFeatures { swipe?: { lexicon: string } }
 /**
  * latin: the layout shown in 英数 mode instead (the 12-key's ABC keys), or two that the qwertyLatin
  * option picks between. symbols: the ?123 pages, the first opened by the symbols key and the second
@@ -85,6 +89,7 @@ export interface KeyboardPages { latin?: string | { flick: string; qwerty: strin
 
 export interface KeyboardDef {
   id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
+  features?: KeyboardFeatures;
   /**
    * direct: keys type at once. kana: a reading buffer, sent when confirmed (core/ime.ts). romaji: the
    * same buffer, letters turned into kana with the keyboard's table.

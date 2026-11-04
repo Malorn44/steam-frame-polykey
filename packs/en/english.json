@@ -7,5 +7,7 @@
  "language": "en",
  "layout": "en/qwerty",
  "composer": "direct",
- "lexicon": "en/words"
+ "lexicon": "en/words",
+ "features": {"swipe": {"lexicon": "en/words"}},
+ "options": {"swipe": true}
 }

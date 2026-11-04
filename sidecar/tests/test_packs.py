@@ -191,6 +191,16 @@ def test_a_keyboard_extends_another(tmp_path):
     assert base["options"]["candidatesLeft"] is True  # the base is untouched
 
 
+def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
+    english = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]["en/english"]
+    assert english["features"] == {"swipe": {"lexicon": "en/words"}} and english["options"] == {"swipe": True}
+    write(tmp_path / "packs", "mine/qwerty.json", keyboard("mine/qwerty", layout="en/qwerty", options={"swipe": True}))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == ["mine/qwerty: the swipe option needs features.swipe"]
+    assert boot["catalog"]["keyboards"]["mine/qwerty"]["options"] == {}  # it still types
+    assert packs.clean_keyboard_options({"en/english": {"swipe": False}}) == {"en/english": {"swipe": False}}
+
+
 def test_a_keyboard_that_cannot_be_extended_is_reported(tmp_path):
     write(tmp_path / "packs", "mine/lost.json", keyboard("mine/lost", extends="mine/nope"))
     write(tmp_path / "packs", "mine/loop-a.json", keyboard("mine/loop-a", extends="mine/loop-b"))

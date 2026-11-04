@@ -17,7 +17,7 @@ MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
 DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
-KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin")
+KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin", "swipe")
 
 
 # The strip above the keys, for a layout that does not set its own ("toolbar": [] means none).
@@ -433,6 +433,9 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
                 and "entries" not in catalog["tables"].get(keyboard.get("table"), {}):
             errors.append(f"{keyboard_id}: romaji table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
+        elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
+            errors.append(f"{keyboard_id}: the swipe option needs features.swipe")  # the keyboard still types
+            del keyboard["options"]["swipe"]
 
     settings = load_settings(user / "settings.json", errors)
     unknown = [k for k in settings["keyboards"] if k not in catalog["keyboards"]]

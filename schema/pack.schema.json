@@ -779,6 +779,31 @@
             "qwertyLatin": {
               "type": "boolean",
               "description": "英数 mode shows the keyboard's qwerty latin page instead of its flick one (the 12-key: QWERTY or flick letters)."
+            },
+            "swipe": {
+              "type": "boolean",
+              "description": "Swipe typing: trace a word across the letter keys. Needs features.swipe."
+            }
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "What the keyboard can do beyond typing keys.",
+          "properties": {
+            "swipe": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "lexicon"
+              ],
+              "properties": {
+                "lexicon": {
+                  "$ref": "#/$defs/id",
+                  "description": "The word list a swipe is decoded against (packs/<ns>/<name>.tsv)."
+                }
+              },
+              "description": "Swipe typing over the letter keys (the swipe option turns it on and off). On a Japanese keyboard, in its 英数 mode."
             }
           }
         },

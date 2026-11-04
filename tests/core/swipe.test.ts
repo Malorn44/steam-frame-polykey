@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SWIPE_POINTS, leftKey, recentAfter, resample, spaceBefore, swipeCase, swipeLetter } from '../../src/core/swipe.js';
+import type { KeyboardDef } from '../../src/core/catalog.js';
+import { offered, swipeLexicon } from '../../src/core/options.js';
 
 describe('swipe detection', () => {
   const key = { left: 100, top: 50, right: 140, bottom: 80 }; // 40 px wide
@@ -68,5 +70,17 @@ describe('the swiped word', () => {
     expect(recentAfter('ab', [{ kind: 'key', key: 'Enter' }])).toBe('\n');
     expect(recentAfter(null, [{ kind: 'text', text: 'x' }])).toBe('x');
     expect(recentAfter('', [{ kind: 'text', text: 'a long sentence' }])).toBe(' sentence'.slice(-8));
+  });
+});
+
+describe('swipe on a keyboard', () => {
+  const keyboard: KeyboardDef = { id: 'en/x', name: 'X', layout: 'en/qwerty', features: { swipe: { lexicon: 'en/words' } }, options: { swipe: true } };
+
+  it('needs the feature and the option, which the user may turn off', () => {
+    expect(swipeLexicon(keyboard, undefined)).toBe('en/words');
+    expect(swipeLexicon(keyboard, { swipe: false })).toBeUndefined();
+    expect(swipeLexicon({ ...keyboard, options: {} }, { swipe: true })).toBeUndefined(); // no option offered
+    expect(swipeLexicon({ ...keyboard, features: {} }, undefined)).toBeUndefined();
+    expect(offered(keyboard)).toContain('swipe');
   });
 });
