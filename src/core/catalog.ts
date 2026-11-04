@@ -13,16 +13,16 @@ export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | '
  * its kana legends (typed in かな mode).
  */
 export type CharKey = {
-  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; w?: number; fn?: FnKey;
+  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; w?: number; fn?: FnKey;
   kana?: string; kanaShift?: string;
   /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
   hint?: string;
 };
 /** tall: the top or bottom half of a key two rows high (the JIS Enter); both halves are one key. */
 export type Tall = 'top' | 'bottom';
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; w?: number; fn?: FnKey; tall?: Tall };
-export type ModKey = { type: 'mod'; mod: ModName; label?: string; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; w?: number; tall?: Tall };
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; w?: number; fn?: FnKey; tall?: Tall };
+export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; w?: number };
+export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; w?: number; tall?: Tall };
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
@@ -45,6 +45,10 @@ export interface Layout {
   rows: (string | KeyDef)[][];
   /** Bigger key text and icons, as on a phone 12-key. */
   large?: boolean;
+  /** Which keys draw icons: desktop, or phone (more icons; the default for large layouts). */
+  iconSet?: 'desktop' | 'phone';
+  /** Arrow keys as icons (default) or as text glyphs (←↑↓→, the JIS keyboard). */
+  arrowStyle?: 'icon' | 'glyph';
   /** What ゛゜小 cycles the last typed character through: each string is one cycle, e.g. "はばぱ". */
   modify?: string[];
   /** Legends drawn in a dotted box, as on JIS keycaps (punctuation, e.g. "、。・「」ー"). */

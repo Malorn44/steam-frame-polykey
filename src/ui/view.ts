@@ -8,7 +8,7 @@ import { NO_MODS, alternates, charText, flickText, kanaSide, keyLabel, modState,
 import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
-import { ICONS, type IconName } from './icons.js';
+import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
@@ -123,8 +123,6 @@ const CSS = `
 .key .fh.r { right: 5px; top: 50%; transform: translateY(-50%); }
 .key .fh.d { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .kb.large .key svg { width: 1.35em; height: 1.35em; }
-/* Text arrows as frame-jp-keyboard draws them (all four the same: Noto Sans CJK). */
-.kb.large .key.named[data-k^="Arrow"]:not(:has(svg)) { font: 400 var(--size-arrow)/1 var(--font-cjk), var(--font); }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
 .kb.large .bar .key svg { width: 1em; height: 1em; }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
@@ -187,29 +185,25 @@ const CSS = `
 .kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 `;
 
-const ACTION_ICONS: Partial<Record<string, IconName>> = {
-  settings: 'settings', emoji: 'emoji', dictate: 'dictate', copy: 'copy', cut: 'cut', paste: 'paste', menu: 'menu',
-  hide: 'hide', 'next-keyboard': 'globe',
-};
+/** What a key does, for its default icon: an action, a named key, a modifier, or " " for a space key. */
+const iconId = (key: KeyDef): string => (key.type === 'action' ? key.action : key.type === 'key' ? key.key
+  : key.type === 'mod' ? key.mod : key.type === 'char' && key.char === ' ' ? ' ' : '');
 
-/** In a large layout (the 12-key), these keys draw icons too: font glyphs render tiny in the headset (fjk). */
-const LARGE_ICONS: Partial<Record<string, IconName>> = {
-  undo: 'undo', Backspace: 'backspaceTag', Enter: 'enter', ArrowLeft: 'left', ArrowRight: 'right', ' ': 'space',
-};
-
-/** The icon a key shows, if any (Shift and Caps change icon when locked). */
-const iconFor = (key: KeyDef, mods: Mods, large: boolean): IconName | undefined => {
-  if ('label' in key && key.label) return undefined;
-  const id = key.type === 'action' ? key.action : key.type === 'key' ? key.key : key.type === 'char' && key.char === ' ' ? ' ' : '';
-  if (large && LARGE_ICONS[id]) return LARGE_ICONS[id];
-  if (id === ' ') return 'space'; // a space key without a label: ⎵
-  if (key.type === 'action') return ACTION_ICONS[key.action];
-  if (key.type === 'key' && key.key === 'Backspace') return 'backspace';
-  if (key.type !== 'mod') return undefined;
-  if (key.mod === 'super') return 'frame';
-  if (key.mod === 'shift') return mods.shift === 'locked' ? 'shiftLocked' : 'shift';
-  if (key.mod === 'caps') return mods.caps ? 'capsOn' : 'caps';
-  return undefined;
+/**
+ * The icon a key shows, if any: its own `icon` (null: text), else none when it has a label, else its
+ * default in the layout's icon set; arrows draw as text with arrowStyle "glyph". Shift and Caps change
+ * icon when locked.
+ */
+const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'): IconName | undefined => {
+  const own = 'icon' in key ? key.icon : undefined;
+  const id = iconId(key);
+  const icon = own !== undefined ? (own !== null && own in ICONS ? own as IconName : undefined)
+    : 'label' in key && key.label ? undefined
+      : arrows === 'glyph' && id.startsWith('Arrow') ? undefined
+        : defaultIcon(id, set);
+  if (icon === 'shift' && mods.shift === 'locked') return 'shiftLocked';
+  if (icon === 'caps' && mods.caps) return 'capsOn';
+  return icon;
 };
 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
@@ -271,6 +265,7 @@ export const createView = (
   /** Romaji input: JIS keys type their Latin legends in かな mode too. */
   const latinKeys = (): boolean => latin || romaji;
   const dotted = new Set(Array.from(layout.dotted ?? ''));
+  const iconSet: IconSet = layout.iconSet ?? (layout.large ? 'phone' : 'desktop');
   /** A dotted box round a legend: a full-width character's box is its whole cell. */
   const glyph = (text: string): HTMLElement => Object.assign(doc.createElement('span'), { className: 'ch', textContent: cellText(text) });
   const boxed = (text: string): HTMLElement => {
@@ -700,7 +695,7 @@ export const createView = (
           el.classList.toggle('locked', state.locked);
         }
         const id = el.dataset['k'] ?? '';
-        const icon = labels[id] === undefined ? iconFor(key, mods, layout.large === true) : undefined;
+        const icon = labels[id] === undefined ? iconFor(key, mods, iconSet, layout.arrowStyle ?? 'icon') : undefined;
         const pair = key.type === 'action' && (key.action === 'eisu' || key.action === 'kana' || key.action === 'symbols')
           && key.label?.includes(' ')
           ? key.label.split(' ') : null;

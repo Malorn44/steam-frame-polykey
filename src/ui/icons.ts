@@ -2,8 +2,9 @@
 // Shift arrow are ported from TaiKeid's Steam Frame Full Keyboard (MIT, src/panel.cpp draw_icon);
 // the globe and Caps are ours. 24-unit boxes centred on 0, stroked like the original (1.8, round).
 
+/** Each icon keeps its own stroke width unless a theme sets one for all (--icon-stroke). */
 const svg = (body: string, strokeWidth = 1.8): string =>
-  `<svg viewBox="-12 -12 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="${strokeWidth}"`
+  `<svg viewBox="-12 -12 24 24" width="1em" height="1em" fill="none" stroke="currentColor" style="stroke-width: var(--icon-stroke, ${strokeWidth})"`
   + ` stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 
 const SHIFT_ARROW = 'M0 -7.1 L7 0.95 L3.64 0.95 L3.64 9 L-3.64 9 L-3.64 0.95 L-7 0.95 Z';
@@ -48,6 +49,8 @@ export const ICONS = {
   /** The space mark (⎵): a bracket open upwards. */
   space: svg('<path d="M-9 -1 V4 H9 V-1"/>', 2.2),
   right: svg('<path d="M-8 0 H8 M2 -6 L8 0 L2 6"/>', 2.2),
+  up: svg('<path d="M0 8 V-8 M-6 -2 L0 -8 L6 -2"/>', 2.2),
+  down: svg('<path d="M0 -8 V8 M-6 2 L0 8 L6 2"/>', 2.2),
   globe: svg('<circle r="10"/><ellipse rx="4.5" ry="10"/><path d="M-10 0 H10 M-8.5 -5 H8.5 M-8.5 5 H8.5"/>'),
   shift: svg(`<path d="${SHIFT_ARROW}"/>`),
   shiftLocked: svg(`<path d="${SHIFT_ARROW}" fill="currentColor"/>`),
@@ -60,3 +63,24 @@ export const ICONS = {
 } as const;
 
 export type IconName = keyof typeof ICONS;
+
+/**
+ * Desktop icons, and a layout read on phone-sized keys (iconSet "phone", e.g. the 12-key) draws a few
+ * more (font glyphs render tiny in the headset, fjk), by what the key does: an action, a named key, a
+ * modifier, or " " for a space key. Shift and Caps switch to their locked forms in the view.
+ */
+export const ICON_DEFAULTS: Partial<Record<string, { desktop?: IconName; phone?: IconName }>> = {
+  settings: { desktop: 'settings' }, emoji: { desktop: 'emoji' }, dictate: { desktop: 'dictate' }, copy: { desktop: 'copy' },
+  cut: { desktop: 'cut' }, paste: { desktop: 'paste' }, menu: { desktop: 'menu' }, hide: { desktop: 'hide' },
+  'next-keyboard': { desktop: 'globe' },
+  ' ': { desktop: 'space' }, Backspace: { desktop: 'backspace', phone: 'backspaceTag' },
+  super: { desktop: 'frame' }, shift: { desktop: 'shift' }, caps: { desktop: 'caps' },
+  undo: { phone: 'undo' }, Enter: { phone: 'enter' }, ArrowLeft: { phone: 'left' }, ArrowRight: { phone: 'right' },
+  ArrowUp: { phone: 'up' }, ArrowDown: { phone: 'down' },
+};
+
+export type IconSet = 'desktop' | 'phone';
+
+/** A key's default icon in a set: a phone icon, else the desktop one. */
+export const defaultIcon = (id: string, set: IconSet): IconName | undefined =>
+  (set === 'phone' ? ICON_DEFAULTS[id]?.phone : undefined) ?? ICON_DEFAULTS[id]?.desktop;

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import type { KeyDef } from '../../src/core/catalog.js';
+import type { KeyDef, Layout } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
 import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../../src/core/interaction.js';
 import { createView } from '../../src/ui/view.js';
@@ -107,6 +107,50 @@ describe('hover', () => {
     expect(view.hoverAt(20, 10)).toBe(true); // onto a key
     expect(view.hoverAt(10, 10)).toBe(true); // off it, into the gap: the hover ends, once
     expect(view.hoverAt(10, 11)).toBe(false);
+  });
+});
+
+describe('icons', () => {
+  const render = (layout: Partial<Layout>) => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const full: Layout = { id: 't/t', name: 't', toolbar: [], rows: [], ...layout } as Layout;
+    createView(document, shadow, full, bundledBoot().catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
+    const key = (k: string) => [...shadow.querySelectorAll<HTMLElement>('.kb .key')].find((el) => el.dataset['k'] === k)!;
+    return { key, svg: (k: string) => key(k).querySelector('svg'), text: (k: string) => key(k).querySelector('.lbl')!.textContent };
+  };
+
+  it('draws the icon set\'s defaults: phone adds Enter and arrows; large layouts default to phone', () => {
+    const rows: Layout['rows'] = [[{ type: 'key', key: 'Enter' }, { type: 'key', key: 'ArrowLeft' }, { type: 'action', action: 'settings' }]];
+    const desktop = render({ rows });
+    expect(desktop.svg('Enter')).toBeNull();
+    expect(desktop.text('ArrowLeft')).toBe('←');
+    expect(desktop.svg('settings')).not.toBeNull();
+    for (const phone of [render({ rows, large: true }), render({ rows, iconSet: 'phone' })]) {
+      expect(phone.svg('Enter')).not.toBeNull();
+      expect(phone.svg('ArrowLeft')).not.toBeNull();
+    }
+    expect(render({ rows, large: true, iconSet: 'desktop' }).svg('Enter')).toBeNull(); // set on its own
+  });
+
+  it('arrowStyle glyph draws arrows as text; a key\'s own icon wins, null meaning text', () => {
+    const glyph = render({ large: true, arrowStyle: 'glyph', rows: [[{ type: 'key', key: 'ArrowLeft' }, { type: 'key', key: 'Enter' }]] });
+    expect(glyph.svg('ArrowLeft')).toBeNull();
+    expect(glyph.text('ArrowLeft')).toBe('←');
+    expect(glyph.svg('Enter')).not.toBeNull();
+    const own = render({ rows: [[{ type: 'key', key: 'Tab', icon: 'right' }, { type: 'action', action: 'settings', icon: null },
+      { type: 'char', char: ' ', label: 'Space' }]] });
+    expect(own.svg('Tab')).not.toBeNull();
+    expect(own.svg('settings')).toBeNull();
+    expect(own.svg(' ')).toBeNull(); // a label still means text
+  });
+
+  it('the schema lists every icon', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { ICONS } = await import('../../src/ui/icons.js');
+    const schema = JSON.parse(readFileSync('schema/pack.schema.json', 'utf8'));
+    expect(schema.$defs.icon.enum).toEqual([...Object.keys(ICONS), null]);
   });
 });
 

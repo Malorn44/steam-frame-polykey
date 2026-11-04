@@ -13,7 +13,7 @@ export const SCALE = {
   '--text-xs': '13px', // the digit beneath, modifier-key text
   '--text-sm': '17px', // main label (normal)
   '--text-md': '20px', // main label (large)
-  '--text-lg': '22px', // text arrows
+  '--text-lg': '22px', // (unused now)
   '--text-xl': '26px', // 12-key kana
 } as const;
 
@@ -30,7 +30,6 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
     '--size-sub': 'var(--text-xs)', // small text beneath the label (the 2 under abc)
     '--size-mod': 'var(--text-xs)', // text on modifier and named keys (Ctrl, Tab, Enter)
     '--size-flick': 'var(--text-xl)', // a flick key's kana
-    '--size-arrow': 'var(--text-lg)', // arrows drawn as text (JIS)
     '--size-modify': '21px', // ゛゜小 as plain text
     // ゛ and ゜ on their own (boxed) fill only a corner of their cell, so they are set larger than a label.
     '--size-mark': 'var(--text-xl)', // on the ゛゜ key, and as a JIS key's kana legend
