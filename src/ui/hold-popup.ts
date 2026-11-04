@@ -38,6 +38,8 @@ export const openHoldPopup = (
   cancelable = true,
   /** An extra class for the row ('menu': the keyboards menu). */
   variant = '',
+  /** Called when the pick moves onto another choice (not when it opens): for a haptic tick. */
+  onPick?: (index: number) => void,
 ): HoldPopup => {
   const box = root.getBoundingClientRect();
   const el = doc.createElement('div');
@@ -58,11 +60,13 @@ export const openHoldPopup = (
   root.append(el);
 
   let pick = -1;
+  let opened = false;
   const setPick = (index: number): void => {
     if (index === pick) return;
     cells[pick]?.classList.remove('pick');
     pick = index;
     cells[index]?.classList.add('pick');
+    if (opened && index >= 0) onPick?.(index);
   };
   const pickAt = (x: number, y: number): void => {
     const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
@@ -85,6 +89,7 @@ export const openHoldPopup = (
   };
   setPick(0);
   if (start) pickAt(start.x, start.y);
+  opened = true;
   return {
     get pick() { return pick; },
     pickAt,

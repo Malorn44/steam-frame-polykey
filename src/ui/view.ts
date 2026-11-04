@@ -450,10 +450,13 @@ export const createView = (
     const width = menu ? Math.min(150, (root.getBoundingClientRect().width - 8) / texts.length || 150) : at.width * POPUP_SCALE;
     const size = { width, height: at.height * POPUP_SCALE };
     const start = startX !== null && startY !== null ? { x: startX, y: startY } : null;
-    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start, true, menu ? 'menu' : ''),
+    pickMoved = false;
+    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start, true, menu ? 'menu' : '', () => { pickMoved = true; }),
       texts: menu ? [...menu.ids] : texts, key: entry.key };
   };
   const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
+  /** The popup's pick moved since hoverAt last said so: the laser gets a tick, as it does crossing keys. */
+  let pickMoved = false;
   const setHover = (target: Entry | undefined): boolean => {
     const entry = target?.key.type === 'gap' ? undefined : target; // a gap is nothing to hover
     if (entry === hovered || (entry && entry === hovered?.twin)) return false;
@@ -719,7 +722,9 @@ export const createView = (
       if (flick) return false; // a flick follows the touch alone
       if (popup) {
         pickAt(x, y);
-        return false;
+        const moved = pickMoved;
+        pickMoved = false;
+        return moved;
       }
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
       const candChanged = setCandHover(hits.map(candFor).find(Boolean)?.el);

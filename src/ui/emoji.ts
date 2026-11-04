@@ -74,6 +74,7 @@ export interface EmojiPickerInput {
 export interface EmojiView {
   /** Show new Recent/Favorites/tone (keeps the scroll position). */
   update(state: EmojiState): void;
+  /** The laser over the picker; true when a skin tone pick moved (a haptic tick). */
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
   destroy(): void;
@@ -360,10 +361,13 @@ export const createEmojiView = (
     if (!variants || !cell.el.isConnected) return;
     mode = 'tones';
     lastTouchAt = now();
+    toneMoved = false;
     toneBox = openHoldPopup(doc, shadow, root, at, variants,
-      { width: cellSize, height: cellSize }, last, false);
+      { width: cellSize, height: cellSize }, last, false, '', () => { toneMoved = true; });
   };
   const pickTone = (x: number, y: number): void => toneBox?.pickAt(x, y);
+  /** The tone pick moved since hoverAt last said so: a haptic tick, as crossing keys. */
+  let toneMoved = false;
 
   /** Remove any tone popup or lifted emoji left over (a missed release, a second laser, a scroll). */
   const clearOverlays = (): void => {
@@ -528,7 +532,9 @@ export const createEmojiView = (
         && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) finish();
       if (mode === 'tones') {
         pickTone(x, y);
-        return false;
+        const moved = toneMoved;
+        toneMoved = false;
+        return moved;
       }
       if (mode === 'drag') return false; // dragging follows touch alone: two pointer sources disagree
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
@@ -538,7 +544,7 @@ export const createEmojiView = (
       hovered?.classList.remove('hover');
       hovered = cell;
       cell?.classList.add('hover');
-      return false; // no haptics in the grid
+      return false; // no haptics in the grid (only between skin tones)
     },
     setBounds: ({ top, left, width: w, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${w}px`, height: `${height}px` });

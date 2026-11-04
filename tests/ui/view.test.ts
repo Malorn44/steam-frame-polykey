@@ -206,6 +206,25 @@ describe('long press', () => {
     expect(chosen).toEqual(['é']); // cancelled
   });
 
+  it('the laser moving the pick to another choice reports it once (a haptic tick); opening does not', () => {
+    vi.useFakeTimers();
+    const { view, keyIn, shadow } = setup();
+    const e = keyIn(1, 'e');
+    const rect = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
+    e.getBoundingClientRect = () => rect(100, 60);
+    touch(e, 'touchstart', 110, 75);
+    vi.advanceTimersByTime(HOLD_MS);
+    const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
+    cells.forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
+    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
+    expect(view.hoverAt(110, 75)).toBe(false); // still on the first choice
+    expect(view.hoverAt(150, 75)).toBe(true); // onto the second: one tick
+    expect(view.hoverAt(155, 75)).toBe(false); // same choice: none
+    touch(e, 'touchmove', 190, 75); // a touch move onto the third...
+    expect(view.hoverAt(190, 75)).toBe(true); // ...ticks on the next laser report
+    touch(e, 'touchend');
+  });
+
   it('opens on the cell above the laser, never on the first one first', () => {
     vi.useFakeTimers();
     const { keyIn, shadow } = setup();

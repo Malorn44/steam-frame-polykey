@@ -580,8 +580,9 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     }
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
-      picker?.hoverAt(x, y);
-      if ((view ?? panel)?.hoverAt(x, y)) tick(win, which); // a tick as the laser crosses keys
+      // A tick as the laser crosses keys, and as a held key's or emoji's pick moves between choices.
+      const tones = picker?.hoverAt(x, y) ?? false;
+      if ((view ?? panel)?.hoverAt(x, y) || tones) tick(win, which);
     });
   };
 
