@@ -4,7 +4,7 @@
   "kind": "layout",
   "id": "ja/flick-symbols2",
   "name": "Japanese 12-key more symbols",
-  "description": "The 12-key's second symbols page (=\\<): typed in the mode it was opened from. 123 goes back to the numbers, あいう to the letters.",
+  "description": "The 12-key's second symbols page (=\\<): typed in the mode it was opened from. 123 goes back to the numbers, the back key to the letters (あいう or ABC).",
   "large": true,
   "rows": [
     [{"type": "char", "char": "~"}, {"type": "char", "char": "`"}, {"type": "char", "char": "|"}, {"type": "char", "char": "·"}, {"type": "char", "char": "√"}, {"type": "char", "char": "π"}, {"type": "char", "char": "÷"}, {"type": "char", "char": "×"}, {"type": "char", "char": "§"}, {"type": "char", "char": "Δ"}],

@@ -4,7 +4,7 @@
   "kind": "layout",
   "id": "ja/flick-abc",
   "name": "Japanese 12-key letters (ABC)",
-  "description": "The phone 12-key's letters mode: tap a key for its first letter, flick left, up or right for the next, down for its digit. a/A is Shift (twice: caps lock). あいう goes back to kana.",
+  "description": "The phone 12-key's letters mode: tap a key for its first letter, flick left, up or right for the next, down for its digit. a⇔A is Shift (twice: caps lock). あa goes back to kana.",
   "large": true,
   "rows": [
     [{"type": "action", "action": "undo"}, {"type": "flick", "flick": ["@", "-", "_", "/", "1"], "label": "@-_/", "sub": "1"}, {"type": "flick", "flick": ["a", "b", "c", "", "2"], "label": "abc", "sub": "2"}, {"type": "flick", "flick": ["d", "e", "f", "", "3"], "label": "def", "sub": "3"}, {"type": "key", "key": "Backspace"}],
