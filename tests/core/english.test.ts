@@ -38,6 +38,22 @@ describe('English word in 英数 mode', () => {
     expect(run(['h', 'i', named('Tab')])).toEqual({ word: 'hi', caret: 2, sent: '<Tab>' }); // the caller sends it, then Tab
   });
 
+  it('with tapCycle, tapping an ABC key again steps its letter; a flick or → ends the cycle', () => {
+    const abc: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'] };
+    const tap = (word: EnglishWord, typed = 'a', flicked = false) => pressEnglish(word, abc, typed, { tapCycle: true, flicked })!.word;
+    let word = tap(NO_ENGLISH);
+    word = tap(word);
+    expect(englishText(word)).toBe('b');
+    word = tap(tap(tap(word)));
+    expect(englishText(word)).toBe('a'); // c, 2, round to a
+    const after = pressEnglish(word, { type: 'key', key: 'ArrowRight' }, undefined)!.word;
+    expect([englishText(tap(after)), after.caret]).toEqual(['aa', 1]); // → ended it, without moving
+    expect(englishText(tap(tap(NO_ENGLISH, 'b', true)))).toBe('ba'); // a flick types its letter, no cycle
+    expect(englishText(tap(tap(NO_ENGLISH, 'A')))).toBe('B'); // the case it started in
+    const off = (word: EnglishWord) => pressEnglish(word, abc, 'a')!.word;
+    expect(englishText(off(off(NO_ENGLISH)))).toBe('aa'); // the option off: it types again
+  });
+
   it('↶ drops the word', () => {
     expect(run(['h', 'i', { type: 'action', action: 'undo' }])).toEqual({ word: '', caret: 0, sent: '' });
   });

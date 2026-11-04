@@ -7,6 +7,7 @@
  "extends": "ja/12key",
  "layout": "ja/gojuon",
  "options": {
-  "qwertyLatin": true
+  "qwertyLatin": true,
+  "tapCycle": false
  }
 }

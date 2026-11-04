@@ -307,7 +307,7 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       const typed = chording ? undefined
         : key.type === 'char' ? (alternate ?? charText(key, mods))
           : key.type === 'flick' ? flickText(alternate ?? key.flick[0], mods) : undefined;
-      const handled = pressEnglish(en, key, typed);
+      const handled = pressEnglish(en, key, typed, { tapCycle: options.tapCycle, flicked: alternate !== undefined });
       if (handled) {
         if (typed !== undefined) {
           mods = pressText(mods, '').mods; // a one-shot Shift is used up
