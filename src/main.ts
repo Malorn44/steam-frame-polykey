@@ -646,7 +646,8 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       });
       applyBounds();
     } else {
-      const swipes = keyboard && !buffered(keyboard) ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
+      // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
+      const swipes = keyboard && !buffered(keyboard) && bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
       prepareSwipe(swipes, layout);
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,

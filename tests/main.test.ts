@@ -253,7 +253,17 @@ describe('settings', () => {
 });
 
 describe('swipe typing', () => {
-  /** A fake sidecar: `swipe` answers with the next words from `replies`; every request is kept. */
+  /** polykey with a fake sidecar (there from the start, as the injector adds the binding first): `swipe`
+   * answers with the next words from `replies`; every request is kept. */
+  const setupSwipe = (replies: string[][]) => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = bundledBoot();
+    const requests = withSwipe(steam.g, replies);
+    installed.push(installPolykey(steam.g));
+    return { popup, manager, requests };
+  };
   const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
     const requests: Record<string, unknown>[] = [];
     g['polykeyBridge'] = (payload: string) => {
@@ -290,8 +300,7 @@ describe('swipe typing', () => {
   const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
 
   it('types the best word, a space before the next, and offers the others; a pick replaces the word', async () => {
-    const { popup, manager, g } = setup();
-    const requests = withSwipe(g, [['hello', 'hell', 'help'], ['world', 'would']]);
+    const { popup, manager, requests } = setupSwipe([['hello', 'hell', 'help'], ['world', 'would']]);
     layOut(popup);
     await swipe(popup, 'h', 'o');
     const sent = requests.find((r) => r['op'] === 'swipe' && !r['prepare'])!;
@@ -311,18 +320,15 @@ describe('swipe typing', () => {
     expect(slots(popup)).toEqual(['would', 'world', '']); // still offered: another pick replaces it again
   });
 
-  it('the word list is loaded when the keyboard shows, once', async () => {
-    const { popup, g } = setup();
-    const requests = withSwipe(g, []);
-    // The bridge came after the first draw, so the next English draw asks; later ones do not.
+  it('the word list is loaded when the keyboard first shows, once', async () => {
+    const { popup, requests } = setupSwipe([]);
     for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
     expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number),
       keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
   });
 
   it('Shift capitalises the word; Backspace right after a swipe takes the whole word back', async () => {
-    const { popup, manager, g } = setup();
-    withSwipe(g, [['hello'], ['there']]);
+    const { popup, manager } = setupSwipe([['hello'], ['there']]);
     layOut(popup);
     await tap(popup, 'shift');
     await swipe(popup, 'h', 'o');
@@ -335,8 +341,7 @@ describe('swipe typing', () => {
   });
 
   it('keys pressed while the word is decoding wait for it, and end its alternatives', async () => {
-    const { popup, manager, g } = setup();
-    withSwipe(g, [['hello', 'help']]);
+    const { popup, manager } = setupSwipe([['hello', 'help']]);
     layOut(popup);
     await swipe(popup, 'h', 'o', 0);
     await tap(popup, '.');
@@ -345,8 +350,7 @@ describe('swipe typing', () => {
   });
 
   it('after a tapped word or punctuation a swiped word gets a space; after a space, or in a new field, none', async () => {
-    const { popup, manager, g } = setup();
-    withSwipe(g, [['one'], ['two'], ['three']]);
+    const { popup, manager } = setupSwipe([['one'], ['two'], ['three']]);
     layOut(popup);
     await swipe(popup, 'o', 'e');
     await tap(popup, ',');
@@ -357,8 +361,7 @@ describe('swipe typing', () => {
   });
 
   it('no word: nothing is typed, and nothing typed is logged', async () => {
-    const { popup, manager, g } = setup();
-    withSwipe(g, [[], ['secret']]);
+    const { popup, manager } = setupSwipe([[], ['secret']]);
     layOut(popup);
     await swipe(popup, 'q', 'p');
     expect(typed(manager)).toBe('');
@@ -367,9 +370,19 @@ describe('swipe typing', () => {
     expect(logged.join('\n')).not.toContain('secret');
   });
 
+  it('without the sidecar, a press that moves off a letter types the letter', async () => {
+    const { popup, manager } = setup();
+    layOut(popup);
+    const el = key(popup, 'h');
+    touch(el, 'touchstart', 260, 75);
+    touch(el, 'touchmove', 400, 75);
+    touch(el, 'touchend', 400, 75);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(manager.calls).toEqual([['h', false]]);
+  });
+
   it('switched off in settings: the option is saved, and a press that moves off a letter types the letter', async () => {
-    const { popup, manager, g } = setup();
-    const requests = withSwipe(g, [['hello']]);
+    const { popup, manager, requests } = setupSwipe([['hello']]);
     await tap(popup, 'settings');
     const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Swipe typing')!;
     const on = row.querySelector<HTMLElement>('.switch.on')!; // on by default
