@@ -123,7 +123,7 @@ const CSS = `
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
-.key.action.on { box-shadow: inset 0 0 0 2px var(--indicator); } /* the current input mode (英数 / かな) */
+.key.action.on { box-shadow: inset 0 -3px 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.down { filter: var(--pressed); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
