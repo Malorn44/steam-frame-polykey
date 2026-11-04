@@ -126,7 +126,14 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     const ll = quarter(letter ? latinNow : key.char, onLatin, letter || latinNow === key.char);
     const ls = quarter(letter ? '' : key.shift ?? '', onLatin, !letter && latinNow !== key.char);
     const slots: Partial<Record<SlotName, Legend>> = {};
-    if (ctx.romaji) {
+    if (ctx.romaji && key.fn) {
+      // Romaji, with an Fn variant: as on the English keys, Shift top left, Fn top right, the character
+      // beneath (the corners the kana leave free).
+      if (ls) slots.tl = ls;
+      slots.tr = text(keyLabel(normalizeFn(key.fn), mods), 'legend', 'fn');
+      if (ll) slots.c = ll;
+      return { arrangement: 'tri', slots };
+    } else if (ctx.romaji) {
       // Romaji: no kana; the Latin legends in the middle like the English keys (a letter alone in the middle).
       if (ls) slots.t = ls;
       if (ll) slots[ls ? 'b' : 'c'] = ll;

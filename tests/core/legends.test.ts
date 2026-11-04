@@ -48,6 +48,10 @@ describe('keyLegends', () => {
     const seven: KeyDef = { type: 'char', char: '7', shift: "'", kana: 'や', kanaShift: 'ゃ' };
     expect(shown(seven, mods(), ctx({ romaji: true }))).toEqual({ arrangement: 'quad', t: "'", b: '7' });
     expect(shown({ type: 'char', char: 'a', kana: 'ち' }, mods(), ctx({ romaji: true }))).toEqual({ arrangement: 'quad', c: 'a' });
+    // With an Fn variant: Fn top right in the corner the kana leave free, as on the English keys.
+    const one: KeyDef = { type: 'char', char: '1', shift: '!', kana: 'ぬ', fn: { type: 'key', key: 'F1' } };
+    expect(shown(one, mods(), ctx({ romaji: true }))).toEqual({ arrangement: 'tri', tl: '!', tr: 'F1', c: '1' });
+    expect(keyLegends(one, mods(), ctx({ romaji: true })).slots.tr).toMatchObject({ tone: 'fn' });
   });
 
   it('flick keys: hints at the edges when on; otherwise the label, with its digit beneath', () => {
