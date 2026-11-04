@@ -276,6 +276,7 @@ describe('emoji', () => {
     expect(row.style.height).toBe('44px');
     await tap(popup, 'Backspace'); // the bottom row works like keys
     expect(manager.calls.at(-1)).toEqual(['Backspace', false]);
+    expect(key(popup, 'abc').querySelector('.lbl')!.textContent).toBe('ABC'); // English: back to the letters
     await tap(popup, 'abc');
     expect(shadowOf(popup)!.querySelector('.emoji')).toBeNull();
     expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5);
@@ -401,6 +402,26 @@ describe('Japanese 12-key', () => {
     expect(manager.calls).toEqual([]);
     await tap(popup, 'emoji'); // any other key sends the buffer first
     expect(manager.calls.map((c) => c[0]).join('')).toBe('びは');
+  });
+});
+
+describe('emoji row on a Japanese keyboard', () => {
+  it('its back key reads あいう from kana mode and ABC from 英数 mode', async () => {
+    const boot = bundledBoot();
+    boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀'] }] };
+    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use('ja/12key');
+    await tap(popup, 'emoji');
+    expect(key(popup, 'abc').querySelector('.lbl')!.textContent).toBe('あいう');
+    await tap(popup, 'abc');
+    await tap(popup, 'eisu');
+    await tap(popup, 'emoji');
+    expect(key(popup, 'abc').querySelector('.lbl')!.textContent).toBe('ABC');
   });
 });
 

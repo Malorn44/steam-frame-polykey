@@ -3,7 +3,7 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
+import { readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery } from './core/output/plan.js';
@@ -22,7 +22,7 @@ import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withT
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
-import { pageLayout } from './core/pages.js';
+import { modeLetters, pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
@@ -46,14 +46,8 @@ export const KEY_GAP_MS = 8;
 /** Steam's own keyboard (settings → Steam keyboard; 🌐 only rotates polykey's keyboards). */
 export const STOCK = 'steam/stock';
 const NON_ASCII = /[^\x20-\x7e]/;
-/** The emoji picker's bottom row. */
-const EMOJI_ROW: Layout = {
-  id: 'internal/emoji-row',
-  name: 'emoji row',
-  rows: [[{ type: 'action', action: 'abc', w: 1.5 }, { type: 'char', char: ' ', label: 'Space', w: 6.5 },
-    { type: 'key', key: 'Backspace', w: 1.5 }, { type: 'key', key: 'Enter', w: 1.5 },
-    { type: 'key', key: 'ArrowLeft' }, { type: 'key', key: 'ArrowRight' }]],
-};
+/** The emoji picker's bottom row (a layout pack). */
+const EMOJI_ROW = 'internal/emoji-row';
 const EMOJI_ROW_PX = 44;
 const EMOJI_SAVE_DELAY_MS = 1500;
 
@@ -531,8 +525,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
         steamAvailable: steamItemsAvailable(g),
         tones,
       }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent });
-      view = createView(surface.doc, surface.shadow, EMOJI_ROW, theme, onKey, onSuggestion);
-      view.update(mods);
+      const row = boot.catalog.layouts[EMOJI_ROW];
+      if (row) {
+        // Its back key reads the current mode's letters (あいう, ABC).
+        view = createView(surface.doc, surface.shadow, row, theme, onKey, onSuggestion, undefined,
+          { letters: modeLetters(keyboard, latinMode.has(id)) });
+        view.update(mods);
+      }
       applyBounds();
     } else if (page === 'settings') {
       panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
@@ -561,13 +560,13 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
     } else {
       view = createView(surface.doc, surface.shadow, layout, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          latin: latinMode.has(id), romaji: typesRomaji(keyboard),
+          latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
           }) },
-          ...(keyboard?.composer === 'kana' || keyboard?.composer === 'romaji' ? { placeholder: '入力すると、ここに変換候補が出ます' } : {}) });
+          ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}) });
       view.update(mods);
       applyBounds();
       refreshSuggestions();

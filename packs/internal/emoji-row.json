@@ -1,0 +1,14 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "layout",
+ "id": "internal/emoji-row",
+ "name": "Emoji row",
+ "description": "The emoji picker's bottom row: back to the keys (ABC), space, delete, enter and the arrows.",
+ "toolbar": [],
+ "rows": [
+  [{"type": "action", "action": "abc", "w": 1.5}, {"type": "char", "char": " ", "label": "Space", "w": 6.5},
+   {"type": "key", "key": "Backspace", "w": 1.5}, {"type": "key", "key": "Enter", "w": 1.5},
+   {"type": "key", "key": "ArrowLeft"}, {"type": "key", "key": "ArrowRight"}]
+ ]
+}

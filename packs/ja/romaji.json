@@ -9,5 +9,12 @@
  "composer": "romaji",
  "table": "ja/romaji-table",
  "converter": "anthy",
- "lexicon": "en/words"
+ "lexicon": "en/words",
+ "modes": [
+  {"id": "kana", "letters": "あいう"},
+  {"id": "latin", "letters": "ABC", "latin": true}
+ ],
+ "strings": {
+  "idleHint": "入力すると、ここに変換候補が出ます"
+ }
 }

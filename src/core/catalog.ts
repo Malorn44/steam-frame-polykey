@@ -94,6 +94,13 @@ export interface KeyboardDef {
   table?: string;
   /** The keyboard's other pages (src/core/pages.ts); layout is the main one. */
   pages?: KeyboardPages;
+  /**
+   * The keyboard's modes, the first its default: what each one's letters are called (あいう, ABC; read
+   * by the keys back to them), and which is its Latin mode (英数). None: one mode, called ABC.
+   */
+  modes?: { id: string; letters: string; latin?: boolean }[];
+  /** Text the keyboard shows: idleHint, where candidates appear while there are none. */
+  strings?: { idleHint?: string };
   /** The engine that converts the reading (with composer kana). */
   converter?: 'anthy';
 }

@@ -92,6 +92,13 @@ describe('keyLegends', () => {
     expect(keyLegends(abc, mods(), ctx()).slots.c).toMatchObject({ text: 'abc', under: { text: '2', size: 'sub' } });
   });
 
+  it('the symbols pages\' keys are labelled by page and mode', () => {
+    const back: KeyDef = { type: 'action', action: 'symbols' };
+    expect(shown(back, mods(), ctx({ symbols: 1, letters: 'あいう' }))).toEqual({ arrangement: 'plain', c: 'あいう' });
+    expect(shown(back, mods(), ctx({ symbols: 1, letters: 'ABC' }))).toEqual({ arrangement: 'plain', c: 'ABC' });
+    expect(shown(back)).toEqual({ arrangement: 'plain', c: '?123' });
+  });
+
   it('the page\'s label still wins in c; the bottom half of a two-row key shows nothing', () => {
     const enter: KeyDef = { type: 'key', key: 'Enter', legends: { c: 'Go', tr: '↵' } };
     expect(shown(enter, mods(), ctx({ label: '確定' }))).toEqual({ arrangement: 'plain', c: '確定', tr: '↵' });

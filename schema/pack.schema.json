@@ -658,6 +658,49 @@
         "layout": {
           "$ref": "#/$defs/id"
         },
+        "strings": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "idleHint": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Shown where candidates appear while there are none (入力すると、ここに変換候補が出ます)."
+            }
+          },
+          "description": "Text the keyboard shows."
+        },
+        "modes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "letters"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z]+$",
+                "maxLength": 16
+              },
+              "letters": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8,
+                "description": "What this mode's letters are called, on the keys back to them (あいう, ABC)."
+              },
+              "latin": {
+                "type": "boolean",
+                "description": "This is the keyboard's Latin mode (英数)."
+              }
+            }
+          },
+          "description": "The keyboard's modes, the first its default. None: one mode, called ABC."
+        },
         "pages": {
           "type": "object",
           "additionalProperties": false,

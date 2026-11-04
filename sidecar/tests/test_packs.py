@@ -26,7 +26,7 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/gojuon", "ja/kana-jis", "ja/qwerty-romaji"}
+    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "internal/emoji-row", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/gojuon", "ja/kana-jis", "ja/qwerty-romaji"}
     assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table"}
     assert boot["settings"] == {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True}
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
