@@ -98,10 +98,8 @@ const CSS = `
 .kb.large .key[data-k="modify"] .lbl { white-space: nowrap; font-size: min(var(--size-modify), 27cqw); }
 /* The modify key without a label of its own: ゛゜ boxed, 大⇔小 small beneath (as on Gboard's 12-key). */
 .key .mk { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
-.key .mk-marks { display: flex; gap: 0.35em; padding-top: 0.15em; }
-/* Each mark hangs off its box's top-right corner, where it sits on a kana. */
-.key .mk-marks .dot { position: relative; width: 0.8em; height: 0.8em; min-width: 0; }
-.key .mk-marks .dot span { position: absolute; left: 0.5em; top: -0.3em; line-height: 1; }
+.key .mk-marks { display: flex; gap: 0.2em; }
+.key .dot.cell { line-height: 1.25; font-family: var(--font-cjk), var(--font); } /* the whole character cell: ゛゜ sit at its top */
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 /* Flick hints (option): each direction's kana small at the key's left, top, right and bottom edge. */
 .key .fh { position: absolute; font-size: var(--size-hint); line-height: 1; color: var(--legend); pointer-events: none; }
@@ -611,11 +609,7 @@ export const createView = (
     if (label.querySelector('.mk')) return;
     const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
     const marks = span('mk-marks', '');
-    for (const mark of ['゛', '゜']) {
-      const box = span(dotted.has(mark) ? 'dot' : '', '');
-      box.append(span('', mark));
-      marks.append(box);
-    }
+    for (const mark of ['゛', '゜']) marks.append(span(dotted.has(mark) ? 'dot cell' : '', mark));
     const box = span('mk', '');
     box.append(marks, span('mk-size', '大⇔小'));
     label.replaceChildren(box);
