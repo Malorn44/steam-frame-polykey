@@ -11,6 +11,7 @@ import { HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interacti
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
 import { BAR_PX, sizeVars } from './sizes.js';
+import { listenTouch, type TouchPoint } from './gesture.js';
 import { themeVars } from './theme.js';
 import { MAX_FAVORITES, TONES, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf, type EmojiData, type EmojiState, type SteamItem, type Tone } from '../core/emoji.js';
 
@@ -274,10 +275,6 @@ export const createEmojiView = (
     const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
     return hits.map(cellAt).find(Boolean);
   };
-  const point = (e: Event): { x: number; y: number } | null => {
-    const t = (e as TouchEvent).changedTouches?.[0];
-    return t ? { x: t.clientX, y: t.clientY } : null;
-  };
   const clearHold = (): void => {
     if (holdTimer !== null) clearTimeout(holdTimer);
     holdTimer = null;
@@ -385,13 +382,10 @@ export const createEmojiView = (
     else if (cell.base) handlers.onEmoji(cell.base, cell.section === 'recent');
   };
 
-  root.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    guard.touched();
+  const onStart = (touch: TouchPoint | null, e: Event): void => {
     stopGlide();
     clearOverlays();
-    const p = point(e) ?? { x: 0, y: 0 };
+    const p = touch ?? { x: 0, y: 0 };
     if ((e.target as HTMLElement | null)?.closest?.('.trash')) {
       mode = 'idle';
       handlers.onClearRecent();
@@ -417,18 +411,15 @@ export const createEmojiView = (
     } else if (held?.toned) {
       holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, HOLD_MS);
     }
-  }, { passive: false });
+  };
   let last = { x: 0, y: 0 };
   let lastTouchAt = 0;
   let built = false;
   // A gesture that started here is followed across the whole shadow root (a fast drag or tone pick can
   // leave the picker, e.g. into the key row), so its release is never lost and nothing is left hanging.
-  const onMove = (e: Event): void => {
-    if (mode === 'idle') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const p = point(e);
-    if (!p) return;
+  const onMove = (p: TouchPoint | null): boolean => {
+    if (mode === 'idle') return false; // not ours: e.g. the key row's own touches
+    if (!p) return true;
     last = p;
     lastTouchAt = now();
     const slop = pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? SLOP_PX.holdWander : SLOP_PX.scroll;
@@ -442,12 +433,12 @@ export const createEmojiView = (
       samples = samples.filter((s) => s.t > now() - 100);
     } else if (mode === 'drag') moveGhost(p);
     else if (mode === 'tones') pickTone(p.x, p.y);
+    return true;
   };
-  const onEnd = (e: Event): void => {
-    if (mode === 'idle') return;
-    e.preventDefault();
-    e.stopPropagation();
+  const onEnd = (): boolean => {
+    if (mode === 'idle') return false;
     finish();
+    return true;
   };
   /** End the gesture as a release where the touch last was. */
   const finish = (): void => {
@@ -471,13 +462,17 @@ export const createEmojiView = (
     mode = 'idle';
     pressed = undefined;
   };
-  const listen = { capture: true, passive: false } as const;
-  shadow.addEventListener('touchmove', onMove, listen);
-  shadow.addEventListener('touchend', onEnd, listen);
-  shadow.addEventListener('touchcancel', onCancel, listen);
+  listenTouch(root, { start: onStart, click: (e) => onClick(e) }, { guard });
+  // Followed across the whole shadow root (shared with the key row): removed again in destroy.
+  const stopFollowing = listenTouch(shadow, { move: onMove, end: onEnd, cancel: onCancel }, { guard, capture: true });
   // A release outside our shadow root (off the keyboard entirely) reaches the window.
-  const ends = ['touchend', 'pointerup', 'mouseup'] as const;
-  for (const type of ends) win?.addEventListener(type, onEnd, listen);
+  const listen = { capture: true, passive: false } as const;
+  const endOutside = (e: Event): void => {
+    if (!onEnd()) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  for (const type of ['touchend', 'pointerup', 'mouseup'] as const) win?.addEventListener(type, endOutside, listen);
   win?.addEventListener('touchcancel', onCancel, listen);
   root.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -485,9 +480,8 @@ export const createEmojiView = (
     stopGlide();
     setOffset(offset + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
   }, { passive: false });
-  root.addEventListener('click', (e) => {
+  function onClick(e: MouseEvent): void {
     // Desktop fallback (mouse); touch already handled the press.
-    if (guard.ghost()) return;
     if ((e.target as HTMLElement | null)?.closest?.('.trash')) {
       handlers.onClearRecent();
       return;
@@ -497,7 +491,7 @@ export const createEmojiView = (
       const section = sections.find((s) => s.id === tab.dataset['section']);
       if (section) setOffset(section.x);
     } else if (mode === 'idle') tap(cellAt(e.target));
-  });
+  }
 
   /** Keep moving after a quick drag, slowing like a phone list. */
   const startGlide = (): void => {
@@ -561,10 +555,8 @@ export const createEmojiView = (
     destroy: () => {
       clearHold();
       stopGlide();
-      shadow.removeEventListener('touchmove', onMove, listen);
-      shadow.removeEventListener('touchend', onEnd, listen);
-      shadow.removeEventListener('touchcancel', onCancel, listen);
-      for (const type of ends) win?.removeEventListener(type, onEnd, listen);
+      stopFollowing();
+      for (const type of ['touchend', 'pointerup', 'mouseup'] as const) win?.removeEventListener(type, endOutside, listen);
       win?.removeEventListener('touchcancel', onCancel, listen);
       style.remove();
       root.remove();

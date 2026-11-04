@@ -10,6 +10,7 @@ import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core/legends.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
+import { listenTouch, type TouchPoint } from './gesture.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
@@ -476,20 +477,16 @@ export const createView = (
     scrollList(e.deltaX, e.deltaY);
   }, { passive: false });
 
-  root.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const onStart = (start: TouchPoint | null, e: Event): void => {
     if (list.contains(e.target as Node) || e.target === list) {
-      const t = (e as TouchEvent).changedTouches?.[0];
-      listDrag = { x: t?.clientX ?? 0, y: t?.clientY ?? 0, left: list.scrollLeft, top: list.scrollTop, moved: false, cand: candFor(e.target) };
+      listDrag = { x: start?.x ?? 0, y: start?.y ?? 0, left: list.scrollLeft, top: list.scrollTop, moved: false, cand: candFor(e.target) };
       return;
     }
     pressed = entryFor(e.target);
     mark(pressed, 'down', true);
     clearHold();
     const held = pressed;
-    const start = (e as TouchEvent).changedTouches?.[0];
-    lastPoint = start ? { x: start.clientX, y: start.clientY } : null;
+    lastPoint = start;
     repeated = false;
     if (held?.key.type === 'flick') {
       openFlick(held, lastPoint ?? { x: 0, y: 0 });
@@ -506,16 +503,13 @@ export const createView = (
       holdTimer = null;
       openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
     }, HOLD_MS);
-  }, { passive: false });
-  root.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = (e as TouchEvent).changedTouches?.[0];
+  };
+  const onMove = (touch: TouchPoint | null): void => {
     if (!touch) return;
-    lastPoint = { x: touch.clientX, y: touch.clientY };
+    lastPoint = touch;
     if (listDrag) {
-      const dx = touch.clientX - listDrag.x;
-      const dy = touch.clientY - listDrag.y;
+      const dx = touch.x - listDrag.x;
+      const dy = touch.y - listDrag.y;
       if (Math.hypot(dx, dy) > SLOP_PX.list) listDrag.moved = true;
       if (listDrag.moved) {
         if (side) list.scrollTop = listDrag.top - dy;
@@ -524,12 +518,9 @@ export const createView = (
       return;
     }
     if (flick) moveFlick(lastPoint);
-    else pickAt(touch.clientX, touch.clientY);
-  }, { passive: false });
-  root.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    guard.touched();
+    else pickAt(touch.x, touch.y);
+  };
+  const onEnd = (_p: TouchPoint | null, e: Event): void => {
     clearHold();
     const hit = pressed;
     pressed = undefined;
@@ -567,21 +558,20 @@ export const createView = (
     }
     if (repeated) return; // a held key already typed while held
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
-  }, { passive: false });
-  root.addEventListener('touchcancel', () => {
+  };
+  const onCancel = (): void => {
     clearHold();
     closePopup();
     closeFlick();
     listDrag = null;
     mark(pressed, 'down', false);
     pressed = undefined;
-  });
+  };
   root.addEventListener('mouseover', (e) => { setHover(entryFor(e.target)); setSlotHover(slotFor(e.target)); });
   root.addEventListener('mouseleave', () => setHover(undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
-  root.addEventListener('click', (e) => {
+  const onClick = (e: MouseEvent): void => {
     e.stopPropagation();
-    if (guard.ghost()) return;
     const slot = slotFor(e.target);
     if (slot?.word) {
       onSuggestion(slot.word);
@@ -594,7 +584,8 @@ export const createView = (
     }
     const hit = entryFor(e.target);
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
-  });
+  };
+  listenTouch(root, { start: onStart, move: onMove, end: onEnd, cancel: onCancel, click: onClick }, { guard });
 
   /** A legend's size and colour classes (its size role; text tone inherits the key's colour in the label). */
   const sizeClass = (legend: Legend): string => (legend.kind === 'text' && legend.size !== 'key' ? ` s-${legend.size}` : '');

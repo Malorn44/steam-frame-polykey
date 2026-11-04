@@ -6,6 +6,7 @@
 
 import type { Theme } from '../core/catalog.js';
 import { touchGuard } from '../core/interaction.js';
+import { listenTouch } from './gesture.js';
 import { ICONS } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
@@ -97,6 +98,7 @@ export const createSettingsView = (
   root.style.cssText = themeVars(theme) + sizeVars('normal');
 
   const actions = new Map<HTMLElement, () => void>();
+  const guard = touchGuard(); // shared with the Keyboards page
   const option = (label: string, on: boolean, action: () => void, extra = ''): HTMLElement => {
     const el = doc.createElement('div');
     el.className = `opt${on ? ' on' : ''}${extra}`;
@@ -179,7 +181,7 @@ export const createSettingsView = (
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
     hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'hide'), ' to remove · hold ',
       inlineIcon(doc, 'globe'), ' to jump to one');
-    root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions), hint);
+    root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions, guard), hint);
   } else root.append(head, cols, about);
 
   const optionAt = (target: EventTarget | null): HTMLElement | undefined =>
@@ -193,29 +195,22 @@ export const createSettingsView = (
     return true;
   };
   let pressed: HTMLElement | undefined;
-  const guard = touchGuard();
-  root.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    pressed = optionAt(e.target);
-  }, { passive: false });
-  root.addEventListener('touchmove', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-  root.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    guard.touched();
-    const hit = pressed;
-    pressed = undefined;
-    if (hit) actions.get(hit)?.();
-  }, { passive: false });
+  listenTouch(root, {
+    start: (_p, e) => { pressed = optionAt(e.target); },
+    move: () => {},
+    end: () => {
+      const hit = pressed;
+      pressed = undefined;
+      if (hit) actions.get(hit)?.();
+    },
+    click: (e) => {
+      e.stopPropagation();
+      const hit = optionAt(e.target);
+      if (hit) actions.get(hit)?.();
+    },
+  }, { guard });
   root.addEventListener('mouseover', (e) => setHover(optionAt(e.target)));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
-  root.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (guard.ghost()) return;
-    const hit = optionAt(e.target);
-    if (hit) actions.get(hit)?.();
-  });
 
   shadow.append(style, root);
   return {

@@ -3,7 +3,8 @@
 // should go; drag your keyboards to reorder them, and out of the list (or ✕) to remove them. The last
 // one stays. A gap opens where a dragged keyboard will land.
 
-import { SLOP_PX } from '../core/interaction.js';
+import { SLOP_PX, type TouchGuard } from '../core/interaction.js';
+import { listenTouch, type TouchPoint } from './gesture.js';
 import { ICONS, type IconName } from './icons.js';
 
 /** An icon inside a line of text, at the text's size (the icons draw at 1em). */
@@ -79,6 +80,8 @@ export const buildKeyboardsPage = (
   info: KeyboardsInfo,
   { onLanguage, onKeyboards }: KeyboardsHandlers,
   actions: Map<HTMLElement, () => void>,
+  /** Settings' touch guard: a claimed drag marks it too, so its copied click is dropped. */
+  guard?: TouchGuard,
 ): HTMLElement => {
   const el = (cls: string, text = ''): HTMLElement => Object.assign(doc.createElement('div'), { className: cls, textContent: text });
   const icon = (cls: string, name: IconName): HTMLElement => Object.assign(el(cls), { innerHTML: ICONS[name] });
@@ -137,7 +140,6 @@ export const buildKeyboardsPage = (
   let start: { x: number; y: number; drag: Drag } | null = null;
   let ghost: HTMLElement | null = null;
   const ph = el('ph');
-  const point = (e: Event) => (e as TouchEvent).changedTouches?.[0];
   const overList = (x: number, y: number): boolean => {
     const r = mine.col.getBoundingClientRect();
     return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -156,23 +158,31 @@ export const buildKeyboardsPage = (
     start = null;
   };
 
-  root.addEventListener('touchstart', (e) => {
-    const target = e.target as Node;
-    const item = [...draggable.keys()].find((i) => i.contains(target));
-    if (!item || [...actions.keys()].some((a) => a.classList.contains('x') && a.contains(target))) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const t = point(e);
-    start = { x: t?.clientX ?? 0, y: t?.clientY ?? 0, drag: draggable.get(item)! };
-  }, { passive: false });
-  root.addEventListener('touchmove', (e) => {
+  // Only a press on a row (not its ✕) is ours: the rest goes on to settings, which handles taps.
+  listenTouch(root, {
+    start: (t, e) => {
+      const target = e.target as Node;
+      const item = [...draggable.keys()].find((i) => i.contains(target));
+      if (!item || [...actions.keys()].some((a) => a.classList.contains('x') && a.contains(target))) return false;
+      start = { x: t?.x ?? 0, y: t?.y ?? 0, drag: draggable.get(item)! };
+      return true;
+    },
+    move: (t) => {
+      if (!start) return false;
+      if (t) moveTo(t);
+      return true;
+    },
+    end: (t) => {
+      if (!start) return false;
+      release(t);
+      return true;
+    },
+    cancel: end,
+  }, guard ? { guard } : {});
+  const moveTo = (t: TouchPoint): void => {
     if (!start) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const t = point(e);
-    if (!t) return;
     if (!ghost) {
-      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < SLOP_PX.list) return;
+      if (Math.hypot(t.x - start.x, t.y - start.y) < SLOP_PX.list) return;
       const r = start.drag.source.getBoundingClientRect();
       ghost = start.drag.source.cloneNode(true) as HTMLElement;
       ghost.classList.add('ghost');
@@ -180,21 +190,18 @@ export const buildKeyboardsPage = (
       root.append(ghost);
       if (start.drag.from === 'ring') start.drag.source.classList.add('dragging');
     }
-    Object.assign(ghost.style, { left: `${t.clientX - 20}px`, top: `${t.clientY - 14}px` });
-    const inside = overList(t.clientX, t.clientY);
+    Object.assign(ghost.style, { left: `${t.x - 20}px`, top: `${t.y - 14}px` });
+    const inside = overList(t.x, t.y);
     ghost.classList.toggle('out', !inside && start.drag.from === 'ring');
     if (inside) {
       const shown = others(start.drag.id);
-      const at = indexAt(t.clientY, start.drag.id);
+      const at = indexAt(t.y, start.drag.id);
       if (shown[at]) mine.list.insertBefore(ph, shown[at]!);
       else mine.list.append(ph);
     } else ph.remove();
-  }, { passive: false });
-  root.addEventListener('touchend', (e) => {
+  };
+  const release = (t: TouchPoint | null): void => {
     if (!start) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const t = point(e);
     const { drag } = start;
     const dragged = ghost !== null;
     end();
@@ -202,9 +209,8 @@ export const buildKeyboardsPage = (
       actions.get(drag.source)?.(); // a tap
       return;
     }
-    if (t && overList(t.clientX, t.clientY)) onKeyboards(dropInto(info.ring, drag.id, indexAt(t.clientY, drag.id)));
+    if (t && overList(t.x, t.y)) onKeyboards(dropInto(info.ring, drag.id, indexAt(t.y, drag.id)));
     else if (drag.from === 'ring' && info.ring.length > 1) onKeyboards(info.ring.filter((k) => k !== drag.id));
-  }, { passive: false });
-  root.addEventListener('touchcancel', end);
+  };
   return root;
 };
