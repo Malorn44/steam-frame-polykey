@@ -515,6 +515,20 @@ describe('swipe', () => {
     vi.useRealTimers();
   });
 
+  it('a letter without alternates may rest before it swipes', () => {
+    vi.useFakeTimers();
+    const { keyIn, pressed, swipes } = swipeSetup();
+    const q = keyIn(1, 'q');
+    touch(q, 'touchstart', 60, 45);
+    for (let i = 0; i < 2100; i++) touch(q, 'touchmove', 60 + (i % 2), 45); // resting, the laser trembling
+    vi.advanceTimersByTime(HOLD_MS * 2);
+    touch(q, 'touchmove', 140, 45);
+    touch(q, 'touchend', 140, 45);
+    expect([pressed, swipes.length]).toEqual([[], 1]);
+    expect(swipes[0]!.path[0]).toEqual({ x: 60, y: 45 }); // where it started is kept
+    vi.useRealTimers();
+  });
+
   it('only letters start a swipe; Space, Backspace and digits keep their taps and repeats', () => {
     vi.useFakeTimers();
     const { keyIn, pressed, swipes } = swipeSetup();

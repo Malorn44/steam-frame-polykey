@@ -565,8 +565,8 @@ export const createView = (
       }, REPEAT_DELAY_MS);
     } else if (held) holdTimer = setTimeout(() => {
       holdTimer = null;
-      swipe = null; // held: the alternates, not a swipe
       openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
+      if (popup) swipe = null; // held for the alternates: moving now picks one (a key without may still swipe)
     }, HOLD_MS);
   };
   const onMove = (touch: TouchPoint | null): void => {
@@ -590,10 +590,12 @@ export const createView = (
     if (!swipe) return;
     swipe.at = Date.now();
     if (swipe.points.length >= SWIPE_MAX_POINTS) {
-      endSwipe(false); // stuck, not a word: it types nothing
-      if (pressed) mark(pressed, 'down', false);
-      pressed = undefined;
-      return;
+      if (swipe.on) {
+        endSwipe(false); // stuck, not a word: it types nothing
+        pressed = undefined;
+        return;
+      }
+      swipe.points.splice(1, 1); // a press resting on its key: only where it started matters
     }
     swipe.points.push(touch);
     if (swipe.on) drawTrail(touch);
