@@ -2,8 +2,6 @@
 
 /** Hold a key this long for its alternates, a toned emoji for its tones, a Recent emoji to lift it. */
 export const HOLD_MS = 400;
-/** Emoji holds, until they move to HOLD_MS. */
-export const EMOJI_HOLD_MS = 500;
 /** Held Space, Backspace, Delete and arrows repeat: first after REPEAT_DELAY_MS, then every REPEAT_MS. */
 export const REPEAT_DELAY_MS = 450;
 export const REPEAT_MS = 60;

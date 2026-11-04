@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState } from '../../src/core/emoji.js';
-import { EMOJI_HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
 import { createEmojiView } from '../../src/ui/emoji.js';
 import { bundledBoot } from '../boot.js';
 
@@ -73,7 +73,7 @@ describe('emoji picker', () => {
   it('holding a toned emoji offers its six tones; release picks one', () => {
     const { cell, calls, shadow } = setup();
     touch(cell('👋'), 'touchstart');
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect([...shadow.querySelectorAll('.alts .key')].map((c) => c.textContent)).toHaveLength(6);
     touch(cell('👋'), 'touchend');
     expect(calls.tone).toEqual(['']);
@@ -89,7 +89,7 @@ describe('emoji picker', () => {
     const { cell, calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 40);
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.ghost')).not.toBeNull();
     touch(recentCell, 'touchend', 10, 40);
     expect(shadow.querySelector('.ghost')).toBeNull();
@@ -103,13 +103,13 @@ describe('emoji picker', () => {
   it('a new press clears a tone popup or lifted emoji left over from a missed release', () => {
     const { cell, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
     touch(cell('👋'), 'touchstart');
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.alts')).not.toBeNull();
     touch(cell('😀'), 'touchstart'); // no touchend came for the first press
     expect(shadow.querySelector('.alts')).toBeNull();
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart');
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.ghost')).not.toBeNull();
     touch(cell('😀'), 'touchstart');
     expect(shadow.querySelector('.ghost')).toBeNull();
@@ -123,7 +123,7 @@ describe('emoji picker', () => {
     // 4 rows of 40 px: Recent is 6 columns (0–240), a 20 px gap, then Favorites from x = 260.
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 10);
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     touch(recentCell, 'touchmove', 270, 50); // over 🎉, the second favorite
     expect(cell('🎉').style.top).toBe('80px'); // pushed to the third place
     expect(cell('⭐').style.top).toBe('0px');
@@ -139,7 +139,7 @@ describe('emoji picker', () => {
     shadow.append(outside);
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart');
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.ghost')).not.toBeNull();
     touch(outside, 'touchend');
     expect(shadow.querySelector('.ghost')).toBeNull();
@@ -149,7 +149,7 @@ describe('emoji picker', () => {
   it('the laser moving onto the tones right after the hold does not end the pick', () => {
     const { cell, calls, view } = setup();
     touch(cell('👋'), 'touchstart', 10, 10);
-    vi.advanceTimersByTime(EMOJI_HOLD_MS); // held still: no touch moves for half a second
+    vi.advanceTimersByTime(HOLD_MS); // held still: no touch moves for the whole hold
     view.hoverAt(200, 10); // the laser heads for a tone before its touch move arrives
     expect(calls.tone).toEqual([]);
   });
@@ -160,7 +160,7 @@ describe('emoji picker', () => {
     touch(held, 'touchstart');
     view.setBounds({ top: 0, left: 0, width: 854, height: 195 });
     expect(held.isConnected).toBe(true);
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.alts')).not.toBeNull();
   });
 
@@ -178,7 +178,7 @@ describe('emoji picker', () => {
     const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 10); // a quick press whose release never arrives
-    vi.advanceTimersByTime(EMOJI_HOLD_MS); // the hold still lifts it
+    vi.advanceTimersByTime(HOLD_MS); // the hold still lifts it
     expect(shadow.querySelector('.ghost')).not.toBeNull();
     vi.advanceTimersByTime(RELEASE_LOST_MS + 1);
     view.hoverAt(10, 12); // laser barely moved: may still be held
@@ -207,7 +207,7 @@ describe('emoji picker', () => {
     const { calls, shadow } = setup({ ...NO_EMOJI_STATE, favorites: ['⭐', '🎉'] });
     const fav = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === '⭐')!;
     touch(fav, 'touchstart');
-    vi.advanceTimersByTime(EMOJI_HOLD_MS);
+    vi.advanceTimersByTime(HOLD_MS);
     touch(fav, 'touchend');
     expect(calls.favorites).toEqual([['🎉']]);
   });

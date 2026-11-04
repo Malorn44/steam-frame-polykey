@@ -7,7 +7,7 @@
 // across the whole shadow root, and ended if its release is lost. Like Full Keyboard: no haptics here.
 
 import type { Theme } from '../core/catalog.js';
-import { EMOJI_HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
 import { themeVars } from './theme.js';
@@ -409,9 +409,9 @@ export const createEmojiView = (
     clearHold();
     const held = pressed;
     if (held && (held.section === 'recent' || held.section === 'favorites')) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, EMOJI_HOLD_MS);
+      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, HOLD_MS);
     } else if (held?.toned) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, EMOJI_HOLD_MS);
+      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, HOLD_MS);
     }
   }, { passive: false });
   let last = { x: 0, y: 0 };
