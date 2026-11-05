@@ -14,13 +14,13 @@ const tap = (el: Element) => {
   touch(el, 'touchend');
 };
 
-/** Settings with the bundled themes, plus `extra` made-up ones (to fill the list past what fits). */
+/** Settings with two bundled themes (Night Owl, Steam), plus `extra` made-up ones (to fill the list past what fits). */
 const setup = (extra = 0) => {
   const boot = bundledBoot();
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const themes: SettingsInfo['themes'] = Object.values(boot.catalog.themes)
+  const themes: SettingsInfo['themes'] = ['themes/night-owl', 'themes/steam'].map((id) => boot.catalog.themes[id]!)
     .map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] }));
   for (let i = 1; i <= extra; i++) themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
   const changes: Partial<SettingsValues>[] = [];
