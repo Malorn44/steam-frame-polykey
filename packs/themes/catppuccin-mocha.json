@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/catppuccin-mocha",
+ "name": "Catppuccin Mocha",
+ "colors": {
+  "surface": "#1e1e2e",
+  "key": "#313244",
+  "keyText": "#cdd6f4",
+  "modifier": "#45475a",
+  "accent": "#cba6f7",
+  "legend": "#a6adc8",
+  "fnLegend": "#fab387",
+  "hover": "#585b70",
+  "accentText": "#1e1e2e",
+  "fnText": "#1e1e2e",
+  "divider": "#45475a"
+ }
+}
