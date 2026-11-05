@@ -1,0 +1,24 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/gruvbox-light",
+ "name": "Gruvbox Light",
+ "tone": "light",
+ "shadow": "0 2px 10px rgba(0, 0, 0, 0.22)",
+ "shadowLarge": "0 4px 14px rgba(0, 0, 0, 0.25)",
+ "colors": {
+  "surface": "#ebdbb2",
+  "key": "#fbf1c7",
+  "keyText": "#3c3836",
+  "modifier": "#d5c4a1",
+  "accent": "#af3a03",
+  "legend": "#665c54",
+  "fnLegend": "#076678",
+  "hover": "#bdae93",
+  "accentText": "#fbf1c7",
+  "fnText": "#fbf1c7",
+  "divider": "#d5c4a1",
+  "error": "#9d0006"
+ }
+}
