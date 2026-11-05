@@ -4,3 +4,4 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 
 - **Catppuccin Mocha** (`catppuccin-mocha.json`): [Catppuccin](https://github.com/catppuccin/palette), MIT, © 2021 Catppuccin.
 - **Catppuccin Latte** (`catppuccin-latte.json`): [Catppuccin](https://github.com/catppuccin/palette), MIT, © 2021 Catppuccin.
+- **Solarized Dark** (`solarized-dark.json`): [Solarized](https://github.com/altercation/solarized) by Ethan Schoonover, MIT, © 2011 Ethan Schoonover. Modifier, hover and divider are blends of base02 and base01.

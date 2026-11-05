@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/solarized-dark",
+ "name": "Solarized Dark",
+ "colors": {
+  "surface": "#002b36",
+  "key": "#073642",
+  "keyText": "#eee8d5",
+  "modifier": "#16404b",
+  "accent": "#268bd2",
+  "legend": "#93a1a1",
+  "fnLegend": "#b58900",
+  "hover": "#2b4f59",
+  "accentText": "#002b36",
+  "fnText": "#002b36",
+  "divider": "#1f4751"
+ }
+}
