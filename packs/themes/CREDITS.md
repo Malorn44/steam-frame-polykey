@@ -13,3 +13,4 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 - **Tokyo Night** (`tokyo-night.json`): [Tokyo Night](https://github.com/tokyo-night/tokyo-night-vscode-theme) by Enkia, MIT, © 2018-present Enkia. Key is the Storm editor background (#24283b) and modifier and divider Terminal Black (#414868), both from the README's palette; the Night theme's own shades sit too close to its background.
 - **Tokyo Night Light** (`tokyo-night-light.json`): [Tokyo Night](https://github.com/tokyo-night/tokyo-night-vscode-theme) by Enkia, MIT, © 2018-present Enkia. Hover is a blend of the UI grey #c1c2c7 and the foreground.
 - **Rosé Pine** (`rose-pine.json`): [Rosé Pine](https://github.com/rose-pine/rose-pine-palette), MIT, © mvllow. Errors are love, as Fn is foam.
+- **Rosé Pine Dawn** (`rose-pine-dawn.json`): [Rosé Pine](https://github.com/rose-pine/rose-pine-palette), MIT, © mvllow.

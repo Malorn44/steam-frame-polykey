@@ -1,0 +1,23 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/rose-pine-dawn",
+ "name": "Rosé Pine Dawn",
+ "tone": "light",
+ "shadow": "0 2px 10px rgba(0, 0, 0, 0.22)",
+ "shadowLarge": "0 4px 14px rgba(0, 0, 0, 0.25)",
+ "colors": {
+  "surface": "#f2e9e1",
+  "key": "#fffaf3",
+  "keyText": "#464261",
+  "modifier": "#dfdad9",
+  "accent": "#286983",
+  "legend": "#797593",
+  "fnLegend": "#b4637a",
+  "hover": "#cecacd",
+  "accentText": "#fffaf3",
+  "fnText": "#fffaf3",
+  "divider": "#cecacd"
+ }
+}
