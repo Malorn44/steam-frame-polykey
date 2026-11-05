@@ -118,6 +118,8 @@ export interface ThemeColors {
   accentText?: string;
   /** Text on the Fn colour (Fn locked); default surface. */
   fnText?: string;
+  /** Errors (a failed dictation, a pack that did not load); default the Fn colour. */
+  error?: string;
   /** Hairlines between candidates, sections; default modifier. */
   divider?: string;
   /** The outline of an armed modifier, a hovered setting, a selected item; default accent. */

@@ -55,7 +55,7 @@ export const DICTATION_CSS = `
 .dm .item .speed { display: flex; justify-content: center; color: var(--text); font-size: var(--ui-small); }
 .dm .item .mark { justify-self: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dm .item.sel .mark, .dm .item.added .mark { color: var(--accent); }
-.dm .item .mark.fail { color: var(--fn); }
+.dm .item .mark.fail { color: var(--error); }
 .dm .ic.i, .dm .item .x { width: 20px; height: 22px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius); color: var(--legend); font-size: var(--ui-control); }
 .dm .item .x { width: 22px; }

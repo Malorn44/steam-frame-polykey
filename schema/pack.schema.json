@@ -893,6 +893,10 @@
               "$ref": "#/$defs/color",
               "description": "Text on the Fn colour (Fn locked); default surface."
             },
+            "error": {
+              "$ref": "#/$defs/color",
+              "description": "Errors (a failed dictation, a pack that did not load); default fnLegend."
+            },
             "divider": {
               "$ref": "#/$defs/color",
               "description": "Hairlines between candidates and sections; default modifier."

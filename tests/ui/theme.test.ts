@@ -6,7 +6,7 @@ describe('themeVars', () => {
     const vars = themeVars({ id: 't/x', name: 'X', colors: { surface: '#000001', key: '#000002', keyText: '#000003', modifier: '#000004', accent: '#000005' } });
     expect(vars).toContain('--surface:#000001;--key:#000002;--text:#000003;--mod:#000004;--accent:#000005;'
       + '--legend:#000003;--fn:#000005;--hover:#000004;');
-    expect(vars).toContain('--accent-text:#000001;--fn-text:#000001;--divider:#000004;--ring:#000005;--indicator:#000005;');
+    expect(vars).toContain('--accent-text:#000001;--fn-text:#000001;--error:#000005;--divider:#000004;--ring:#000005;--indicator:#000005;');
     expect(vars).toContain('--pressed:brightness(1.5);--raised:rgba(255, 255, 255, 0.1);');
     expect(vars).toContain('--radius:6px;--radius-sm:3px;--radius-pill:13px;');
   });

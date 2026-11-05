@@ -89,7 +89,7 @@ const CSS = `
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
 .about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
-.about .err { color: var(--fn); }
+.about .err { color: var(--error); }
 `;
 
 export interface SettingsView {

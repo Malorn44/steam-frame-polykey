@@ -33,6 +33,7 @@ export const themeVars = (theme: Theme): string => {
     '--hover': c.hover ?? c.modifier,
     '--accent-text': c.accentText ?? c.surface,
     '--fn-text': c.fnText ?? c.surface,
+    '--error': c.error ?? c.fnLegend ?? c.accent,
     '--divider': c.divider ?? c.modifier,
     '--ring': c.ring ?? c.accent,
     '--indicator': c.indicator ?? c.accent,
