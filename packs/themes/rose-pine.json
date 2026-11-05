@@ -1,0 +1,21 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/rose-pine",
+ "name": "Rosé Pine",
+ "colors": {
+  "surface": "#191724",
+  "key": "#26233a",
+  "keyText": "#e0def4",
+  "modifier": "#403d52",
+  "accent": "#ebbcba",
+  "legend": "#908caa",
+  "fnLegend": "#9ccfd8",
+  "hover": "#524f67",
+  "accentText": "#191724",
+  "fnText": "#191724",
+  "divider": "#403d52",
+  "error": "#eb6f92"
+ }
+}
