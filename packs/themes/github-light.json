@@ -1,0 +1,23 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/github-light",
+ "name": "GitHub Light",
+ "tone": "light",
+ "shadow": "0 0 0 1px #d1d9e080, 0 6px 12px -3px #25292e0a, 0 6px 18px 0 #25292e1f",
+ "shadowLarge": "0 4px 14px rgba(0, 0, 0, 0.25)",
+ "colors": {
+  "surface": "#e6eaef",
+  "key": "#ffffff",
+  "keyText": "#1f2328",
+  "modifier": "#dae0e7",
+  "accent": "#0969da",
+  "legend": "#59636e",
+  "fnLegend": "#bc4c00",
+  "hover": "#c8d1da",
+  "accentText": "#ffffff",
+  "fnText": "#ffffff",
+  "divider": "#c8d1da"
+ }
+}
