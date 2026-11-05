@@ -15,7 +15,7 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"], "theme": "themes/steam", "haptics": True, "suggestions": True,
+DEFAULT_SETTINGS = {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True,
                     "dictation": False, "dictationModels": {}, "dictationContinuous": False}
 # The model dictation uses per language (settings.json "dictationModels": {language: model id}).
 DICTATION_LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
