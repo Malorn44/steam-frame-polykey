@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/tokyo-night",
+ "name": "Tokyo Night",
+ "colors": {
+  "surface": "#1a1b26",
+  "key": "#24283b",
+  "keyText": "#c0caf5",
+  "modifier": "#414868",
+  "accent": "#7aa2f7",
+  "legend": "#9aa5ce",
+  "fnLegend": "#ff9e64",
+  "hover": "#3d59a1",
+  "accentText": "#1a1b26",
+  "fnText": "#1a1b26",
+  "divider": "#414868"
+ }
+}
