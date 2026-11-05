@@ -4,8 +4,12 @@
 // one stays. A gap opens where a dragged keyboard will land.
 
 import { SLOP_PX, type TouchGuard } from '../core/interaction.js';
-import { listenTouch, type TouchPoint } from './gesture.js';
+import { dragScroll, listenTouch, type DragScroll, type TouchPoint } from './gesture.js';
 import { ICONS, type IconName } from './icons.js';
+
+/** How near your list's top or bottom edge a dragged keyboard scrolls it, and how far each move. */
+const EDGE_PX = 20;
+const EDGE_STEP_PX = 6;
 
 /** An icon inside a line of text, at the text's size (the icons draw at 1em). */
 export const inlineIcon = (doc: Document, name: IconName): HTMLElement =>
@@ -29,7 +33,7 @@ export const KEYBOARDS_CSS = `
 .kbs { flex: 1; display: flex; gap: 10px; min-height: 0; }
 .kbs .col.langs { flex: 0 0 22%; }
 .kbs .col.lays { flex: 0 0 34%; }
-.kbs .list { flex: 1; display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow: hidden; }
+.kbs .list { flex: 1; display: flex; flex-direction: column; gap: 3px; min-height: 0; }
 .item { display: flex; align-items: center; gap: 6px; height: var(--row-height); flex: none; padding: 0 8px; box-sizing: border-box;
   background: var(--mod); border-radius: var(--radius); font-size: var(--ui-control); white-space: nowrap; overflow: hidden; }
 .item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -60,11 +64,11 @@ export const languageName = (code: string): string => {
   }
 };
 
-/** A column of a settings page, appended to `root`: its heading, then its list. */
+/** A column of a settings page, appended to `root`: its heading, then its list, which scrolls (.scroll in settings). */
 export const pageColumn = (root: HTMLElement, cls: string, heading: string | (string | Node)[]): { col: HTMLElement; list: HTMLElement } => {
   const div = (className: string): HTMLElement => Object.assign(root.ownerDocument.createElement('div'), { className });
   const col = div(`col ${cls}`);
-  const list = div('list');
+  const list = div('list scroll');
   const sect = div('sect');
   sect.append(...(typeof heading === 'string' ? [heading] : heading));
   col.append(sect, list);
@@ -140,7 +144,8 @@ export const buildKeyboardsPage = (
   });
 
   // Dragging: a ghost follows the touch; over your list a gap shows where it will land.
-  let start: { x: number; y: number; drag: Drag } | null = null;
+  /** A press on a row; `scroll` once it turned out to drag the layouts' list instead. */
+  let start: { x: number; y: number; drag: Drag; scroll?: DragScroll } | null = null;
   let ghost: HTMLElement | null = null;
   const ph = el('ph');
   const overList = (x: number, y: number): boolean => {
@@ -184,8 +189,19 @@ export const buildKeyboardsPage = (
   }, guard ? { guard } : {});
   const moveTo = (t: TouchPoint): void => {
     if (!start) return;
+    if (start.scroll) {
+      start.scroll.move(t);
+      return;
+    }
     if (!ghost) {
-      if (Math.hypot(t.x - start.x, t.y - start.y) < SLOP_PX.list) return;
+      const [dx, dy] = [t.x - start.x, t.y - start.y];
+      if (Math.hypot(dx, dy) < SLOP_PX.list) return;
+      // A layout only ever goes right, into your list: up or down, a list too long to show scrolls instead.
+      if (start.drag.from === 'layout' && Math.abs(dy) > Math.abs(dx) && lays.list.scrollHeight > lays.list.clientHeight) {
+        start.scroll = dragScroll(lays.list, start, 'y', 0);
+        start.scroll.move(t);
+        return;
+      }
       const r = start.drag.source.getBoundingClientRect();
       ghost = start.drag.source.cloneNode(true) as HTMLElement;
       ghost.classList.add('ghost');
@@ -197,6 +213,9 @@ export const buildKeyboardsPage = (
     const inside = overList(t.x, t.y);
     ghost.classList.toggle('out', !inside && start.drag.from === 'ring');
     if (inside) {
+      // Held near your list's top or bottom edge, it scrolls to show more of itself.
+      const r = mine.list.getBoundingClientRect();
+      mine.list.scrollTop += t.y < r.top + EDGE_PX ? -EDGE_STEP_PX : t.y > r.bottom - EDGE_PX ? EDGE_STEP_PX : 0;
       const shown = others(start.drag.id);
       const at = indexAt(t.y, start.drag.id);
       if (shown[at]) mine.list.insertBefore(ph, shown[at]!);
@@ -205,8 +224,12 @@ export const buildKeyboardsPage = (
   };
   const release = (t: TouchPoint | null): void => {
     if (!start) return;
-    const { drag } = start;
+    const { drag, scroll } = start;
     const dragged = ghost !== null;
+    if (scroll) {
+      end(); // a scroll is never a tap
+      return;
+    }
     end();
     if (!dragged) {
       actions.get(drag.source)?.(); // a tap

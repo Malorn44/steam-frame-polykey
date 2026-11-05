@@ -2,16 +2,14 @@
 // or the downloaded ones, in the middle, and the switches and the engine on the right. Tap a model to use
 // it for the language, downloading it first if needed; ✕ deletes it (or stops its download); ⓘ (hovered
 // with the laser, or tapped) shows its details and licence. The keyboard's language picks among the
-// downloaded models when dictating (core/dictation.ts, modelFor). The lists scroll with no bars and drag
-// like the candidate list. settings.ts lends its row, option and switch builders and handles taps and
+// downloaded models when dictating (core/dictation.ts, modelFor). The columns scroll like every settings
+// list (.scroll). settings.ts lends its row, option and switch builders and handles taps and
 // laser hover through `actions`.
 
 import {
   ANY_LANGUAGE, gradeFor, modelFor, serves, speedBars,
   type FileState, type SpeechCatalog, type SpeechModel, type SpeechStatus,
 } from '../core/dictation.js';
-import { SLOP_PX } from '../core/interaction.js';
-import { dragScroll, listenTouch, type DragScroll } from './gesture.js';
 import { ICONS, INFO_ICON, signalBars } from './icons.js';
 import { languageName, pageColumn } from './keyboards-page.js';
 
@@ -40,8 +38,6 @@ export interface DictationHandlers {
 export const DICTATION_CSS = `
 .dm .col.langs { flex: 0 0 19%; }
 .dm .col.models { flex: 0 0 47%; }
-.dm .list { overflow-y: auto; scrollbar-width: none; }
-.dm .list::-webkit-scrollbar { display: none; }
 .dm .models .item, .dm .colhead { display: grid; grid-template-columns: minmax(0, 1fr) 28px 40px 70px 20px 22px; gap: 4px;
   position: relative; padding-right: 2px; }
 .dm .models.dl .item, .dm .models.dl .colhead { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) 70px 20px 22px; }
@@ -73,7 +69,7 @@ export const DICTATION_CSS = `
   .dm .dlbar i { transition: none; }
   .dm .dlbar.wait i { animation: none; width: 100%; opacity: 0.5; }
 }
-.dm .col.speech { gap: 2px; }
+.dm .speech .list { gap: 2px; }
 .dm .row.engine { position: relative; }
 .dm .note, .dm-off .note { color: var(--legend); font-size: var(--ui-small); }
 .dm .row .note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -343,36 +339,8 @@ export const buildDictationPage = (
     else if (!current) list.list.append(el('note detail', `No ${languageName(language)} model downloaded yet: tap one.`));
   }
 
-  // Drag-scrolling the lists, as the candidate list drags; a press that stays within the slop is a tap.
-  let drag: { scroll: DragScroll; target: EventTarget | null } | null = null;
-  const actionAt = (target: EventTarget | null): HTMLElement | undefined =>
-    [...actions.keys()].find((a) => a === target || a.contains(target as Node));
-  listenTouch(root, {
-    start: (p, e) => {
-      const scroller = [langs.list, list.list].find((l) => l.contains(e.target as Node));
-      if (!scroller || !p) return false;
-      drag = { scroll: dragScroll(scroller, p, 'y', SLOP_PX.list), target: e.target };
-      return true;
-    },
-    move: (p) => {
-      if (!drag) return false;
-      if (p) drag.scroll.move(p);
-      return true;
-    },
-    end: () => {
-      if (!drag) return false;
-      const { scroll, target } = drag;
-      drag = null;
-      const hit = scroll.moved ? undefined : actionAt(target);
-      if (hit) actions.get(hit)?.();
-      return true;
-    },
-    cancel: () => { drag = null; },
-  });
-
   // The switches, the engine (with its credit), and where dictated Japanese goes.
   const about = column('speech', 'Dictation');
-  about.list.remove();
   const engineNote = el('note');
   const retry = option('Download', false, () => handlers.onDownload(), ' dl');
   const engineRow = row('Engine', engineNote, retry, infoIcon('Speech engine', () => [
@@ -388,7 +356,7 @@ export const buildDictationPage = (
     engineBar(next?.engine);
   };
   showEngine(status);
-  about.col.append(dictationSwitch, continuousSwitch, el('note detail', 'Pauses type what you said. Tap the mic to stop.'),
+  about.list.append(dictationSwitch, continuousSwitch, el('note detail', 'Pauses type what you said. Tap the mic to stop.'),
     engineRow);
 
   let built = shape(status);

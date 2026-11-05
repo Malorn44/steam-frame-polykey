@@ -6,13 +6,13 @@
 // skips it).
 
 import type { Theme } from '../core/catalog.js';
-import { touchGuard } from '../core/interaction.js';
-import { listenTouch } from './gesture.js';
+import { SLOP_PX, touchGuard } from '../core/interaction.js';
+import { dragScroll, listenTouch, type DragScroll } from './gesture.js';
 import { ICONS } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
-import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
+import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
 import type { SpeechStatus } from '../core/dictation.js';
 
@@ -61,6 +61,12 @@ const CSS = `
 .head .tab.on { background: var(--accent); color: var(--accent-text); }
 .cols { flex: 1; display: flex; gap: 14px; min-height: 0; }
 .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.col > .list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+.col > .list > * { flex: none; }
+/* Whatever can outgrow its place scrolls the same way on every tab: natively, with no bars, and dragged
+   with a finger or the trigger (the panel's dragScroll). */
+.scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
 .sect { font-size: var(--ui-caption); font-weight: 600; letter-spacing: 0.04em; color: var(--legend);
   border-bottom: 1px solid var(--divider); padding-bottom: 3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
 .none { color: var(--legend); font-size: var(--ui-small); padding-top: 4px; }
@@ -170,26 +176,18 @@ export const createSettingsView = (
     el.classList.add('sw');
     return el;
   };
-  const column = (heading: string, ...rows: HTMLElement[]): HTMLElement => {
-    const el = doc.createElement('div');
-    el.className = 'col';
-    el.append(Object.assign(doc.createElement('div'), { className: 'sect', textContent: heading }), ...rows);
-    return el;
-  };
   const themes = buildThemePicker(doc, info.themes, values.theme, (theme) => onChange({ theme }), actions);
   const cols = doc.createElement('div');
   cols.className = 'cols';
-  cols.append(
-    column('General',
-      row('Theme', themes.el),
-      onOff('Haptics', 'haptics'),
-      ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : [])),
-    column(info.keyboardName,
-      ...(info.options.length
-        ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
-          option(o.on, o.value, () => onOption(o.id, true)))))
-        : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })])),
-  );
+  pageColumn(cols, 'general', 'General').list.append(
+    row('Theme', themes.el),
+    onOff('Haptics', 'haptics'),
+    ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []));
+  pageColumn(cols, 'options', info.keyboardName).list.append(
+    ...(info.options.length
+      ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
+        option(o.on, o.value, () => onOption(o.id, true)))))
+      : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })]));
   let dictationPage: DictationPage | undefined;
   if (info.tab === 'keyboards') {
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
@@ -219,19 +217,32 @@ export const createSettingsView = (
     dictationPage?.hover(el); // its ⓘ show their details while hovered
     return true;
   };
+  /** The list a press drags: the innermost .scroll that overflows, else the innermost (nothing to move). */
+  const scrollerAt = (target: EventTarget | null): HTMLElement | undefined => {
+    const lists: HTMLElement[] = [];
+    for (let n = target as HTMLElement | null; n && n !== root; n = n.parentElement) if (n.classList?.contains('scroll')) lists.push(n);
+    return lists.find((l) => l.scrollHeight > l.clientHeight) ?? lists[0];
+  };
   let pressed: HTMLElement | undefined;
+  let drag: DragScroll | undefined;
   listenTouch(root, {
     start: (p, e) => {
       pressed = optionAt(e.target);
-      themes.start(p, e.target);
+      const list = p ? scrollerAt(e.target) : undefined;
+      drag = list && p ? dragScroll(list, p, 'y', SLOP_PX.list) : undefined;
+      themes.start(e.target);
     },
-    move: (p) => { themes.move(p); },
+    move: (p) => { if (p) drag?.move(p); },
     end: () => {
       const hit = pressed;
+      const scrolled = drag?.moved ?? false;
       pressed = undefined;
-      if (themes.end()) return; // the theme list scrolled, or closed
+      drag = undefined;
+      if (scrolled) return; // a drag past the slop scrolls and never taps
+      if (themes.end()) return; // a tap outside the open theme list closed it
       if (hit) actions.get(hit)?.();
     },
+    cancel: () => { pressed = undefined; drag = undefined; },
     click: (e) => {
       e.stopPropagation();
       if (themes.end(e.target)) return;
