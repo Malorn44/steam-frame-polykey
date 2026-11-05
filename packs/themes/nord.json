@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/nord",
+ "name": "Nord",
+ "colors": {
+  "surface": "#2e3440",
+  "key": "#3b4252",
+  "keyText": "#eceff4",
+  "modifier": "#434c5e",
+  "accent": "#88c0d0",
+  "legend": "#d8dee9",
+  "fnLegend": "#ebcb8b",
+  "hover": "#4c566a",
+  "accentText": "#2e3440",
+  "fnText": "#2e3440",
+  "divider": "#434c5e"
+ }
+}
