@@ -1,0 +1,21 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/gruvbox-dark",
+ "name": "Gruvbox Dark",
+ "colors": {
+  "surface": "#282828",
+  "key": "#3c3836",
+  "keyText": "#ebdbb2",
+  "modifier": "#504945",
+  "accent": "#fe8019",
+  "legend": "#bdae93",
+  "fnLegend": "#8ec07c",
+  "hover": "#665c54",
+  "accentText": "#282828",
+  "fnText": "#282828",
+  "divider": "#504945",
+  "error": "#fb4934"
+ }
+}
