@@ -16,3 +16,4 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 - **Rosé Pine Dawn** (`rose-pine-dawn.json`): [Rosé Pine](https://github.com/rose-pine/rose-pine-palette), MIT, © mvllow.
 - **GitHub Light** (`github-light.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (light), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
 - **GitHub Dark** (`github-dark.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (dark), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
+- **Dracula** (`dracula.json`): [Dracula](https://github.com/dracula/dracula-theme) by Zeno Rocha, with the UI shades of [Dracula for VS Code](https://github.com/dracula/visual-studio-code), MIT, © 2016 Dracula Theme. The legend grey (#c0c4d6) is our own, between FG and Comment: Dracula has no grey that reads as a small legend.

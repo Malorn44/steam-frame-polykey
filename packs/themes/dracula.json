@@ -1,0 +1,20 @@
+{
+ "$schema": "../../schema/pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "theme",
+ "id": "themes/dracula",
+ "name": "Dracula",
+ "colors": {
+  "surface": "#282a36",
+  "key": "#343746",
+  "keyText": "#f8f8f2",
+  "modifier": "#44475a",
+  "accent": "#bd93f9",
+  "legend": "#c0c4d6",
+  "fnLegend": "#ffb86c",
+  "hover": "#6272a4",
+  "accentText": "#282a36",
+  "fnText": "#282a36",
+  "divider": "#44475a"
+ }
+}
