@@ -9,3 +9,4 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 - **Gruvbox Dark** (`gruvbox-dark.json`): [gruvbox](https://github.com/morhetz/gruvbox) by Pavel Pertsev (morhetz), MIT/X11. Errors are bright_red, as Fn is aqua.
 - **Gruvbox Light** (`gruvbox-light.json`): [gruvbox](https://github.com/morhetz/gruvbox) by Pavel Pertsev (morhetz), MIT/X11. Errors are faded_red, as Fn is blue.
 - **Nord** (`nord.json`): [Nord](https://github.com/nordtheme/nord) by Sven Greb, MIT, © 2016-present Sven Greb.
+- **Nord Light** (`nord-light.json`): [Nord](https://github.com/nordtheme/nord) by Sven Greb, MIT, © 2016-present Sven Greb; Nord's "bright ambiance" use of the palette (Snow Storm surfaces, Polar Night text). Modifier, hover and divider are blends of nord4 and nord3.
