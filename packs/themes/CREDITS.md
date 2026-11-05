@@ -1,6 +1,6 @@
 # Theme credits
 
-The bundled themes after editor colour schemes: upstream, licence and copyright. Colours are taken from each project's published palette; any blend or pick of our own is noted. Shadows are ours unless noted, since no palette defines them.
+The bundled themes: upstream, licence and copyright. Colours are taken from each project's published palette; any blend or pick of our own is noted. Shadows are ours unless noted, since no palette defines them.
 
 - **Catppuccin Mocha** (`catppuccin-mocha.json`): [Catppuccin](https://github.com/catppuccin/palette), MIT, © 2021 Catppuccin.
 - **Catppuccin Latte** (`catppuccin-latte.json`): [Catppuccin](https://github.com/catppuccin/palette), MIT, © 2021 Catppuccin.
@@ -17,3 +17,5 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 - **GitHub Light** (`github-light.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (light), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
 - **GitHub Dark** (`github-dark.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (dark), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
 - **Dracula** (`dracula.json`): [Dracula](https://github.com/dracula/dracula-theme) by Zeno Rocha, with the UI shades of [Dracula for VS Code](https://github.com/dracula/visual-studio-code), MIT, © 2016 Dracula Theme. The legend grey (#c0c4d6) is our own, between FG and Comment: Dracula has no grey that reads as a small legend.
+- **Night Owl** (`night-owl.json`): [Night Owl](https://github.com/sdras/night-owl-vscode-theme) by Sarah Drasner, MIT, © 2018 Sarah Drasner.
+- **Steam** (`steam.json`): Steam's own colours. Surface, keys, letters and modifiers are read from Steam's keyboard while it runs; the colours in the file are the fallbacks, and those and the legend, hover and accent come from the Steam client's UI stylesheet. Fn shares the accent, as Steam's UI has no second accent colour.

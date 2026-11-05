@@ -114,3 +114,4 @@ contrib/        polykey.service
 - The romaji table is Mozc's `romanji-hiragana.tsv` (BSD-3-Clause, `packs/ja/LICENSE.mozc`).
 - The English word list comes from AOSP (Apache-2.0, `packs/en/LICENSE.words`).
 - Emoji data comes from Unicode's `emoji-test.txt` (Unicode License v3, `packs/emoji/LICENSE.unicode`).
+- The themes follow editor colour schemes (Catppuccin, Solarized, gruvbox, Nord, Tokyo Night, Rosé Pine, GitHub Primer, Dracula, Night Owl), all MIT; each one's source and any colour of our own is in [`packs/themes/CREDITS.md`](packs/themes/CREDITS.md).
