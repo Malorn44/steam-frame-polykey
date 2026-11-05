@@ -15,3 +15,4 @@ The bundled themes after editor colour schemes: upstream, licence and copyright.
 - **Rosé Pine** (`rose-pine.json`): [Rosé Pine](https://github.com/rose-pine/rose-pine-palette), MIT, © mvllow. Errors are love, as Fn is foam.
 - **Rosé Pine Dawn** (`rose-pine-dawn.json`): [Rosé Pine](https://github.com/rose-pine/rose-pine-palette), MIT, © mvllow.
 - **GitHub Light** (`github-light.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (light), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
+- **GitHub Dark** (`github-dark.json`): GitHub's [Primer primitives](https://github.com/primer/primitives) (dark), MIT, © 2018 GitHub Inc. The shadow is Primer's shadow-floating-small.
