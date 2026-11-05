@@ -11,7 +11,9 @@
   "keyText": "#d6deeb",
   "modifier": "#1d3b53",
   "accent": "#f78c6c",
-  "legend": "#7f8c98",
-  "hover": "#234d70"
+  "legend": "#89a4bb",
+  "fnLegend": "#c792ea",
+  "hover": "#234d70",
+  "error": "#ef5350"
  }
 }
