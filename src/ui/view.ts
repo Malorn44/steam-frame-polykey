@@ -52,7 +52,7 @@ const CSS = `
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 .bar { height: var(--bar-height); display: flex; flex: none; }
 .bar .key { flex: none; width: 30px; font-size: var(--size-bar-key); }
-.bar .key[data-k="hide"] { width: 24px; }
+.bar .key[data-k="hide"] { width: 48px; font-size: calc(var(--size-bar-key) * 1.2); } /* a wide icon, and an easy target */
 .cands { flex: 1; display: flex; min-width: 0; margin: 0 4px; }
 /* Suggestions: text on the bar, not keys; thin dividers; the best (middle) in the accent colour. */
 .sugg { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6px;

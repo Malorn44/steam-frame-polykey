@@ -1,6 +1,7 @@
-// Key icons as SVG. Settings, emoji, mic, copy, cut, paste, close, backspace, the Frame mark and the
-// Shift arrow are ported from TaiKeid's Steam Frame Full Keyboard (MIT, src/panel.cpp draw_icon);
-// the globe and Caps are ours. 24-unit boxes centred on 0, stroked like the original (1.8, round).
+// Key icons as SVG. Settings, emoji, mic, copy, cut, paste, close (✕), backspace, the Frame mark and
+// the Shift arrow are ported from TaiKeid's Steam Frame Full Keyboard (MIT, src/panel.cpp draw_icon);
+// the globe, Caps, hide (after Steam's hide key) and back are ours. 24-unit boxes centred on 0, stroked
+// like the original (1.8, round).
 
 /** One stroke for every icon, 1.8 unless a theme sets --icon-stroke (look decision d). */
 const svg = (body: string, strokeWidth = 1.8): string =>
@@ -17,7 +18,18 @@ export const ICONS = {
   copy: svg('<rect x="-3" y="-3" width="13" height="14" rx="2"/><path d="M4 -6 V-9 H-10 V5 H-6"/>'),
   cut: svg('<circle cx="-5.5" cy="7.5" r="3.5"/><circle cx="5.5" cy="7.5" r="3.5"/><path d="M-3.5 4.5 L6 -10 M3.5 4.5 L-6 -10"/>'),
   paste: svg('<path d="M-5 -8 H-9 V11 H9 V-8 H5"/><rect x="-5" y="-11" width="10" height="6" rx="2"/><path d="M-4 0 H4 M-4 5 H2"/>'),
-  hide: svg('<path d="M-7 -7 L7 7 M7 -7 L-7 7"/>'),
+  // Hide the keyboard: a keyboard with a filled arrow under it, after Steam's own hide key (our own
+  // drawing, filled like Steam's).
+  hide: '<svg viewBox="-12 -12 24 24" width="1em" height="1em" fill="currentColor"><path fill-rule="evenodd" d="'
+    + 'M-10.5 -8.6h21a1 1 0 0 1 1 1v10.6a1 1 0 0 1 -1 1h-21a1 1 0 0 1 -1 -1v-10.6a1 1 0 0 1 1 -1z' // the keyboard
+    + 'M-8.75 -6.6h2v2h-2zM-5.65 -6.6h2v2h-2zM-2.55 -6.6h2v2h-2zM0.55 -6.6h2v2h-2zM3.65 -6.6h2v2h-2zM6.75 -6.6h2v2h-2z'
+    + 'M-8.75 -3.6h2v2h-2zM-5.65 -3.6h2v2h-2zM-2.55 -3.6h2v2h-2zM0.55 -3.6h2v2h-2zM3.65 -3.6h2v2h-2zM6.75 -3.6h2v2h-2z'
+    + 'M-8.75 -0.6h2v2h-2zM6.75 -0.6h2v2h-2zM-5.65 -0.6h11.3v2h-11.3z' // its keys, cut out
+    + 'M-3.6 6.4H3.6L0 10z"/></svg>', // the arrow
+  /** ✕: remove or delete something (a keyboard from your list, a model). */
+  close: svg('<path d="M-7 -7 L7 7 M7 -7 L-7 7"/>'),
+  /** Back out of settings to the keys. */
+  back: svg('<path d="M4 -8 L-4 0 L4 8"/>'),
   menu: svg('<path d="M-8 -6 H8 M-8 0 H8 M-8 6 H8"/>'),
   // Emoji picker tabs and the Recent bin, ported from Full Keyboard (MIT, src/panel.cpp draw_icon).
   recent: svg('<circle r="10"/><path d="M0 0 V-6 M0 0 L4.5 2.5"/>'),

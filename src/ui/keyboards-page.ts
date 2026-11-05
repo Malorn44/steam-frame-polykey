@@ -134,7 +134,7 @@ export const buildKeyboardsPage = (
   const mine = column('mine', ['Your keyboards (', inlineIcon(doc, 'globe'), ' order)']);
   const ringItems = info.ring.map((id) => {
     const item = el('item');
-    const x = icon('x', 'hide');
+    const x = icon('x', 'close');
     item.append(icon('grip', 'menu'), el('nm', nameOf.get(id) ?? id), x);
     if (info.ring.length > 1) actions.set(x, () => onKeyboards(info.ring.filter((k) => k !== id)));
     else x.style.visibility = 'hidden'; // the last one stays

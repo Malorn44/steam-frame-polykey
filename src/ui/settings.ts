@@ -76,8 +76,8 @@ const CSS = `
   box-sizing: border-box; background: var(--mod); border-radius: var(--radius); font-size: var(--ui-control); line-height: 1.1;
   text-align: center; }
 .head .opt { flex: none; }
-.opt.close { min-width: 32px; width: 32px; padding: 0; }
-.opt.stock { margin-right: 6px; font-size: var(--ui-small); }
+.opt.close { min-width: 32px; width: 32px; padding: 0; margin-right: 10px; }
+.opt.stock { font-size: var(--ui-small); }
 .opt.on { background: var(--accent); color: var(--accent-text); }
 .opt.hover { box-shadow: inset 0 0 0 2px var(--ring); }
 /* A switch (Gboard's style settings): the statement on the left, the switch at the right. */
@@ -139,11 +139,12 @@ export const createSettingsView = (
   const title = doc.createElement('div');
   title.className = 'title';
   head.append(
+    option(ICONS.back, false, onClose, ' close'),
     option('Settings', info.tab === 'general', () => onTab('general'), ' tab'),
     option('Keyboards', info.tab === 'keyboards', () => onTab('keyboards'), ' tab'),
     option('Dictation', info.tab === 'dictation', () => onTab('dictation'), ' tab'),
     title,
-    option('Steam keyboard', false, onStock, ' stock'), option(ICONS.hide, false, onClose, ' close'));
+    option('Steam keyboard', false, onStock, ' stock'));
 
   /** A general on/off setting as a switch. */
   const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous'): HTMLElement => {
@@ -191,7 +192,7 @@ export const createSettingsView = (
   let dictationPage: DictationPage | undefined;
   if (info.tab === 'keyboards') {
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
-    hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'hide'), ' to remove · hold ',
+    hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'close'), ' to remove · hold ',
       inlineIcon(doc, 'globe'), ' to jump to one');
     root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions, guard), hint);
   } else if (info.tab === 'dictation' && info.dictation) {

@@ -274,7 +274,7 @@ export const buildDictationPage = (
   const updates = new Map<string, (state: FileState | undefined) => void>();
   /** A row's ✕ (delete, or stop the download), or an empty cell; set before the row, so a tap on it is its own. */
   const deleteCell = (model: SpeechModel, state: FileState | undefined): HTMLElement => {
-    const x = state?.state === 'ready' || state?.state === 'downloading' ? Object.assign(el('x'), { innerHTML: ICONS.hide }) : el('x');
+    const x = state?.state === 'ready' || state?.state === 'downloading' ? Object.assign(el('x'), { innerHTML: ICONS.close }) : el('x');
     if (x.innerHTML) actions.set(x, () => handlers.onDelete(model.id));
     return x;
   };
