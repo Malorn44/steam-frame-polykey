@@ -32,7 +32,7 @@ npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, v
 
 ## Deploy to the Frame
 
-This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. Releases installed beside it stay in `versions/<version>/`; `python3 -I -B ~/.local/share/polykey/current/sidecar/run.py rollback` goes back to the newest one.
+This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `python3 -I -B ~/.local/share/polykey/current/sidecar/run.py rollback` goes back to the newest one.
 
 ```sh
 scripts/deploy.sh            # build, copy, restart the service, follow the log

@@ -129,7 +129,7 @@ def test_forwards_only_new_polykey_console_lines(tmp_path):
     async def main():
         fake = await FakeSteam().start()
         out = io.StringIO()
-        stop, task = await start_service(fast_config(fake, tmp_path), Log(out))
+        stop, task = await start_service(fast_config(fake, tmp_path, forward_console=True), Log(out))
         try:
             await until(lambda: fake.injected)
             await fake.console("[polykey]", "running 0.0.1")
@@ -147,6 +147,38 @@ def test_forwards_only_new_polykey_console_lines(tmp_path):
             await fake.stop()
 
     run(main())
+
+
+def test_console_lines_stay_out_of_the_log_unless_asked(tmp_path):
+    async def main():
+        fake = await FakeSteam().start()
+        out = io.StringIO()
+        stop, task = await start_service(fast_config(fake, tmp_path), Log(out))
+        try:
+            await until(lambda: fake.injected)
+            await fake.console("[polykey]", "running 0.0.1")
+            await asyncio.sleep(0.3)
+            assert "page:" not in out.getvalue()
+        finally:
+            await stop_service(stop, task)
+            await fake.stop()
+
+    run(main())
+
+
+def test_console_forwarding_defaults_to_dev_builds_and_the_settings_switch(tmp_path, monkeypatch):
+    from polykey import __main__ as cli
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(injector, "is_dev", lambda: False)
+    assert cli.forward_console(None) is False
+    (tmp_path / "polykey").mkdir()
+    (tmp_path / "polykey" / "settings.json").write_text('{"console": true}', encoding="utf-8")
+    assert cli.forward_console(None) is True
+    assert cli.forward_console(False) is False
+    (tmp_path / "polykey" / "settings.json").write_text('{"console": false}', encoding="utf-8")
+    monkeypatch.setattr(injector, "is_dev", lambda: True)
+    assert cli.forward_console(None) is True
 
 
 def test_missing_bundle_is_reported_and_nothing_is_injected(tmp_path):

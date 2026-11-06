@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import signal
 import sys
 from pathlib import Path
+from typing import Optional
 
 from .versions import VersionError, Versions
 
@@ -24,6 +26,20 @@ COMMANDS = {
 }
 
 VERSION_COMMANDS = ("activate", "rollback")
+
+
+def forward_console(choice: Optional[bool]) -> bool:
+    """Page console lines go to the journal for a dev build, or when settings.json says "console": true."""
+    from . import injector, packs
+
+    if choice is not None:
+        return choice
+    if injector.is_dev():
+        return True
+    try:
+        return json.loads((packs.user_dir() / "settings.json").read_text(encoding="utf-8")).get("console") is True
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def _versions(argv: list[str]) -> int:
@@ -83,7 +99,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--probe-script", type=Path, default=defaults.probe, help=f"probe script (default {defaults.probe})"
     )
-    parser.add_argument("--no-console", action="store_true", help="do not forward [polykey] console lines")
+    parser.add_argument(
+        "--console",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help='forward [polykey] console lines to the log (default: dev builds, or "console": true in settings.json)',
+    )
     args = parser.parse_args(argv)
 
     log = Log()
@@ -91,7 +112,7 @@ def main(argv: list[str] | None = None) -> None:
         devtools=args.devtools,
         bundle=args.bundle.expanduser(),
         probe=args.probe_script.expanduser(),
-        forward_console=not args.no_console,
+        forward_console=forward_console(args.console),
     )
     try:
         if args.command == "run":

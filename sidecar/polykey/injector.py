@@ -2,7 +2,7 @@
 
 Event-driven: re-checks on new execution contexts (debounced), with a slow safety check; reconnects
 with backoff when Steam restarts. On stop it calls __polykey.uninstall(). Forwards "[polykey]"
-console lines to the journal.
+console lines to the journal when asked (Config.forward_console: a dev build, by default).
 """
 
 from __future__ import annotations
@@ -50,6 +50,11 @@ def _default(name: str) -> Path:
     return staged if not installed.exists() and staged.exists() else installed
 
 
+def is_dev() -> bool:
+    """A dev deploy (its DEV marker) or a checkout (no VERSION of its own), as opposed to a release."""
+    return (INSTALL_DIR / "DEV").exists() or not (INSTALL_DIR / "VERSION").is_file()
+
+
 def installed_version() -> str:
     try:
         return _default("VERSION").read_text(encoding="utf-8").strip() or "unknown"
@@ -65,7 +70,7 @@ class Config:
     packs: Path = field(default_factory=lambda: _default("packs"))
     schema: Path = field(default_factory=lambda: _default("schema/pack.schema.json"))
     user_dir: Path = field(default_factory=pack_loader.user_dir)
-    forward_console: bool = True
+    forward_console: bool = False
     debounce: float = 1.0
     safety_check: float = 120.0
     backoff_start: float = 2.0
