@@ -37,6 +37,8 @@ It checks what polykey needs (Python 3.10+ with aiohttp, both in SteamOS; Steam'
 … | sh -s -- --uninstall   # remove polykey (settings and dictation models stay; add --purge to remove them)
 ```
 
+Each release is signed with the release key. To check `install.sh` before you run it, see [Checking install.sh by hand](docs/RELEASING.md#checking-installsh-by-hand).
+
 ## Develop (WSL)
 
 ```sh
@@ -46,6 +48,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aioht
 npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
 npm run test:install # install.sh end to end: throwaway signed releases, served from localhost
 ```
+
+Releases come from release-please's release PR: merging it has CI draft the release, which is then smoke-tested, signed and published. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Deploy to the Frame
 
