@@ -7,6 +7,6 @@
   "description": "The English QWERTY layout with the Mac's 英数 and かな beside Space: かな types romaji into the reading buffer, 英数 types Latin directly.",
   "extends": "en/qwerty",
   "rows": {
-    "4": [{"type": "mod", "mod": "fn"}, {"type": "mod", "mod": "ctrl"}, {"type": "mod", "mod": "super"}, {"type": "mod", "mod": "alt"}, {"type": "action", "action": "eisu", "w": 1.5}, {"type": "char", "char": " ", "w": 4.25}, {"type": "action", "action": "kana", "w": 1.5}, {"type": "key", "key": "ArrowLeft"}, {"type": "key", "key": "ArrowDown"}, {"type": "key", "key": "ArrowRight"}, {"type": "action", "action": "next-keyboard", "w": 0.75}]
+    "4": [{"type": "mod", "mod": "fn"}, {"type": "mod", "mod": "ctrl"}, {"type": "mod", "mod": "super"}, {"type": "mod", "mod": "alt"}, {"type": "action", "action": "eisu", "w": 1.5}, {"type": "char", "char": " ", "w": 4.25}, {"type": "action", "action": "kana", "w": 1.5}, {"type": "key", "key": "ArrowLeft", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowDown", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowRight", "alone": {"w": 1.25}}, {"type": "action", "action": "next-keyboard", "w": 0.75}]
   }
 }

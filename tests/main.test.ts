@@ -79,6 +79,19 @@ describe('installPolykey', () => {
     expect(manager.calls).toEqual([['VKClose', false]]);
   });
 
+  it('with one keyboard in your list there is no 🌐: the layout\'s rows without it', async () => {
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    steam.g[BOOT_GLOBAL] = { ...boot, settings: { ...boot.settings, keyboards: ['en/english'] } };
+    installed.push(installPolykey(steam.g));
+    await vi.advanceTimersByTimeAsync(200);
+    expect(key(popup, 'next-keyboard')).toBeUndefined();
+    const bottom = [...shadowOf(popup)!.querySelectorAll('.row')].at(-1)!;
+    expect([...bottom.querySelectorAll<HTMLElement>('.key')].map((el) => el.dataset['k']))
+      .toEqual(['fn', 'ctrl', 'super', 'alt', ' ', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
+  });
+
   it('🌐 rotates polykey\'s keyboards only; settings hands over to Steam\'s keyboard, with a way back', async () => {
     const { popup, api } = setup();
     await tap(popup, 'next-keyboard');

@@ -122,10 +122,10 @@ def test_a_two_row_key_is_written_once_and_split_into_halves(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     even = boot["catalog"]["layouts"]["mine/even"]["rows"]
-    assert even[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "tall": "top"}
+    assert even[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "tall": "top", "span": 2}
     assert even[1] == [a, {"type": "key", "key": "Enter", "w": 1.5, "tall": "bottom"}]
     jis = boot["catalog"]["layouts"]["mine/jis"]["rows"]
-    assert jis[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "notch": 0.25, "tall": "top"}
+    assert jis[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "notch": 0.25, "tall": "top", "span": 2}
     assert jis[1][2] == {"type": "key", "key": "Enter", "w": 1.25, "tall": "bottom"}  # after the 0.25 key under the notch
 
 
@@ -135,8 +135,8 @@ def test_a_two_row_key_needs_room_below(tmp_path):
     write(tmp_path / "packs", "mine/last.json", layout("mine/last", rows=[[a, a], [a, enter]]))  # no row below
     write(tmp_path / "packs", "mine/full.json", layout("mine/full", rows=[[a, {**a, "w": 0.5}, {**enter, "w": 0.5}], [a, a]]))
     errors = packs.load(BUNDLED, SCHEMA, tmp_path)["errors"]
-    assert "mine/last: row 1: Enter is two rows high but the row below has no room for it" in errors
-    assert "mine/full: row 0: Enter is two rows high but the row below has no room for it" in errors
+    assert "mine/last: row 1: Enter is 2 rows high but there is no row 2" in errors
+    assert "mine/full: row 0: Enter is 2 rows high but row 1 has no room for it" in errors
 
 
 def test_a_table_has_entries_or_cycles(tmp_path):
@@ -332,3 +332,35 @@ def test_bridge_saves_emoji_state_cleaned(tmp_path):
     saved = json.loads((tmp_path / "emoji.json").read_text(encoding="utf-8"))
     assert len(saved["recent"]) == 40 and saved["tone"] == ""
     assert "😀" not in out.getvalue()
+
+
+def test_alone_rows_hide_the_globe_and_apply_each_keys_patch(tmp_path):
+    a = {"type": "char", "char": "a"}
+    globe = {"type": "action", "action": "next-keyboard"}
+    tall = {"type": "action", "action": "eisu", "rows": 2, "alone": {"rows": 3}}
+    write(tmp_path / "packs", "mine/one.json", layout("mine/one", rows=[
+        [tall, a], [a], [globe, {"type": "char", "char": " ", "alone": {"w": 1}}]]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == []
+    mine = boot["catalog"]["layouts"]["mine/one"]
+    # Shown normally: the patches are gone, 🌐 is there, 英数 two rows high.
+    assert mine["rows"][2] == [globe, {"type": "char", "char": " "}]
+    assert mine["rows"][0][0] == {"type": "action", "action": "eisu", "tall": "top", "span": 2}
+    # With one keyboard: no 🌐, space wider, 英数 three rows high.
+    alone = mine["aloneRows"]
+    assert [k["tall"] for k in (alone[0][0], alone[1][0], alone[2][0])] == ["top", "middle", "bottom"]
+    assert alone[2] == [{"type": "action", "action": "eisu", "w": 1, "tall": "bottom"}, {"type": "char", "char": " ", "w": 1}]
+
+
+def test_alone_rows_that_do_not_fit_leave_the_globe_as_a_gap(tmp_path):
+    a = {"type": "char", "char": "a"}
+    write(tmp_path / "packs", "mine/two.json", layout("mine/two", rows=[[a, a], [a, {"type": "action", "action": "next-keyboard"}]]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == ["mine/two: row 1 is 1 wide, the layout is 2 (with one keyboard; 🌐 left as a gap)"]
+    assert boot["catalog"]["layouts"]["mine/two"]["aloneRows"][1] == [a, {"type": "gap", "w": 1}]
+
+
+def test_a_layout_without_a_globe_has_no_alone_rows(tmp_path):
+    a = {"type": "char", "char": "a"}
+    write(tmp_path / "packs", "mine/none.json", layout("mine/none", rows=[[a]]))
+    assert "aloneRows" not in packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["mine/none"]

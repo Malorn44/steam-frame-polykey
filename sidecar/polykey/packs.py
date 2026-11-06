@@ -316,42 +316,86 @@ def _width(key: Any) -> float:
 
 
 def _expand_spans(layout_id: str, layout: dict, errors: list[str]) -> bool:
-    """Split each two-row key ("rows": 2, written once in the upper row) into the halves the page draws:
-    "tall": "top" there, and "tall": "bottom" in the row below at the same columns, "notch" narrower on
-    the left (the JIS Enter). False (reported) when the row below has no room there."""
+    """Split each key two or three rows high ("rows": 2 or 3, written once in the top row) into the pieces
+    the page draws: "tall": "top" there ("span": its rows), "middle" and "bottom" in the rows below at the
+    same columns, "notch" narrower on the left (the JIS Enter). False (reported) when a row below has no
+    room there."""
     rows = [list(row) for row in layout["rows"]]
     for index, row in enumerate(rows):
         at = 0.0
         for position, key in enumerate(row):
             width = _width(key)
-            if isinstance(key, dict) and key.get("rows") == 2:
+            span = key.get("rows") if isinstance(key, dict) else None
+            if span in (2, 3):
                 notch = key.get("notch", 0)
-                below = rows[index + 1] if index + 1 < len(rows) else None
-                start, x, slot = at + notch, 0.0, None
-                for place in range(len(below) + 1 if below is not None else 0):
-                    if abs(x - start) < 1e-6:
-                        slot = place
-                        break
-                    if place < len(below):
-                        x += _width(below[place])
-                if below is None or slot is None or notch >= width:
-                    errors.append(f"{layout_id}: row {index}: {_key_id(key)} is two rows high but the row below has no room for it")
-                    return False
-                top = {k: v for k, v in key.items() if k != "rows"}
-                bottom = {k: v for k, v in key.items() if k not in ("rows", "notch")}
-                row[position] = {**top, "tall": "top"}
-                below.insert(slot, {**bottom, "w": width - notch, "tall": "bottom"})
+                piece = {k: v for k, v in key.items() if k not in ("rows", "notch")}
+                for depth in range(1, span):
+                    below = rows[index + depth] if index + depth < len(rows) else None
+                    start, x, slot = at + notch, 0.0, None
+                    for place in range(len(below) + 1 if below is not None else 0):
+                        if abs(x - start) < 1e-6:
+                            slot = place
+                            break
+                        if place < len(below):
+                            x += _width(below[place])
+                    if below is None or slot is None or notch >= width:
+                        where = f"there is no row {index + depth}" if below is None else f"row {index + depth} has no room for it"
+                        errors.append(f"{layout_id}: row {index}: {_key_id(key)} is {span} rows high but {where}")
+                        return False
+                    below.insert(slot, {**piece, "w": width - notch, "tall": "bottom" if depth == span - 1 else "middle"})
+                row[position] = {**{k: v for k, v in key.items() if k != "rows"}, "tall": "top", "span": span}
             at += width
     layout["rows"] = rows
     return True
 
 
-def _check_rows(layout_id: str, layout: dict, errors: list[str]) -> None:
-    """Report rows that are not all as wide as the first."""
+def _check_rows(layout_id: str, layout: dict, errors: list[str], width: Optional[float] = None) -> bool:
+    """Report rows that are not all as wide as the first (or as `width`); False if any."""
     widths = [sum(_width(key) for key in row) for row in layout["rows"]]
-    for index, width in enumerate(widths[1:], start=1):
-        if abs(width - widths[0]) > 1e-6:
-            errors.append(f"{layout_id}: row {index} is {width:g} wide, row 0 is {widths[0]:g}")
+    want = widths[0] if width is None else width
+    ok = True
+    for index, row_width in enumerate(widths):
+        if abs(row_width - want) > 1e-6:
+            errors.append(f"{layout_id}: row {index} is {row_width:g} wide, {'row 0 is' if width is None else 'the layout is'} {want:g}")
+            ok = False
+    return ok
+
+
+def _is_globe(key: Any) -> bool:
+    return isinstance(key, dict) and key.get("type") == "action" and key.get("action") == "next-keyboard"
+
+
+def _alone_rows(layout_id: str, layout: dict, errors: list[str]) -> Optional[list]:
+    """The rows shown when 🌐 has nowhere to go (one keyboard in your list): 🌐 left out and each key's
+    "alone" patch (w, rows) applied. If those rows do not fit (a pack without patches), 🌐 becomes a gap
+    of its width instead, reported. None for a layout without 🌐."""
+    rows = layout["rows"]
+    if not any(_is_globe(key) for row in rows for key in row):
+        return None
+    patched = [[_patched(key) for key in row if not _is_globe(key)] for row in rows]
+    trial: list[str] = []
+    alone = {"rows": patched}
+    width = sum(_width(key) for key in layout["rows"][0])
+    if _expand_spans(layout_id, alone, trial) and _check_rows(layout_id, alone, trial, width):
+        return alone["rows"]
+    errors.extend(f"{e} (with one keyboard; 🌐 left as a gap)" for e in trial)
+    gap = {"rows": [[{"type": "gap", "w": _width(key)} if _is_globe(key) else _without_alone(key) for key in row] for row in rows]}
+    _expand_spans(layout_id, gap, [])
+    return gap["rows"]
+
+
+def _patched(key: Any) -> Any:
+    """A key with its "alone" patch applied ("rows": 1 makes a tall key one row high)."""
+    if not isinstance(key, dict):
+        return key
+    out = {**_without_alone(key), **key.get("alone", {})}
+    if out.get("rows") == 1:
+        del out["rows"]
+    return out
+
+
+def _without_alone(key: Any) -> Any:
+    return {k: v for k, v in key.items() if k != "alone"} if isinstance(key, dict) else key
 
 
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
@@ -369,8 +413,12 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
             else:
                 errors.append(f"{layout_id}: modify table {layout['modify']} not found")
                 del layout["modify"]
+        alone = _alone_rows(layout_id, layout, errors)
+        layout["rows"] = [[_without_alone(key) for key in row] for row in layout["rows"]]
         _expand_spans(layout_id, layout, errors)
         _check_rows(layout_id, layout, errors)
+        if alone is not None:
+            layout["aloneRows"] = alone
         has_modify_key = any(isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row)
         if has_modify_key and not layout.get("modify"):
             errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")

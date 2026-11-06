@@ -10,6 +10,6 @@
     [{"type": "char", "char": "1"}, {"type": "char", "char": "2"}, {"type": "char", "char": "3"}, {"type": "char", "char": "4"}, {"type": "char", "char": "5"}, {"type": "char", "char": "6"}, {"type": "char", "char": "7"}, {"type": "char", "char": "8"}, {"type": "char", "char": "9"}, {"type": "char", "char": "0"}],
     [{"type": "char", "char": "@"}, {"type": "char", "char": "#"}, {"type": "char", "char": "¥"}, {"type": "char", "char": "÷"}, {"type": "char", "char": "&"}, {"type": "char", "char": "-"}, {"type": "char", "char": "+"}, {"type": "char", "char": "("}, {"type": "char", "char": ")"}, {"type": "char", "char": "/"}],
     [{"type": "action", "action": "more-symbols", "w": 1.5}, {"type": "char", "char": "*"}, {"type": "char", "char": "\""}, {"type": "char", "char": "'"}, {"type": "char", "char": ":"}, {"type": "char", "char": ";"}, {"type": "char", "char": "!"}, {"type": "char", "char": "?"}, {"type": "key", "key": "Backspace", "w": 1.5}],
-    [{"type": "action", "action": "next-keyboard"}, {"type": "action", "action": "symbols", "w": 1.5}, {"type": "char", "char": ","}, {"type": "char", "char": " ", "w": 3.5}, {"type": "char", "char": "."}, {"type": "key", "key": "Enter", "w": 2}]
+    [{"type": "action", "action": "next-keyboard"}, {"type": "action", "action": "symbols", "w": 1.5}, {"type": "char", "char": ","}, {"type": "char", "char": " ", "w": 3.5, "alone": {"w": 4.5}}, {"type": "char", "char": "."}, {"type": "key", "key": "Enter", "w": 2}]
   ]
 }

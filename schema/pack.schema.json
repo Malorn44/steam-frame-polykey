@@ -289,6 +289,9 @@
         "kanaShift": {
           "$ref": "#/$defs/char",
           "description": "Typed with Shift in かな mode (small kana, punctuation); default: kana."
+        },
+        "alone": {
+          "$ref": "#/$defs/alone"
         }
       }
     },
@@ -323,15 +326,19 @@
         },
         "rows": {
           "enum": [
-            2
+            2,
+            3
           ],
-          "description": "A key two rows high, written once in the upper row: the row below leaves room for it, in the same columns (less the notch)."
+          "description": "A key two or three rows high, written once in the top row: the rows below leave room for it, in the same columns (less the notch)."
         },
         "notch": {
           "type": "number",
           "minimum": 0,
           "maximum": 4,
           "description": "How much narrower the lower half is, on the left (the JIS Enter: 0.25)."
+        },
+        "alone": {
+          "$ref": "#/$defs/aloneTall"
         }
       }
     },
@@ -416,6 +423,9 @@
         },
         "w": {
           "$ref": "#/$defs/width"
+        },
+        "alone": {
+          "$ref": "#/$defs/alone"
         }
       }
     },
@@ -464,15 +474,19 @@
         },
         "rows": {
           "enum": [
-            2
+            2,
+            3
           ],
-          "description": "A key two rows high, written once in the upper row: the row below leaves room for it, in the same columns (less the notch)."
+          "description": "A key two or three rows high, written once in the top row: the rows below leave room for it, in the same columns (less the notch)."
         },
         "notch": {
           "type": "number",
           "minimum": 0,
           "maximum": 4,
           "description": "How much narrower the lower half is, on the left (the JIS Enter: 0.25)."
+        },
+        "alone": {
+          "$ref": "#/$defs/aloneTall"
         }
       }
     },
@@ -489,6 +503,9 @@
         },
         "w": {
           "$ref": "#/$defs/width"
+        },
+        "alone": {
+          "$ref": "#/$defs/alone"
         }
       }
     },
@@ -1016,6 +1033,9 @@
         "sub": {
           "$ref": "#/$defs/label",
           "description": "A small legend beneath the label (the ABC keys' digit); not shown with flick hints."
+        },
+        "alone": {
+          "$ref": "#/$defs/alone"
         }
       }
     },
@@ -1070,6 +1090,35 @@
           "$ref": "#/$defs/cycles"
         }
       }
+    },
+    "alone": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "w": {
+          "$ref": "#/$defs/width"
+        }
+      },
+      "description": "What this key becomes when 🌐 is hidden (one keyboard in your list): its width there. The layout's rows must still be as wide as before."
+    },
+    "aloneTall": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "w": {
+          "$ref": "#/$defs/width"
+        },
+        "rows": {
+          "enum": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "description": "What this key becomes when 🌐 is hidden (one keyboard in your list): its width and how many rows high. The layout's rows must still be as wide as before."
     }
   }
 }

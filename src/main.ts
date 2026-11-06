@@ -792,8 +792,10 @@ export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamG
       const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
       prepareSwipe(swipes, layout);
       // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
-      const shown = settings.dictation ? layout
-        : { ...layout, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
+      // With one keyboard in your list 🌐 has nowhere to go: the layout's rows without it.
+      const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;
+      const shown = settings.dictation ? { ...layout, rows }
+        : { ...layout, rows, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,

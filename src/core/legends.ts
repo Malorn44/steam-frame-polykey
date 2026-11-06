@@ -110,7 +110,7 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
 
   if (key.type === 'gap') return NONE;
-  if ((key.type === 'key' || key.type === 'action') && key.tall === 'bottom') return NONE; // the label is on the top half
+  if ((key.type === 'key' || key.type === 'action') && (key.tall === 'bottom' || key.tall === 'middle')) return NONE; // the label is on the top piece
 
   // A JIS key: Latin legends on the left, kana on the right (Shift above, plain below). The mode's side
   // is active and the character it types now is biggest; the rest are drawn like Shift legends.

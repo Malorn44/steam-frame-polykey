@@ -33,14 +33,14 @@ export type CharKey = {
   hint?: string;
 };
 /**
- * tall: the top or bottom half of a key two rows high; both halves are one key. A pack writes the key
- * once (rows: 2, notch: the lower half that much narrower on the left, the JIS Enter); the loader
- * splits it into halves.
+ * tall: a piece of a key two or three rows high (top, middle, bottom); the pieces are one key. A pack
+ * writes the key once (rows: 2 or 3, notch: the lower pieces that much narrower on the left, the JIS
+ * Enter); the loader splits it, marking the top piece with span (its rows).
  */
-export type Tall = 'top' | 'bottom';
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall; notch?: number };
+export type Tall = 'top' | 'middle' | 'bottom';
+export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall; span?: number; notch?: number };
 export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall; notch?: number };
+export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall; span?: number; notch?: number };
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
@@ -61,6 +61,8 @@ export interface Layout {
   name: string;
   toolbar?: ActionKey[];
   rows: (string | KeyDef)[][];
+  /** The rows with 🌐 hidden, for when your list has one keyboard (the loader builds them from "alone"). */
+  aloneRows?: (string | KeyDef)[][];
   /** Bigger key text and icons, as on a phone 12-key. */
   large?: boolean;
   /** Which keys draw icons: desktop, or phone (more icons; the default for large layouts). */

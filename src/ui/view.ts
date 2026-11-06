@@ -3,7 +3,7 @@
 // the width weights exactly and columns line up across rows. The VR laser arrives as touch events
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
-import { normalizeKey, type KeyDef, type Layout, type Theme } from '../core/catalog.js';
+import { normalizeKey, type KeyDef, type Layout, type Tall, type Theme } from '../core/catalog.js';
 import type { MicState } from '../core/dictation.js';
 import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
 import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
@@ -193,6 +193,8 @@ const CSS = `
 .kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
 /* The label sits across both rows (the rows are the same height). */
 .kb .key.tall-top > .lbl { position: relative; top: calc(50% + 1.5px); }
+.kb .key.tall-top.span3 > .lbl { top: calc(100% + 3px); } /* three rows: across the middle piece */
+.kb .key.tall-middle { border-top-width: 0; border-bottom-width: 0; border-radius: 0; } /* under the top piece, which draws the label */
 .kb .key.tall-bottom { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 `;
 
@@ -218,7 +220,7 @@ const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'
 };
 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
-const tallOf = (key: KeyDef): 'top' | 'bottom' | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
+const tallOf = (key: KeyDef): Tall | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
 
 /** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
 export type CompositionView = (
@@ -296,7 +298,7 @@ export const createView = (
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
 
   /** A key: its element, its label (slot c) and the small legends it shows now, by slot. */
-  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; twin?: Entry };
+  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; pieces?: Entry[] };
   const keys: Entry[] = [];
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
@@ -312,6 +314,7 @@ export const createView = (
     const tall = tallOf(key);
     if (tall) el.classList.add(`tall-${tall}`);
     if (tall === 'top' && 'notch' in key && key.notch) el.classList.add('notched');
+    if (tall === 'top' && 'span' in key && key.span === 3) el.classList.add('span3');
     if (key.type === 'mod' && key.label) el.classList.add('labelled'); // text, not an icon (a↔A)
     keys.push({ el, key, label, slots: {} });
     return el;
@@ -356,17 +359,18 @@ export const createView = (
     for (const key of defs) rowEl.append(makeKey(key, units));
     keysEl.append(rowEl);
   }
-  // A two-row key's halves act as one: each hovers and presses with the other.
+  // A tall key's pieces act as one: each hovers and presses with the others.
   for (const top of keys.filter((e) => tallOf(e.key) === 'top')) {
-    const bottom = keys.find((e) => tallOf(e.key) === 'bottom' && !e.twin && e.el.dataset['k'] === top.el.dataset['k']);
-    if (bottom) {
-      top.twin = bottom;
-      bottom.twin = top;
+    const span = 'span' in top.key && top.key.span === 3 ? 3 : 2;
+    const pieces = [top];
+    for (const tall of span === 3 ? ['middle', 'bottom'] as const : ['bottom'] as const) {
+      const piece = keys.find((e) => tallOf(e.key) === tall && !e.pieces && e.el.dataset['k'] === top.el.dataset['k']);
+      if (piece) pieces.push(piece);
     }
+    if (pieces.length > 1) for (const piece of pieces) piece.pieces = pieces;
   }
   const mark = (entry: Entry | undefined, cls: string, on: boolean): void => {
-    entry?.el.classList.toggle(cls, on);
-    entry?.twin?.el.classList.toggle(cls, on);
+    for (const piece of entry?.pieces ?? (entry ? [entry] : [])) piece.el.classList.toggle(cls, on);
   };
   if (side && toolbar.length) {
     // fjk's arrangement: reading and candidates on the left above the toolbar, keys on the right.
@@ -534,7 +538,7 @@ export const createView = (
   let pickMoved = false;
   const setHover = (target: Entry | undefined): boolean => {
     const entry = target?.key.type === 'gap' ? undefined : target; // a gap is nothing to hover
-    if (entry === hovered || (entry && entry === hovered?.twin)) return false;
+    if (entry === hovered || (entry && hovered?.pieces?.includes(entry))) return false;
     mark(hovered, 'hover', false);
     hovered = entry;
     mark(hovered, 'hover', true);
