@@ -1,10 +1,11 @@
-// Build dist/stage/ (bundle.js, probe.js, VERSION, sidecar/): the tree deploy.sh copies to the Frame.
+// Build dist/stage/ (bundle.js, probe.js, VERSION, sidecar/): the tree deploy.sh copies to the Frame,
+// and the inside of a release tarball (scripts/release.sh).
 // Usage: node scripts/build.mjs [--debug] [--version X.Y.Z]   (npm run build -- --version X.Y.Z)
 //   --debug    unminified, CSS as written
 //   --version  a release build: exactly this version (release-please picks it from the commits)
 // Without --version the build is a dev build, named after the last release tag (scripts/version.mjs).
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { cssMinify } from './css-minify.mjs';
 import { SEMVER, devVersion } from './version.mjs';
 
@@ -36,6 +37,17 @@ await build({ ...common, entryPoints: ['src/entry.ts'], outfile: `${stage}/bundl
 await build({ ...common, entryPoints: ['src/probe.ts'], outfile: `${stage}/probe.js`, globalName: '__polykeyProbe' });
 
 writeFileSync(`${stage}/VERSION`, `${version}\n`);
+// What a release carries besides the code: its licences (where they sit in the repo, so the notices'
+// ../LICENSE link holds), the unit, the installer, and the key releases are signed with
+// (POLYKEY_ALLOWED_SIGNERS names another key file, for the installer tests).
+for (const file of ['LICENSE', 'docs/THIRD-PARTY-NOTICES.md']) cpSync(file, `${stage}/${file}`);
+cpSync('contrib/polykey.service', `${stage}/polykey.service`);
+const signers = readFileSync(process.env.POLYKEY_ALLOWED_SIGNERS || 'contrib/allowed_signers', 'utf8');
+const keys = signers.split('\n').filter((line) => line.trim() && !line.startsWith('#'));
+if (keys.some((line) => line.includes("'"))) throw new Error('allowed_signers: a key line with a quote in it');
+writeFileSync(`${stage}/allowed_signers`, signers);
+const installer = readFileSync('scripts/install.sh', 'utf8').replace('@ALLOWED_SIGNERS@', () => keys.join('\n'));
+writeFileSync(`${stage}/install.sh`, installer, { mode: 0o755 });
 cpSync('sidecar/run.py', `${stage}/sidecar/run.py`);
 cpSync('packs', `${stage}/packs`, { recursive: true });
 cpSync('schema', `${stage}/schema`, { recursive: true });

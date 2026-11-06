@@ -11,11 +11,12 @@
     "lint": "npm run lint:ts && npm run lint:py && npm run lint:sh && npm run lint:ci",
     "lint:ts": "tools/eslint/node_modules/.bin/eslint -c tools/eslint/eslint.config.js .",
     "lint:py": ".venv/bin/ruff check sidecar scripts && .venv/bin/ruff format --check sidecar scripts",
-    "lint:sh": ".venv/bin/shellcheck scripts/*.sh",
+    "lint:sh": ".venv/bin/shellcheck scripts/*.sh tests/install/*.sh",
     "lint:ci": ".venv/bin/actionlint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:py": ".venv/bin/python -m pytest sidecar/tests -q",
+    "test:install": "bash tests/install/test-install.sh",
     "check": "npm run lint && npm run typecheck && npm test && npm run test:py && npm run build"
   },
   "devDependencies": {

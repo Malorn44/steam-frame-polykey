@@ -278,3 +278,24 @@ def test_run_py_imports_from_the_release_current_points_at(tmp_path):
         check=True,
     ).stdout
     assert Path(out.strip()) == (release / "polykey" / "__init__.py").resolve()
+
+
+def test_an_installed_release_finds_its_folder_from_where_it_is(tmp_path):
+    """`run.py activate` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
+    says, so install.sh (which unpacks to ~/.local/share/polykey) and the service always agree."""
+    root = tmp_path / "polykey"
+    release = root / "versions" / "0.1.0"
+    shutil.copytree(SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
+    (release / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    env = {**os.environ, "XDG_DATA_HOME": str(tmp_path / "elsewhere")}
+    out = subprocess.run(
+        [sys.executable, "-I", "-B", str(release / "sidecar" / "run.py"), "activate"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    ).stdout
+    assert "current: 0.1.0" in out
+    assert os.readlink(root / "current") == "versions/0.1.0"
+    assert not (tmp_path / "elsewhere" / "polykey").exists()

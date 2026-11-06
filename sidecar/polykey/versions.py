@@ -38,6 +38,13 @@ class VersionError(Exception):
 
 
 def app_dir() -> Path:
+    """The folder this code is installed in (from versions/<version>/ or dev/), so the installer and the
+    service always agree; for a checkout, ~/.local/share/polykey."""
+    code = Path(__file__).resolve().parents[2]
+    if code.parent.name == "versions" and is_release(code.name):
+        return code.parent.parent
+    if code.name == DEV and (code / "DEV").exists():
+        return code.parent
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "polykey"
 

@@ -1,0 +1,4 @@
+# The public key that signs polykey releases: the updater and install.sh check latest.json.sig with
+# `ssh-keygen -Y verify -f allowed_signers -I polykey-release -n polykey-release`.
+# `scripts/sign-release.sh --init` makes the key (kept on your PC, never in the repo or CI) and adds its
+# line here, as: polykey-release namespaces="polykey-release" ssh-ed25519 AAAA…
