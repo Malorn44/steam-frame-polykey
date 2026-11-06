@@ -411,14 +411,20 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.tag }}
           persist-credentials: false
-      # Without a required reviewer (a private repo can't have one on this plan), this job waited for
-      # no one: then it signs nothing.
+      # Without a required reviewer this job waited for no one, and on this plan a private repo ignores
+      # the rule even when it is set: then it signs nothing.
       - name: check the approval rule
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh api "repos/$GITHUB_REPOSITORY/environments/release" > "$RUNNER_TEMP/environment.json"; then
-            echo "::error::Could not read the release environment's rules, so not signing"
+          if ! gh api "repos/$GITHUB_REPOSITORY" > "$RUNNER_TEMP/repo.json" \
+            || ! gh api "repos/$GITHUB_REPOSITORY/environments/release" > "$RUNNER_TEMP/environment.json"; then
+            echo "::error::Could not read the repo's visibility or the release environment's rules, so not signing"
+            exit 1
+          fi
+          if ! node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).private === false ? 0 : 1)' \
+            "$RUNNER_TEMP/repo.json"; then
+            echo "::error::The repo is private, where the release environment can't require an approval on this plan; not signing. Make it public, then re-run this job."
             exit 1
           fi
           reviewers=$(node -e '

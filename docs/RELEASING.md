@@ -49,9 +49,9 @@ refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, i
      gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < ~/.ssh/polykey-release
      ```
 
-   `release:sign` checks that the environment requires a reviewer, and signs nothing when it
-   doesn't. Once the key is backed up and stored here, you can delete it from this PC; `--local`
-   (below) then needs a throwaway key.
+   `release:sign` checks that the repo is public and the environment requires a reviewer, and signs
+   nothing otherwise. Once the key is backed up and stored here, you can delete it from this PC;
+   `--local` (below) then needs a throwaway key.
 
 4. **The token.** release-please acts with a fine-grained personal access token, so CI runs on its
    release PR (whatever the Actions token does starts no workflow, and `ci ok` is required). On
