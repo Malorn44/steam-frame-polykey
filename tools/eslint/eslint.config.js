@@ -3,7 +3,7 @@
 // only syntax. No style rules; tsc (npm run typecheck) already reports unused names and missing returns.
 //
 // It lives apart from the main install: typescript-eslint needs TypeScript 6's compiler API, and the
-// project builds with TypeScript 7. Run it from the repo root: npm run lint:ts.
+// project builds with TypeScript 7. Run it from the repo root: npm run lint:eslint.
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
