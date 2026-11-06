@@ -8,6 +8,7 @@ rejected: TaiKeid measured about 17 W and crashes) with at most THREADS threads.
 The service unit caps the sidecar at MemoryHigh=96M and a loaded model needs far more, so the helper
 runs in a transient systemd scope of its own when `systemd-run` is there, capped for its model.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -43,7 +44,18 @@ REMARK = re.compile(r"^[(（][^)）]*[)）]$")
 def scope(ram_mb: int) -> list[str]:
     """systemd-run for a helper with this model: memory for it and half a margin again, a low CPU weight."""
     limit = max(512, ram_mb * 3 // 2)
-    return ["systemd-run", "--user", "--scope", "--quiet", "--collect", "-p", f"MemoryMax={limit}M", "-p", "CPUWeight=50", "--"]
+    return [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "--collect",
+        "-p",
+        f"MemoryMax={limit}M",
+        "-p",
+        "CPUWeight=50",
+        "--",
+    ]
 
 
 def clean(text: object) -> str:
@@ -57,10 +69,19 @@ def clean(text: object) -> str:
 class Engine:
     """The helper process: started on the first phrase, stopped after `idle` seconds without one."""
 
-    def __init__(self, home: Path, version: str, log, idle: float = IDLE, use_scope: bool = True,
-                 start_timeout: float = START_TIMEOUT, request_timeout: float = REQUEST_TIMEOUT,
-                 request_per_second: float = REQUEST_PER_SECOND, python: str = sys.executable,
-                 worker: Path = WORKER) -> None:
+    def __init__(
+        self,
+        home: Path,
+        version: str,
+        log,
+        idle: float = IDLE,
+        use_scope: bool = True,
+        start_timeout: float = START_TIMEOUT,
+        request_timeout: float = REQUEST_TIMEOUT,
+        request_per_second: float = REQUEST_PER_SECOND,
+        python: str = sys.executable,
+        worker: Path = WORKER,
+    ) -> None:
         self.directory = engine_dir(home, version)
         self._log = log
         self.idle = idle

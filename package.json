@@ -10,7 +10,7 @@
     "build:debug": "node scripts/build.mjs --debug",
     "lint": "npm run lint:ts && npm run lint:py && npm run lint:sh && npm run lint:ci",
     "lint:ts": "tools/eslint/node_modules/.bin/eslint -c tools/eslint/eslint.config.js .",
-    "lint:py": ".venv/bin/ruff check sidecar scripts",
+    "lint:py": ".venv/bin/ruff check sidecar scripts && .venv/bin/ruff format --check sidecar scripts",
     "lint:sh": ".venv/bin/shellcheck scripts/*.sh",
     "lint:ci": ".venv/bin/actionlint",
     "typecheck": "tsc --noEmit",

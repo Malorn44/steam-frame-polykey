@@ -4,6 +4,7 @@ download, each pinned by URL (or Hugging Face repo, revision and file), size and
 It is checked strictly when loaded: a catalogue that does not check out offers nothing, so a bad edit
 can never point a download somewhere else or skip its hash.
 """
+
 from __future__ import annotations
 
 import json
@@ -61,8 +62,15 @@ class Catalog:
 
 def _remote(data: dict, hosts: tuple[str, ...]) -> Remote:
     url, size, sha = data["url"], data["size"], data["sha256"]
-    if not (isinstance(url, str) and host_allowed(url, hosts, ("https",)) and isinstance(size, int)
-            and not isinstance(size, bool) and size > 0 and isinstance(sha, str) and SHA256.match(sha)):
+    if not (
+        isinstance(url, str)
+        and host_allowed(url, hosts, ("https",))
+        and isinstance(size, int)
+        and not isinstance(size, bool)
+        and size > 0
+        and isinstance(sha, str)
+        and SHA256.match(sha)
+    ):
         raise ValueError("bad file")
     return Remote(url, size, sha, hosts)
 
@@ -70,10 +78,17 @@ def _remote(data: dict, hosts: tuple[str, ...]) -> Remote:
 def _model(data: dict) -> Model:
     text = lambda key, limit=400: data[key] if isinstance(data[key], str) and 0 < len(data[key]) <= limit else _bad(key)
     languages = data["languages"]
-    if not (isinstance(languages, list) and languages and all(isinstance(x, str) and LANGUAGE.match(x) for x in languages)):
+    if not (
+        isinstance(languages, list) and languages and all(isinstance(x, str) and LANGUAGE.match(x) for x in languages)
+    ):
         raise ValueError("bad languages")
-    if not (MODEL_ID.match(text("id")) and REPO.match(text("repo")) and REVISION.match(text("revision"))
-            and FILE.match(text("file")) and data["engine"] == "transcribe.cpp"):
+    if not (
+        MODEL_ID.match(text("id"))
+        and REPO.match(text("repo"))
+        and REVISION.match(text("revision"))
+        and FILE.match(text("file"))
+        and data["engine"] == "transcribe.cpp"
+    ):
         raise ValueError("bad model")
     ram = data["ramMB"]
     if not isinstance(ram, int) or isinstance(ram, bool) or not 0 < ram < 16384:
@@ -83,11 +98,29 @@ def _model(data: dict) -> Model:
     handy = data.get("handy")
     if not isinstance(handy, dict):
         raise ValueError("bad handy")
-    page = {"id": data["id"], "name": text("name", 80), "languages": languages, "size": remote.size,
-            "licence": text("licence", 40), "attribution": text("attribution"), "credit": text("credit", 120), "ramMB": ram,
-            "notes": text("notes"), "handy": handy}
-    return Model(data["id"], page["name"], tuple(languages), remote, data["file"], page["licence"],
-                 page["attribution"], ram, page)
+    page = {
+        "id": data["id"],
+        "name": text("name", 80),
+        "languages": languages,
+        "size": remote.size,
+        "licence": text("licence", 40),
+        "attribution": text("attribution"),
+        "credit": text("credit", 120),
+        "ramMB": ram,
+        "notes": text("notes"),
+        "handy": handy,
+    }
+    return Model(
+        data["id"],
+        page["name"],
+        tuple(languages),
+        remote,
+        data["file"],
+        page["licence"],
+        page["attribution"],
+        ram,
+        page,
+    )
 
 
 def _bad(key: str):
@@ -105,8 +138,12 @@ def parse(data: object) -> Catalog:
     models = tuple(_model(m) for m in data["models"])
     if len({m.id for m in models}) != len(models) or len({m.file for m in models}) != len(models):
         raise ValueError("a model id or file twice")
-    return Catalog(Engine(engine["version"], native, _remote(engine["python"], GITHUB_HOSTS),
-                          str(engine.get("attribution", ""))[:400]), models)
+    return Catalog(
+        Engine(
+            engine["version"], native, _remote(engine["python"], GITHUB_HOSTS), str(engine.get("attribution", ""))[:400]
+        ),
+        models,
+    )
 
 
 def load(path: Path = PATH) -> Optional[Catalog]:

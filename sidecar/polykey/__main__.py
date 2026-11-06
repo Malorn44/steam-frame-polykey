@@ -1,4 +1,5 @@
 """Command line: run.py {run,once,probe,uninstall} [options]."""
+
 from __future__ import annotations
 
 import argparse
@@ -29,14 +30,24 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="run.py", description="polykey sidecar for the Steam Frame")
     parser.add_argument("command", choices=list(COMMANDS), help="; ".join(f"{k}: {v}" for k, v in COMMANDS.items()))
     defaults = Config()
-    parser.add_argument("--devtools", default=defaults.devtools, help=f"debugger endpoint (default {defaults.devtools})")
-    parser.add_argument("--bundle", type=Path, default=defaults.bundle, help=f"bundle to inject (default {defaults.bundle})")
-    parser.add_argument("--probe-script", type=Path, default=defaults.probe, help=f"probe script (default {defaults.probe})")
+    parser.add_argument(
+        "--devtools", default=defaults.devtools, help=f"debugger endpoint (default {defaults.devtools})"
+    )
+    parser.add_argument(
+        "--bundle", type=Path, default=defaults.bundle, help=f"bundle to inject (default {defaults.bundle})"
+    )
+    parser.add_argument(
+        "--probe-script", type=Path, default=defaults.probe, help=f"probe script (default {defaults.probe})"
+    )
     parser.add_argument("--no-console", action="store_true", help="do not forward [polykey] console lines")
     args = parser.parse_args(argv)
 
-    cfg = Config(devtools=args.devtools, bundle=args.bundle.expanduser(), probe=args.probe_script.expanduser(),
-                 forward_console=not args.no_console)
+    cfg = Config(
+        devtools=args.devtools,
+        bundle=args.bundle.expanduser(),
+        probe=args.probe_script.expanduser(),
+        forward_console=not args.no_console,
+    )
     log = Log()
     try:
         if args.command == "run":

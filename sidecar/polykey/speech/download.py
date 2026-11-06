@@ -6,6 +6,7 @@ The file grows as `<name>.part` (0600, in a 0700 directory) and is renamed into 
 and hash match. A download cut off by the network keeps its part, and the next attempt resumes it with
 an HTTP Range request (hashing what is there first); a wrong size or hash removes it.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,6 +37,7 @@ CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 @dataclass(frozen=True)
 class Remote:
     """A pinned file: where it is, which hosts may serve it, and what it must be."""
+
     url: str
     size: int
     sha256: str
@@ -59,8 +61,13 @@ def _hash_file(path: Path) -> "hashlib._Hash":
 class Download:
     """One download of `remote` to `path`; progress in `done` / `total`, failure in `error`."""
 
-    def __init__(self, remote: Remote, path: Path, schemes: tuple[str, ...] = ("https",),
-                 on_progress: Optional[Callable[[], None]] = None) -> None:
+    def __init__(
+        self,
+        remote: Remote,
+        path: Path,
+        schemes: tuple[str, ...] = ("https",),
+        on_progress: Optional[Callable[[], None]] = None,
+    ) -> None:
         self.remote = remote
         self.path = path
         self.schemes = schemes

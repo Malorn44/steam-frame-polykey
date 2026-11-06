@@ -19,16 +19,46 @@ def write(directory: Path, name: str, data) -> None:
 
 
 def theme(item_id: str, surface: str = "#000000") -> dict:
-    return {"schemaVersion": 1, "kind": "theme", "id": item_id, "name": "T",
-            "colors": {"surface": surface, "key": "#111111", "keyText": "#ffffff", "modifier": "#222222", "accent": "#ff0000"}}
+    return {
+        "schemaVersion": 1,
+        "kind": "theme",
+        "id": item_id,
+        "name": "T",
+        "colors": {
+            "surface": surface,
+            "key": "#111111",
+            "keyText": "#ffffff",
+            "modifier": "#222222",
+            "accent": "#ff0000",
+        },
+    }
 
 
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {"en/qwerty", "internal/emoji-row", "ja/flick", "ja/flick-abc", "ja/flick-qwerty", "ja/flick-symbols", "ja/flick-symbols2", "ja/gojuon", "ja/kana-jis", "ja/qwerty-romaji"}
+    assert set(boot["catalog"]["layouts"]) == {
+        "en/qwerty",
+        "internal/emoji-row",
+        "ja/flick",
+        "ja/flick-abc",
+        "ja/flick-qwerty",
+        "ja/flick-symbols",
+        "ja/flick-symbols2",
+        "ja/gojuon",
+        "ja/kana-jis",
+        "ja/qwerty-romaji",
+    }
     assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table"}
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
+    assert boot["settings"] == {
+        "keyboards": ["en/english"],
+        "theme": "themes/steam",
+        "haptics": True,
+        "suggestions": True,
+        "dictation": False,
+        "dictationModels": {},
+        "dictationContinuous": False,
+    }
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
@@ -36,7 +66,8 @@ def test_a_key_twice_in_one_object_is_refused(tmp_path):
     user = tmp_path / "config"
     (user / "packs" / "mine").mkdir(parents=True)
     (user / "packs" / "mine" / "t.json").write_text(
-        '{"kind": "theme", "id": "mine/t", "name": "T", "name": "U", "colors": {}}', encoding="utf-8")
+        '{"kind": "theme", "id": "mine/t", "name": "T", "name": "U", "colors": {}}', encoding="utf-8"
+    )
     boot = packs.load(BUNDLED, SCHEMA, user)
     assert boot["errors"] == ['mine/t.json: "name" appears twice in one object']
     assert "mine/t" not in boot["catalog"]["themes"]
@@ -58,8 +89,14 @@ def test_every_bundled_layout_row_is_15_units(tmp_path):
 
 
 def layout(item_id: str, **fields) -> dict:
-    return {"schemaVersion": 1, "kind": "layout", "id": item_id, "name": item_id,
-            "rows": [[{"type": "char", "char": "a"}]], **fields}
+    return {
+        "schemaVersion": 1,
+        "kind": "layout",
+        "id": item_id,
+        "name": item_id,
+        "rows": [[{"type": "char", "char": "a"}]],
+        **fields,
+    }
 
 
 def test_a_layout_without_a_toolbar_gets_the_default(tmp_path):
@@ -87,11 +124,18 @@ def test_a_layout_names_its_modify_table(tmp_path):
 
 
 def test_a_layout_extends_another(tmp_path):
-    base = layout("mine/base", description="the base", large=True,
-                  rows=[[{"type": "char", "char": "a"}], [{"type": "char", "char": "b"}]])
+    base = layout(
+        "mine/base",
+        description="the base",
+        large=True,
+        rows=[[{"type": "char", "char": "a"}], [{"type": "char", "char": "b"}]],
+    )
     write(tmp_path / "packs", "mine/base.json", base)
-    write(tmp_path / "packs", "mine/child.json",
-          layout("mine/child", extends="mine/base", toolbar=[], rows={"1": [{"type": "char", "char": "c"}]}))
+    write(
+        tmp_path / "packs",
+        "mine/child.json",
+        layout("mine/child", extends="mine/base", toolbar=[], rows={"1": [{"type": "char", "char": "c"}]}),
+    )
     same = layout("mine/same", extends="mine/child")
     del same["rows"]
     write(tmp_path / "packs", "mine/same.json", same)
@@ -109,13 +153,20 @@ def test_a_layout_extends_another(tmp_path):
 def test_a_layout_that_cannot_be_extended_is_reported(tmp_path):
     def child(item_id, **fields):
         return {k: v for k, v in layout(item_id, **fields).items() if k != "rows" or "rows" in fields}
+
     write(tmp_path / "packs", "mine/lost.json", child("mine/lost", extends="mine/nope"))
     write(tmp_path / "packs", "mine/loop-a.json", child("mine/loop-a", extends="mine/loop-b"))
     write(tmp_path / "packs", "mine/loop-b.json", child("mine/loop-b", extends="mine/loop-a"))
-    write(tmp_path / "packs", "mine/past.json", child("mine/past", extends="en/qwerty", rows={"7": [{"type": "char", "char": "x"}]}))
+    write(
+        tmp_path / "packs",
+        "mine/past.json",
+        child("mine/past", extends="en/qwerty", rows={"7": [{"type": "char", "char": "x"}]}),
+    )
     write(tmp_path / "packs", "mine/rowless.json", child("mine/rowless"))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert not {"mine/lost", "mine/loop-a", "mine/loop-b", "mine/past", "mine/rowless"} & set(boot["catalog"]["layouts"])
+    assert not {"mine/lost", "mine/loop-a", "mine/loop-b", "mine/past", "mine/rowless"} & set(
+        boot["catalog"]["layouts"]
+    )
     assert "mine/lost: extends mine/nope, which was not found" in boot["errors"]
     assert any(e.startswith("mine/loop-") and "in a loop" in e for e in boot["errors"])
     assert "mine/past: row 7 replaces nothing (en/qwerty has 5 rows)" in boot["errors"]
@@ -137,7 +188,11 @@ def test_a_two_row_key_is_written_once_and_split_into_halves(tmp_path):
     enter = {"type": "key", "key": "Enter", "w": 1.5, "rows": 2}
     # Same columns below (五十音); and notched, narrower below on the left (the JIS Enter).
     write(tmp_path / "packs", "mine/even.json", layout("mine/even", rows=[[a, enter], [a]]))
-    write(tmp_path / "packs", "mine/jis.json", layout("mine/jis", rows=[[a, {**enter, "notch": 0.25}], [a, {**a, "w": 0.25}]]))
+    write(
+        tmp_path / "packs",
+        "mine/jis.json",
+        layout("mine/jis", rows=[[a, {**enter, "notch": 0.25}], [a, {**a, "w": 0.25}]]),
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     even = boot["catalog"]["layouts"]["mine/even"]["rows"]
@@ -145,14 +200,23 @@ def test_a_two_row_key_is_written_once_and_split_into_halves(tmp_path):
     assert even[1] == [a, {"type": "key", "key": "Enter", "w": 1.5, "tall": "bottom"}]
     jis = boot["catalog"]["layouts"]["mine/jis"]["rows"]
     assert jis[0][1] == {"type": "key", "key": "Enter", "w": 1.5, "notch": 0.25, "tall": "top", "span": 2}
-    assert jis[1][2] == {"type": "key", "key": "Enter", "w": 1.25, "tall": "bottom"}  # after the 0.25 key under the notch
+    assert jis[1][2] == {
+        "type": "key",
+        "key": "Enter",
+        "w": 1.25,
+        "tall": "bottom",
+    }  # after the 0.25 key under the notch
 
 
 def test_a_two_row_key_needs_room_below(tmp_path):
     a = {"type": "char", "char": "a"}
     enter = {"type": "key", "key": "Enter", "rows": 2}
     write(tmp_path / "packs", "mine/last.json", layout("mine/last", rows=[[a, a], [a, enter]]))  # no row below
-    write(tmp_path / "packs", "mine/full.json", layout("mine/full", rows=[[a, {**a, "w": 0.5}, {**enter, "w": 0.5}], [a, a]]))
+    write(
+        tmp_path / "packs",
+        "mine/full.json",
+        layout("mine/full", rows=[[a, {**a, "w": 0.5}, {**enter, "w": 0.5}], [a, a]]),
+    )
     errors = packs.load(BUNDLED, SCHEMA, tmp_path)["errors"]
     assert "mine/last: row 1: Enter is 2 rows high but there is no row 2" in errors
     assert "mine/full: row 0: Enter is 2 rows high but row 1 has no room for it" in errors
@@ -188,8 +252,11 @@ def test_ids_must_live_in_their_namespace_folder(tmp_path):
 
 
 def test_a_keyboard_needs_its_layout(tmp_path):
-    write(tmp_path / "packs", "fr/azerty.json", {"schemaVersion": 1, "kind": "keyboard", "id": "fr/azerty",
-                                                 "name": "Français", "layout": "fr/azerty"})
+    write(
+        tmp_path / "packs",
+        "fr/azerty.json",
+        {"schemaVersion": 1, "kind": "keyboard", "id": "fr/azerty", "name": "Français", "layout": "fr/azerty"},
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert "fr/azerty" not in boot["catalog"]["keyboards"]
     assert boot["errors"] == ["fr/azerty: layout fr/azerty not found"]
@@ -200,7 +267,11 @@ def keyboard(item_id: str, **fields) -> dict:
 
 
 def test_a_keyboard_extends_another(tmp_path):
-    write(tmp_path / "packs", "ja/mine.json", keyboard("ja/mine", extends="ja/12key", layout="ja/gojuon", options={"flickHints": True}))
+    write(
+        tmp_path / "packs",
+        "ja/mine.json",
+        keyboard("ja/mine", extends="ja/12key", layout="ja/gojuon", options={"flickHints": True}),
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     mine, base = boot["catalog"]["keyboards"]["ja/mine"], boot["catalog"]["keyboards"]["ja/12key"]
@@ -237,7 +308,15 @@ def test_a_keyboard_that_cannot_be_extended_is_reported(tmp_path):
 def test_settings_are_read_and_checked(tmp_path):
     write(tmp_path, "settings.json", {"keyboards": ["xx/nope", "en/english"], "theme": "themes/nope"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
+    assert boot["settings"] == {
+        "keyboards": ["en/english"],
+        "theme": "themes/steam",
+        "haptics": True,
+        "suggestions": True,
+        "dictation": False,
+        "dictationModels": {},
+        "dictationContinuous": False,
+    }
     assert "settings.json: unknown keyboards xx/nope" in boot["errors"]
     assert "settings.json: unknown theme themes/nope" in boot["errors"]
 
@@ -292,17 +371,32 @@ def test_settings_flags_and_saving(tmp_path):
     packs.save_settings(tmp_path / "settings.json", {"haptics": False})
     packs.save_settings(tmp_path / "settings.json", {"theme": "themes/night-owl"})
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["settings"] == {"keyboards": ["en/english"], "theme": "themes/night-owl", "haptics": False, "suggestions": True, "dictation": False, "dictationModels": {}, "dictationContinuous": False}
+    assert boot["settings"] == {
+        "keyboards": ["en/english"],
+        "theme": "themes/night-owl",
+        "haptics": False,
+        "suggestions": True,
+        "dictation": False,
+        "dictationModels": {},
+        "dictationContinuous": False,
+    }
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
-    assert json.loads((tmp_path / "settings.json").read_text()) == {"keyboards": ["en/english"], "custom": 1, "suggestions": False}
+    assert json.loads((tmp_path / "settings.json").read_text()) == {
+        "keyboards": ["en/english"],
+        "custom": 1,
+        "suggestions": False,
+    }
 
 
 def test_bridge_saves_only_known_settings(tmp_path):
     import asyncio
     from polykey.bridge import Bridge
+
     bridge = Bridge(Log(io.StringIO()), None, None, tmp_path / "settings.json")
-    ask = lambda settings: asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "settings.save", "settings": settings})))
+    ask = lambda settings: asyncio.run(
+        bridge.handle(json.dumps({"id": 1, "op": "settings.save", "settings": settings}))
+    )
     assert ask({"haptics": False}) == {"id": 1, "ok": True}
     assert ask({"haptics": "no"})["error"] == "bad-settings"
     assert ask({"keyboards": []})["error"] == "bad-settings"
@@ -323,7 +417,13 @@ def test_bridge_saves_only_known_settings(tmp_path):
 def test_the_japanese_12key_pack_loads():
     boot = packs.load(BUNDLED, SCHEMA, None)
     assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {"tapCycle": False, "candidatesLeft": True, "flickHints": False, "qwertyLatin": True, "swipe": False}
+    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {
+        "tapCycle": False,
+        "candidatesLeft": True,
+        "flickHints": False,
+        "qwertyLatin": True,
+        "swipe": False,
+    }
     layout = boot["catalog"]["layouts"]["ja/flick"]
     assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
     assert "はばぱ" in layout["modify"]
@@ -337,12 +437,17 @@ def test_emoji_data_and_state(tmp_path):
     assert any(isinstance(i, list) and len(i) == 6 for i in groups[1]["items"])  # skin tones
     assert boot["emojiState"] == {"recent": [], "favorites": [], "tone": ""}
     write(tmp_path, "emoji.json", {"recent": ["😀", 5, "x" * 99], "favorites": ["⭐"], "tone": "dark", "other": 1})
-    assert packs.load(BUNDLED, SCHEMA, tmp_path)["emojiState"] == {"recent": ["😀"], "favorites": ["⭐"], "tone": "dark"}
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["emojiState"] == {
+        "recent": ["😀"],
+        "favorites": ["⭐"],
+        "tone": "dark",
+    }
 
 
 def test_bridge_saves_emoji_state_cleaned(tmp_path):
     import asyncio
     from polykey.bridge import Bridge
+
     out = io.StringIO()
     bridge = Bridge(Log(out), None, None, tmp_path / "settings.json")
     state = {"recent": ["😀", "🎉"] + ["👍"] * 50, "favorites": [], "tone": "nope"}
@@ -357,8 +462,11 @@ def test_alone_rows_hide_the_globe_and_apply_each_keys_patch(tmp_path):
     a = {"type": "char", "char": "a"}
     globe = {"type": "action", "action": "next-keyboard"}
     tall = {"type": "action", "action": "eisu", "rows": 2, "alone": {"rows": 3}}
-    write(tmp_path / "packs", "mine/one.json", layout("mine/one", rows=[
-        [tall, a], [a], [globe, {"type": "char", "char": " ", "alone": {"w": 1}}]]))
+    write(
+        tmp_path / "packs",
+        "mine/one.json",
+        layout("mine/one", rows=[[tall, a], [a], [globe, {"type": "char", "char": " ", "alone": {"w": 1}}]]),
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     mine = boot["catalog"]["layouts"]["mine/one"]
@@ -368,12 +476,19 @@ def test_alone_rows_hide_the_globe_and_apply_each_keys_patch(tmp_path):
     # With one keyboard: no 🌐, space wider, 英数 three rows high.
     alone = mine["aloneRows"]
     assert [k["tall"] for k in (alone[0][0], alone[1][0], alone[2][0])] == ["top", "middle", "bottom"]
-    assert alone[2] == [{"type": "action", "action": "eisu", "w": 1, "tall": "bottom"}, {"type": "char", "char": " ", "w": 1}]
+    assert alone[2] == [
+        {"type": "action", "action": "eisu", "w": 1, "tall": "bottom"},
+        {"type": "char", "char": " ", "w": 1},
+    ]
 
 
 def test_alone_rows_that_do_not_fit_leave_the_globe_as_a_gap(tmp_path):
     a = {"type": "char", "char": "a"}
-    write(tmp_path / "packs", "mine/two.json", layout("mine/two", rows=[[a, a], [a, {"type": "action", "action": "next-keyboard"}]]))
+    write(
+        tmp_path / "packs",
+        "mine/two.json",
+        layout("mine/two", rows=[[a, a], [a, {"type": "action", "action": "next-keyboard"}]]),
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == ["mine/two: row 1 is 1 wide, the layout is 2 (with one keyboard; 🌐 left as a gap)"]
     assert boot["catalog"]["layouts"]["mine/two"]["aloneRows"][1] == [a, {"type": "gap", "w": 1}]

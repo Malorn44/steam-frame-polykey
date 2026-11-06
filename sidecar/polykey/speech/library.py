@@ -4,6 +4,7 @@ The engine is fetched once dictation is on (and again if it goes missing, once; 
 user retries, so nothing loops). Models are fetched when the page asks. Every change bumps `rev`, which
 wakes a dictation.status waiting for it.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -66,7 +67,9 @@ class Library:
         return {"state": "missing", **({"error": self._failed[key]} if key in self._failed else {})}
 
     def status(self) -> dict:
-        models = {m.id: self._state(m.id, self.model_path(m).is_file()) for m in self.catalog.models} if self.catalog else {}
+        models = (
+            {m.id: self._state(m.id, self.model_path(m).is_file()) for m in self.catalog.models} if self.catalog else {}
+        )
         return {"rev": self.rev, "engine": self._state(ENGINE, self.engine_ready()), "models": models}
 
     def page_catalog(self) -> dict:
@@ -75,9 +78,15 @@ class Library:
             return {"ok": False, "error": "no-catalog"}
         engine = self.catalog.engine
         native = next(iter(engine.native.values()), None)
-        return {"ok": True, "engine": {"version": engine.version, "attribution": engine.attribution,
-                                       "size": (native.size if native else 0) + engine.python.size},
-                "models": [m.page for m in self.catalog.models]}
+        return {
+            "ok": True,
+            "engine": {
+                "version": engine.version,
+                "attribution": engine.attribution,
+                "size": (native.size if native else 0) + engine.python.size,
+            },
+            "models": [m.page for m in self.catalog.models],
+        }
 
     def fetch_missing_engine(self) -> None:
         """The engine should be there and is not (never fetched, or deleted): fetch it, once."""
@@ -108,7 +117,9 @@ class Library:
             return
         options = dict(self._download_options)
         if key == ENGINE:
-            job: Union[Download, EngineDownload] = EngineDownload(self.catalog.engine, self.home, on_progress=self._bump, **options)
+            job: Union[Download, EngineDownload] = EngineDownload(
+                self.catalog.engine, self.home, on_progress=self._bump, **options
+            )
             what = "the speech engine"
         else:
             model = self.catalog.model(key)
@@ -132,6 +143,7 @@ class Library:
                 self._failed[key] = job.error or "failed"
                 self._log.info(f"dictation: {what} download failed ({job.error})")
             self._bump()
+
         self._jobs[key] = (job, asyncio.ensure_future(run()))
         self._bump()
 

@@ -21,7 +21,9 @@ def test_completes_by_count_case_insensitively():
 
 
 def test_corrects_likely_slips_ranked_with_completions():
-    lexicon = Lexicon.parse("the\t250\nten\t150\nhello\t150\nhelots\t10\nhelp\t160\nbecause\t200\ndon't\t180\nTehran\t60\n")
+    lexicon = Lexicon.parse(
+        "the\t250\nten\t150\nhello\t150\nhelots\t10\nhelp\t160\nbecause\t200\ndon't\t180\nTehran\t60\n"
+    )
     assert lexicon.correct("teh") == ["the", "ten"]  # swapped letters, then a replaced one
     assert lexicon.suggest("helo", 3) == ["hello", "help", "helots"]  # a doubled letter beats a rare completion
     assert lexicon.suggest("becuase", 3) == ["because"]
@@ -59,15 +61,19 @@ def test_suggest_through_the_bridge_never_logs_the_prefix(tmp_path):
         assert (await ask(prefix="", lexicon="en/words"))["error"] == "bad-prefix"
         assert (await ask(prefix="x", lexicon="en/words", limit=99))["error"] == "bad-limit"
         assert (await ask(prefix="x", lexicon="en/none"))["error"] == "no-lexicon"
+
     asyncio.run(main())
     assert "hel" not in out.getvalue()
 
 
 def test_blocked_words_are_never_suggested_but_profanity_is(tmp_path):
     from polykey.lexicon import word_hash
+
     (tmp_path / "bundled" / "en").mkdir(parents=True)
     (tmp_path / "user" / "en").mkdir(parents=True)
-    (tmp_path / "bundled" / "en" / "words.tsv").write_text("badword\t9\nbadword's\t8\nbadge\t5\nfuck\t7\n", encoding="utf-8")
+    (tmp_path / "bundled" / "en" / "words.tsv").write_text(
+        "badword\t9\nbadword's\t8\nbadge\t5\nfuck\t7\n", encoding="utf-8"
+    )
     (tmp_path / "bundled" / "en" / "blocked.sha256").write_text(f"# hashes\n{word_hash('badword')}\n", encoding="utf-8")
     (tmp_path / "user" / "en" / "blocked.txt").write_text("# mine\nbadge\n", encoding="utf-8")
     lexicon = Lexicons([tmp_path / "user", tmp_path / "bundled"]).get("en/words")
@@ -78,9 +84,12 @@ def test_blocked_words_are_never_suggested_but_profanity_is(tmp_path):
 def test_bundled_english_list_is_clean_and_keeps_profanity():
     from pathlib import Path
     from polykey.lexicon import word_hash
+
     packs = Path(__file__).resolve().parents[2] / "packs"
     blocked = {l.strip() for l in (packs / "en" / "blocked.sha256").read_text().splitlines() if not l.startswith("#")}
-    words = [l.split("\t")[0] for l in (packs / "en" / "words.tsv").read_text().splitlines() if l and not l.startswith("#")]
+    words = [
+        l.split("\t")[0] for l in (packs / "en" / "words.tsv").read_text().splitlines() if l and not l.startswith("#")
+    ]
     assert len(words) == 60_000
     assert not any(word_hash(w) in blocked for w in words)
     assert Lexicons([packs]).get("en/words").complete("fuc", 1) == ["fuck"]
