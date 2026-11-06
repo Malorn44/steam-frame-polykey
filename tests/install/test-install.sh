@@ -79,6 +79,14 @@ expect "--local refuses a key allowed_signers does not name, and leaves no signa
 cp "$T/allowed_signers" "$T/signers-before"
 expect "--init will not replace a key, and leaves allowed_signers as it was" \
   '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --init > "$T/out" 2>&1 && grep -q "already exists" "$T/out" && cmp -s "$T/allowed_signers" "$T/signers-before"'
+cp contrib/allowed_signers "$T/init-signers"
+expect "--init makes a key with no passphrase in a private folder, and adds its public half to allowed_signers" \
+  'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && ssh-keygen -y -P "" -f "$T/init/key" >/dev/null && [ "$(stat -c %a "$T/init")" = 700 ] && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init/key.pub")" ] && cmp -s <(head -n -1 "$T/init-signers") contrib/allowed_signers'
+expect "and says how to store it as the release environment's secret, without printing the key" \
+  'grep -qF "gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < $T/init/key" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init/key")" "$T/out"'
+cp -R "$T/serve/r1" "$T/init-release"
+expect "--local signs with that key, asking for nothing" \
+  'POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --local "$T/init-release" > /dev/null < /dev/null && ssh-keygen -Y verify -f "$T/init-signers" -I polykey-release -n polykey-release -s "$T/init-release/latest.json.sig" < "$T/init-release/latest.json" >/dev/null 2>&1'
 mkdir "$T/repack"
 tar -xzf "$T/serve/r1/polykey-0.1.0.tar.gz" -C "$T/repack"
 tar -C "$T/repack" -cf - polykey-0.1.0 | gzip -1 > "$T/repacked.tar.gz"

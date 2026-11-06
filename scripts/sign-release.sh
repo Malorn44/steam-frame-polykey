@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Sign a release on this PC, the step CI leaves to you, so the release key never sits in GitHub.
 #
-#   scripts/sign-release.sh --init           make the release key (asks for a passphrase) and put its
-#                                            public half into contrib/allowed_signers; commit that
+#   scripts/sign-release.sh --init           make the release key (no passphrase: CI signs with it), put
+#                                            its public half into contrib/allowed_signers, and say what
+#                                            to do next
 #   scripts/sign-release.sh vX.Y.Z           sign the draft release vX.Y.Z (below), then publish it
 #                                            if you say so
 #   scripts/sign-release.sh --local [DIR]    sign DIR/latest.json (default dist/release), for a release
@@ -156,11 +157,22 @@ case "${1:-}" in
     [ ! -e "$KEY" ] || die "$KEY already exists; $SIGNERS should name its public half"
     # shellcheck disable=SC2174  # only the key's own folder (~/.ssh) needs to be private
     mkdir -p -m 700 "$(dirname "$KEY")"
-    echo "→ making the release key $KEY (ed25519). Choose a passphrase, and keep a backup of the key:"
-    echo "  a lost key means installed releases can no longer update."
-    ssh-keygen -q -t ed25519 -C "$NAMESPACE" -f "$KEY"
+    ssh-keygen -q -t ed25519 -N '' -C "$NAMESPACE" -f "$KEY"
     printf '%s namespaces="%s" %s\n' "$NAMESPACE" "$NAMESPACE" "$(cut -d' ' -f1,2 "$KEY.pub")" >> "$SIGNERS"
-    echo "✓ added to $SIGNERS; commit it: releases built from then on carry the key"
+    cat <<EOF
+✓ made the release key $KEY (ed25519, no passphrase: CI signs with it) and added its public half
+  to $SIGNERS
+
+Next:
+  1. Commit $SIGNERS: releases built from then on trust this key.
+  2. Store the key as the secret RELEASE_SIGNING_KEY of the environment release (create the
+     environment first, in Settings → Environments, with main as its only deployment branch):
+       gh secret set RELEASE_SIGNING_KEY --env release --repo $REPO < $(printf %q "$KEY")
+  3. Keep an offline backup of $KEY somewhere safe (it has no passphrase). GitHub never gives a
+     secret back: lose every copy and installed releases can no longer update.
+  4. Then, if you like, delete it here: rm $(printf %q "$KEY"). --local signs with it; without it,
+     rehearse with a throwaway key (POLYKEY_RELEASE_KEY and POLYKEY_ALLOWED_SIGNERS).
+EOF
     ;;
   --local)
     dir=dist/release
@@ -174,6 +186,6 @@ case "${1:-}" in
     if same_release "$(from_here "$2")" "$(from_here "$3")"; then echo "same release"; else echo "different"; exit 1; fi
     ;;
   v[0-9]*) draft "$1" ;;
-  -h | --help | "") sed -n '2,21p' "$0" ;;
+  -h | --help | "") sed -n '2,22p' "$0" ;;
   *) die "unknown: $1 (try --help)" ;;
 esac
