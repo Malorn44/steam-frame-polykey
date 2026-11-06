@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One bundled layout's own checks, as CI's `layout: <id>` job runs them: it loads on its own and is as
+# One bundled layout's own checks, as CI's `test:layout:<id>` job runs them: it loads on its own and is as
 # wide as it should be (sidecar/tests/test_layout.py), its keys draw labels and type what they show
 # (tests/layout.test.ts). Usage: npm run test:layout -- ja/flick
 set -euo pipefail
