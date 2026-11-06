@@ -13,10 +13,10 @@
 #                http://192.168.1.20:8000 to try a release on the Frame from this PC
 #
 # The version comes from the release tag (release-please picks it from the commits). latest.json.sig,
-# the signature the updater and install.sh check, is made afterwards on your PC
-# (scripts/sign-release.sh): the key never sits in CI. POLYKEY_REPO (default
-# Malorn44/steam-frame-polykey) names the GitHub repo; POLYKEY_ALLOWED_SIGNERS another key file than
-# contrib/allowed_signers (the installer tests use a throwaway key).
+# the signature the updater and install.sh check, is made afterwards: by CI once you approve the
+# release, or by scripts/sign-release.sh --local for a release served from this PC. POLYKEY_REPO
+# (default Malorn44/steam-frame-polykey) names the GitHub repo; POLYKEY_ALLOWED_SIGNERS another key
+# file than contrib/allowed_signers (the installer tests use a throwaway key).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

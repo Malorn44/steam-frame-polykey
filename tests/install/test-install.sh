@@ -8,8 +8,8 @@
 # the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, the
 # layout from before releases, --uninstall and --uninstall --purge; what release.sh makes: the same
 # tarball from the same commit, what the tarball carries, and latest.json; and sign-release.sh, which
-# signs every release here (with the throwaway key, never ~/.ssh/polykey-release), compares tarballs,
-# and signs a draft only when it holds what a build of its tag makes (a throwaway repo, a stub gh).
+# signs every release here (with the throwaway key, never ~/.ssh/polykey-release), makes a key with
+# --init (in the throwaway folder), and compares tarballs.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -106,83 +106,7 @@ expect "--compare refuses a tarball holding a link, before unpacking it" \
   '! scripts/sign-release.sh --compare "$T/repacked.tar.gz" "$T/linked.tar.gz" > "$T/out" 2>&1 && grep -q "not a tarball of directories and files only" "$T/out"'
 expect "--compare and --local take paths from where they are run" \
   '(cd "$T" && "$REPO/scripts/sign-release.sh" --compare serve/r1/polykey-0.1.0.tar.gz repacked.tar.gz >/dev/null && POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" "$REPO/scripts/sign-release.sh" --local other >/dev/null) && verify "$T/other/latest.json"'
-
-# A draft as CI leaves it: a throwaway repo holding this tree with the throwaway key committed as the
-# release key, tagged v0.3.0 and built; and a stub gh that serves a copy of that build as release 42
-# (a draft unless GH_DRAFT=false; publishing it fails with GH_FAIL_PUBLISH=1) and logs what it is asked.
-S="$T/src"
-mkdir "$S" "$T/gh" "$T/tmp"
-git ls-files -z -co --exclude-standard | tar -cf - --null --ignore-failed-read -T - | tar -xf - -C "$S"
-cp "$T/allowed_signers" "$S/contrib/allowed_signers"
-git -C "$S" -c init.defaultBranch=main init -q
-git -C "$S" add -A
-GIT_AUTHOR_DATE=@1700000000 GIT_COMMITTER_DATE=@1700000000 \
-  git -C "$S" -c user.name=polykey-test -c user.email=test@invalid -c commit.gpgsign=false commit -q -m "polykey 0.3.0"
-git -C "$S" -c tag.gpgsign=false tag v0.3.0
-ln -s "$REPO/node_modules" "$S/node_modules"
-(cd "$S" && scripts/release.sh 0.3.0 >/dev/null)
-mv "$S/dist/release" "$T/ci"
-cat > "$T/gh/gh" <<'EOF'
-#!/bin/sh
-echo "$*" >> "$GH_ASSETS.log"
-case "$1 $2" in
-  "api repos/"*) echo "42 ${GH_DRAFT:-true}" ;;
-  "api -X") [ -z "${GH_FAIL_PUBLISH:-}" ] || exit 1; echo "https://github.com/Malorn44/steam-frame-polykey/releases/tag/v0.3.0" ;;
-  "release download") while [ $# -gt 1 ]; do [ "$1" != --dir ] || cp "$GH_ASSETS"/* "$2"; shift; done ;;
-  "release upload") for f; do :; done; cp "$f" "$GH_ASSETS/" ;;
-  *) echo "gh stub: $*" >&2; exit 1 ;;
-esac
-EOF
-chmod +x "$T/gh/gh"
-draft() {  # draft NAME [CHANGE]: CI's v0.3.0 as draft NAME. With CHANGE, its tarball is unpacked, CHANGE
-           # run in it, packed again (gzip -1), and latest.json and SHA256SUMS made to agree with it.
-  local dir="$T/$1" top=polykey-0.3.0
-  rm -rf "$dir" "$T/unpack"
-  cp -R "$T/ci" "$dir"
-  : > "$dir.log"
-  [ $# -gt 1 ] || return 0
-  mkdir "$T/unpack"
-  tar -xzf "$dir/$top.tar.gz" -C "$T/unpack"
-  (cd "$T/unpack/$top" && eval "$2")
-  tar -C "$T/unpack" -cf - "$top" | gzip -1 > "$dir/$top.tar.gz"
-  sed -i -e "s/\"size\": [0-9]*/\"size\": $(stat -c %s "$dir/$top.tar.gz")/" \
-    -e "s/\"sha256\": \"[0-9a-f]*\"/\"sha256\": \"$(sha256sum "$dir/$top.tar.gz" | cut -d' ' -f1)\"/" "$dir/latest.json"
-  (cd "$dir" && sha256sum "$top.tar.gz" install.sh latest.json > SHA256SUMS)
-}
-signing() {  # signing NAME ANSWER...: sign-release.sh v0.3.0 on draft NAME, answering its questions
-  local name=$1
-  shift
-  printf '%s\n' "$@" | PATH="$T/gh:$PATH" GH_ASSETS="$T/$name" TMPDIR="$T/tmp" POLYKEY_RELEASE_KEY="$T/key" \
-    "$S/scripts/sign-release.sh" v0.3.0 > "$T/out" 2>&1
-}
-draft honest
-expect "a draft that matches a build of its tag is signed, uploaded and published through the API" \
-  'signing honest y y && verify "$T/honest/latest.json" && grep -qx "api -X PATCH repos/Malorn44/steam-frame-polykey/releases/42 -F draft=false -f make_latest=true --jq .html_url" "$T/honest.log"'
-expect "and leaves no scratch worktree or folder behind" '[ "$(git -C "$S" worktree list | wc -l)" = 1 ] && [ -z "$(find "$T/tmp" -mindepth 1 -maxdepth 1 -name "tmp.*")" ]'
-draft refused
-expect "a publish GitHub refuses is reported as such, with the signature uploaded" \
-  '! GH_FAIL_PUBLISH=1 signing refused y y && grep -q "could not publish v0.3.0" "$T/out" && ! grep -q "✓ published" "$T/out" && verify "$T/refused/latest.json"'
-draft repacked true
-expect "a draft CI packed differently, holding the same files, gets to the smoke test question" \
-  '! signing repacked n && grep -q "holds what v0.3.0 builds to" "$T/out" && grep -q "not signed" "$T/out" && [ ! -e "$T/repacked/latest.json.sig" ] && ! grep -q "upload\|PATCH" "$T/repacked.log"'
-draft tampered 'echo "// changed in CI" >> bundle.js'
-expect "a draft that differs from a build of its tag is refused" \
-  '! signing tampered y y && grep -q "differs from a build of v0.3.0" "$T/out" && [ ! -e "$T/tampered/latest.json.sig" ] && ! grep -q "upload\|PATCH" "$T/tampered.log"'
-draft mismatched
-sed -i 's/"size": [0-9]*/"size": 1/' "$T/mismatched/latest.json"
-expect "a draft whose latest.json disagrees with its tarball is refused before any build" \
-  '! signing mismatched y y && grep -q "not the size latest.json gives" "$T/out" && ! grep -q building "$T/out"'
-draft partial
-sed -i '/install\.sh$/d' "$T/partial/SHA256SUMS"
-expect "a draft whose SHA256SUMS leaves a file out is refused" '! signing partial y y && grep -q "SHA256SUMS is not the sums" "$T/out"'
-draft renoted
-sed -i 's,"notes": "[^"]*","notes": "https://example.invalid/polykey",' "$T/renoted/latest.json"
-(cd "$T/renoted" && sha256sum polykey-0.3.0.tar.gz install.sh latest.json > SHA256SUMS)
-expect "a draft whose latest.json differs in any field from what a build of its tag writes is refused" \
-  '! signing renoted y y && grep -q "latest.json is not what a build of v0.3.0 writes" "$T/out" && [ ! -e "$T/renoted/latest.json.sig" ] && ! grep -q "upload\|PATCH" "$T/renoted.log"'
-draft published
-expect "a release already published is left alone" \
-  '! GH_DRAFT=false signing published y y && grep -q "already published" "$T/out" && ! grep -q download "$T/published.log"'
+expect "a release tag is refused: CI signs drafts" '! scripts/sign-release.sh v0.1.0 > "$T/out" 2>&1 && grep -q "unknown: v0.1.0" "$T/out"'
 (cd "$T/serve" && exec "$PYTHON" -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
 server=$!
 for _ in $(seq 50); do curl -fs "http://127.0.0.1:$port/" >/dev/null 2>&1 && break; sleep 0.1; done
