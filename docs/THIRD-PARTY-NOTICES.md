@@ -1,7 +1,7 @@
 # Third-party notices
 
-polykey is MIT licensed (`LICENSE`). It includes work from the projects below, under their own
-licences.
+polykey is MIT licensed ([LICENSE](../LICENSE)). It includes work from the projects below, under
+their own licences.
 
 ## Code and icons (MIT)
 
