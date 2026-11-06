@@ -66,6 +66,16 @@ describe('keyLegends', () => {
     expect(keyLegends(abc, mods(), ctx({ hints: true })).slots.c).toMatchObject({ text: '@' }); // hints show the rest
   });
 
+  it('flick hints follow Shift and Caps, as the label does without them', () => {
+    const letters: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'], label: 'abc', sub: '2' };
+    const hinted = { arrangement: 'edges', l: 'b', t: 'c', b: '2' };
+    expect(shown(letters, mods(), ctx({ hints: true }))).toEqual({ ...hinted, c: 'a' });
+    expect(shown(letters, mods({ shift: 'once' }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'A', l: 'B', t: 'C' });
+    expect(shown(letters, mods({ caps: true }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'A', l: 'B', t: 'C' });
+    expect(shown(letters, mods({ shift: 'once', caps: true }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'a' }); // Shift undoes Caps
+    expect(shown(letters, mods({ shift: 'once' }))).toMatchObject({ c: 'ABC' }); // without hints, as before
+  });
+
   it('boxes the characters the layout lists, wherever they are', () => {
     const punct: KeyDef = { type: 'flick', flick: ['、', '。', '？', '！', '…'], hints: true };
     const { slots } = keyLegends(punct, mods(), ctx({ dotted: new Set(['、', '。']) }));
