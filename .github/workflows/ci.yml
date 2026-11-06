@@ -4,6 +4,11 @@
 # (test:layout lists them); build; test:installer; pr:title. The ruleset requires only `ci ok`, which
 # fails when any job failed or was cancelled.
 #
+# On a push to main, once `ci ok` passes: release (release-please keeps the release PR up to date, and
+# when one is merged, tags vX.Y.Z and drafts its GitHub release), then release:assets (builds the tag
+# and attaches its files to the draft). CI stops at the draft; signing and publishing are a TODO at
+# the end of this file (docs/RELEASING.md).
+#
 # Actions are pinned to commits (Dependabot proposes bumps); the version is in the comment. Python is
 # 3.12, the Frame's; the Python tools' versions come from requirements-dev.txt.
 name: ci
@@ -228,3 +233,69 @@ jobs:
           # Skipped is fine (pr:title, off pull requests); failed or cancelled is not.
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
           jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null
+
+  # release-please (release-please-config.json) acts with RELEASE_PLEASE_TOKEN, a fine-grained token
+  # (this repo; contents and pull requests read/write), so CI runs on the release PR: what the Actions
+  # token does starts no workflow. Only release-please runs in this job, so the token never meets the
+  # build's packages.
+  release:
+    name: release
+    needs: ci-ok # after every check, so a red main never releases
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions: {} # release-please uses its own token
+    outputs:
+      created: ${{ steps.release-please.outputs.release_created }}
+      tag: ${{ steps.release-please.outputs.tag_name }}
+      version: ${{ steps.release-please.outputs.version }}
+    steps:
+      - id: release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  # The new draft's files: its tag built by scripts/release.sh, which makes the same files from the
+  # same commit. Re-running this job replaces files already attached.
+  release-assets:
+    name: release:assets
+    needs: release
+    if: needs.release.outputs.created == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach files to the draft; this job never signs or publishes it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      - name: release key
+        id: key
+        run: |
+          if grep -q '^polykey-release .*ssh-ed25519 ' contrib/allowed_signers; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No release key in contrib/allowed_signers at this tag (scripts/sign-release.sh --init), so nothing is built"
+          fi
+      - if: steps.key.outputs.present == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      # No package's install scripts run in a job that can write the repo (the build needs none).
+      - if: steps.key.outputs.present == 'true'
+        run: npm ci --ignore-scripts
+      - if: steps.key.outputs.present == 'true'
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: scripts/release.sh "$VERSION"
+      - if: steps.key.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          cd dist/release
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "polykey-$VERSION.tar.gz" install.sh latest.json SHA256SUMS
+
+  # TODO(signing): not settled yet. Either releases are signed and published on your PC
+  # (scripts/sign-release.sh vX.Y.Z, as now) and nothing more goes here, or a job here signs and
+  # publishes the draft after an approval in GitHub. Until then CI stops at the draft.
