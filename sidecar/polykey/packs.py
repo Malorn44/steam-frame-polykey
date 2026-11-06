@@ -144,6 +144,24 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
 # --- loading -------------------------------------------------------------------------------------
 
 
+class DuplicateKey(ValueError):
+    """A JSON object names the same key twice; json.loads would quietly keep the last one."""
+
+
+def _no_duplicates(pairs: list[tuple[str, object]]) -> dict:
+    obj: dict = {}
+    for key, value in pairs:
+        if key in obj:
+            raise DuplicateKey(key)
+        obj[key] = value
+    return obj
+
+
+def read_json(text: str) -> object:
+    """JSON as json.loads reads it, except that a key twice in one object is an error (DuplicateKey)."""
+    return json.loads(text, object_pairs_hook=_no_duplicates)
+
+
 def _scan(directory: Path, schema: dict, errors: list[str]) -> dict[str, dict]:
     """Valid items under directory/<namespace>/*.json, by id."""
     items: dict[str, dict] = {}
@@ -156,7 +174,10 @@ def _scan(directory: Path, schema: dict, errors: list[str]) -> dict[str, dict]:
             if file.stat().st_size > MAX_FILE_BYTES:
                 errors.append(f"{name}: larger than {MAX_FILE_BYTES // 1024} KiB")
                 continue
-            data = json.loads(file.read_text(encoding="utf-8"))
+            data = read_json(file.read_text(encoding="utf-8"))
+        except DuplicateKey as error:
+            errors.append(f"{name}: \"{str(error.args[0])[:40]}\" appears twice in one object")
+            continue
         except (OSError, ValueError) as error:
             errors.append(f"{name}: not valid JSON ({type(error).__name__})")
             continue
