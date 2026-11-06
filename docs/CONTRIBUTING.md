@@ -13,7 +13,7 @@ npm run check        # typecheck, vitest, pytest, build
 ```
 
 `npm run check` must pass before you open a PR; CI runs the same check. To try a change on a Frame,
-see the README's "Deploy to the Frame".
+see the README's [Deploy to the Frame](../README.md#deploy-to-the-frame).
 
 ## Pull requests
 
@@ -36,9 +36,9 @@ A keyboard sees everything its user types, so a PR that breaks one of these won'
 - **Dictation never logs text or audio**, and never writes either to disk.
 - **The debugger stays localhost only**: the sidecar talks to Steam's debugger on 127.0.0.1 and refuses
   any other host, and nothing exposes it to the network. Reach it from another machine through an SSH
-  tunnel, as the README shows.
+  tunnel, as the [README](../README.md#deploy-to-the-frame) shows.
 
 ## Licence
 
-polykey is under the [MIT licence](LICENSE). By contributing, you agree that your contribution is
+polykey is under the [MIT licence](../LICENSE). By contributing, you agree that your contribution is
 licensed under it too.
