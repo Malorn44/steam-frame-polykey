@@ -39,14 +39,22 @@ UNINSTALL_EXPRESSION = (
     " if (p && typeof p.uninstall === 'function') { p.uninstall(); return true; } return false; })()"
 )
 
+# The version this code is in: ~/.local/share/polykey/versions/<version> or dev, or a checkout.
 INSTALL_DIR = Path(__file__).resolve().parents[2]
 
 
 def _default(name: str) -> Path:
-    """An installed file (~/.local/share/polykey/<name>), or the build output in a checkout."""
+    """An installed file (versions/<version>/<name>), or the build output in a checkout."""
     installed = INSTALL_DIR / name
     staged = INSTALL_DIR / "dist" / "stage" / name
     return staged if not installed.exists() and staged.exists() else installed
+
+
+def installed_version() -> str:
+    try:
+        return _default("VERSION").read_text(encoding="utf-8").strip() or "unknown"
+    except OSError:
+        return "unknown"
 
 
 @dataclass

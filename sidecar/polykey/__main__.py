@@ -1,4 +1,8 @@
-"""Command line: run.py {run,once,probe,uninstall} [options]."""
+"""Command line: run.py {run,once,probe,uninstall,activate,rollback} [options].
+
+activate and rollback import nothing but versions.py, so they work even when the rest of a release
+does not: a release that cannot start can still be left.
+"""
 
 from __future__ import annotations
 
@@ -8,17 +12,51 @@ import signal
 import sys
 from pathlib import Path
 
-from .injector import Config, Log, run_once, run_probe, run_service, run_uninstall
+from .versions import VersionError, Versions
 
 COMMANDS = {
     "run": "keep the keyboard injected (the systemd service runs this)",
     "once": "inject once and exit",
     "probe": "print a read-only report of the Steam objects polykey uses, and exit",
     "uninstall": "remove polykey from Steam (restores the stock keyboard) and exit",
+    "activate": "make an installed release the current one (restart the service after)",
+    "rollback": "go back to the release before this one; updates skip the one left until a newer release",
 }
 
+VERSION_COMMANDS = ("activate", "rollback")
 
-async def _serve(cfg: Config, log: Log) -> None:
+
+def _versions(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="run.py")
+    parser.add_argument("command", choices=VERSION_COMMANDS)
+    parser.add_argument("version", nargs="?", help="activate: the release (default: the one this run.py is in)")
+    args = parser.parse_args(argv)
+    version = args.version or Path(__file__).resolve().parents[2].name  # activate: versions/<version>/sidecar
+    versions = Versions()
+    try:
+        if args.command == "activate":
+            versions.activate(version)
+            print(f"current: {versions.current()}", flush=True)
+        else:
+            before, after = versions.rollback()
+            skip = f"; updates skip {before} until a newer release" if before and before != "dev" else ""
+            print(f"rolled back from {before} to {after}{skip}", flush=True)
+    except VersionError as error:  # a refusal (exit 3), told apart from a crash (exit 1)
+        reasons = {
+            "no-previous": "no earlier release to go back to",
+            "not-installed": f"{version} is not installed",
+        }
+        print(reasons.get(error.code, error.code), flush=True)
+        return 3
+    except OSError as error:
+        print(f"{args.command} failed: {error.strerror or type(error).__name__}", flush=True)
+        return 1
+    return 0
+
+
+async def _serve(cfg, log) -> None:
+    from .injector import run_service
+
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -27,8 +65,14 @@ async def _serve(cfg: Config, log: Log) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] and argv[0] in VERSION_COMMANDS:
+        sys.exit(_versions(argv))
+    from .injector import Config, Log, run_once, run_probe, run_uninstall
+
     parser = argparse.ArgumentParser(prog="run.py", description="polykey sidecar for the Steam Frame")
     parser.add_argument("command", choices=list(COMMANDS), help="; ".join(f"{k}: {v}" for k, v in COMMANDS.items()))
+    parser.add_argument("version", nargs="?", help="activate: the release (default: the one this run.py is in)")
     defaults = Config()
     parser.add_argument(
         "--devtools", default=defaults.devtools, help=f"debugger endpoint (default {defaults.devtools})"
@@ -42,13 +86,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-console", action="store_true", help="do not forward [polykey] console lines")
     args = parser.parse_args(argv)
 
+    log = Log()
     cfg = Config(
         devtools=args.devtools,
         bundle=args.bundle.expanduser(),
         probe=args.probe_script.expanduser(),
         forward_console=not args.no_console,
     )
-    log = Log()
     try:
         if args.command == "run":
             log.info(f"polykey sidecar: bundle {cfg.bundle}, debugger {cfg.devtools}")
