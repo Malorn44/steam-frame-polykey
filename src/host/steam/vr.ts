@@ -10,7 +10,11 @@ export const HAPTIC = { enter: 1, leave: 2, snap: 3 } as const;
 
 type OpenVR = {
   TriggerOverlayHapticEffect?: (effect: number, hand: number) => void;
-  VROverlay?: { RegisterForCursorMovement?: (fn: (hand: number, flag: unknown, x: number, y: number) => void) => { unregister?: () => void } };
+  VROverlay?: {
+    RegisterForCursorMovement?: (fn: (hand: number, flag: unknown, x: number, y: number) => void) => {
+      unregister?: () => void;
+    };
+  };
 };
 
 const openVr = (win: Window): OpenVR | undefined => {
@@ -35,7 +39,13 @@ export const onCursor = (win: Window, fn: (x: number, y: number, hand: number) =
     const registration = openVr(win)?.VROverlay?.RegisterForCursorMovement?.((hand, _flag, x, y) => {
       if (Number.isFinite(x) && Number.isFinite(y)) fn(x, y, hand);
     });
-    return () => { try { registration?.unregister?.(); } catch { /* gone with the popup */ } };
+    return () => {
+      try {
+        registration?.unregister?.();
+      } catch {
+        /* gone with the popup */
+      }
+    };
   } catch {
     return () => {};
   }
@@ -61,7 +71,9 @@ export const steamKeyboardStyle = (win: Window): { colors: Partial<ThemeColors>;
   const letter = style('[data-key="a"] > div');
   const modifier = style('[data-key="Shift"] > div');
   const colors: Partial<ThemeColors> = {};
-  const set = (name: keyof ThemeColors, value: string | undefined): void => { if (value) colors[name] = value; };
+  const set = (name: keyof ThemeColors, value: string | undefined): void => {
+    if (value) colors[name] = value;
+  };
   set('surface', toHex(panel?.backgroundColor));
   set('key', toHex(letter?.backgroundColor));
   set('keyText', toHex(letter?.color));

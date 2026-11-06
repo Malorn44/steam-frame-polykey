@@ -18,7 +18,8 @@ import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 
 const REPEATING = new Set(['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
-const repeats = (key: KeyDef): boolean => (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
+const repeats = (key: KeyDef): boolean =>
+  (key.type === 'key' && REPEATING.has(key.key)) || (key.type === 'char' && key.char === ' ');
 /** Flick guide cells when the key has no size yet (tests); otherwise square, as tall as the key (fjk). */
 export const FLICK_CELL_PX = 30;
 /** Full width: kana, CJK punctuation and ideographs, full-width forms (one character). */
@@ -34,7 +35,8 @@ const isMark = (text: string): boolean => text === '゛' || text === '゜';
  * leaving 1px. */
 const DOT_BOX = `url("data:image/svg+xml,${encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'><rect width='100%' height='100%' rx='2'"
-  + " fill='none' stroke='black' stroke-width='2' stroke-dasharray='1 2'/></svg>")}")`;
+    + " fill='none' stroke='black' stroke-width='2' stroke-dasharray='1 2'/></svg>",
+)}")`;
 
 /** The small legends' slots round the label (c). */
 const SLOTS = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'] as const;
@@ -199,8 +201,16 @@ const CSS = `
 `;
 
 /** What a key does, for its default icon: an action, a named key, a modifier, or " " for a space key. */
-const iconId = (key: KeyDef): string => (key.type === 'action' ? key.action : key.type === 'key' ? key.key
-  : key.type === 'mod' ? key.mod : key.type === 'char' && key.char === ' ' ? ' ' : '');
+const iconId = (key: KeyDef): string =>
+  key.type === 'action'
+    ? key.action
+    : key.type === 'key'
+      ? key.key
+      : key.type === 'mod'
+        ? key.mod
+        : key.type === 'char' && key.char === ' '
+          ? ' '
+          : '';
 
 /**
  * The icon a key shows, if any: its own `icon` (null: text), else none when it has a label, else its
@@ -210,22 +220,27 @@ const iconId = (key: KeyDef): string => (key.type === 'action' ? key.action : ke
 const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'): IconName | undefined => {
   const own = 'icon' in key ? key.icon : undefined;
   const id = iconId(key);
-  const icon = own !== undefined ? (own !== null && own in ICONS ? own as IconName : undefined)
-    : 'label' in key && key.label ? undefined
-      : arrows === 'glyph' && id.startsWith('Arrow') ? undefined
-        : defaultIcon(id, set);
+  const icon =
+    own !== undefined
+      ? own !== null && own in ICONS
+        ? (own as IconName)
+        : undefined
+      : 'label' in key && key.label
+        ? undefined
+        : arrows === 'glyph' && id.startsWith('Arrow')
+          ? undefined
+          : defaultIcon(id, set);
   if (icon === 'shift' && mods.shift === 'locked') return 'shiftLocked';
   if (icon === 'caps' && mods.caps) return 'capsOn';
   return icon;
 };
 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
-const tallOf = (key: KeyDef): Tall | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
+const tallOf = (key: KeyDef): Tall | undefined => (key.type === 'key' || key.type === 'action' ? key.tall : undefined);
 
 /** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
 export type CompositionView = (
-  | { readonly before: string; readonly after: string }
-  | { readonly segments: readonly string[]; readonly focus: number }
+  { readonly before: string; readonly after: string } | { readonly segments: readonly string[]; readonly focus: number }
 ) & { readonly candidates: readonly string[]; readonly selected: number };
 
 /** A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup px. */
@@ -269,14 +284,32 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu, onSwipe, canSwipe }:
-    { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
-      /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
-      keyboardMenu?: { ids: readonly string[]; names: readonly string[] };
-      /** Swipe typing on: a press on a letter that leaves its key traces a word instead of typing. */
-      onSwipe?: SwipeHandler | undefined;
-      /** Whether a press may swipe now (a Japanese keyboard swipes only in 英数 mode); default yes. */
-      canSwipe?: (() => boolean) | undefined } = {},
+  {
+    side = false,
+    hints = false,
+    placeholder = '',
+    latin: startLatin = false,
+    romaji = false,
+    symbols = 0,
+    letters,
+    keyboardMenu,
+    onSwipe,
+    canSwipe,
+  }: {
+    side?: boolean;
+    hints?: boolean;
+    symbols?: 0 | 1 | 2;
+    letters?: string | undefined;
+    placeholder?: string;
+    latin?: boolean;
+    romaji?: boolean;
+    /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
+    keyboardMenu?: { ids: readonly string[]; names: readonly string[] };
+    /** Swipe typing on: a press on a letter that leaves its key traces a word instead of typing. */
+    onSwipe?: SwipeHandler | undefined;
+    /** Whether a press may swipe now (a Japanese keyboard swipes only in 英数 mode); default yes. */
+    canSwipe?: (() => boolean) | undefined;
+  } = {},
 ): View => {
   /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
   let latin = startLatin;
@@ -285,9 +318,12 @@ export const createView = (
   const dotted = new Set(Array.from(layout.dotted ?? ''));
   const iconSet: IconSet = layout.iconSet ?? (layout.large ? 'phone' : 'desktop');
   /** A dotted box round a legend: a full-width character's box is its whole cell. */
-  const glyph = (text: string): HTMLElement => Object.assign(doc.createElement('span'), { className: 'ch', textContent: cellText(text) });
+  const glyph = (text: string): HTMLElement =>
+    Object.assign(doc.createElement('span'), { className: 'ch', textContent: cellText(text) });
   const boxed = (text: string): HTMLElement => {
-    const box = Object.assign(doc.createElement('span'), { className: `dot${isWide(text) ? ' cell' : ''}${isMark(text) ? ' mark' : ''}` });
+    const box = Object.assign(doc.createElement('span'), {
+      className: `dot${isWide(text) ? ' cell' : ''}${isMark(text) ? ' mark' : ''}`,
+    });
     box.append(glyph(text));
     return box;
   };
@@ -298,7 +334,14 @@ export const createView = (
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
 
   /** A key: its element, its label (slot c) and the small legends it shows now, by slot. */
-  type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; pieces?: Entry[] };
+  type Entry = {
+    el: HTMLElement;
+    key: KeyDef;
+    label: HTMLElement;
+    slots: Partial<Record<SlotName, HTMLElement>>;
+    under?: HTMLElement;
+    pieces?: Entry[];
+  };
   const keys: Entry[] = [];
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
@@ -306,8 +349,18 @@ export const createView = (
     el.className = `key ${key.type === 'char' ? 'char' : key.type === 'key' ? 'named' : key.type}`;
     // An exact share of the row, so keys line up across rows whatever their count.
     if (rowUnits) el.style.flex = `0 0 ${(widthOf(key) / rowUnits) * 100}%`;
-    el.dataset['k'] = key.type === 'char' ? key.char : key.type === 'key' ? key.key
-      : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : key.type === 'flick' ? key.flick[0] : '';
+    el.dataset['k'] =
+      key.type === 'char'
+        ? key.char
+        : key.type === 'key'
+          ? key.key
+          : key.type === 'mod'
+            ? key.mod
+            : key.type === 'action'
+              ? key.action
+              : key.type === 'flick'
+                ? key.flick[0]
+                : '';
     const label = doc.createElement('span');
     label.className = 'lbl';
     el.append(label);
@@ -323,7 +376,9 @@ export const createView = (
   /** The mic keys' visuals, made on first use. */
   let micKeys: MicKey[] | null = null;
   const mics = (): MicKey[] =>
-    (micKeys ??= keys.filter((e) => e.key.type === 'action' && e.key.action === 'dictate').map(({ el }) => micKey(doc, el)));
+    (micKeys ??= keys
+      .filter((e) => e.key.type === 'action' && e.key.action === 'dictate')
+      .map(({ el }) => micKey(doc, el)));
 
   const bar = doc.createElement('div');
   bar.className = 'bar';
@@ -363,7 +418,7 @@ export const createView = (
   for (const top of keys.filter((e) => tallOf(e.key) === 'top')) {
     const span = 'span' in top.key && top.key.span === 3 ? 3 : 2;
     const pieces = [top];
-    for (const tall of span === 3 ? ['middle', 'bottom'] as const : ['bottom'] as const) {
+    for (const tall of span === 3 ? (['middle', 'bottom'] as const) : (['bottom'] as const)) {
       const piece = keys.find((e) => tallOf(e.key) === tall && !e.pieces && e.el.dataset['k'] === top.el.dataset['k']);
       if (piece) pieces.push(piece);
     }
@@ -387,8 +442,10 @@ export const createView = (
 
   const entryFor = (target: EventTarget | null): Entry | undefined =>
     keys.find(({ el }) => el === target || el.contains(target as Node));
-  const slotFor = (target: EventTarget | null) => slots.find(({ el, word }) => word && (el === target || el.contains(target as Node)));
-  const candFor = (target: EventTarget | null) => candidates.find(({ el }) => el === target || el.contains(target as Node));
+  const slotFor = (target: EventTarget | null) =>
+    slots.find(({ el, word }) => word && (el === target || el.contains(target as Node)));
+  const candFor = (target: EventTarget | null) =>
+    candidates.find(({ el }) => el === target || el.contains(target as Node));
   let hoveredCand: HTMLElement | undefined;
   const setCandHover = (el: HTMLElement | undefined): boolean => {
     if (el === hoveredCand) return false;
@@ -416,11 +473,22 @@ export const createView = (
   let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
   // A press on a letter that may become a swipe: where it started, the path so far, and (once it left
   // the key) its trail. Only a swipe that left its key is one; until then it is a tap or a hold.
-  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean; at: number;
-    trail?: { svg: SVGSVGElement; line: SVGPolylineElement; origin: DOMRect; drawn: string } } | null = null;
+  let swipe: {
+    start: Point;
+    points: Point[];
+    rect: DOMRect;
+    on: boolean;
+    at: number;
+    trail?: { svg: SVGSVGElement; line: SVGPolylineElement; origin: DOMRect; drawn: string };
+  } | null = null;
   // A held flick key: where the press started and its guide (one cell per direction that has a kana).
-  let flick: { key: Extract<KeyDef, { type: 'flick' }>; start: { x: number; y: number }; el: HTMLElement;
-    cells: HTMLElement[]; pick: number } | null = null;
+  let flick: {
+    key: Extract<KeyDef, { type: 'flick' }>;
+    start: { x: number; y: number };
+    el: HTMLElement;
+    cells: HTMLElement[];
+    pick: number;
+  } | null = null;
 
   /**
    * Show the guide over the key: the tap kana in the middle, the flick kana left, above, right and below.
@@ -433,17 +501,33 @@ export const createView = (
     const box = root.getBoundingClientRect();
     const step = Math.min(at.width, at.height) || FLICK_CELL_PX;
     const size = Math.round(step * 0.94);
-    const clamp = (v: number, max: number): number => Math.min(Math.max(v, step * 1.5), Math.max(step * 1.5, max - step * 1.5));
+    const clamp = (v: number, max: number): number =>
+      Math.min(Math.max(v, step * 1.5), Math.max(step * 1.5, max - step * 1.5));
     const cx = clamp(at.left - box.left + at.width / 2, box.width);
     const cy = clamp(at.top - box.top + at.height / 2, box.height);
     const el = doc.createElement('div');
     el.className = 'fl';
-    Object.assign(el.style, { left: `${cx - size / 2}px`, top: `${cy - size / 2}px`, fontSize: `${Math.round(size * 0.62)}px` });
-    const place: [number, number][] = [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1]];
+    Object.assign(el.style, {
+      left: `${cx - size / 2}px`,
+      top: `${cy - size / 2}px`,
+      fontSize: `${Math.round(size * 0.62)}px`,
+    });
+    const place: [number, number][] = [
+      [0, 0],
+      [-1, 0],
+      [0, -1],
+      [1, 0],
+      [0, 1],
+    ];
     const cells = entry.key.flick.map((text, i) => {
       const cell = doc.createElement('div');
       const [dx, dy] = place[i]!;
-      Object.assign(cell.style, { left: `${dx * step}px`, top: `${dy * step}px`, width: `${size}px`, height: `${size}px` });
+      Object.assign(cell.style, {
+        left: `${dx * step}px`,
+        top: `${dy * step}px`,
+        width: `${size}px`,
+        height: `${size}px`,
+      });
       if (!text) cell.className = 'empty';
       cell.textContent = flickText(text, mods); // capitals while a/A (Shift) is on
       el.append(cell);
@@ -466,7 +550,8 @@ export const createView = (
     flick = null;
   };
 
-  const trailPoint = (origin: DOMRect, p: Point): string => `${Math.round(p.x - origin.left)},${Math.round(p.y - origin.top)} `;
+  const trailPoint = (origin: DOMRect, p: Point): string =>
+    `${Math.round(p.x - origin.left)},${Math.round(p.y - origin.top)} `;
   const drawTrail = (p: Point): void => {
     if (!swipe?.trail) return;
     swipe.trail.drawn += trailPoint(swipe.trail.origin, p);
@@ -501,7 +586,10 @@ export const createView = (
     for (const { el, key } of keys) {
       if (key.type !== 'char' || !swipeLetter(key.char)) continue;
       const r = el.getBoundingClientRect();
-      out[key.char.toLowerCase()] = [Math.round((r.left + r.width / 2) * 10) / 10, Math.round((r.top + r.height / 2) * 10) / 10];
+      out[key.char.toLowerCase()] = [
+        Math.round((r.left + r.width / 2) * 10) / 10,
+        Math.round((r.top + r.height / 2) * 10) / 10,
+      ];
     }
     return out;
   };
@@ -521,17 +609,26 @@ export const createView = (
    * Holding 🌐: the keyboards by name, picked by id.
    */
   const openPopup = (entry: Entry, startX: number | null, startY: number | null): void => {
-    const menu = entry.key.type === 'action' && entry.key.action === 'next-keyboard' && keyboardMenu && keyboardMenu.ids.length > 1
-      ? keyboardMenu : null;
+    const menu =
+      entry.key.type === 'action' && entry.key.action === 'next-keyboard' && keyboardMenu && keyboardMenu.ids.length > 1
+        ? keyboardMenu
+        : null;
     const texts = menu ? [...menu.names] : alternates(kanaSide(entry.key, !latinKeys()), mods);
     if (texts.length < 2) return;
     const at = entry.el.getBoundingClientRect();
-    const width = menu ? Math.min(150, (root.getBoundingClientRect().width - 8) / texts.length || 150) : at.width * POPUP_SCALE;
+    const width = menu
+      ? Math.min(150, (root.getBoundingClientRect().width - 8) / texts.length || 150)
+      : at.width * POPUP_SCALE;
     const size = { width, height: at.height * POPUP_SCALE };
     const start = startX !== null && startY !== null ? { x: startX, y: startY } : null;
     pickMoved = false;
-    popup = { hold: openHoldPopup(doc, shadow, root, at, texts, size, start, true, menu ? 'menu' : '', () => { pickMoved = true; }),
-      texts: menu ? [...menu.ids] : texts, key: entry.key };
+    popup = {
+      hold: openHoldPopup(doc, shadow, root, at, texts, size, start, true, menu ? 'menu' : '', () => {
+        pickMoved = true;
+      }),
+      texts: menu ? [...menu.ids] : texts,
+      key: entry.key,
+    };
   };
   const pickAt = (x: number, y: number): void => popup?.hold.pickAt(x, y);
   /** The popup's pick moved since hoverAt last said so: the laser gets a tick, as it does crossing keys. */
@@ -551,15 +648,22 @@ export const createView = (
     if (side) list.scrollTop += dy;
     else list.scrollLeft += Math.abs(dx) > Math.abs(dy) ? dx : dy;
   };
-  root.addEventListener('wheel', (e) => {
-    if (!list.contains(e.target as Node) && e.target !== list) return;
-    e.preventDefault();
-    scrollList(e.deltaX, e.deltaY);
-  }, { passive: false });
+  root.addEventListener(
+    'wheel',
+    (e) => {
+      if (!list.contains(e.target as Node) && e.target !== list) return;
+      e.preventDefault();
+      scrollList(e.deltaX, e.deltaY);
+    },
+    { passive: false },
+  );
 
   const onStart = (start: TouchPoint | null, e: Event): void => {
     if (list.contains(e.target as Node) || e.target === list) {
-      listDrag = { drag: dragScroll(list, start ?? { x: 0, y: 0 }, side ? 'y' : 'x', SLOP_PX.list), cand: candFor(e.target) };
+      listDrag = {
+        drag: dragScroll(list, start ?? { x: 0, y: 0 }, side ? 'y' : 'x', SLOP_PX.list),
+        cand: candFor(e.target),
+      };
       return;
     }
     pressed = entryFor(e.target);
@@ -570,8 +674,17 @@ export const createView = (
     repeated = false;
     endSwipe(false);
     // A letter may start a swipe; not while Ctrl, Alt, Super or Fn makes it a shortcut.
-    if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char) && (canSwipe?.() ?? true)
-      && mods.ctrl === 'off' && mods.alt === 'off' && mods.super === 'off' && mods.fn === 'off') {
+    if (
+      onSwipe
+      && start
+      && held?.key.type === 'char'
+      && swipeLetter(held.key.char)
+      && (canSwipe?.() ?? true)
+      && mods.ctrl === 'off'
+      && mods.alt === 'off'
+      && mods.super === 'off'
+      && mods.fn === 'off'
+    ) {
       swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false, at: Date.now() };
     }
     if (held?.key.type === 'flick') {
@@ -585,11 +698,12 @@ export const createView = (
         onKey(held.key, undefined, true);
         repeatTimer = setInterval(() => onKey(held.key, undefined, true), REPEAT_MS);
       }, REPEAT_DELAY_MS);
-    } else if (held) holdTimer = setTimeout(() => {
-      holdTimer = null;
-      openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
-      if (popup) swipe = null; // held for the alternates: moving now picks one (a key without may still swipe)
-    }, HOLD_MS);
+    } else if (held)
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        openPopup(held, lastPoint?.x ?? null, lastPoint?.y ?? null);
+        if (popup) swipe = null; // held for the alternates: moving now picks one (a key without may still swipe)
+      }, HOLD_MS);
   };
   const onMove = (touch: TouchPoint | null): void => {
     if (!touch) return;
@@ -646,7 +760,8 @@ export const createView = (
       if (lastPoint) moveFlick(lastPoint);
       const { key, pick } = flick;
       closeFlick();
-      if (pick === 0) onKey(key); // a tap: the 12-key decides (it may cycle)
+      if (pick === 0)
+        onKey(key); // a tap: the 12-key decides (it may cycle)
       else if (key.flick[pick]) onKey(key, key.flick[pick]); // a direction with nothing types nothing
       return;
     }
@@ -679,7 +794,10 @@ export const createView = (
     mark(pressed, 'down', false);
     pressed = undefined;
   };
-  root.addEventListener('mouseover', (e) => { setHover(entryFor(e.target)); setSlotHover(slotFor(e.target)); });
+  root.addEventListener('mouseover', (e) => {
+    setHover(entryFor(e.target));
+    setSlotHover(slotFor(e.target));
+  });
   root.addEventListener('mouseleave', () => setHover(undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
   const onClick = (e: MouseEvent): void => {
@@ -700,8 +818,10 @@ export const createView = (
   listenTouch(root, { start: onStart, move: onMove, end: onEnd, cancel: onCancel, click: onClick }, { guard });
 
   /** A legend's size and colour classes (its size role; text tone inherits the key's colour in the label). */
-  const sizeClass = (legend: Legend): string => (legend.kind === 'text' && legend.size !== 'key' ? ` s-${legend.size}` : '');
-  const toneClass = (legend: Legend): string => (legend.kind === 'text' && legend.tone !== 'text' ? ` t-${legend.tone}` : '');
+  const sizeClass = (legend: Legend): string =>
+    legend.kind === 'text' && legend.size !== 'key' ? ` s-${legend.size}` : '';
+  const toneClass = (legend: Legend): string =>
+    legend.kind === 'text' && legend.tone !== 'text' ? ` t-${legend.tone}` : '';
   /** Text into an element: in a dotted box (a child; the element itself positions and sizes it) when listed. */
   const putText = (el: HTMLElement, legend: Extract<Legend, { kind: 'text' }>): void => {
     if (legend.boxed) el.replaceChildren(boxed(legend.text));
@@ -715,12 +835,22 @@ export const createView = (
     else if (legend.kind === 'text') putText(label, legend);
     else if (legend.kind === 'icon') label.innerHTML = ICONS[legend.icon as IconName] ?? '';
     else if (legend.kind === 'pair') {
-      label.replaceChildren(...legend.parts.map((text, i) => Object.assign(doc.createElement('span'), {
-        className: i === legend.now ? 'pair now' : 'pair', textContent: text })));
+      label.replaceChildren(
+        ...legend.parts.map((text, i) =>
+          Object.assign(doc.createElement('span'), {
+            className: i === legend.now ? 'pair now' : 'pair',
+            textContent: text,
+          }),
+        ),
+      );
     } else if (!label.querySelector('.mk')) {
-      const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
+      const span = (className: string, textContent: string): HTMLElement =>
+        Object.assign(doc.createElement('span'), { className, textContent });
       const marks = span('mk-marks', '');
-      for (const mark of legend.marks) marks.append(mark.kind === 'text' && mark.boxed ? boxed(mark.text) : span('', mark.kind === 'text' ? mark.text : ''));
+      for (const mark of legend.marks)
+        marks.append(
+          mark.kind === 'text' && mark.boxed ? boxed(mark.text) : span('', mark.kind === 'text' ? mark.text : ''),
+        );
       const box = span('mk', '');
       box.append(marks, span('mk-size', legend.under.kind === 'text' ? legend.under.text : ''));
       label.replaceChildren(box);
@@ -739,7 +869,8 @@ export const createView = (
   /** Draw a key's legends: the label, and each small legend in its slot. */
   const showLegends = (entry: Entry, model: KeyLegends): void => {
     const { el } = entry;
-    for (const arrangement of ['tri', 'stack', 'quad', 'edges'] as const) el.classList.toggle(arrangement, model.arrangement === arrangement);
+    for (const arrangement of ['tri', 'stack', 'quad', 'edges'] as const)
+      el.classList.toggle(arrangement, model.arrangement === arrangement);
     showLabel(entry, model.slots.c);
     for (const slot of SLOTS) {
       const legend = model.slots[slot];
@@ -787,7 +918,8 @@ export const createView = (
       candidates = [];
       hoveredCand = undefined;
       if (!c) {
-        if (placeholder) list.append(Object.assign(doc.createElement('div'), { className: 'placeholder', textContent: placeholder }));
+        if (placeholder)
+          list.append(Object.assign(doc.createElement('div'), { className: 'placeholder', textContent: placeholder }));
         return;
       }
       const span = (text: string, cls: string): HTMLElement => {
@@ -812,10 +944,18 @@ export const createView = (
     setLabels: (next) => {
       labels = next;
     },
-    setMic: (state) => { for (const m of mics()) m.setState(state); },
-    setMicLevels: (levels) => { for (const m of mics()) m.setLevels(levels); },
-    setMicProgress: (fraction) => { for (const m of mics()) m.setProgress(fraction); },
-    setMicBusy: (busy) => { for (const m of mics()) m.setBusy(busy); },
+    setMic: (state) => {
+      for (const m of mics()) m.setState(state);
+    },
+    setMicLevels: (levels) => {
+      for (const m of mics()) m.setLevels(levels);
+    },
+    setMicProgress: (fraction) => {
+      for (const m of mics()) m.setProgress(fraction);
+    },
+    setMicBusy: (busy) => {
+      for (const m of mics()) m.setBusy(busy);
+    },
     setSuggestions: (words) => {
       slots.forEach((slot, i) => {
         slot.word = words[i];
@@ -827,7 +967,12 @@ export const createView = (
       if (flick) return false; // a flick follows the touch alone
       // The laser moving on with no touch moves: the release was lost. A swipe then types nothing.
       const last = swipe?.points[swipe.points.length - 1];
-      if (swipe?.on && last && Date.now() - swipe.at > RELEASE_LOST_MS && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) {
+      if (
+        swipe?.on
+        && last
+        && Date.now() - swipe.at > RELEASE_LOST_MS
+        && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll
+      ) {
         endSwipe(false);
         pressed = undefined;
       }
@@ -845,6 +990,13 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
-    destroy: () => { clearHold(); closePopup(); closeFlick(); endSwipe(false); style.remove(); root.remove(); },
+    destroy: () => {
+      clearHold();
+      closePopup();
+      closeFlick();
+      endSwipe(false);
+      style.remove();
+      root.remove();
+    },
   };
 };

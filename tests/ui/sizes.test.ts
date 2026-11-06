@@ -15,7 +15,9 @@ describe('sizeVars', () => {
 
   it('every role is on the scale (no raw pixel sizes)', () => {
     for (const preset of ['normal', 'large'] as const) {
-      const roles = sizeVars(preset).split(';').filter((v) => v.startsWith('--size-'));
+      const roles = sizeVars(preset)
+        .split(';')
+        .filter((v) => v.startsWith('--size-'));
       for (const role of roles) expect(role).toMatch(/:var\(--text-|:(15|16|18|19)px$/); // the bar's text roles are next (I29)
     }
   });

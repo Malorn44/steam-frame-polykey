@@ -4,7 +4,9 @@ import type { KeyDef } from '../../src/core/catalog.js';
 import { NO_IME, pressIme, reading, settleRomaji, type Ime } from '../../src/core/ime.js';
 import { feedRomaji, romajiTable, type TableEntry } from '../../src/core/romaji.js';
 
-const table = romajiTable((JSON.parse(readFileSync('packs/ja/romaji-table.json', 'utf8')) as { entries: TableEntry[] }).entries);
+const table = romajiTable(
+  (JSON.parse(readFileSync('packs/ja/romaji-table.json', 'utf8')) as { entries: TableEntry[] }).entries,
+);
 const feed = (s: string) => feedRomaji(s, table);
 
 describe('romaji', () => {
@@ -26,7 +28,13 @@ const char = (c: string): KeyDef => ({ type: 'char', char: c });
 const typeAll = (keys: string, romaji = true): Ime => {
   let ime = NO_IME;
   for (const c of Array.from(keys)) {
-    ime = pressIme(ime, char(c), { typed: c }, { tapCycle: false }, { modify: new Map(), ...(romaji ? { romaji: table } : {}) })!.ime;
+    ime = pressIme(
+      ime,
+      char(c),
+      { typed: c },
+      { tapCycle: false },
+      { modify: new Map(), ...(romaji ? { romaji: table } : {}) },
+    )!.ime;
   }
   return ime;
 };

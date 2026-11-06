@@ -28,16 +28,42 @@ describe('createKeySender', () => {
   it('sends events in order with the gap between them', async () => {
     const { events, setKeyState } = recorder();
     const sleeps: number[] = [];
-    const sender = createKeySender({ getSetKeyState: () => setKeyState, sleep: async (ms) => { sleeps.push(ms); } });
-    const result = await sender.send([[103, true], [24, true], [24, false], [103, false]], 8);
+    const sender = createKeySender({
+      getSetKeyState: () => setKeyState,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+    const result = await sender.send(
+      [
+        [103, true],
+        [24, true],
+        [24, false],
+        [103, false],
+      ],
+      8,
+    );
     expect(result).toEqual({ ok: true, sent: 4 });
-    expect(events).toEqual([[103, true], [24, true], [24, false], [103, false]]);
+    expect(events).toEqual([
+      [103, true],
+      [24, true],
+      [24, false],
+      [103, false],
+    ]);
     expect(sleeps).toEqual([8, 8, 8]);
   });
 
   it('fails cleanly without the key-state call', async () => {
     const sender = createKeySender({ getSetKeyState: () => null });
-    expect(await sender.send([[24, true], [24, false]], 0)).toEqual({ ok: false, sent: 0, error: 'no-key-state-call' });
+    expect(
+      await sender.send(
+        [
+          [24, true],
+          [24, false],
+        ],
+        0,
+      ),
+    ).toEqual({ ok: false, sent: 0, error: 'no-key-state-call' });
   });
 
   it('releases held keys when a call throws mid-chord', async () => {
@@ -49,10 +75,23 @@ describe('createKeySender', () => {
       setKeyState(code, down);
     };
     const sender = createKeySender({ getSetKeyState: () => flaky, sleep: async () => {} });
-    const result = await sender.send([[103, true], [101, true], [24, true], [24, false], [101, false], [103, false]], 0);
+    const result = await sender.send(
+      [
+        [103, true],
+        [101, true],
+        [24, true],
+        [24, false],
+        [101, false],
+        [103, false],
+      ],
+      0,
+    );
     expect(result).toEqual({ ok: false, sent: 2, error: 'TypeError' });
     expect(heldAfter(events)).toEqual([]);
-    expect(events.slice(-2)).toEqual([[101, false], [103, false]]); // last pressed first
+    expect(events.slice(-2)).toEqual([
+      [101, false],
+      [103, false],
+    ]); // last pressed first
   });
 
   it('releaseAll during a send leaves nothing held', async () => {
@@ -60,10 +99,20 @@ describe('createKeySender', () => {
     let release: () => void = () => {};
     const sender = createKeySender({
       getSetKeyState: () => setKeyState,
-      sleep: async () => { release(); },
+      sleep: async () => {
+        release();
+      },
     });
     release = sender.releaseAll;
-    await sender.send([[103, true], [24, true], [24, false], [103, false]], 1);
+    await sender.send(
+      [
+        [103, true],
+        [24, true],
+        [24, false],
+        [103, false],
+      ],
+      1,
+    );
     expect(heldAfter(events)).toEqual([]);
   });
 });

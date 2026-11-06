@@ -3,13 +3,39 @@
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
 import { createBridge } from './bridge/client.js';
-import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
+import {
+  normalizeKey,
+  readBoot,
+  type ActionName,
+  type Boot,
+  type KeyboardDef,
+  type KeyboardOptions,
+  type KeyDef,
+  type Layout,
+  type Theme,
+} from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
-import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
+import {
+  NO_WORD,
+  matchCase,
+  rank,
+  replaceWord,
+  slotOrder,
+  suggestPrefix,
+  trackWord,
+  type WordState,
+} from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
-import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
+import {
+  classifyTarget,
+  describeStatus,
+  findStatusStore,
+  keyboardMode,
+  readStatus,
+  type StatusStore,
+} from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
 import { fjkActive, otherKeyboards } from './host/steam/others.js';
 import { createOutput } from './host/steam/output.js';
@@ -18,7 +44,16 @@ import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
-import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
+import {
+  NO_EMOJI_STATE,
+  steamItemEffects,
+  steamKey,
+  toneTable,
+  useRecent,
+  withTone,
+  type EmojiState,
+  type Tone,
+} from './core/emoji.js';
 import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
@@ -26,7 +61,22 @@ import { modeLetters, pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
-import { NO_IME, composing, flush, insertText, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
+import {
+  NO_IME,
+  composing,
+  flush,
+  insertText,
+  settleRomaji,
+  liveCandidates,
+  pickCandidate,
+  pressIme,
+  reading,
+  withConversion,
+  type Ime,
+  type ImeRequest,
+  type ImeResult,
+  type Segment,
+} from './core/ime.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
 import { createDictation, createSpeechModels } from './dictation.js';
 import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
@@ -147,7 +197,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     dictation: boot?.settings.dictation === true, // off until turned on
     dictationContinuous: boot?.settings.dictationContinuous === true,
   };
-  const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
+  const tick = (win: Window, which: number): void => {
+    if (settings.haptics) haptic(win, HAPTIC.enter, which);
+  };
 
   const output = createOutput({
     getManager: () => pickKeyboardManager(g),
@@ -156,16 +208,30 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g) });
   const bridge = createBridge(g);
   const dictation = createDictation({
-    call: bridge.call, onState: (state) => view?.setMic(state), onText: (text) => placeDictated(text), log,
-    onLevels: (levels) => view?.setMicLevels(levels), onListening: (on) => { if (on) dictatedTail = null; },
-    continuous: () => settings.dictationContinuous, onPhrase: (text) => placePhrase(text),
-    onRecognizing: (busy) => view?.setMicBusy(busy), onEnd: () => endPhrases(),
-    onError: (code) => { if (code === 'no-model' || code === 'no-engine') showDictationTab(currentDictationLanguage()); },
+    call: bridge.call,
+    onState: (state) => view?.setMic(state),
+    onText: (text) => placeDictated(text),
+    log,
+    onLevels: (levels) => view?.setMicLevels(levels),
+    onListening: (on) => {
+      if (on) dictatedTail = null;
+    },
+    continuous: () => settings.dictationContinuous,
+    onPhrase: (text) => placePhrase(text),
+    onRecognizing: (busy) => view?.setMicBusy(busy),
+    onEnd: () => endPhrases(),
+    onError: (code) => {
+      if (code === 'no-model' || code === 'no-engine') showDictationTab(currentDictationLanguage());
+    },
   });
   const onDictationTab = (): boolean => page === 'settings' && settingsTab === 'dictation';
   const speech = createSpeechModels({
-    call: bridge.call, active: () => settings.dictation && bridge.available(), warn,
-    onCatalog: () => { if (onDictationTab()) render(); },
+    call: bridge.call,
+    active: () => settings.dictation && bridge.available(),
+    warn,
+    onCatalog: () => {
+      if (onDictationTab()) render();
+    },
     // In place on the Dictation tab (drawn again when a model came or went), and on the mic key's foot.
     onStatus: (status) => {
       if (onDictationTab() && panel && !panel.setDictation(status)) render();
@@ -209,11 +275,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (dictation.state() !== 'idle' || speech.progress(language) === null) dictation.toggle(language);
     } else if (action === 'settings' || action === 'emoji' || action === 'abc') {
       if (page === 'emoji') saveEmoji(0);
-      page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
+      page =
+        action === 'abc'
+          ? 'keys'
+          : action === 'emoji' && boot?.emoji
+            ? 'emoji'
+            : action === 'emoji'
+              ? 'keys'
+              : 'settings';
       if (action === 'emoji' && !boot?.emoji) log('emoji: no emoji data from the sidecar');
       render();
-    }
-    else log(`${action}: not available yet`);
+    } else log(`${action}: not available yet`);
   };
 
   const apply = async (effect: Effect): Promise<void> => {
@@ -228,15 +300,20 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const enqueue = (effects: readonly Effect[]): void => {
     recent = recentAfter(recent, effects);
     // In order, one press after another, so fast typing never interleaves.
-    queue = queue.then(async () => {
-      for (const effect of effects) await apply(effect);
-    }).catch((error) => warn('key failed:', errorKind(error)));
+    queue = queue
+      .then(async () => {
+        for (const effect of effects) await apply(effect);
+      })
+      .catch((error) => warn('key failed:', errorKind(error)));
   };
 
-  const boost = (used: string): void => { session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1); };
+  const boost = (used: string): void => {
+    session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1);
+  };
 
   /** A keyboard with a reading buffer (the Japanese ones). */
-  const buffered = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
+  const buffered = (keyboard: KeyboardDef | undefined): boolean =>
+    keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
   /** Word suggestions: a Japanese keyboard has them only in 英数 mode, in its candidate area. */
   const lexiconId = (): string | undefined => {
     const keyboard = boot?.catalog.keyboards[ring[current] as string];
@@ -289,7 +366,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
   const romajiTables = new Map<string, RomajiTable>();
   /** Whether a keyboard types romaji: the romaji keyboard, or a JIS kana keyboard with its romajiInput option on. */
-  const typesRomaji = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'romaji'
+  const typesRomaji = (keyboard: KeyboardDef | undefined): boolean =>
+    keyboard?.composer === 'romaji'
     || (keyboard?.composer === 'kana' && optionsFor(keyboard, keyboardOptions[keyboard.id]).romajiInput);
   /** The keyboard's romaji table while it types romaji. */
   const romajiFor = (keyboard: KeyboardDef | undefined): RomajiTable | undefined => {
@@ -322,7 +400,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     if (!dictates(key)) dictatedTail = null; // typed in between: the next phrase joins what is known now
-    if (swiped && key.type !== 'mod') { // Shift or Caps for the next word keeps them
+    if (swiped && key.type !== 'mod') {
+      // Shift or Caps for the next word keeps them
       const word = swiped.word;
       swiped = null; // any other key ends the alternatives
       // Backspace straight after a swipe takes the whole word back, as phones do (in 英数 mode, out of the bar).
@@ -352,7 +431,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         latinMode.delete(keyboard.id);
       }
       setWord(NO_WORD); // suggestions only for words typed in 英数 mode
-      if (keyboard.pages?.latin) render(); // the 12-key: ABC keys in 英数 mode
+      if (keyboard.pages?.latin)
+        render(); // the 12-key: ABC keys in 英数 mode
       else {
         view?.setMode(latinMode.has(keyboard.id));
         view?.update(mods);
@@ -360,10 +440,16 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     // ?123: the numbers and symbols page, and back; what is being typed stays (3 + じ → 3時).
-    if (keyboard?.pages?.symbols && key.type === 'action' && (key.action === 'symbols' || key.action === 'more-symbols')) {
+    if (
+      keyboard?.pages?.symbols
+      && key.type === 'action'
+      && (key.action === 'symbols' || key.action === 'more-symbols')
+    ) {
       const shown = symbolsOn.get(keyboard.id);
-      if (key.action === 'more-symbols') symbolsOn.set(keyboard.id, shown === 2 ? 1 : 2); // =\< and back to 123
-      else if (shown) symbolsOn.delete(keyboard.id); // back to the letters
+      if (key.action === 'more-symbols')
+        symbolsOn.set(keyboard.id, shown === 2 ? 1 : 2); // =\< and back to 123
+      else if (shown)
+        symbolsOn.delete(keyboard.id); // back to the letters
       else symbolsOn.set(keyboard.id, 1);
       render();
       return;
@@ -371,9 +457,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     // 英数 mode on a Japanese keyboard: English words wait in the bar with their suggestions.
     if (keyboard && buffered(keyboard) && page === 'keys' && latin) {
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
-      const typed = chording ? undefined
-        : key.type === 'char' ? (alternate ?? charText(key, mods))
-          : key.type === 'flick' ? flickText(alternate ?? key.flick[0], mods) : undefined;
+      const typed = chording
+        ? undefined
+        : key.type === 'char'
+          ? (alternate ?? charText(key, mods))
+          : key.type === 'flick'
+            ? flickText(alternate ?? key.flick[0], mods)
+            : undefined;
       const handled = pressEnglish(en, key, typed, { tapCycle: options.tapCycle, flicked: alternate !== undefined });
       if (handled) {
         if (typed !== undefined) {
@@ -395,8 +485,16 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const side = kanaSide(key, !romaji); // a JIS key types its kana (its Latin legend with romaji input)
       const typed = side.type === 'char' && !chording ? (alternate ?? charText(side, mods)) : undefined;
-      const handled = pressIme(ime, key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) },
-        options, { modify: modifyFor(keyboard.layout), ...(romaji ? { romaji } : {}) });
+      const handled = pressIme(
+        ime,
+        key,
+        {
+          ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}),
+          ...(typed !== undefined ? { typed } : {}),
+        },
+        options,
+        { modify: modifyFor(keyboard.layout), ...(romaji ? { romaji } : {}) },
+      );
       if (handled) {
         if (typed !== undefined) {
           mods = pressText(mods, '').mods; // a one-shot Shift is used up
@@ -408,8 +506,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       // Any other key sends the buffer first (a modifier only arms, so it does not).
       if (composing(ime) && key.type !== 'mod' && !dictates(key)) applyIme(flush(ime, romaji));
     }
-    const result = alternate === undefined ? press(mods, key)
-      : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
+    const result =
+      alternate === undefined
+        ? press(mods, key)
+        : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
     mods = result.mods;
     view?.update(mods);
     const tracked = trackWord(word, result.effects);
@@ -419,7 +519,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const segmentsOf = (reply: Record<string, unknown>): Omit<Segment, 'index'>[] =>
-    (reply['ok'] && Array.isArray(reply['segments']) ? reply['segments'] as Omit<Segment, 'index'>[] : []);
+    reply['ok'] && Array.isArray(reply['segments']) ? (reply['segments'] as Omit<Segment, 'index'>[]) : [];
   const noteConverter = (reply: Record<string, unknown>): void => {
     if (reply['error'] === 'unavailable' && !converterDown) {
       converterDown = true;
@@ -445,22 +545,25 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       ]).then(([converted, predicted]) => {
         noteConverter(converted);
         if (generation !== imeGeneration) return;
-        const predictions = predicted.ok && Array.isArray(predicted['predictions']) ? predicted['predictions'] as string[] : [];
+        const predictions =
+          predicted.ok && Array.isArray(predicted['predictions']) ? (predicted['predictions'] as string[]) : [];
         live = liveCandidates(forReading, segmentsOf(converted), predictions);
         liveSource = { reading: forReading, segments: segmentsOf(converted), predictions };
         showIme();
       });
     } else {
-      void bridge.call('convert', {
-        reading: forReading,
-        ...(request.lengths ? { lengths: request.lengths } : {}),
-        ...(request.resize ? { resize: request.resize } : {}),
-      }).then((reply) => {
-        noteConverter(reply);
-        if (generation !== imeGeneration) return;
-        ime = withConversion(ime, forReading, segmentsOf(reply));
-        showIme();
-      });
+      void bridge
+        .call('convert', {
+          reading: forReading,
+          ...(request.lengths ? { lengths: request.lengths } : {}),
+          ...(request.resize ? { resize: request.resize } : {}),
+        })
+        .then((reply) => {
+          noteConverter(reply);
+          if (generation !== imeGeneration) return;
+          ime = withConversion(ime, forReading, segmentsOf(reply));
+          showIme();
+        });
     }
     showIme();
   };
@@ -470,19 +573,40 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (!view) return;
     if (!composing(ime)) {
       // 英数 mode: English word suggestions where the candidates go; picking one replaces the word typed.
-      view.setComposition(en.chars.length ? {
-        before: en.chars.slice(0, en.caret).join(''), after: en.chars.slice(en.caret).join(''), candidates: suggested, selected: -1,
-      } : null);
+      view.setComposition(
+        en.chars.length
+          ? {
+              before: en.chars.slice(0, en.caret).join(''),
+              after: en.chars.slice(en.caret).join(''),
+              candidates: suggested,
+              selected: -1,
+            }
+          : null,
+      );
       view.setLabels(en.chars.length ? { Enter: '確定' } : {});
     } else {
       const focused = ime.segments?.[ime.focus];
-      view.setComposition(ime.segments
-        ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
-          candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
-        : { before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form), after: inForm(ime.chars.slice(ime.caret).join(''), ime.form),
-          candidates: live, selected: -1 });
+      view.setComposition(
+        ime.segments
+          ? {
+              segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading),
+              focus: ime.focus,
+              candidates: focused?.candidates ?? [],
+              selected: focused?.index ?? -1,
+            }
+          : {
+              before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form),
+              after: inForm(ime.chars.slice(ime.caret).join(''), ime.form),
+              candidates: live,
+              selected: -1,
+            },
+      );
       // Once converting, Space goes to the next candidate; かな shows the form it changes the reading to.
-      view.setLabels({ ' ': ime.segments ? '次変換' : '変換', Enter: '確定', kana: ime.segments ? FORM_LABELS.katakana : FORM_LABELS[nextForm(ime.form)] });
+      view.setLabels({
+        ' ': ime.segments ? '次変換' : '変換',
+        Enter: '確定',
+        kana: ime.segments ? FORM_LABELS.katakana : FORM_LABELS[nextForm(ime.form)],
+      });
     }
     view.update(mods);
   };
@@ -514,9 +638,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     }
     if (surface) tick(surface.win, hand);
     const source = !ime.segments && liveSource?.reading === reading(ime) ? liveSource : null;
-    if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
-      learn({ reading: source.reading, lengths: source.segments.map((s) => Array.from(s.reading).length),
-        choices: source.segments.map(() => 0), texts: source.segments.map((s) => s.candidates[0] ?? s.reading) });
+    if (
+      source
+      && source.segments.length
+      && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')
+    ) {
+      learn({
+        reading: source.reading,
+        lengths: source.segments.map((s) => Array.from(s.reading).length),
+        choices: source.segments.map(() => 0),
+        texts: source.segments.map((s) => s.candidates[0] ?? s.reading),
+      });
     } else if (source?.predictions.includes(text)) learn({ reading: source.reading, prediction: text });
     applyIme(pickCandidate(ime, text, index));
   };
@@ -548,7 +680,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const language = dictationLanguage(keyboard, latin);
     const before = buffered(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
     const typed = join ? join(before) : spacedText(text, language, before !== '');
-    if (buffered(keyboard)) sendEnglish(); // 英数 mode: the English word goes first
+    if (buffered(keyboard))
+      sendEnglish(); // 英数 mode: the English word goes first
     else setWord(NO_WORD);
     enqueue([{ kind: 'text', text: typed }]);
   };
@@ -590,7 +723,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const before = swiped.word;
       swiped = { ...swiped, word: chosen };
       boost(chosen);
-      if (chosen !== before) sendEffects([...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text: chosen }]);
+      if (chosen !== before)
+        sendEffects([
+          ...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })),
+          { kind: 'text', text: chosen },
+        ]);
       return;
     }
     const typed = word.word;
@@ -605,7 +742,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
    */
   const swipeNow = (): string | undefined => {
     const keyboard = currentKeyboard();
-    if (!keyboard || page !== 'keys' || (buffered(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
+    if (
+      !keyboard
+      || page !== 'keys'
+      || (buffered(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))
+    )
+      return undefined;
     return swipeLexicon(keyboard, keyboardOptions[keyboard.id]);
   };
 
@@ -638,36 +780,60 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     mods = pressText(mods, '').mods;
     view?.update(mods);
     const round = (v: number): number => Math.round(v * 10) / 10;
-    swipeWait = bridge.call('swipe', { lexicon, path: path.map((p) => [round(p.x), round(p.y)]), keys: letters, keyWidth: round(keyWidth),
-      limit: SWIPE_WORDS }, SWIPE_TIMEOUT_MS).then((reply) => {
-      swipeWait = null;
-      const found = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '') : [];
-      if (!found.length) {
-        log(reply.ok ? 'swipe: no word matched' : `swipe failed: ${reply.error ?? '?'}`); // never the path or words
-        return;
-      }
-      const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
-      if (buffered(currentKeyboard())) {
-        swipeIntoBar(words);
-        return;
-      }
-      const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
-      boost(words[0]!);
-      swiped = { word: words[0]!, words };
-      sendEffects([{ kind: 'text', text }]);
-    }).catch((error) => {
-      swipeWait = null; // presses waiting for the word go on
-      warn('swipe failed:', errorKind(error));
-    });
+    swipeWait = bridge
+      .call(
+        'swipe',
+        {
+          lexicon,
+          path: path.map((p) => [round(p.x), round(p.y)]),
+          keys: letters,
+          keyWidth: round(keyWidth),
+          limit: SWIPE_WORDS,
+        },
+        SWIPE_TIMEOUT_MS,
+      )
+      .then((reply) => {
+        swipeWait = null;
+        const found =
+          reply.ok && Array.isArray(reply['words'])
+            ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '')
+            : [];
+        if (!found.length) {
+          log(reply.ok ? 'swipe: no word matched' : `swipe failed: ${reply.error ?? '?'}`); // never the path or words
+          return;
+        }
+        const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
+        if (buffered(currentKeyboard())) {
+          swipeIntoBar(words);
+          return;
+        }
+        const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
+        boost(words[0]!);
+        swiped = { word: words[0]!, words };
+        sendEffects([{ kind: 'text', text }]);
+      })
+      .catch((error) => {
+        swipeWait = null; // presses waiting for the word go on
+        warn('swipe failed:', errorKind(error));
+      });
   };
 
   /** Have the sidecar load the word list a swipe needs before the first swipe (once per list). */
   const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
     if (!lexicon || swipePrepared.has(lexicon) || !bridge.available()) return;
-    const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+    const letters = new Set(
+      layout.rows
+        .flat()
+        .map(normalizeKey)
+        .flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])),
+    );
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
     swipePrepared.add(lexicon);
-    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
+    void bridge.call(
+      'swipe',
+      { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true },
+      10_000,
+    );
   };
 
   const unmountView = (): void => {
@@ -709,7 +875,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       button.setAttribute('role', 'button');
       button.setAttribute('aria-label', 'Back to polykey');
       const theme = themeFor(surface.win);
-      button.style.cssText = `${theme ? themeVars(theme) : ''}position:fixed;top:4px;right:4px;padding:7px;display:flex;font-size:22px;`
+      button.style.cssText =
+        `${theme ? themeVars(theme) : ''}position:fixed;top:4px;right:4px;padding:7px;display:flex;font-size:22px;`
         + 'border-radius:var(--radius, 6px);background:var(--surface, #23262e);color:var(--text, #fff);box-shadow:var(--shadow);pointer-events:auto;';
       const back = (e: Event): void => {
         e.preventDefault();
@@ -724,9 +891,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     const keyboard = boot.catalog.keyboards[id];
-    const layout = keyboard && boot.catalog.layouts[pageLayout(keyboard, {
-      latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[id]).qwertyLatin,
-    })];
+    const layout =
+      keyboard
+      && boot.catalog.layouts[
+        pageLayout(keyboard, {
+          latin: latinMode.has(keyboard.id),
+          symbols: symbolsOn.get(keyboard.id) ?? 0,
+          qwerty: optionsFor(keyboard, keyboardOptions[id]).qwertyLatin,
+        })
+      ];
     const theme = themeFor(surface.win);
     if (!layout || !theme) {
       warn(`keyboard ${id} has no layout or theme; showing Steam's keyboard`);
@@ -735,57 +908,99 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     guard?.setActive(true);
     const win = surface.win;
     if (page === 'emoji' && boot.emoji) {
-      picker = createEmojiView(surface.doc, surface.shadow, theme, {
-        data: boot.emoji,
-        steam: steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) })),
-        steamAvailable: steamItemsAvailable(g),
-        tones,
-      }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent });
+      picker = createEmojiView(
+        surface.doc,
+        surface.shadow,
+        theme,
+        {
+          data: boot.emoji,
+          steam: steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) })),
+          steamAvailable: steamItemsAvailable(g),
+          tones,
+        },
+        emoji,
+        { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent },
+      );
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
         // Its back key reads the current mode's letters (あいう, ABC).
-        view = createView(surface.doc, surface.shadow, row, theme, onKey, onSuggestion, undefined,
-          { letters: modeLetters(keyboard, latinMode.has(id)) });
+        view = createView(surface.doc, surface.shadow, row, theme, onKey, onSuggestion, undefined, {
+          letters: modeLetters(keyboard, latinMode.has(id)),
+        });
         view.update(mods);
       }
       applyBounds();
     } else if (page === 'settings') {
-      panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
-        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
-        version: VERSION,
-        errors: boot.errors,
-        suggestions: !!keyboard?.lexicon,
-        keyboardName: keyboard ? fullName(keyboard) : id,
-        // The dictation row only while dictation is on.
-        options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
-        tab: settingsTab,
-        keyboards: {
-          all: Object.values(boot.catalog.keyboards).map((k) => ({ id: k.id, name: k.name, language: k.language ?? 'und' })),
-          ring,
-          language: settingsLanguage ?? keyboard?.language ?? 'en',
+      panel = createSettingsView(
+        surface.doc,
+        surface.shadow,
+        theme,
+        settings,
+        {
+          themes: Object.values(boot.catalog.themes).map((t) => ({
+            id: t.id,
+            name: t.name,
+            swatch: [t.colors.surface, t.colors.key, t.colors.accent],
+          })),
+          version: VERSION,
+          errors: boot.errors,
+          suggestions: !!keyboard?.lexicon,
+          keyboardName: keyboard ? fullName(keyboard) : id,
+          // The dictation row only while dictation is on.
+          options: offered(keyboard)
+            .filter((name) => name !== 'dictationCommit' || settings.dictation)
+            .map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
+          tab: settingsTab,
+          keyboards: {
+            all: Object.values(boot.catalog.keyboards).map((k) => ({
+              id: k.id,
+              name: k.name,
+              language: k.language ?? 'und',
+            })),
+            ring,
+            language: settingsLanguage ?? keyboard?.language ?? 'en',
+          },
+          dictation: {
+            catalog: speech.catalog,
+            status: speech.status,
+            languages: dictationLanguages(Object.values(boot.catalog.keyboards)),
+            language: speechLanguage ?? currentDictationLanguage(),
+          },
         },
-        dictation: {
-          catalog: speech.catalog, status: speech.status,
-          languages: dictationLanguages(Object.values(boot.catalog.keyboards)),
-          language: speechLanguage ?? currentDictationLanguage(),
+        {
+          onTab: (tab) => {
+            settingsTab = tab;
+            render();
+          },
+          onLanguage: (code) => {
+            settingsLanguage = code;
+            render();
+          },
+          onKeyboards: changeKeyboards,
+          onChange: changeSettings,
+          onOption: (name, value) => changeOption(id, name as OptionName, value),
+          onSpeechLanguage: (code) => {
+            speechLanguage = code;
+            render();
+          },
+          onChoose: (language, model) => {
+            speech.choose(language, model);
+            if (surface) tick(surface.win, hand);
+            render();
+          },
+          onDownload: speech.download,
+          onDelete: speech.delete,
+          onStock: () => {
+            page = 'keys';
+            stock = true;
+            switchTo(current);
+          },
+          onClose: () => {
+            page = 'keys';
+            render();
+          },
         },
-      }, {
-        onTab: (tab) => { settingsTab = tab; render(); },
-        onLanguage: (code) => { settingsLanguage = code; render(); },
-        onKeyboards: changeKeyboards,
-        onChange: changeSettings,
-        onOption: (name, value) => changeOption(id, name as OptionName, value),
-        onSpeechLanguage: (code) => { speechLanguage = code; render(); },
-        onChoose: (language, model) => {
-          speech.choose(language, model);
-          if (surface) tick(surface.win, hand);
-          render();
-        },
-        onDownload: speech.download,
-        onDelete: speech.delete,
-        onStock: () => { page = 'keys'; stock = true; switchTo(current); },
-        onClose: () => { page = 'keys'; render(); },
-      });
+      );
       applyBounds();
     } else {
       // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
@@ -794,18 +1009,32 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
       // With one keyboard in your list 🌐 has nowhere to go: the layout's rows without it.
       const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;
-      const shown = settings.dictation ? { ...layout, rows }
-        : { ...layout, rows, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
-      view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
-        { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
-          latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
-          // Holding 🌐: each keyboard's language small above its layout.
-          keyboardMenu: { ids: ring, names: ring.map((k) => {
+      const shown = settings.dictation
+        ? { ...layout, rows }
+        : {
+            ...layout,
+            rows,
+            toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')),
+          };
+      view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate, {
+        side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft,
+        hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
+        onSwipe: swipes ? onSwipe : undefined,
+        canSwipe: () => swipeNow() !== undefined,
+        latin: latinMode.has(id),
+        romaji: typesRomaji(keyboard),
+        symbols: symbolsOn.get(id) ?? 0,
+        letters: modeLetters(keyboard, latinMode.has(id)),
+        // Holding 🌐: each keyboard's language small above its layout.
+        keyboardMenu: {
+          ids: ring,
+          names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
-          }) },
-          ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}) });
+          }),
+        },
+        ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}),
+      });
       view.update(mods);
       applyBounds();
       refreshSuggestions();
@@ -888,7 +1117,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     });
     if (surface) tick(surface.win, hand);
     const index = ring.indexOf(showing ?? '');
-    if (index < 0) switchTo(0); // the one showing was removed
+    if (index < 0)
+      switchTo(0); // the one showing was removed
     else {
       current = index;
       render();
@@ -1056,7 +1286,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     },
     bridgeReply: (reply) => bridge.receive(reply),
     debug: {
-      status: () => `${api.state} keyboard=${stock ? STOCK : ring[current]} ${describeStatus(readStatus(statusStore))} `
+      status: () =>
+        `${api.state} keyboard=${stock ? STOCK : ring[current]} ${describeStatus(readStatus(statusStore))} `
         + `popup=${surface ? `${surface.win.innerWidth}x${surface.win.innerHeight}` : '-'}`,
       use: (id) => {
         const index = ring.indexOf(id);

@@ -13,8 +13,13 @@ const setup = () => {
   const shadow = host.attachShadow({ mode: 'open' });
   const pressed: KeyDef[] = [];
   const chosen: string[] = [];
-  const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
-    (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)));
+  const view = createView(
+    document,
+    shadow,
+    boot.catalog.layouts['en/qwerty']!,
+    boot.catalog.themes['themes/night-owl']!,
+    (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)),
+  );
   view.update(NO_MODS);
   const rows = [...shadow.querySelectorAll('.row')];
   const keyIn = (row: number, id: string) =>
@@ -38,7 +43,12 @@ describe('createView', () => {
     // ↓ starts exactly where ↑ does: the same share of their rows before them.
     const before = (row: number, id: string) => {
       const keys = [...rows[row]!.querySelectorAll<HTMLElement>('.key')];
-      return keys.slice(0, keys.findIndex((el) => el.dataset['k'] === id)).reduce((sum, el) => sum + parseFloat(el.style.flexBasis), 0);
+      return keys
+        .slice(
+          0,
+          keys.findIndex((el) => el.dataset['k'] === id),
+        )
+        .reduce((sum, el) => sum + parseFloat(el.style.flexBasis), 0);
     };
     expect(before(4, 'ArrowDown')).toBeCloseTo(before(3, 'ArrowUp'), 6);
     expect(keyIn(4, 'super').querySelector('svg')).not.toBeNull(); // Frame icon
@@ -48,7 +58,11 @@ describe('createView', () => {
     const { view, keyIn, rows, labelOf } = setup();
     const one = keyIn(0, '1');
     // Shift top left, Fn top right (in the Fn colour), the label beneath.
-    expect([one.querySelector('.lg.tl')!.textContent, labelOf(one), one.querySelector('.lg.tr.t-fn')!.textContent]).toEqual(['!', '1', 'F1']);
+    expect([
+      one.querySelector('.lg.tl')!.textContent,
+      labelOf(one),
+      one.querySelector('.lg.tr.t-fn')!.textContent,
+    ]).toEqual(['!', '1', 'F1']);
     expect(keyIn(1, 'q').querySelector('.lg')).toBeNull(); // no Shift legend on letters
     view.update({ ...NO_MODS, shift: 'once' });
     expect(labelOf(keyIn(1, 'q'))).toBe('Q');
@@ -96,11 +110,19 @@ describe('hover', () => {
     const host = document.createElement('div');
     document.body.append(host);
     const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ja/gojuon']!, boot.catalog.themes['themes/steam']!, () => {});
+    const view = createView(
+      document,
+      shadow,
+      boot.catalog.layouts['ja/gojuon']!,
+      boot.catalog.themes['themes/steam']!,
+      () => {},
+    );
     view.update(NO_MODS);
     const gap = shadow.querySelector<HTMLElement>('.key.gap')!;
     const wa = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'わ')!;
-    Object.defineProperty(shadow, 'elementsFromPoint', { value: (x: number) => (x === 10 ? [gap] : x === 20 ? [wa] : []) });
+    Object.defineProperty(shadow, 'elementsFromPoint', {
+      value: (x: number) => (x === 10 ? [gap] : x === 20 ? [wa] : []),
+    });
     expect(view.hoverAt(10, 10)).toBe(false); // from nothing to a gap: still nothing
     expect(view.hoverAt(10, 11)).toBe(false);
     expect(view.hoverAt(10, 12)).toBe(false);
@@ -118,12 +140,23 @@ describe('icons', () => {
     const shadow = host.attachShadow({ mode: 'open' });
     const full: Layout = { id: 't/t', name: 't', toolbar: [], rows: [], ...layout };
     createView(document, shadow, full, bundledBoot().catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
-    const key = (k: string) => [...shadow.querySelectorAll<HTMLElement>('.kb .key')].find((el) => el.dataset['k'] === k)!;
-    return { key, svg: (k: string) => key(k).querySelector('svg'), text: (k: string) => key(k).querySelector('.lbl')!.textContent };
+    const key = (k: string) =>
+      [...shadow.querySelectorAll<HTMLElement>('.kb .key')].find((el) => el.dataset['k'] === k)!;
+    return {
+      key,
+      svg: (k: string) => key(k).querySelector('svg'),
+      text: (k: string) => key(k).querySelector('.lbl')!.textContent,
+    };
   };
 
-  it('draws the icon set\'s defaults: phone adds Enter and arrows; large layouts default to phone', () => {
-    const rows: Layout['rows'] = [[{ type: 'key', key: 'Enter' }, { type: 'key', key: 'ArrowLeft' }, { type: 'action', action: 'settings' }]];
+  it("draws the icon set's defaults: phone adds Enter and arrows; large layouts default to phone", () => {
+    const rows: Layout['rows'] = [
+      [
+        { type: 'key', key: 'Enter' },
+        { type: 'key', key: 'ArrowLeft' },
+        { type: 'action', action: 'settings' },
+      ],
+    ];
     const desktop = render({ rows });
     expect(desktop.svg('Enter')).toBeNull();
     expect(desktop.text('ArrowLeft')).toBe('←');
@@ -135,13 +168,29 @@ describe('icons', () => {
     expect(render({ rows, large: true, iconSet: 'desktop' }).svg('Enter')).toBeNull(); // set on its own
   });
 
-  it('arrowStyle glyph draws arrows as text; a key\'s own icon wins, null meaning text', () => {
-    const glyph = render({ large: true, arrowStyle: 'glyph', rows: [[{ type: 'key', key: 'ArrowLeft' }, { type: 'key', key: 'Enter' }]] });
+  it("arrowStyle glyph draws arrows as text; a key's own icon wins, null meaning text", () => {
+    const glyph = render({
+      large: true,
+      arrowStyle: 'glyph',
+      rows: [
+        [
+          { type: 'key', key: 'ArrowLeft' },
+          { type: 'key', key: 'Enter' },
+        ],
+      ],
+    });
     expect(glyph.svg('ArrowLeft')).toBeNull();
     expect(glyph.text('ArrowLeft')).toBe('←');
     expect(glyph.svg('Enter')).not.toBeNull();
-    const own = render({ rows: [[{ type: 'key', key: 'Tab', icon: 'right' }, { type: 'action', action: 'settings', icon: null },
-      { type: 'char', char: ' ', label: 'Space' }]] });
+    const own = render({
+      rows: [
+        [
+          { type: 'key', key: 'Tab', icon: 'right' },
+          { type: 'action', action: 'settings', icon: null },
+          { type: 'char', char: ' ', label: 'Space' },
+        ],
+      ],
+    });
     expect(own.svg('Tab')).not.toBeNull();
     expect(own.svg('settings')).toBeNull();
     expect(own.svg(' ')).toBeNull(); // a label still means text
@@ -150,7 +199,9 @@ describe('icons', () => {
   it('the schema lists every icon', async () => {
     const { readFileSync } = await import('node:fs');
     const { ICONS } = await import('../../src/ui/icons.js');
-    const schema = JSON.parse(readFileSync('schema/pack.schema.json', 'utf8')) as { $defs: { icon: { enum: unknown[] } } };
+    const schema = JSON.parse(readFileSync('schema/pack.schema.json', 'utf8')) as {
+      $defs: { icon: { enum: unknown[] } };
+    };
     expect(schema.$defs.icon.enum).toEqual([...Object.keys(ICONS), null]);
   });
 });
@@ -171,7 +222,10 @@ describe('long press', () => {
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
     expect(cells.map((c) => c.textContent)).toEqual(['e', 'è', 'é', 'ê', 'ë', 'ē', 'ė', 'ę']);
     expect(cells[0]!.classList.contains('pick')).toBe(true);
-    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: (x: number) => (x === 5 ? [cells[2]] : []) });
+    Object.defineProperty(shadow, 'elementsFromPoint', {
+      configurable: true,
+      value: (x: number) => (x === 5 ? [cells[2]] : []),
+    });
     touch(e, 'touchmove', 5, 5);
     expect(cells[2]!.classList.contains('pick')).toBe(true);
     touch(e, 'touchend');
@@ -185,12 +239,15 @@ describe('long press', () => {
     vi.useFakeTimers();
     const { keyIn, shadow, chosen } = setup();
     const e = keyIn(1, 'e');
-    const rect = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
+    const rect = (left: number, top: number) =>
+      ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
     e.getBoundingClientRect = () => rect(100, 60); // the held key
     touch(e, 'touchstart', 110, 75);
     vi.advanceTimersByTime(HOLD_MS);
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
-    cells.forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
+    cells.forEach((cell, i) => {
+      cell.getBoundingClientRect = () => rect(100 + i * 40, 28);
+    });
     Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
     touch(e, 'touchmove', 110, 75); // on the key, under the first cell
     expect(cells[0]!.classList.contains('pick')).toBe(true);
@@ -200,7 +257,9 @@ describe('long press', () => {
     expect(chosen).toEqual(['é']);
     touch(e, 'touchstart');
     vi.advanceTimersByTime(HOLD_MS);
-    [...shadow.querySelectorAll<HTMLElement>('.alts .key')].forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
+    [...shadow.querySelectorAll<HTMLElement>('.alts .key')].forEach((cell, i) => {
+      cell.getBoundingClientRect = () => rect(100 + i * 40, 28);
+    });
     touch(e, 'touchmove', 110, 200); // well below the key
     touch(e, 'touchend');
     expect(chosen).toEqual(['é']); // cancelled
@@ -210,12 +269,15 @@ describe('long press', () => {
     vi.useFakeTimers();
     const { view, keyIn, shadow } = setup();
     const e = keyIn(1, 'e');
-    const rect = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
+    const rect = (left: number, top: number) =>
+      ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
     e.getBoundingClientRect = () => rect(100, 60);
     touch(e, 'touchstart', 110, 75);
     vi.advanceTimersByTime(HOLD_MS);
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
-    cells.forEach((cell, i) => { cell.getBoundingClientRect = () => rect(100 + i * 40, 28); });
+    cells.forEach((cell, i) => {
+      cell.getBoundingClientRect = () => rect(100 + i * 40, 28);
+    });
     Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
     expect(view.hoverAt(110, 75)).toBe(false); // still on the first choice
     expect(view.hoverAt(150, 75)).toBe(true); // onto the second: one tick
@@ -229,23 +291,34 @@ describe('long press', () => {
     vi.useFakeTimers();
     const { keyIn, shadow } = setup();
     const e = keyIn(1, 'e');
-    const rect = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
+    const rect = (left: number, top: number) =>
+      ({ left, right: left + 40, top, bottom: top + 30, width: 40, height: 30 }) as DOMRect;
     e.getBoundingClientRect = () => rect(100, 60);
     // Lay out cells as soon as they are created, so the opening pick can use them.
     const realAppend = HTMLElement.prototype.append;
     let n = 0;
     HTMLElement.prototype.append = function (...nodes) {
-      for (const node of nodes) if (node instanceof HTMLElement && node.parentElement === null && this.className === 'alts') {
-        const i = n++;
-        node.getBoundingClientRect = () => rect(100 + i * 40, 28);
-      }
+      for (const node of nodes)
+        if (node instanceof HTMLElement && node.parentElement === null && this.className === 'alts') {
+          const i = n++;
+          node.getBoundingClientRect = () => rect(100 + i * 40, 28);
+        }
       return realAppend.apply(this, nodes);
     };
     touch(e, 'touchstart', 150, 75); // laser under the second cell
     vi.advanceTimersByTime(HOLD_MS);
     HTMLElement.prototype.append = realAppend;
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
-    expect(cells.map((c) => c.classList.contains('pick'))).toEqual([false, true, false, false, false, false, false, false]);
+    expect(cells.map((c) => c.classList.contains('pick'))).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
     vi.useRealTimers();
   });
 
@@ -326,12 +399,21 @@ describe('hold to repeat', () => {
     const host = document.createElement('div');
     document.body.append(host);
     const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {});
+    const view = createView(
+      document,
+      shadow,
+      boot.catalog.layouts['ja/flick']!,
+      boot.catalog.themes['themes/steam']!,
+      () => {},
+    );
     view.update(NO_MODS);
     const keys = [...shadow.querySelectorAll<HTMLElement>('.key')];
     const modify = keys.find((el) => el.dataset['k'] === 'modify')!;
     // Full-width cells; the marks as combining marks on a full-width space, so they sit high right.
-    expect([...modify.querySelectorAll('.mk-marks .dot.cell.mark .ch')].map((el) => el.textContent)).toEqual(['\u3000\u3099', '\u3000\u309a']);
+    expect([...modify.querySelectorAll('.mk-marks .dot.cell.mark .ch')].map((el) => el.textContent)).toEqual([
+      '\u3000\u3099',
+      '\u3000\u309a',
+    ]);
     expect(modify.querySelector('.mk-size')?.textContent).toBe('大⇔小');
     const punct = keys.find((el) => el.dataset['k'] === '、')!;
     expect(punct.querySelector('.lbl .dot.cell')?.textContent).toBe('、');
@@ -345,8 +427,13 @@ describe('hold to repeat', () => {
     document.body.append(host);
     const shadow = host.attachShadow({ mode: 'open' });
     const got: [string, string | undefined][] = [];
-    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
-      (k, alternate) => got.push([k.type === 'flick' ? k.flick[0] : '?', alternate]));
+    const view = createView(
+      document,
+      shadow,
+      boot.catalog.layouts['ja/flick']!,
+      boot.catalog.themes['themes/steam']!,
+      (k, alternate) => got.push([k.type === 'flick' ? k.flick[0] : '?', alternate]),
+    );
     view.update(NO_MODS);
     const ka = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
     const at = (type: string, x: number, y: number) => {
@@ -366,7 +453,10 @@ describe('hold to repeat', () => {
     expect(shadow.querySelector('.fl')).toBeNull();
     at('touchstart', 100, 100);
     at('touchend', 104, 102); // a tap: the keyboard decides what it types
-    expect(got).toEqual([['か', 'く'], ['か', undefined]]);
+    expect(got).toEqual([
+      ['か', 'く'],
+      ['か', undefined],
+    ]);
   });
 
   it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
@@ -376,8 +466,16 @@ describe('hold to repeat', () => {
       document.body.append(host);
       const shadow = host.attachShadow({ mode: 'open' });
       const picked: string[] = [];
-      const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
-        () => {}, () => {}, (text) => picked.push(text), { side });
+      const view = createView(
+        document,
+        shadow,
+        boot.catalog.layouts['ja/flick']!,
+        boot.catalog.themes['themes/steam']!,
+        () => {},
+        () => {},
+        (text) => picked.push(text),
+        { side },
+      );
       view.update(NO_MODS);
       view.setComposition({ before: 'かんじ', after: '', candidates: ['漢字', '感じ', '幹事'], selected: -1 });
       return { shadow, picked };
@@ -400,25 +498,44 @@ describe('hold to repeat', () => {
     const host = document.createElement('div');
     document.body.append(host);
     const hinted = host.attachShadow({ mode: 'open' });
-    createView(document, hinted, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}, () => {}, () => {}, { hints: true }).update(NO_MODS);
+    createView(
+      document,
+      hinted,
+      boot.catalog.layouts['ja/flick']!,
+      boot.catalog.themes['themes/steam']!,
+      () => {},
+      () => {},
+      () => {},
+      { hints: true },
+    ).update(NO_MODS);
     const ka = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
-    expect([...ka.querySelectorAll('.lg')].map((h) => `${h.className}:${h.textContent}`))
-      .toEqual(['lg t s-hint t-legend:く', 'lg l s-hint t-legend:き', 'lg r s-hint t-legend:け', 'lg b s-hint t-legend:こ']);
+    expect([...ka.querySelectorAll('.lg')].map((h) => `${h.className}:${h.textContent}`)).toEqual([
+      'lg t s-hint t-legend:く',
+      'lg l s-hint t-legend:き',
+      'lg r s-hint t-legend:け',
+      'lg b s-hint t-legend:こ',
+    ]);
     const punct = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === '、')!;
     expect(punct.querySelector('.lbl')!.textContent).toBe('、'); // with hints, just its tap kana
     // The punctuation key always shows its directions, hints option or not.
     const plain = document.createElement('div');
     document.body.append(plain);
     const noHints = plain.attachShadow({ mode: 'open' });
-    createView(document, noHints, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
-    const keysOf = (id: string) => [...noHints.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+    createView(
+      document,
+      noHints,
+      boot.catalog.layouts['ja/flick']!,
+      boot.catalog.themes['themes/steam']!,
+      () => {},
+    ).update(NO_MODS);
+    const keysOf = (id: string) =>
+      [...noHints.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
     expect([...keysOf('、').querySelectorAll('.lg')].map((h) => h.textContent)).toEqual(['？', '。', '！', '…']);
     expect(keysOf('か').querySelectorAll('.lg')).toHaveLength(0);
     expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
 });
-
 
 describe('swipe', () => {
   const touch = (el: Element, type: string, x = 0, y = 0) => {
@@ -435,15 +552,26 @@ describe('swipe', () => {
     const pressed: KeyDef[] = [];
     const chosen: string[] = [];
     const swipes: { path: { x: number; y: number }[]; keys: Record<string, [number, number]>; width: number }[] = [];
-    const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
-      (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)), undefined, undefined,
-      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }), canSwipe });
+    const view = createView(
+      document,
+      shadow,
+      boot.catalog.layouts['en/qwerty']!,
+      boot.catalog.themes['themes/night-owl']!,
+      (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)),
+      undefined,
+      undefined,
+      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }), canSwipe },
+    );
     view.update(NO_MODS);
     const rows = [...shadow.querySelectorAll('.row')];
-    rows.forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
-    const keyIn = (row: number, id: string) => [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+    rows.forEach((row, r) =>
+      [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+        el.getBoundingClientRect = () =>
+          ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+      }),
+    );
+    const keyIn = (row: number, id: string) =>
+      [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
     return { view, shadow, keyIn, pressed, chosen, swipes };
   };
 
@@ -462,7 +590,10 @@ describe('swipe', () => {
     expect(pressed).toEqual([]);
     expect(swipes).toHaveLength(1);
     const { path, keys, width } = swipes[0]!;
-    expect([path[0], path[path.length - 1]]).toEqual([{ x: 60, y: 45 }, { x: 140, y: 45 }]);
+    expect([path[0], path[path.length - 1]]).toEqual([
+      { x: 60, y: 45 },
+      { x: 140, y: 45 },
+    ]);
     expect(keys['q']).toEqual([60, 45]);
     expect(keys['a']).toEqual([60, 75]); // after Caps, a row down
     expect(Object.keys(keys).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz'); // letters only
@@ -473,7 +604,7 @@ describe('swipe', () => {
     vi.useRealTimers();
   });
 
-  it('a tap, and a wobble near the key\'s edge, still type the letter', () => {
+  it("a tap, and a wobble near the key's edge, still type the letter", () => {
     const { keyIn, pressed, swipes } = swipeSetup();
     const w = keyIn(1, 'w'); // x 80-120
     touch(w, 'touchstart', 115, 45);
@@ -492,7 +623,10 @@ describe('swipe', () => {
     touch(e, 'touchstart', 140, 45);
     vi.advanceTimersByTime(HOLD_MS);
     const cells = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
-    cells.forEach((cell, i) => { cell.getBoundingClientRect = () => ({ left: 120 + i * 40, right: 160 + i * 40, top: 10, bottom: 40, width: 40, height: 30 }) as DOMRect; });
+    cells.forEach((cell, i) => {
+      cell.getBoundingClientRect = () =>
+        ({ left: 120 + i * 40, right: 160 + i * 40, top: 10, bottom: 40, width: 40, height: 30 }) as DOMRect;
+    });
     Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
     touch(e, 'touchmove', 220, 45); // well outside e: the third choice, not a swipe
     touch(e, 'touchend', 220, 45);
@@ -545,7 +679,12 @@ describe('swipe', () => {
     vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS);
     touch(backspace, 'touchend', 540, 15);
     expect(swipes).toEqual([]);
-    expect(pressed.map((k) => (k.type === 'char' ? k.char : k.type === 'key' ? k.key : ''))).toEqual([' ', '1', 'Backspace', 'Backspace']);
+    expect(pressed.map((k) => (k.type === 'char' ? k.char : k.type === 'key' ? k.key : ''))).toEqual([
+      ' ',
+      '1',
+      'Backspace',
+      'Backspace',
+    ]);
     vi.useRealTimers();
   });
 

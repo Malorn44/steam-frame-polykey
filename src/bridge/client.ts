@@ -12,8 +12,10 @@ export interface BridgeReply {
 }
 
 const isReply = (value: unknown): value is BridgeReply =>
-  typeof value === 'object' && value !== null
-  && typeof (value as BridgeReply).id === 'number' && typeof (value as BridgeReply).ok === 'boolean';
+  typeof value === 'object'
+  && value !== null
+  && typeof (value as BridgeReply).id === 'number'
+  && typeof (value as BridgeReply).ok === 'boolean';
 
 export const createBridge = (g: Record<string, unknown>) => {
   let nextId = 1;
@@ -64,4 +66,3 @@ export const createBridge = (g: Record<string, unknown>) => {
 
   return { available, call, receive, close };
 };
-

@@ -82,7 +82,9 @@ export const buildThemePicker = (
   }
 
   const isOpen = (): boolean => root.classList.contains('open');
-  const close = (): void => { root.classList.remove('open'); };
+  const close = (): void => {
+    root.classList.remove('open');
+  };
   const open = (): void => {
     root.classList.add('open');
     // Down to the bottom of the column it is in (so the column never scrolls for it), the current theme in view.
@@ -97,7 +99,9 @@ export const buildThemePicker = (
   return {
     el: root,
     reaches: (target) => !isOpen() || root.contains(target as Node),
-    start: (target) => { started = target; },
+    start: (target) => {
+      started = target;
+    },
     end: (target = started) => {
       started = null;
       if (isOpen() && !root.contains(target as Node)) {

@@ -91,23 +91,42 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
 const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext): Legend | undefined => {
   const spec = typeof def === 'string' ? { text: def } : def;
   const small = slot !== 'c';
-  const text = (value: string, size: LegendSize, tone: Tone): Legend =>
-    ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
+  const text = (value: string, size: LegendSize, tone: Tone): Legend => ({
+    kind: 'text',
+    text: value,
+    size,
+    tone,
+    boxed: ctx.dotted.has(value),
+  });
   if (spec.parts) return { kind: 'pair', parts: spec.parts, now: ctx.latin ? 1 : 0 };
   // Beneath marks small as a hint (大⇔小); beneath text as the ABC keys' digit.
-  if (spec.marks) return { kind: 'marks', marks: spec.marks.map((mark) => text(mark, 'key', 'text')), under: text(spec.under ?? '', 'hint', 'legend') };
+  if (spec.marks)
+    return {
+      kind: 'marks',
+      marks: spec.marks.map((mark) => text(mark, 'key', 'text')),
+      under: text(spec.under ?? '', 'hint', 'legend'),
+    };
   const under = spec.under === undefined ? undefined : text(spec.under, 'sub', 'legend');
   if (spec.text === undefined) return undefined;
   return {
-    kind: 'text', text: spec.text, size: spec.size ?? (small ? 'legend' : 'key'), tone: spec.tone ?? (small ? 'legend' : 'text'),
-    boxed: spec.boxed ?? ctx.dotted.has(spec.text), ...(under ? { under } : {}),
+    kind: 'text',
+    text: spec.text,
+    size: spec.size ?? (small ? 'legend' : 'key'),
+    tone: spec.tone ?? (small ? 'legend' : 'text'),
+    boxed: spec.boxed ?? ctx.dotted.has(spec.text),
+    ...(under ? { under } : {}),
   };
 };
 
 /** What the key's fields (char, shift, fn, kana, hint, sub, flick) put where. */
 const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => {
-  const text = (value: string, size: LegendSize, tone: Tone): Legend =>
-    ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
+  const text = (value: string, size: LegendSize, tone: Tone): Legend => ({
+    kind: 'text',
+    text: value,
+    size,
+    tone,
+    boxed: ctx.dotted.has(value),
+  });
 
   if (key.type === 'gap') return NONE;
   if ((key.type === 'key' || key.type === 'action') && (key.tall === 'bottom' || key.tall === 'middle')) return NONE; // the label is on the top piece
@@ -116,15 +135,16 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
   // is active and the character it types now is biggest; the rest are drawn like Shift legends.
   if (key.type === 'char' && key.kana) {
     // While Fn is on, a key with an Fn variant shows only that (F1).
-    if (mods.fn !== 'off' && key.fn) return { arrangement: 'quad', slots: { c: text(keyLabel(normalizeFn(key.fn), mods), 'key', 'text') } };
+    if (mods.fn !== 'off' && key.fn)
+      return { arrangement: 'quad', slots: { c: text(keyLabel(normalizeFn(key.fn), mods), 'key', 'text') } };
     const letter = key.char.toLowerCase() !== key.char.toUpperCase();
     const shiftOn = mods.shift !== 'off';
     const latinNow = charText(key, mods);
     const onLatin = ctx.latin || ctx.romaji;
     const quarter = (value: string, active: boolean, current: boolean): Legend | undefined =>
-      (value ? text(value, active && current ? 'dual' : 'legend', active && current ? 'text' : 'legend') : undefined);
+      value ? text(value, active && current ? 'dual' : 'legend', active && current ? 'text' : 'legend') : undefined;
     const ll = quarter(letter ? latinNow : key.char, onLatin, letter || latinNow === key.char);
-    const ls = quarter(letter ? '' : key.shift ?? '', onLatin, !letter && latinNow !== key.char);
+    const ls = quarter(letter ? '' : (key.shift ?? ''), onLatin, !letter && latinNow !== key.char);
     const slots: Partial<Record<SlotName, Legend>> = {};
     if (ctx.romaji && key.fn) {
       // Romaji, with an Fn variant: as on the English keys, Shift top left, Fn top right, the character
@@ -152,11 +172,17 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     if (ctx.label !== undefined) return text(ctx.label, 'key', 'text');
     if (key.type === 'flick' && (ctx.hints || key.hints)) return text(key.flick[0], 'key', 'text');
     if (ctx.icon) return { kind: 'icon', icon: ctx.icon };
-    return text(pageLabel(key, { letters: ctx.letters, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
+    return text(
+      pageLabel(key, { letters: ctx.letters, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods),
+      'key',
+      'text',
+    );
   })();
   // The ABC keys: the label with its digit small beneath (not with hints, which show the rest).
-  const shown: Legend = key.type === 'flick' && key.sub && !(ctx.hints || key.hints) && label.kind === 'text'
-    ? { ...label, under: text(key.sub, 'sub', 'legend') } : label;
+  const shown: Legend =
+    key.type === 'flick' && key.sub && !(ctx.hints || key.hints) && label.kind === 'text'
+      ? { ...label, under: text(key.sub, 'sub', 'legend') }
+      : label;
 
   // Flick hints: each direction's kana small at the key's left, top, right and bottom edge.
   if (key.type === 'flick' && (ctx.hints || key.hints)) {

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Effect } from '../../src/core/keyboard.js';
-import { NO_WORD, UNKNOWN, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
+import {
+  NO_WORD,
+  UNKNOWN,
+  matchCase,
+  rank,
+  replaceWord,
+  slotOrder,
+  suggestPrefix,
+  trackWord,
+} from '../../src/core/suggest.js';
 
 const text = (t: string): Effect => ({ kind: 'text', text: t });
 const key = (k: 'Backspace' | 'Enter' | 'ArrowLeft'): Effect => ({ kind: 'key', key: k });

@@ -5,7 +5,10 @@
 
 import type { TouchGuard } from '../core/interaction.js';
 
-export interface TouchPoint { readonly x: number; readonly y: number }
+export interface TouchPoint {
+  readonly x: number;
+  readonly y: number;
+}
 
 /** Where a touch event is, if it has a touch. */
 export const touchPoint = (e: Event): TouchPoint | null => {
@@ -34,7 +37,11 @@ export interface ListenOptions {
 }
 
 /** Listen for a view's touches (and its mouse clicks); returns a function that stops listening. */
-export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, capture = false }: ListenOptions = {}): (() => void) => {
+export const listenTouch = (
+  el: EventTarget,
+  handlers: TouchHandlers,
+  { guard, capture = false }: ListenOptions = {},
+): (() => void) => {
   const options = { capture, passive: false } as const;
   const added: [string, EventListener, boolean | AddEventListenerOptions][] = [];
   const on = (type: string, listener: EventListener, opts: boolean | AddEventListenerOptions): void => {
@@ -43,12 +50,16 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
   };
   const claim = (type: 'touchstart' | 'touchmove' | 'touchend', handler: TouchHandler | undefined): void => {
     if (!handler) return;
-    on(type, (e) => {
-      if (handler(touchPoint(e), e) === false) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (type !== 'touchmove') guard?.touched();
-    }, options);
+    on(
+      type,
+      (e) => {
+        if (handler(touchPoint(e), e) === false) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (type !== 'touchmove') guard?.touched();
+      },
+      options,
+    );
   };
   claim('touchstart', handlers.start);
   claim('touchmove', handlers.move);
@@ -56,15 +67,21 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
   if (handlers.cancel) on('touchcancel', handlers.cancel, options);
   const click = handlers.click;
   if (click) {
-    on('click', (e) => {
-      if (guard?.ghost()) {
-        e.stopPropagation();
-        return;
-      }
-      click(e as MouseEvent);
-    }, { capture });
+    on(
+      'click',
+      (e) => {
+        if (guard?.ghost()) {
+          e.stopPropagation();
+          return;
+        }
+        click(e as MouseEvent);
+      },
+      { capture },
+    );
   }
-  return () => { for (const [type, listener, opts] of added) el.removeEventListener(type, listener, opts); };
+  return () => {
+    for (const [type, listener, opts] of added) el.removeEventListener(type, listener, opts);
+  };
 };
 
 /** A press on a scrolling list, which turns into a drag of it once it moves past `slop`. */
@@ -84,7 +101,9 @@ export const dragScroll = (list: HTMLElement, from: TouchPoint, axis: 'x' | 'y',
   const top = list.scrollTop;
   let moved = false;
   return {
-    get moved() { return moved; },
+    get moved() {
+      return moved;
+    },
     move: (point) => {
       const dx = point.x - from.x;
       const dy = point.y - from.y;

@@ -21,11 +21,19 @@ describe('listenTouch', () => {
     const seen: string[] = [];
     outer.addEventListener('touchmove', () => seen.push('outer saw move'));
     outer.addEventListener('touchstart', () => seen.push('outer saw start'));
-    listenTouch(el, {
-      start: (p) => { seen.push(`start ${p?.x},${p?.y}`); },
-      move: () => false, // not ours
-      end: () => { seen.push('end'); },
-    }, { guard });
+    listenTouch(
+      el,
+      {
+        start: (p) => {
+          seen.push(`start ${p?.x},${p?.y}`);
+        },
+        move: () => false, // not ours
+        end: () => {
+          seen.push('end');
+        },
+      },
+      { guard },
+    );
     const start = touch(el, 'touchstart', 3, 4);
     expect(start.defaultPrevented).toBe(true);
     expect(guard.ghost()).toBe(true); // marked

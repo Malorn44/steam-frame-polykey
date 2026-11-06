@@ -56,13 +56,17 @@ export const suggestPrefix = (state: WordState): string | null => state.word || 
 export const rank = (candidates: readonly string[], session: ReadonlyMap<string, number>, count = 3): string[] => {
   const order = new Map(candidates.map((word, i) => [word, i]));
   return [...candidates]
-    .sort((a, b) => (session.get(b.toLowerCase()) ?? 0) - (session.get(a.toLowerCase()) ?? 0) || (order.get(a)! - order.get(b)!))
+    .sort(
+      (a, b) =>
+        (session.get(b.toLowerCase()) ?? 0) - (session.get(a.toLowerCase()) ?? 0) || order.get(a)! - order.get(b)!,
+    )
     .slice(0, count);
 };
 
 /** A suggestion in the case the word was typed in: ALL CAPS, Capitalised, or the list's own. */
 export const matchCase = (suggestion: string, typed: string): string => {
-  if (typed.length > 1 && typed === typed.toUpperCase() && typed !== typed.toLowerCase()) return suggestion.toUpperCase();
+  if (typed.length > 1 && typed === typed.toUpperCase() && typed !== typed.toLowerCase())
+    return suggestion.toUpperCase();
   if (typed[0] && typed[0] !== typed[0].toLowerCase()) return suggestion[0]!.toUpperCase() + suggestion.slice(1);
   return suggestion;
 };

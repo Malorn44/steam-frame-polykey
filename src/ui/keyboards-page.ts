@@ -65,7 +65,11 @@ export const languageName = (code: string): string => {
 };
 
 /** A column of a settings page, appended to `root`: its heading, then its list, which scrolls (.scroll in settings). */
-export const pageColumn = (root: HTMLElement, cls: string, heading: string | (string | Node)[]): { col: HTMLElement; list: HTMLElement } => {
+export const pageColumn = (
+  root: HTMLElement,
+  cls: string,
+  heading: string | (string | Node)[],
+): { col: HTMLElement; list: HTMLElement } => {
   const div = (className: string): HTMLElement => Object.assign(root.ownerDocument.createElement('div'), { className });
   const col = div(`col ${cls}`);
   const list = div('list scroll');
@@ -78,7 +82,7 @@ export const pageColumn = (root: HTMLElement, cls: string, heading: string | (st
 
 /** A keyboard where languages are mixed (your list, settings): its language and layout. */
 export const fullName = (k: { name: string; language?: string | undefined }): string =>
-  (k.language ? `${languageName(k.language)} · ${k.name}` : k.name);
+  k.language ? `${languageName(k.language)} · ${k.name}` : k.name;
 
 /** Your list after dropping `id` at `index` among the others (moved if it was there already). */
 export const dropInto = (ring: readonly string[], id: string, index: number): string[] => {
@@ -99,7 +103,8 @@ export const buildKeyboardsPage = (
   /** Settings' touch guard: a claimed drag marks it too, so its copied click is dropped. */
   guard?: TouchGuard,
 ): HTMLElement => {
-  const el = (cls: string, text = ''): HTMLElement => Object.assign(doc.createElement('div'), { className: cls, textContent: text });
+  const el = (cls: string, text = ''): HTMLElement =>
+    Object.assign(doc.createElement('div'), { className: cls, textContent: text });
   const icon = (cls: string, name: IconName): HTMLElement => Object.assign(el(cls), { innerHTML: ICONS[name] });
   // A layout's pack name is the layout alone (12キー); your list shows its language too.
   const nameOf = new Map(info.all.map((k) => [k.id, fullName(k)]));
@@ -107,7 +112,9 @@ export const buildKeyboardsPage = (
   const column = (cls: string, heading: string | (string | Node)[]) => pageColumn(root, cls, heading);
 
   // Languages, with how many of yours each has.
-  const languages = [...new Set(info.all.map((k) => k.language))].sort((a, b) => languageName(a).localeCompare(languageName(b)));
+  const languages = [...new Set(info.all.map((k) => k.language))].sort((a, b) =>
+    languageName(a).localeCompare(languageName(b)),
+  );
   const langs = column('langs', 'Languages');
   for (const code of languages) {
     const item = el(code === info.language ? 'item sel' : 'item');
@@ -125,7 +132,9 @@ export const buildKeyboardsPage = (
     const added = info.ring.includes(k.id);
     const item = el(added ? 'item added' : 'item');
     item.append(el('nm', k.name), el('mark', added ? '✓' : '+'));
-    actions.set(item, () => { if (!added) onKeyboards([...info.ring, k.id]); });
+    actions.set(item, () => {
+      if (!added) onKeyboards([...info.ring, k.id]);
+    });
     draggable.set(item, { id: k.id, from: 'layout', source: item });
     lays.list.append(item);
   }
@@ -155,7 +164,10 @@ export const buildKeyboardsPage = (
   /** The others (not the one being dragged) and where a drop at y lands among them. */
   const others = (id: string): HTMLElement[] => ringItems.filter((_, i) => info.ring[i] !== id);
   const indexAt = (y: number, id: string): number => {
-    const at = others(id).findIndex((i) => { const r = i.getBoundingClientRect(); return y < r.top + r.height / 2; });
+    const at = others(id).findIndex((i) => {
+      const r = i.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    });
     return at < 0 ? others(id).length : at;
   };
   const end = (): void => {
@@ -167,26 +179,30 @@ export const buildKeyboardsPage = (
   };
 
   // Only a press on a row (not its ✕) is ours: the rest goes on to settings, which handles taps.
-  listenTouch(root, {
-    start: (t, e) => {
-      const target = e.target as Node;
-      const item = [...draggable.keys()].find((i) => i.contains(target));
-      if (!item || [...actions.keys()].some((a) => a.classList.contains('x') && a.contains(target))) return false;
-      start = { x: t?.x ?? 0, y: t?.y ?? 0, drag: draggable.get(item)! };
-      return true;
+  listenTouch(
+    root,
+    {
+      start: (t, e) => {
+        const target = e.target as Node;
+        const item = [...draggable.keys()].find((i) => i.contains(target));
+        if (!item || [...actions.keys()].some((a) => a.classList.contains('x') && a.contains(target))) return false;
+        start = { x: t?.x ?? 0, y: t?.y ?? 0, drag: draggable.get(item)! };
+        return true;
+      },
+      move: (t) => {
+        if (!start) return false;
+        if (t) moveTo(t);
+        return true;
+      },
+      end: (t) => {
+        if (!start) return false;
+        release(t);
+        return true;
+      },
+      cancel: end,
     },
-    move: (t) => {
-      if (!start) return false;
-      if (t) moveTo(t);
-      return true;
-    },
-    end: (t) => {
-      if (!start) return false;
-      release(t);
-      return true;
-    },
-    cancel: end,
-  }, guard ? { guard } : {});
+    guard ? { guard } : {},
+  );
   const moveTo = (t: TouchPoint): void => {
     if (!start) return;
     if (start.scroll) {
@@ -197,7 +213,11 @@ export const buildKeyboardsPage = (
       const [dx, dy] = [t.x - start.x, t.y - start.y];
       if (Math.hypot(dx, dy) < SLOP_PX.list) return;
       // A layout only ever goes right, into your list: up or down, a list too long to show scrolls instead.
-      if (start.drag.from === 'layout' && Math.abs(dy) > Math.abs(dx) && lays.list.scrollHeight > lays.list.clientHeight) {
+      if (
+        start.drag.from === 'layout'
+        && Math.abs(dy) > Math.abs(dx)
+        && lays.list.scrollHeight > lays.list.clientHeight
+      ) {
         start.scroll = dragScroll(lays.list, start, 'y', 0);
         start.scroll.move(t);
         return;

@@ -26,7 +26,8 @@ export const isRomaji = (ch: string): boolean => /^[\x21-\x7e]$/.test(ch);
 export const feedRomaji = (letters: string, table: RomajiTable, final = false): { out: string; rest: string } => {
   let s = letters;
   let out = '';
-  for (let guard = 0; s && guard < 64; guard++) { // a bad table (pending as long as its input) cannot loop
+  for (let guard = 0; s && guard < 64; guard++) {
+    // a bad table (pending as long as its input) cannot loop
     const lower = s.toLowerCase() === s;
     if (!final && lower && table.prefixes.has(s)) break; // could still grow into a longer entry
     const exact = lower ? table.entries.get(s) : undefined;

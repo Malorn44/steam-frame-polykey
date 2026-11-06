@@ -3,8 +3,13 @@ import type { KeyboardDef } from '../../src/core/catalog.js';
 import { latinPage, modeLetters, pageLabel, pageLayout } from '../../src/core/pages.js';
 
 const twelve: KeyboardDef = {
-  id: 'ja/12key', name: '12キー', layout: 'ja/flick',
-  pages: { latin: { flick: 'ja/flick-abc', qwerty: 'ja/flick-qwerty' }, symbols: ['ja/flick-symbols', 'ja/flick-symbols2'] },
+  id: 'ja/12key',
+  name: '12キー',
+  layout: 'ja/flick',
+  pages: {
+    latin: { flick: 'ja/flick-abc', qwerty: 'ja/flick-qwerty' },
+    symbols: ['ja/flick-symbols', 'ja/flick-symbols2'],
+  },
 };
 const jis: KeyboardDef = { id: 'ja/jis', name: 'かな (JIS)', layout: 'ja/kana-jis' };
 
@@ -25,8 +30,14 @@ describe('pages', () => {
     expect(pageLayout(one, { latin: true, symbols: 0, qwerty: false })).toBe('en/qwerty');
   });
 
-  it('the current mode\'s letters: by the pack, the first mode by default, none without modes', () => {
-    const modes = { ...twelve, modes: [{ id: 'kana', letters: 'あいう' }, { id: 'latin', letters: 'ABC', latin: true }] };
+  it("the current mode's letters: by the pack, the first mode by default, none without modes", () => {
+    const modes = {
+      ...twelve,
+      modes: [
+        { id: 'kana', letters: 'あいう' },
+        { id: 'latin', letters: 'ABC', latin: true },
+      ],
+    };
     expect(modeLetters(modes, false)).toBe('あいう');
     expect(modeLetters(modes, true)).toBe('ABC');
     expect(modeLetters(jis, false)).toBeUndefined();

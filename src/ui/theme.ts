@@ -6,7 +6,9 @@ import type { Theme } from '../core/catalog.js';
 
 /** What a theme leaves out falls back to these (the colours fall back to other colours of the theme). */
 export const THEME_DEFAULTS = {
-  radius: 6, radiusSmall: 3, radiusPill: 13,
+  radius: 6,
+  radiusSmall: 3,
+  radiusPill: 13,
   font: 'system-ui, sans-serif',
   fontCjk: '"Noto Sans CJK JP", "Noto Sans JP"',
   shadow: '0 2px 10px rgba(0, 0, 0, 0.6)',
@@ -49,5 +51,7 @@ export const themeVars = (theme: Theme): string => {
     '--font': theme.font ?? THEME_DEFAULTS.font,
     '--font-cjk': theme.fontCjk ?? THEME_DEFAULTS.fontCjk,
   };
-  return Object.entries(vars).map(([name, value]) => `${name}:${value};`).join('');
+  return Object.entries(vars)
+    .map(([name, value]) => `${name}:${value};`)
+    .join('');
 };

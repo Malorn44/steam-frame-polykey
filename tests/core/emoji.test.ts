@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_FAVORITES, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, toneTable, useRecent, withTone } from '../../src/core/emoji.js';
+import {
+  MAX_FAVORITES,
+  steamFromKey,
+  steamKey,
+  placeFavorite,
+  removeFavorite,
+  steamItemEffects,
+  toneTable,
+  useRecent,
+  withTone,
+} from '../../src/core/emoji.js';
 
 const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
 const tones = toneTable({ groups: [{ id: 'people', name: 'People', items: [wave, '🙂'] }] });
@@ -41,10 +51,17 @@ describe('Steam items', () => {
     expect(steamFromKey('steam:hat:x')).toBeNull();
   });
 
-  it('type like Steam\'s keyboard: emoticons as text, stickers and effects as chat commands', () => {
-    expect(steamItemEffects({ kind: 'emoticon', name: 'steamhappy' })).toEqual([{ kind: 'text', text: ':steamhappy:' }]);
+  it("type like Steam's keyboard: emoticons as text, stickers and effects as chat commands", () => {
+    expect(steamItemEffects({ kind: 'emoticon', name: 'steamhappy' })).toEqual([
+      { kind: 'text', text: ':steamhappy:' },
+    ]);
     expect(steamItemEffects({ kind: 'sticker', name: 'Intense Gaming' })).toEqual([
-      { kind: 'text', text: '/sticker Intense Gaming' }, { kind: 'key', key: 'Enter' }]);
-    expect(steamItemEffects({ kind: 'effect', name: 'confetti' })[0]).toEqual({ kind: 'text', text: '/roomeffect confetti' });
+      { kind: 'text', text: '/sticker Intense Gaming' },
+      { kind: 'key', key: 'Enter' },
+    ]);
+    expect(steamItemEffects({ kind: 'effect', name: 'confetti' })[0]).toEqual({
+      kind: 'text',
+      text: '/roomeffect confetti',
+    });
   });
 });

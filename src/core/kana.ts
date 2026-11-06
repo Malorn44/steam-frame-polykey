@@ -19,7 +19,9 @@ export const flickDirection = (dx: number, dy: number, threshold = SLOP_PX.flick
 
 /** The ゛゜小 table: each character to its next form ("はばぱ": は → ば → ぱ → は). */
 export const modifyTable = (cycles: readonly string[] = []): ReadonlyMap<string, string> =>
-  new Map(cycles.flatMap((group) => {
-    const chars = Array.from(group);
-    return chars.map((ch, i): [string, string] => [ch, chars[(i + 1) % chars.length]!]);
-  }));
+  new Map(
+    cycles.flatMap((group) => {
+      const chars = Array.from(group);
+      return chars.map((ch, i): [string, string] => [ch, chars[(i + 1) % chars.length]!]);
+    }),
+  );

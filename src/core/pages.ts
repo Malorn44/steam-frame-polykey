@@ -3,7 +3,11 @@
 import type { KeyDef, KeyboardDef } from './catalog.js';
 
 /** What the keyboard is showing: 英数 mode, which symbols page (0: none), and the qwertyLatin option. */
-export interface PageState { readonly latin: boolean; readonly symbols: 0 | 1 | 2; readonly qwerty: boolean }
+export interface PageState {
+  readonly latin: boolean;
+  readonly symbols: 0 | 1 | 2;
+  readonly qwerty: boolean;
+}
 
 /** The keyboard's 英数 page, if it has its own (the 12-key's ABC keys, flick or QWERTY). */
 export const latinPage = (keyboard: KeyboardDef, qwerty: boolean): string | undefined => {
@@ -32,7 +36,10 @@ export const modeLetters = (keyboard: KeyboardDef | undefined, latin: boolean): 
  * letters (the symbols key on a symbols page, and the emoji row's abc) read the current mode's letters
  * (あいう, ABC); more-symbols on the second page goes back to the first (123).
  */
-export const pageLabel = (key: KeyDef, page: { readonly letters?: string | undefined; readonly symbols: 0 | 1 | 2 }): string | undefined => {
+export const pageLabel = (
+  key: KeyDef,
+  page: { readonly letters?: string | undefined; readonly symbols: 0 | 1 | 2 },
+): string | undefined => {
   if (key.type !== 'action' || key.label !== undefined) return undefined;
   if ((key.action === 'symbols' && page.symbols) || key.action === 'abc') return page.letters ?? 'ABC';
   if (key.action === 'more-symbols' && page.symbols === 2) return '123';

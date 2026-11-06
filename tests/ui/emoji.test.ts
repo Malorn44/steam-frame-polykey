@@ -5,10 +5,12 @@ import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
 import { createEmojiView } from '../../src/ui/emoji.js';
 import { bundledBoot } from '../boot.js';
 
-const data: EmojiData = { groups: [
-  { id: 'smileys', name: 'Smileys & Emotion', items: ['😀', '😃', '😄'] },
-  { id: 'people', name: 'People & Body', items: [['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'], '🙂'] },
-] };
+const data: EmojiData = {
+  groups: [
+    { id: 'smileys', name: 'Smileys & Emotion', items: ['😀', '😃', '😄'] },
+    { id: 'people', name: 'People & Body', items: [['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'], '🙂'] },
+  ],
+};
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -17,18 +19,34 @@ const setup = (state: EmojiState = NO_EMOJI_STATE) => {
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0 };
-  const view = createEmojiView(document, shadow, bundledBoot().catalog.themes['themes/steam']!, {
-    data, tones: toneTable(data), steam: [{ item: { kind: 'emoticon', name: 'steamhappy' }, image: 'https://cdn/e/steamhappy' }],
-  }, state, {
-    onEmoji: (b, r) => calls.emoji.push([b, r]),
-    onTone: (t) => calls.tone.push(t),
-    onSteam: (i) => calls.steam.push(i.name),
-    onFavorites: (f) => calls.favorites.push(f),
-    onClearRecent: () => calls.clear++,
-  });
+  const calls = {
+    emoji: [] as [string, boolean][],
+    tone: [] as string[],
+    steam: [] as string[],
+    favorites: [] as string[][],
+    clear: 0,
+  };
+  const view = createEmojiView(
+    document,
+    shadow,
+    bundledBoot().catalog.themes['themes/steam']!,
+    {
+      data,
+      tones: toneTable(data),
+      steam: [{ item: { kind: 'emoticon', name: 'steamhappy' }, image: 'https://cdn/e/steamhappy' }],
+    },
+    state,
+    {
+      onEmoji: (b, r) => calls.emoji.push([b, r]),
+      onTone: (t) => calls.tone.push(t),
+      onSteam: (i) => calls.steam.push(i.name),
+      onFavorites: (f) => calls.favorites.push(f),
+      onClearRecent: () => calls.clear++,
+    },
+  );
   view.setBounds({ top: 0, left: 0, width: 854, height: 195 });
-  const cell = (text: string) => [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === text)!;
+  const cell = (text: string) =>
+    [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === text)!;
   return { view, shadow, calls, cell };
 };
 const touch = (el: Element, type: string, x = 0, y = 0) => {
@@ -41,7 +59,15 @@ describe('emoji picker', () => {
   it('shows tabs for Recent, Favorites, each group and the Steam items, which sit apart', () => {
     const { shadow } = setup();
     const tabs = [...shadow.querySelectorAll<HTMLElement>('.tab')].map((t) => t.dataset['section']);
-    expect(tabs).toEqual(['recent', 'favorites', 'smileys', 'people', 'steam-emoticon', 'steam-sticker', 'steam-effect']);
+    expect(tabs).toEqual([
+      'recent',
+      'favorites',
+      'smileys',
+      'people',
+      'steam-emoticon',
+      'steam-sticker',
+      'steam-effect',
+    ]);
     const notes = [...shadow.querySelectorAll('.note')].map((n) => n.textContent);
     expect(notes).toContain('No Steam stickers yet');
     expect(notes).toContain('No room effects yet');
@@ -119,7 +145,17 @@ describe('emoji picker', () => {
   it('dragging over Favorites opens a gap, the others slide aside, and the drop lands there', () => {
     const { calls, shadow, cell } = setup({ ...NO_EMOJI_STATE, recent: ['😄'], favorites: ['⭐', '🎉'] });
     const grid = shadow.querySelector<HTMLElement>('.grid')!;
-    grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 854, height: 163, right: 854, bottom: 163, x: 0, y: 0, toJSON: () => ({}) });
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 854,
+      height: 163,
+      right: 854,
+      bottom: 163,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
     // 4 rows of 40 px: Recent is 6 columns (0–240), a 20 px gap, then Favorites from x = 260.
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 10);
@@ -165,7 +201,11 @@ describe('emoji picker', () => {
   });
 
   it('Steam items appear in Recent and Favorites with their picture, and send as Steam items', () => {
-    const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['steam:emoticon:steamhappy'], favorites: ['steam:sticker:Gone'] });
+    const { calls, shadow } = setup({
+      ...NO_EMOJI_STATE,
+      recent: ['steam:emoticon:steamhappy'],
+      favorites: ['steam:sticker:Gone'],
+    });
     const [recent, fav] = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')];
     expect(recent!.querySelector('img')!.getAttribute('src')).toBe('https://cdn/e/steamhappy');
     expect(fav!.textContent).toBe('Gone'); // no longer owned: its name stands in
@@ -188,7 +228,7 @@ describe('emoji picker', () => {
     expect(shadow.querySelector('.lifted')).toBeNull();
   });
 
-  it('the bin sits in Recent\'s last place, empties it, and shows only when there is something to clear', () => {
+  it("the bin sits in Recent's last place, empties it, and shows only when there is something to clear", () => {
     expect(setup().shadow.querySelector('.trash')).toBeNull();
     const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
     const bin = shadow.querySelector<HTMLElement>('.strip .trash')!;

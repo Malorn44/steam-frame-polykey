@@ -81,11 +81,14 @@ export const fakeSteam = (options: FakeSteamOptions = {}) => {
     SteamUIStore: { WindowStore: { SteamUIWindows: state.managers.map((m) => ({ VirtualKeyboardManager: m })) } },
   };
   if (options.keyState) {
-    g['SteamClient'] = { Input: { ControllerKeyboardSetKeyState: (code: number, down: boolean) => state.keyEvents.push([code, down]) } };
+    g['SteamClient'] = {
+      Input: { ControllerKeyboardSetKeyState: (code: number, down: boolean) => state.keyEvents.push([code, down]) },
+    };
   }
   if (options.popupManager !== false) {
     g['g_PopupManager'] = {
-      GetPopupForVROverlayKey: (key: string) => (key === KEYBOARD_OVERLAY_KEY && state.popup ? { m_popup: state.popup } : undefined),
+      GetPopupForVROverlayKey: (key: string) =>
+        key === KEYBOARD_OVERLAY_KEY && state.popup ? { m_popup: state.popup } : undefined,
     };
   }
   if (state.status) g['webpackChunksteamui'] = fakeWebpack(() => state.status as VRKeyboardStatus);
@@ -93,11 +96,23 @@ export const fakeSteam = (options: FakeSteamOptions = {}) => {
 };
 
 export const MINIMAL: VRKeyboardStatus = {
-  bIsOpen: true, bMinimal: true, sOverlayKey: 'gamescope.gamescope-0.window.72', unAppID: 0, bDispatchEventsToSteamVR: false,
+  bIsOpen: true,
+  bMinimal: true,
+  sOverlayKey: 'gamescope.gamescope-0.window.72',
+  unAppID: 0,
+  bDispatchEventsToSteamVR: false,
 };
 export const BUFFERED: VRKeyboardStatus = {
-  bIsOpen: true, bMinimal: false, sOverlayKey: 'valve.steam.gamepadui.main', unAppID: 0, bDispatchEventsToSteamVR: false,
+  bIsOpen: true,
+  bMinimal: false,
+  sOverlayKey: 'valve.steam.gamepadui.main',
+  unAppID: 0,
+  bDispatchEventsToSteamVR: false,
 };
 export const STREAMED: VRKeyboardStatus = {
-  bIsOpen: true, bMinimal: true, sOverlayKey: 'steamlink_openvr-overlay', unAppID: 0, bDispatchEventsToSteamVR: true,
+  bIsOpen: true,
+  bMinimal: true,
+  sOverlayKey: 'steamlink_openvr-overlay',
+  unAppID: 0,
+  bDispatchEventsToSteamVR: true,
 };

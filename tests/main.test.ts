@@ -2,7 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
-import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
+import {
+  BOOT_GLOBAL,
+  CHECK_MS,
+  GLOBAL,
+  PREREQ_RETRY_MS,
+  PREREQ_TIMEOUT_MS,
+  installPolykey,
+  type PolykeyApi,
+} from '../src/main.js';
 import { bundledBoot } from './boot.js';
 import { MINIMAL, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
@@ -74,17 +82,29 @@ describe('installPolykey', () => {
     await tap(popup, 'shift');
     await tap(popup, 'i');
     await tap(popup, 'Backspace');
-    expect(manager.calls).toEqual([['h', false], ['I', false], ['Backspace', false]]);
+    expect(manager.calls).toEqual([
+      ['h', false],
+      ['I', false],
+      ['Backspace', false],
+    ]);
     await tap(popup, 'ctrl');
     await tap(popup, 'z');
-    expect(state.keyEvents).toEqual([[MODIFIER.ctrl, true], [29, true], [29, false], [MODIFIER.ctrl, false]]);
+    expect(state.keyEvents).toEqual([
+      [MODIFIER.ctrl, true],
+      [29, true],
+      [29, false],
+      [MODIFIER.ctrl, false],
+    ]);
   });
 
   it('Fn turns ` into Esc', async () => {
     const { popup, state } = setup();
     await tap(popup, 'fn');
     await tap(popup, '`');
-    expect(state.keyEvents).toEqual([[41, true], [41, false]]);
+    expect(state.keyEvents).toEqual([
+      [41, true],
+      [41, false],
+    ]);
   });
 
   it('toolbar copy is a chord; hide closes Steam keyboard', async () => {
@@ -95,7 +115,7 @@ describe('installPolykey', () => {
     expect(manager.calls).toEqual([['VKClose', false]]);
   });
 
-  it('with one keyboard in your list there is no 🌐: the layout\'s rows without it', async () => {
+  it("with one keyboard in your list there is no 🌐: the layout's rows without it", async () => {
     const popup = fakePopupWindow();
     const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
     const boot = bundledBoot();
@@ -104,11 +124,19 @@ describe('installPolykey', () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(key(popup, 'next-keyboard')).toBeUndefined();
     const bottom = [...shadowOf(popup)!.querySelectorAll('.row')].at(-1)!;
-    expect([...bottom.querySelectorAll<HTMLElement>('.key')].map((el) => el.dataset['k']))
-      .toEqual(['fn', 'ctrl', 'super', 'alt', ' ', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
+    expect([...bottom.querySelectorAll<HTMLElement>('.key')].map((el) => el.dataset['k'])).toEqual([
+      'fn',
+      'ctrl',
+      'super',
+      'alt',
+      ' ',
+      'ArrowLeft',
+      'ArrowDown',
+      'ArrowRight',
+    ]);
   });
 
-  it('🌐 rotates polykey\'s keyboards only; settings hands over to Steam\'s keyboard, with a way back', async () => {
+  it("🌐 rotates polykey's keyboards only; settings hands over to Steam's keyboard, with a way back", async () => {
     const { popup, api } = setup();
     await tap(popup, 'next-keyboard');
     expect(key(popup, 'あ')).toBeDefined(); // the 12-key
@@ -117,7 +145,9 @@ describe('installPolykey', () => {
       expect(api.debug.status()).toContain(`keyboard=${next}`); // never Steam's
     }
     await tap(popup, 'settings');
-    const stockButton = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find((o) => o.textContent === 'Steam keyboard')!;
+    const stockButton = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .opt')].find(
+      (o) => o.textContent === 'Steam keyboard',
+    )!;
     stockButton.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     stockButton.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     expect(shadowOf(popup)!.querySelector('.kb')).toBeNull();
@@ -149,7 +179,8 @@ describe('suggestions', () => {
     };
     return asked;
   };
-  const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+  const slots = (popup: FakePopupWindow) =>
+    [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
 
   it('suggests completions for the word being typed, best in the middle, in the typed case', async () => {
     const boot = bundledBoot();
@@ -209,7 +240,9 @@ describe('settings', () => {
     const { popup, g } = setup();
     const saved: unknown[] = [];
     const haptics: unknown[] = [];
-    Object.assign(popup, { SteamClient: { OpenVR: { TriggerOverlayHapticEffect: (...a: unknown[]) => haptics.push(a) } } });
+    Object.assign(popup, {
+      SteamClient: { OpenVR: { TriggerOverlayHapticEffect: (...a: unknown[]) => haptics.push(a) } },
+    });
     g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
       if (req.op === 'settings.save') saved.push(req.settings);
@@ -224,10 +257,13 @@ describe('settings', () => {
     expect(shadowOf(popup)!.querySelector('.pick.open')).not.toBeNull();
     await pick(popup, 'Night Owl'); // ...and a theme in its list
     expect(saved).toEqual([{ theme: 'themes/night-owl' }]);
-    expect(shadowOf(popup)!.querySelector<HTMLElement>('.panel')!.style.getPropertyValue('--surface').trim()).toBe('#011627');
+    expect(shadowOf(popup)!.querySelector<HTMLElement>('.panel')!.style.getPropertyValue('--surface').trim()).toBe(
+      '#011627',
+    );
     expect(themeControl().textContent).toBe('Night Owl');
     expect(shadowOf(popup)!.querySelector('.pick.open')).toBeNull();
-    const hapticsSwitch = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Haptics')!
+    const hapticsSwitch = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')]
+      .find((r) => r.textContent === 'Haptics')!
       .querySelector<HTMLElement>('.switch.on')!;
     hapticsSwitch.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     hapticsSwitch.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true })); // haptics off
@@ -301,16 +337,19 @@ describe('swipe typing', () => {
     g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
       requests.push(req);
-      const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
+      const words = req.op === 'swipe' && !req.prepare ? (replies.shift() ?? []) : [];
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 5);
     };
     return requests;
   };
   /** Lay the keys out on a grid of 40×30 px cells (row, column), as jsdom draws nothing. */
   const layOut = (popup: FakePopupWindow) => {
-    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
+    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) =>
+      [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+        el.getBoundingClientRect = () =>
+          ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+      }),
+    );
   };
   const touch = (el: Element, type: string, x: number, y: number) => {
     const e = new Event(type, { bubbles: true, cancelable: true });
@@ -319,7 +358,10 @@ describe('swipe typing', () => {
   };
   /** Swipe from the centre of one letter key to another's (the touches all go to the first key, as a laser's do). */
   const swipe = async (popup: FakePopupWindow, from: string, to: string, wait = 200) => {
-    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+    const centre = (id: string) => {
+      const r = key(popup, id).getBoundingClientRect();
+      return { x: r.left + 20, y: r.top + 15 };
+    };
     const a = centre(from);
     const b = centre(to);
     const el = key(popup, from);
@@ -328,23 +370,34 @@ describe('swipe typing', () => {
     touch(el, 'touchend', b.x, b.y);
     await vi.advanceTimersByTimeAsync(wait);
   };
-  const typed = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
-  const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+  const typed = (manager: ReturnType<typeof fakeManager>) =>
+    manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
+  const slots = (popup: FakePopupWindow) =>
+    [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
 
   it('types the best word, a space before the next, and offers the others; a pick replaces the word', async () => {
-    const { popup, manager, requests } = setupSwipe([['hello', 'hell', 'help'], ['world', 'would']]);
+    const { popup, manager, requests } = setupSwipe([
+      ['hello', 'hell', 'help'],
+      ['world', 'would'],
+    ]);
     layOut(popup);
     await swipe(popup, 'h', 'o');
     const sent = requests.find((r) => r['op'] === 'swipe' && !r['prepare'])!;
     expect(sent['lexicon']).toBe('en/words');
     expect(sent['keyWidth']).toBe(40);
     expect((sent['path'] as number[][])[0]).toEqual([260, 75]); // h: row 2, column 6
-    expect(Object.keys(sent['keys'] as object).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz');
+    expect(
+      Object.keys(sent['keys'] as object)
+        .sort()
+        .join(''),
+    ).toBe('abcdefghijklmnopqrstuvwxyz');
     expect(typed(manager)).toBe('hello');
     expect(slots(popup)).toEqual(['hell', 'hello', 'help']); // the word typed in the middle
     await swipe(popup, 'w', 'd');
     expect(typed(manager)).toBe('hello world');
-    const would = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].find((el) => el.textContent === 'would')!;
+    const would = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].find(
+      (el) => el.textContent === 'would',
+    )!;
     would.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     would.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
@@ -355,8 +408,15 @@ describe('swipe typing', () => {
   it('the word list is loaded when the keyboard first shows, once', async () => {
     const { popup, requests } = setupSwipe([]);
     for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
-    expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
-      keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
+    expect(requests.filter((r) => r['prepare'])).toEqual([
+      {
+        op: 'swipe',
+        lexicon: 'en/words',
+        prepare: true,
+        id: expect.any(Number) as unknown,
+        keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])),
+      },
+    ]);
   });
 
   it('Shift capitalises the word; Backspace right after a swipe takes the whole word back', async () => {
@@ -419,12 +479,16 @@ describe('swipe typing', () => {
     await swipe(popup, 'h', 'o');
     expect(typed(manager)).toBe('h'); // off: the press types its letter
     await tap(popup, 'settings');
-    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Swipe typing')!;
+    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find(
+      (r) => r.textContent === 'Swipe typing',
+    )!;
     const off = row.querySelector<HTMLElement>('.switch:not(.on)')!;
     off.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     off.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(50);
-    expect(requests.find((r) => r['op'] === 'settings.save')!['settings']).toEqual({ keyboardOptions: { 'en/english': { swipe: true } } });
+    expect(requests.find((r) => r['op'] === 'settings.save')!['settings']).toEqual({
+      keyboardOptions: { 'en/english': { swipe: true } },
+    });
     const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
     close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
@@ -435,9 +499,11 @@ describe('swipe typing', () => {
 });
 
 describe('swipe typing on the Japanese keyboards (英数 only)', () => {
-  const swipeRequests = (requests: Record<string, unknown>[]) => requests.filter((r) => r['op'] === 'swipe' && !r['prepare']);
+  const swipeRequests = (requests: Record<string, unknown>[]) =>
+    requests.filter((r) => r['op'] === 'swipe' && !r['prepare']);
   const pre = (popup: FakePopupWindow) => shadowOf(popup)!.querySelector('.pre')?.textContent ?? '';
-  const cands = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].map((el) => el.textContent);
+  const cands = (popup: FakePopupWindow) =>
+    [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].map((el) => el.textContent);
   const pickCand = async (popup: FakePopupWindow, text: string) => {
     const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
     el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
@@ -445,9 +511,12 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     await vi.advanceTimersByTimeAsync(200);
   };
   const layOut = (popup: FakePopupWindow) => {
-    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
+    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) =>
+      [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+        el.getBoundingClientRect = () =>
+          ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+      }),
+    );
   };
   const touch = (el: Element, type: string, x: number, y: number) => {
     const e = new Event(type, { bubbles: true, cancelable: true });
@@ -456,7 +525,10 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
   };
   const swipe = async (popup: FakePopupWindow, from: string, to: string) => {
     layOut(popup);
-    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+    const centre = (id: string) => {
+      const r = key(popup, id).getBoundingClientRect();
+      return { x: r.left + 20, y: r.top + 15 };
+    };
     const a = centre(from);
     const b = centre(to);
     const el = key(popup, from);
@@ -476,8 +548,12 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     steam.g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
       requests.push(req);
-      const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
-      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words, segments: [], predictions: [] }), 5);
+      const words = req.op === 'swipe' && !req.prepare ? (replies.shift() ?? []) : [];
+      setTimeout(
+        () =>
+          (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words, segments: [], predictions: [] }),
+        5,
+      );
     };
     const api = installPolykey(steam.g);
     installed.push(api);
@@ -487,7 +563,12 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
   const sent = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => k).join('');
 
   it('romaji: in かな mode a press that moves off a letter is romaji; in 英数 the swiped word waits in the bar', async () => {
-    const { popup, manager, requests } = setupJa('ja/romaji', [['hello', 'help', 'hell'], ['world', 'would'], ['there', 'three'], ['oops']]);
+    const { popup, manager, requests } = setupJa('ja/romaji', [
+      ['hello', 'help', 'hell'],
+      ['world', 'would'],
+      ['there', 'three'],
+      ['oops'],
+    ]);
     await swipe(popup, 'k', 'a');
     expect(swipeRequests(requests)).toEqual([]);
     expect(pre(popup)).toBe('k'); // the letter, into the reading
@@ -567,7 +648,9 @@ describe('emoji', () => {
     installed.push(installPolykey(steam.g));
     await tap(popup, 'emoji');
     expect(shadowOf(popup)!.querySelector('.emoji')).not.toBeNull();
-    const smile = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === '😃')!;
+    const smile = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.strip .cell')].find(
+      (c) => c.textContent === '😃',
+    )!;
     smile.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     smile.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(2000);
@@ -596,15 +679,23 @@ describe('Japanese 12-key', () => {
       asked.push(req.op);
       let reply: Record<string, unknown> = { ok: true };
       if (req.op === 'settings.save') saved.push(req.settings);
-      if (req.op === 'learn') learned.push({ reading: req.reading, lengths: req.lengths, choices: req.choices, texts: req.texts });
+      if (req.op === 'learn')
+        learned.push({ reading: req.reading, lengths: req.lengths, choices: req.choices, texts: req.texts });
       if (req.op === 'desktop.prepare') reply = { ok: false, error: 'not-desktop' };
       if (req.op === 'predict') reply = { ok: true, predictions: [] };
       if (req.op === 'convert') {
         const cut = req.lengths?.[0] === 2 && req.resize?.[1] === 1 ? 3 : 2;
         const r = req.reading ?? '';
-        reply = { ok: true, segments: r === 'かんじ'
-          ? [{ reading: r.slice(0, cut), candidates: cut === 2 ? ['漢', '感'] : ['漢字'] }, ...(cut < 3 ? [{ reading: r.slice(cut), candidates: ['字', 'じ'] }] : [])]
-          : [{ reading: r, candidates: [r] }] };
+        reply = {
+          ok: true,
+          segments:
+            r === 'かんじ'
+              ? [
+                  { reading: r.slice(0, cut), candidates: cut === 2 ? ['漢', '感'] : ['漢字'] },
+                  ...(cut < 3 ? [{ reading: r.slice(cut), candidates: ['字', 'じ'] }] : []),
+                ]
+              : [{ reading: r, candidates: [r] }],
+        };
       }
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
     };
@@ -647,7 +738,13 @@ describe('Japanese 12-key', () => {
     await tap(popup, 'next-keyboard');
     /** Press a flick key and move the given way before releasing (the view's own touch flow). */
     const flickTo = async (id: string, dir: 'tap' | 'left' | 'up' | 'right' | 'down') => {
-      const offsets: Record<typeof dir, [number, number]> = { tap: [0, 0], left: [-40, 0], up: [0, -40], right: [40, 0], down: [0, 40] };
+      const offsets: Record<typeof dir, [number, number]> = {
+        tap: [0, 0],
+        left: [-40, 0],
+        up: [0, -40],
+        right: [40, 0],
+        down: [0, 40],
+      };
       const [dx, dy] = offsets[dir];
       const el = key(popup, id);
       const ev = (type: string, x: number, y: number) => {
@@ -686,7 +783,9 @@ describe('Japanese 12-key', () => {
     const { saved } = withConverter(g);
     await tap(popup, 'next-keyboard');
     await tap(popup, 'settings');
-    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'フリックのみ')!;
+    const row = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find(
+      (r) => r.textContent === 'フリックのみ',
+    )!;
     const opt = row.querySelector<HTMLElement>('.switch.on')!; // on by default (tapCycle off)
     opt.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     opt.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
@@ -794,12 +893,21 @@ describe('settings → Keyboards', () => {
     await tap(popup, 'settings');
     await press([...panel().querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === 'Keyboards')!);
     const mine = () => [...panel().querySelectorAll<HTMLElement>('.mine .item')];
-    expect(mine().map((i) => i.querySelector('.nm')!.textContent)).toEqual(
-      ['English · QWERTY', '日本語 · 12キー', '日本語 · 五十音', '日本語 · ローマ字', '日本語 · かな (JIS)']);
+    expect(mine().map((i) => i.querySelector('.nm')!.textContent)).toEqual([
+      'English · QWERTY',
+      '日本語 · 12キー',
+      '日本語 · 五十音',
+      '日本語 · ローマ字',
+      '日本語 · かな (JIS)',
+    ]);
     await press(mine()[1]!.querySelector<HTMLElement>('.x')!); // remove the 12-key
     expect(saved).toEqual([{ keyboards: ['en/english', 'ja/50on', 'ja/romaji', 'ja/jis'] }]);
-    await press([...panel().querySelectorAll<HTMLElement>('.langs .item')].find((i) => i.textContent?.startsWith('日本語'))!);
-    const twelve = [...panel().querySelectorAll<HTMLElement>('.lays .item')].find((i) => i.textContent?.includes('12キー'))!;
+    await press(
+      [...panel().querySelectorAll<HTMLElement>('.langs .item')].find((i) => i.textContent?.startsWith('日本語'))!,
+    );
+    const twelve = [...panel().querySelectorAll<HTMLElement>('.lays .item')].find((i) =>
+      i.textContent?.includes('12キー'),
+    )!;
     expect(twelve.textContent).toContain('+');
     await press(twelve);
     expect(saved.at(-1)).toEqual({ keyboards: ['en/english', 'ja/50on', 'ja/romaji', 'ja/jis', 'ja/12key'] });
@@ -813,8 +921,13 @@ describe('settings → Keyboards', () => {
     const globe = key(popup, 'next-keyboard');
     globe.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(500);
-    expect([...shadowOf(popup)!.querySelectorAll('.alts.menu .key')].map((c) => c.textContent)).toEqual(
-      ['EnglishQWERTY', '日本語12キー', '日本語五十音', '日本語ローマ字', '日本語かな (JIS)']); // language above layout
+    expect([...shadowOf(popup)!.querySelectorAll('.alts.menu .key')].map((c) => c.textContent)).toEqual([
+      'EnglishQWERTY',
+      '日本語12キー',
+      '日本語五十音',
+      '日本語ローマ字',
+      '日本語かな (JIS)',
+    ]); // language above layout
     globe.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
   });
 });
@@ -827,7 +940,9 @@ describe('五十音', () => {
     await tap(popup, 'modify');
     await tap(popup, 'な');
     expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('がな');
-    const halves = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'eisu');
+    const halves = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter(
+      (el) => el.dataset['k'] === 'eisu',
+    );
     expect(halves.map((el) => el.className.includes('tall'))).toEqual([true, true]);
     halves[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     halves[1]!.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
@@ -922,12 +1037,18 @@ describe('Japanese romaji and JIS kana', () => {
     await tap(popup, '1');
     expect(key(popup, '1').querySelector('.lbl')!.textContent).toBe('');
     expect(manager.calls.map((c) => c[0]).join('')).toBe('た');
-    expect(state.keyEvents).toEqual([[58, true], [58, false]]);
+    expect(state.keyEvents).toEqual([
+      [58, true],
+      [58, false],
+    ]);
     await tap(popup, '1'); // Fn was one-shot: ぬ again
     expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('ぬ');
     await tap(popup, 'Enter');
     await tap(popup, 'Escape');
-    expect(state.keyEvents.slice(2)).toEqual([[41, true], [41, false]]);
+    expect(state.keyEvents.slice(2)).toEqual([
+      [41, true],
+      [41, false],
+    ]);
   });
 
   it('JIS: 英数 sends the reading and types the Latin legends; かな goes back to kana', async () => {
@@ -986,11 +1107,22 @@ describe('Japanese romaji and JIS kana', () => {
     api.debug.use('ja/jis');
     const three = key(popup, '3');
     // Latin left, kana right, Shift above; what the key types now (あ) at the JIS keys' current size.
-    const legends = [...three.querySelectorAll('.lg')].map((el) => [el.classList[1], el.textContent, el.classList.contains('s-dual')]);
-    expect(legends).toEqual([['tl', '#', false], ['tr', 'ぁ', false], ['bl', '3', false], ['br', 'あ', true]]);
+    const legends = [...three.querySelectorAll('.lg')].map((el) => [
+      el.classList[1],
+      el.textContent,
+      el.classList.contains('s-dual'),
+    ]);
+    expect(legends).toEqual([
+      ['tl', '#', false],
+      ['tr', 'ぁ', false],
+      ['bl', '3', false],
+      ['br', 'あ', true],
+    ]);
     expect(key(popup, ',').querySelector('.lg.br .dot')).toBeNull();
     expect(key(popup, ',').querySelector('.lg.tr .dot.cell')?.textContent).toBe('、'); // boxed: a child of the legend
-    const enters = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'Enter');
+    const enters = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter(
+      (el) => el.dataset['k'] === 'Enter',
+    );
     expect(enters.map((el) => el.className.includes('tall'))).toEqual([true, true]);
     enters[1]!.dispatchEvent(new Event('mouseover', { bubbles: true }));
     expect(enters.map((el) => el.classList.contains('hover'))).toEqual([true, true]);

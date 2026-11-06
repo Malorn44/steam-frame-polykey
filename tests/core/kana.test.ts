@@ -5,7 +5,11 @@ import { flickDirection, modifyTable } from '../../src/core/kana.js';
 import { inForm, toHalfwidth } from '../../src/core/forms.js';
 import { optionsFor } from '../../src/core/options.js';
 
-const ta: FlickKey = { type: 'flick', flick: ['た', 'ち', 'つ', 'て', 'と'], cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'] };
+const ta: FlickKey = {
+  type: 'flick',
+  flick: ['た', 'ち', 'つ', 'て', 'と'],
+  cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'],
+};
 const ha: FlickKey = { type: 'flick', flick: ['は', 'ひ', 'ふ', 'へ', 'ほ'] };
 const modify = modifyTable(['はばぱ', 'つっづ']);
 const action = (a: 'modify' | 'undo'): KeyDef => ({ type: 'action', action: a });
@@ -39,7 +43,15 @@ describe('flick direction', () => {
 
 describe('reading buffer', () => {
   it('kana wait in the buffer; 確定 (Enter) sends them', () => {
-    expect(run([[ta, 'つ'], [ha, 'ほ']], false)).toEqual({ buffer: 'つほ', sent: '' });
+    expect(
+      run(
+        [
+          [ta, 'つ'],
+          [ha, 'ほ'],
+        ],
+        false,
+      ),
+    ).toEqual({ buffer: 'つほ', sent: '' });
     expect(run([[ta, 'つ'], [ha, 'ほ'], [named('Enter')]], false)).toEqual({ buffer: '', sent: 'つほ' });
   });
 
@@ -97,8 +109,16 @@ describe('reading forms', () => {
 
   it('while converting, 確定 confirms the focused segment and moves on; it sends after the last', () => {
     const enter = (ime: Ime) => pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!;
-    const converting: Ime = { ...NO_IME, chars: Array.from('きょうははれ'), caret: 6,
-      segments: [{ reading: 'きょうは', candidates: ['今日は'], index: 0 }, { reading: 'はれ', candidates: ['晴れ', '張れ'], index: 1 }], focus: 0 };
+    const converting: Ime = {
+      ...NO_IME,
+      chars: Array.from('きょうははれ'),
+      caret: 6,
+      segments: [
+        { reading: 'きょうは', candidates: ['今日は'], index: 0 },
+        { reading: 'はれ', candidates: ['晴れ', '張れ'], index: 1 },
+      ],
+      focus: 0,
+    };
     const first = enter(converting);
     expect([first.ime.focus, first.effects]).toEqual([1, []]); // nothing sent yet
     const last = enter(first.ime);
@@ -113,7 +133,9 @@ describe('reading forms', () => {
     expect(ime.form).toBe('katakana');
     ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.ime;
     expect(ime.form).toBe('halfwidth');
-    expect(pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!.effects).toEqual([{ kind: 'text', text: 'ﾊ' }]);
+    expect(pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!.effects).toEqual([
+      { kind: 'text', text: 'ﾊ' },
+    ]);
     expect(pressIme(ime, ta, {}, { tapCycle: false }, { modify })!.ime.form).toBe('hiragana');
     const converting: Ime = { ...ime, form: 'hiragana', segments: [{ reading: 'は', candidates: ['葉'], index: 0 }] };
     const back = pressIme(converting, kana, {}, { tapCycle: false }, { modify })!;

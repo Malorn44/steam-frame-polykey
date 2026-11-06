@@ -33,7 +33,11 @@ describe('English word in 英数 mode', () => {
   });
 
   it('⌫ and ← → edit the word; 確定 sends it alone; with no word they act as usual', () => {
-    expect(run(['c', 'a', 't', named('ArrowLeft'), named('Backspace'), 'u'])).toEqual({ word: 'cut', caret: 2, sent: '' });
+    expect(run(['c', 'a', 't', named('ArrowLeft'), named('Backspace'), 'u'])).toEqual({
+      word: 'cut',
+      caret: 2,
+      sent: '',
+    });
     expect(run(['h', 'i', named('Enter')]).sent).toBe('hi');
     expect(run([named('Backspace'), named('Enter')]).sent).toBe('<Backspace><Enter>');
     expect(run(['h', 'i', named('Tab')])).toEqual({ word: 'hi', caret: 2, sent: '<Tab>' }); // the caller sends it, then Tab
@@ -41,7 +45,8 @@ describe('English word in 英数 mode', () => {
 
   it('with tapCycle, tapping an ABC key again steps its letter; a flick or → ends the cycle', () => {
     const abc: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'] };
-    const tap = (word: EnglishWord, typed = 'a', flicked = false) => pressEnglish(word, abc, typed, { tapCycle: true, flicked })!.word;
+    const tap = (word: EnglishWord, typed = 'a', flicked = false) =>
+      pressEnglish(word, abc, typed, { tapCycle: true, flicked })!.word;
     let word = tap(NO_ENGLISH);
     word = tap(word);
     expect(englishText(word)).toBe('b');

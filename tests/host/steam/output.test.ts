@@ -11,14 +11,23 @@ describe('createOutput', () => {
     const manager = fakeManager();
     const send = createOutput({ getManager: () => manager, getDelivery: () => run });
     const result = await send([{ text: 'テスト' }, { key: 'Enter' }]);
-    expect(manager.calls).toEqual([['テスト', false], ['Enter', false]]);
+    expect(manager.calls).toEqual([
+      ['テスト', false],
+      ['Enter', false],
+    ]);
     expect(result).toMatchObject({ ok: true, calls: 2, planned: 2 });
   });
 
   it('waits the gap between calls, not before the first', async () => {
     const manager = fakeManager();
     const sleeps: number[] = [];
-    const send = createOutput({ getManager: () => manager, getDelivery: () => chars, sleep: async (ms) => { sleeps.push(ms); } });
+    const send = createOutput({
+      getManager: () => manager,
+      getDelivery: () => chars,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
     await send([{ text: 'テスト' }]);
     expect(manager.calls.map(([k]) => k)).toEqual(['テ', 'ス', 'ト']);
     expect(sleeps).toEqual([40, 40]);
@@ -26,7 +35,12 @@ describe('createOutput', () => {
 
   it('fails cleanly without a manager', async () => {
     const send = createOutput({ getManager: () => null, getDelivery: () => run });
-    expect(await send([{ text: 'a' }])).toMatchObject({ ok: false, calls: 0, planned: 1, error: 'no-keyboard-manager' });
+    expect(await send([{ text: 'a' }])).toMatchObject({
+      ok: false,
+      calls: 0,
+      planned: 1,
+      error: 'no-keyboard-manager',
+    });
   });
 
   it('reports the error kind only, and keeps working after a failure', async () => {

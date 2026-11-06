@@ -36,7 +36,9 @@ export interface TouchGuard {
 export const touchGuard = (clock: () => number = Date.now): TouchGuard => {
   let at = -Infinity;
   return {
-    touched: () => { at = clock(); },
+    touched: () => {
+      at = clock();
+    },
     ghost: () => clock() - at < TOUCH_MOUSE_GUARD_MS,
   };
 };

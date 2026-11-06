@@ -5,8 +5,23 @@ import type { EmojiData, EmojiState } from './emoji.js';
 import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
-export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'dictate' | 'abc'
-  | 'modify' | 'undo' | 'eisu' | 'kana' | 'symbols' | 'more-symbols';
+export type ActionName =
+  | 'hide'
+  | 'next-keyboard'
+  | 'copy'
+  | 'cut'
+  | 'paste'
+  | 'menu'
+  | 'settings'
+  | 'emoji'
+  | 'dictate'
+  | 'abc'
+  | 'modify'
+  | 'undo'
+  | 'eisu'
+  | 'kana'
+  | 'symbols'
+  | 'more-symbols';
 
 /** Where on a key a legend sits: c is the label; the rest are small legends round it. */
 export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
@@ -15,10 +30,18 @@ export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br'
  * (two halves, the second bold in 英数 mode: あ a) or marks (゛゜, side by side), with what is drawn
  * small beneath it (under), and its size, tone and box when not the slot's default.
  */
-export type LegendDef = string | null | {
-  text?: string; parts?: [string, string]; marks?: string[]; under?: string;
-  size?: 'key' | 'dual' | 'legend' | 'hint' | 'sub'; tone?: 'text' | 'legend' | 'fn'; boxed?: boolean;
-};
+export type LegendDef =
+  | string
+  | null
+  | {
+      text?: string;
+      parts?: [string, string];
+      marks?: string[];
+      under?: string;
+      size?: 'key' | 'dual' | 'legend' | 'hint' | 'sub';
+      tone?: 'text' | 'legend' | 'fn';
+      boxed?: boolean;
+    };
 /** A key's own legends, by slot: they replace what its other fields would put there. */
 export type LegendDefs = Partial<Record<LegendSlot, LegendDef>>;
 
@@ -27,8 +50,17 @@ export type LegendDefs = Partial<Record<LegendSlot, LegendDef>>;
  * its kana legends (typed in かな mode).
  */
 export type CharKey = {
-  type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey;
-  kana?: string; kanaShift?: string;
+  type: 'char';
+  char: string;
+  shift?: string;
+  long?: string[];
+  label?: string;
+  icon?: string | null;
+  legends?: LegendDefs;
+  w?: number;
+  fn?: FnKey;
+  kana?: string;
+  kanaShift?: string;
   /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
   hint?: string;
 };
@@ -38,16 +70,49 @@ export type CharKey = {
  * Enter); the loader splits it, marking the top piece with span (its rows).
  */
 export type Tall = 'top' | 'middle' | 'bottom';
-export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey; tall?: Tall; span?: number; notch?: number };
-export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number };
-export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall; span?: number; notch?: number };
+export type NamedKeyKey = {
+  type: 'key';
+  key: NamedKey;
+  label?: string;
+  icon?: string | null;
+  legends?: LegendDefs;
+  w?: number;
+  fn?: FnKey;
+  tall?: Tall;
+  span?: number;
+  notch?: number;
+};
+export type ModKey = {
+  type: 'mod';
+  mod: ModName;
+  label?: string;
+  icon?: string | null;
+  legends?: LegendDefs;
+  w?: number;
+};
+export type ActionKey = {
+  type: 'action';
+  action: ActionName;
+  label?: string;
+  icon?: string | null;
+  legends?: LegendDefs;
+  w?: number;
+  tall?: Tall;
+  span?: number;
+  notch?: number;
+};
 export type GapKey = { type: 'gap'; w: number };
 /**
  * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
  * tapping it again goes through when the keyboard's tapCycle option is on (default: its flicks).
  */
 export type FlickKey = {
-  type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; legends?: LegendDefs; w?: number;
+  type: 'flick';
+  flick: [string, string, string, string, string];
+  cycle?: string[];
+  label?: string;
+  legends?: LegendDefs;
+  w?: number;
   /** Always show the other directions at the key's edges (whatever the flick hints option says). */
   hints?: boolean;
   /** A small legend beneath the label (the ABC keys' digit). */
@@ -76,23 +141,37 @@ export interface Layout {
 }
 /** Per-keyboard choices; a keyboard lists the ones it has, with its default. */
 export interface KeyboardOptions {
-  tapCycle?: boolean; candidatesLeft?: boolean; flickHints?: boolean; romajiInput?: boolean; qwertyLatin?: boolean;
+  tapCycle?: boolean;
+  candidatesLeft?: boolean;
+  flickHints?: boolean;
+  romajiInput?: boolean;
+  qwertyLatin?: boolean;
   /** Swipe typing, for a keyboard with features.swipe. */
   swipe?: boolean;
   /** On a keyboard with a reading: dictated text typed at once, not into the reading for candidates (not set by packs). */
   dictationCommit?: boolean;
 }
 /** What a keyboard can do beyond typing keys. swipe: swipe typing, decoded against this word list. */
-export interface KeyboardFeatures { swipe?: { lexicon: string } }
+export interface KeyboardFeatures {
+  swipe?: { lexicon: string };
+}
 /**
  * latin: the layout shown in 英数 mode instead (the 12-key's ABC keys), or two that the qwertyLatin
  * option picks between. symbols: the ?123 pages, the first opened by the symbols key and the second
  * reached with more-symbols (=\\<).
  */
-export interface KeyboardPages { latin?: string | { flick: string; qwerty: string }; symbols?: string[] }
+export interface KeyboardPages {
+  latin?: string | { flick: string; qwerty: string };
+  symbols?: string[];
+}
 
 export interface KeyboardDef {
-  id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
+  id: string;
+  name: string;
+  layout: string;
+  language?: string;
+  lexicon?: string;
+  options?: KeyboardOptions;
   features?: KeyboardFeatures;
   /**
    * direct: keys type at once. kana: a reading buffer, sent when confirmed (core/ime.ts). romaji: the
@@ -114,8 +193,14 @@ export interface KeyboardDef {
   converter?: 'anthy';
 }
 export interface ThemeColors {
-  surface: string; key: string; keyText: string; modifier: string; accent: string;
-  legend?: string; fnLegend?: string; hover?: string;
+  surface: string;
+  key: string;
+  keyText: string;
+  modifier: string;
+  accent: string;
+  legend?: string;
+  fnLegend?: string;
+  hover?: string;
   /** Text on the accent (a selected candidate, a locked key); default surface. */
   accentText?: string;
   /** Text on the Fn colour (Fn locked); default surface. */
@@ -131,27 +216,45 @@ export interface ThemeColors {
 }
 /** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
 /** entries: romaji to kana; cycles: what ゛゜小 does (layouts get theirs resolved into `modify`). */
-export interface TableDef { id: string; name: string; entries?: [string, string, string?][]; cycles?: string[] }
+export interface TableDef {
+  id: string;
+  name: string;
+  entries?: [string, string, string?][];
+  cycles?: string[];
+}
 export interface Theme {
-  id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
+  id: string;
+  name: string;
+  radius?: number;
+  font?: string;
+  followSteam?: boolean;
+  colors: ThemeColors;
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */
   tone?: 'dark' | 'light';
   /** Smaller radii: a focused segment (default 3), a dotted legend box (1), a switch (13). */
-  radiusSmall?: number; radiusPill?: number;
+  radiusSmall?: number;
+  radiusPill?: number;
   /** Japanese fonts tried first where Japanese is drawn as text (default Noto Sans CJK JP). */
   fontCjk?: string;
   /** Shadows: popups and the drag ghost, and the larger emoji preview (CSS box-shadow values). */
-  shadow?: string; shadowLarge?: string;
+  shadow?: string;
+  shadowLarge?: string;
 }
 export interface Boot {
   catalog: {
-    layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme>;
+    layouts: Record<string, Layout>;
+    keyboards: Record<string, KeyboardDef>;
+    themes: Record<string, Theme>;
     tables?: Record<string, TableDef>;
   };
   settings: {
-    keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean;
+    keyboards: string[];
+    theme: string;
+    haptics?: boolean;
+    suggestions?: boolean;
     /** Dictation, and continuous dictation (both off by default). */
-    dictation?: boolean; dictationContinuous?: boolean;
+    dictation?: boolean;
+    dictationContinuous?: boolean;
     /** The user's choices, by keyboard id. */
     keyboardOptions?: Record<string, KeyboardOptions>;
   };
@@ -161,9 +264,10 @@ export interface Boot {
 }
 
 /** A one-character string is shorthand for a char key. */
-export const normalizeKey = (key: string | KeyDef): KeyDef => (typeof key === 'string' ? { type: 'char', char: key } : key);
+export const normalizeKey = (key: string | KeyDef): KeyDef =>
+  typeof key === 'string' ? { type: 'char', char: key } : key;
 export const normalizeFn = (key: FnKey): CharKey | NamedKeyKey =>
-  (typeof key === 'string' ? { type: 'char', char: key } : key);
+  typeof key === 'string' ? { type: 'char', char: key } : key;
 
 /** The boot data, if it has the expected shape. */
 export const readBoot = (value: unknown): Boot | null => {

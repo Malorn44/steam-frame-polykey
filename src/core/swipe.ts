@@ -8,8 +8,16 @@
 
 import type { Effect } from './keyboard.js';
 
-export interface Point { readonly x: number; readonly y: number }
-export interface Rect { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number }
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+export interface Rect {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
 
 /** How far outside its key, and how far from where it pressed, a press must go to be a swipe (key widths). */
 export const SWIPE_OUTSIDE = 1 / 3;
@@ -27,7 +35,8 @@ export const swipeLetter = (char: string): boolean => /^\p{L}$/u.test(char);
 /** True once a press that started at `start` on `key` has moved to `at` far enough to be a swipe. */
 export const leftKey = (start: Point, at: Point, key: Rect, keyWidth: number): boolean => {
   const margin = keyWidth * SWIPE_OUTSIDE;
-  const outside = at.x < key.left - margin || at.x > key.right + margin || at.y < key.top - margin || at.y > key.bottom + margin;
+  const outside =
+    at.x < key.left - margin || at.x > key.right + margin || at.y < key.top - margin || at.y > key.bottom + margin;
   return outside && Math.hypot(at.x - start.x, at.y - start.y) > keyWidth * SWIPE_TRAVEL;
 };
 
@@ -79,7 +88,8 @@ export const recentAfter = (recent: string | null, effects: readonly Effect[]): 
   let text = recent;
   for (const effect of effects) {
     if (effect.kind === 'text') text = ((text ?? '') + effect.text).slice(-RECENT_MAX);
-    else if (effect.kind === 'key' && effect.key === 'Backspace') text = text ? Array.from(text).slice(0, -1).join('') || null : null;
+    else if (effect.kind === 'key' && effect.key === 'Backspace')
+      text = text ? Array.from(text).slice(0, -1).join('') || null : null;
     else if (effect.kind === 'key' && effect.key === 'Enter') text = '\n';
     else if (effect.kind === 'key' || effect.kind === 'chord') text = null;
   }

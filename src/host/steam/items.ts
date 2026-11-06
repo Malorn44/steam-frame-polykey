@@ -14,7 +14,13 @@ const communityCdn = (g: SteamGlobals): string => {
   try {
     const registry = g['webpackChunksteamui'] as { push?: (chunk: unknown) => unknown } | undefined;
     let req: (((id: string) => unknown) & { m: Record<string, unknown> }) | null = null;
-    registry?.push?.([[Symbol('polykey-cdn')], {}, (r: typeof req) => { req = r; }]);
+    registry?.push?.([
+      [Symbol('polykey-cdn')],
+      {},
+      (r: typeof req) => {
+        req = r;
+      },
+    ]);
     const found = req as (((id: string) => unknown) & { m: Record<string, unknown> }) | null;
     for (const id of Object.keys(found?.m ?? {})) {
       if (!String(found!.m[id]).includes('COMMUNITY_CDN_URL:')) continue;
@@ -32,8 +38,8 @@ const communityCdn = (g: SteamGlobals): string => {
 /** Steam's chat item store (g_FriendsUIApp.ChatStore.EmoticonStore), if it is there. */
 const itemStore = (g: SteamGlobals): Record<string, unknown> | undefined => {
   try {
-    return (g['g_FriendsUIApp'] as { ChatStore?: { EmoticonStore?: Record<string, unknown> } } | undefined)
-      ?.ChatStore?.EmoticonStore;
+    return (g['g_FriendsUIApp'] as { ChatStore?: { EmoticonStore?: Record<string, unknown> } } | undefined)?.ChatStore
+      ?.EmoticonStore;
   } catch {
     return undefined;
   }
@@ -46,7 +52,9 @@ export const steamItems = (g: SteamGlobals): SteamItem[] => {
     const store = itemStore(g);
     const names = (key: string): string[] => {
       const list = store?.[key];
-      return Array.isArray(list) ? list.map((i) => (i as { name?: unknown })?.name).filter((n): n is string => typeof n === 'string') : [];
+      return Array.isArray(list)
+        ? list.map((i) => (i as { name?: unknown })?.name).filter((n): n is string => typeof n === 'string')
+        : [];
     };
     return [
       ...names('m_rgEmoticons').map((name): SteamItem => ({ kind: 'emoticon', name })),
@@ -60,6 +68,8 @@ export const steamItems = (g: SteamGlobals): SteamItem[] => {
 
 /** An item's picture, as Steam's keyboard shows it (effects have none: their name is shown). */
 export const steamItemImage = (g: SteamGlobals, item: SteamItem): string | null =>
-  item.kind === 'emoticon' ? `${communityCdn(g)}economy/emoticonlarge/${encodeURIComponent(item.name)}`
-    : item.kind === 'sticker' ? `${communityCdn(g)}economy/sticker/${encodeURIComponent(item.name)}`
+  item.kind === 'emoticon'
+    ? `${communityCdn(g)}economy/emoticonlarge/${encodeURIComponent(item.name)}`
+    : item.kind === 'sticker'
+      ? `${communityCdn(g)}economy/sticker/${encodeURIComponent(item.name)}`
       : null;

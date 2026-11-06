@@ -19,9 +19,10 @@ let segmenter: Intl.Segmenter | null | undefined;
 /** Split text into user-perceived characters, the way Steam's buffer counts them. */
 export const graphemes = (text: string): string[] => {
   if (segmenter === undefined) {
-    segmenter = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
-      ? new Intl.Segmenter('ja', { granularity: 'grapheme' })
-      : null;
+    segmenter =
+      typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
+        ? new Intl.Segmenter('ja', { granularity: 'grapheme' })
+        : null;
   }
   return segmenter ? Array.from(segmenter.segment(text), (s) => s.segment) : Array.from(text);
 };

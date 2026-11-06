@@ -20,26 +20,47 @@ const setup = (extra = 0) => {
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const themes: SettingsInfo['themes'] = ['themes/night-owl', 'themes/steam'].map((id) => boot.catalog.themes[id]!)
+  const themes: SettingsInfo['themes'] = ['themes/night-owl', 'themes/steam']
+    .map((id) => boot.catalog.themes[id]!)
     .map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] }));
-  for (let i = 1; i <= extra; i++) themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
+  for (let i = 1; i <= extra; i++)
+    themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
   const changes: Partial<SettingsValues>[] = [];
-  const view = createSettingsView(document, shadow, boot.catalog.themes['themes/steam']!,
-    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false }, {
-      themes, version: 'test', errors: [], suggestions: false, keyboardName: 'English', options: [], tab: 'general',
+  const view = createSettingsView(
+    document,
+    shadow,
+    boot.catalog.themes['themes/steam']!,
+    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false },
+    {
+      themes,
+      version: 'test',
+      errors: [],
+      suggestions: false,
+      keyboardName: 'English',
+      options: [],
+      tab: 'general',
       keyboards: { all: [], ring: [], language: 'en' },
-    }, {
-      onTab: () => {}, onChange: (c) => changes.push(c), onOption: () => {}, onStock: () => {}, onClose: () => {},
-      onLanguage: () => {}, onKeyboards: () => {},
-    });
+    },
+    {
+      onTab: () => {},
+      onChange: (c) => changes.push(c),
+      onOption: () => {},
+      onStock: () => {},
+      onClose: () => {},
+      onLanguage: () => {},
+      onKeyboards: () => {},
+    },
+  );
   const picker = shadow.querySelector<HTMLElement>('.pick')!;
   const control = picker.firstElementChild as HTMLElement;
   const list = picker.querySelector<HTMLElement>('.pick-list')!;
   const item = (name: string) => [...list.querySelectorAll<HTMLElement>('.opt')].find((el) => el.textContent === name)!;
-  const haptics = [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Haptics')!
+  const haptics = [...shadow.querySelectorAll<HTMLElement>('.row')]
+    .find((r) => r.textContent === 'Haptics')!
     .querySelector<HTMLElement>('.switch')!;
   const isOpen = () => picker.classList.contains('open');
-  const at = (hits: Element[]) => Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => hits });
+  const at = (hits: Element[]) =>
+    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => hits });
   return { view, shadow, picker, control, list, item, haptics, isOpen, at, changes };
 };
 

@@ -11,9 +11,15 @@ const parsed = async (css: string): Promise<string> =>
 describe('CSS minification', () => {
   it('takes out comments and whitespace, and keeps strings, ${…}, values and the space before a pseudo-class', () => {
     expect(minifyCss('.a > .b ,\n.c :hover { color: red ; /* why */ }\n')).toBe('.a>.b,.c :hover{color:red}');
-    expect(minifyCss(".k[data-k=\"hide\"]::before { content: ' a  b '; }")).toBe(".k[data-k=\"hide\"]::before{content:' a  b '}");
-    expect(minifyCss('@media (x: y) and (z) { .a { margin: calc(1px + 2px) 0; } }')).toBe('@media (x:y) and (z){.a{margin:calc(1px + 2px) 0}}');
-    expect(minifyCssTemplates('const A_CSS = `\n  .a { transition: opacity ${MS}ms ease; }\n`;')).toBe('const A_CSS = `.a{transition:opacity ${MS}ms ease}`;');
+    expect(minifyCss('.k[data-k="hide"]::before { content: \' a  b \'; }')).toBe(
+      '.k[data-k="hide"]::before{content:\' a  b \'}',
+    );
+    expect(minifyCss('@media (x: y) and (z) { .a { margin: calc(1px + 2px) 0; } }')).toBe(
+      '@media (x:y) and (z){.a{margin:calc(1px + 2px) 0}}',
+    );
+    expect(minifyCssTemplates('const A_CSS = `\n  .a { transition: opacity ${MS}ms ease; }\n`;')).toBe(
+      'const A_CSS = `.a{transition:opacity ${MS}ms ease}`;',
+    );
     expect(minifyCss('.a { --x: 1px; width: var(--x, 2px); }')).toBe('.a{--x: 1px;width:var(--x, 2px)}'); // values as written
     expect(() => minifyCss('a/* x */b')).toThrow();
     expect(() => minifyCssTemplates('const CSS = `a { b: ${x ? 1 : 2} }`;')).toThrow();

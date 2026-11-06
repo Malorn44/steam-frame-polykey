@@ -77,7 +77,8 @@ function* templates(source) {
       if (c === '$' && source[i + 1] === '{') {
         const end = source.indexOf('}', i);
         const hole = source.slice(i, end + 1);
-        if (!/^\$\{[\w.]+\}$/.test(hole)) throw new Error(`css-minify: only a name may go in \${…}, not ${hole.slice(0, 40)}`);
+        if (!/^\$\{[\w.]+\}$/.test(hole))
+          throw new Error(`css-minify: only a name may go in \${…}, not ${hole.slice(0, 40)}`);
         holes.push(hole);
         css += HOLE;
         i = end + 1;

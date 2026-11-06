@@ -11,7 +11,10 @@ describe('createBridge', () => {
     const bridge = createBridge(g);
     const first = bridge.call('desktop.prepare', { text: 'テスト' });
     const second = bridge.call('hello');
-    expect(sent).toEqual([{ text: 'テスト', id: 1, op: 'desktop.prepare' }, { id: 2, op: 'hello' }]);
+    expect(sent).toEqual([
+      { text: 'テスト', id: 1, op: 'desktop.prepare' },
+      { id: 2, op: 'hello' },
+    ]);
     bridge.receive({ id: 2, ok: true, version: 1 });
     bridge.receive({ id: 1, ok: false, error: 'not-desktop' });
     expect(await first).toEqual({ id: 1, ok: false, error: 'not-desktop' });
@@ -39,7 +42,11 @@ describe('createBridge', () => {
   });
 
   it('turns a throwing binding into an error kind', async () => {
-    const bridge = createBridge({ [BINDING]: () => { throw new TypeError('boom'); } });
+    const bridge = createBridge({
+      [BINDING]: () => {
+        throw new TypeError('boom');
+      },
+    });
     expect(await bridge.call('hello')).toEqual({ id: 1, ok: false, error: 'TypeError' });
     expect(vi.getTimerCount()).toBe(0);
   });

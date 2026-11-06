@@ -73,4 +73,6 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
 
 /** The scale and a preset's roles, as a style attribute value. */
 export const sizeVars = (preset: SizePreset): string =>
-  Object.entries({ ...SCALE, ...ROLES.normal, ...ROLES[preset], ...UI }).map(([name, value]) => `${name}:${value};`).join('');
+  Object.entries({ ...SCALE, ...ROLES.normal, ...ROLES[preset], ...UI })
+    .map(([name, value]) => `${name}:${value};`)
+    .join('');

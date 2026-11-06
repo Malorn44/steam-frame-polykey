@@ -4,7 +4,8 @@ import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from '../../../src/host/
 
 describe('steamKeyboardStyle', () => {
   it('reads colours from the stock keys, skipping transparent ones', () => {
-    document.body.innerHTML = '<div class="Layout_x" style="background: rgb(35, 38, 46)">'
+    document.body.innerHTML =
+      '<div class="Layout_x" style="background: rgb(35, 38, 46)">'
       + '<div data-key="a"><div style="background: rgb(14, 20, 27); color: rgb(255, 255, 255)"></div></div>'
       + '<div data-key="Shift"><div style="background: rgba(0, 0, 0, 0)"></div></div></div>';
     const { colors } = steamKeyboardStyle(window);
@@ -22,10 +23,23 @@ describe('haptic and onCursor', () => {
     const calls: unknown[][] = [];
     let move: ((hand: number, flag: unknown, x: number, y: number) => void) | undefined;
     let unregistered = false;
-    const win = { SteamClient: { OpenVR: {
-      TriggerOverlayHapticEffect: (...args: unknown[]) => calls.push(args),
-      VROverlay: { RegisterForCursorMovement: (fn: typeof move) => { move = fn; return { unregister: () => { unregistered = true; } }; } },
-    } } } as unknown as Window;
+    const win = {
+      SteamClient: {
+        OpenVR: {
+          TriggerOverlayHapticEffect: (...args: unknown[]) => calls.push(args),
+          VROverlay: {
+            RegisterForCursorMovement: (fn: typeof move) => {
+              move = fn;
+              return {
+                unregister: () => {
+                  unregistered = true;
+                },
+              };
+            },
+          },
+        },
+      },
+    } as unknown as Window;
     haptic(win, HAPTIC.enter, 1);
     expect(calls).toEqual([[1, 1]]);
     const seen: number[][] = [];
@@ -35,6 +49,9 @@ describe('haptic and onCursor', () => {
     expect(seen).toEqual([[284, 103, 0]]);
     stop();
     expect(unregistered).toBe(true);
-    expect(() => { haptic({} as Window, 1, 0); onCursor({} as Window, () => {})(); }).not.toThrow();
+    expect(() => {
+      haptic({} as Window, 1, 0);
+      onCursor({} as Window, () => {})();
+    }).not.toThrow();
   });
 });

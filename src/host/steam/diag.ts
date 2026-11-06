@@ -27,9 +27,13 @@ export const getWebpackRequire = (g: SteamGlobals): WebpackRequire | null => {
     const registry = g['webpackChunksteamui'] as { push?: (chunk: unknown) => unknown } | undefined;
     if (typeof registry?.push !== 'function') return null;
     let found: WebpackRequire | null = null;
-    registry.push([[Symbol('polykey')], {}, (req: WebpackRequire) => {
-      found = req;
-    }]);
+    registry.push([
+      [Symbol('polykey')],
+      {},
+      (req: WebpackRequire) => {
+        found = req;
+      },
+    ]);
     const req = found as WebpackRequire | null;
     return req && typeof req === 'function' && typeof req.m === 'object' ? req : null;
   } catch {

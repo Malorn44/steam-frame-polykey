@@ -12,8 +12,21 @@ import { ICONS } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
-import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
-import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
+import {
+  KEYBOARDS_CSS,
+  buildKeyboardsPage,
+  inlineIcon,
+  pageColumn,
+  type KeyboardsHandlers,
+  type KeyboardsInfo,
+} from './keyboards-page.js';
+import {
+  DICTATION_CSS,
+  buildDictationPage,
+  type DictationHandlers,
+  type DictationInfo,
+  type DictationPage,
+} from './dictation-page.js';
 import type { SpeechStatus } from '../core/dictation.js';
 
 export type SettingsTab = 'general' | 'keyboards' | 'dictation';
@@ -144,7 +157,8 @@ export const createSettingsView = (
     option('Keyboards', info.tab === 'keyboards', () => onTab('keyboards'), ' tab'),
     option('Dictation', info.tab === 'dictation', () => onTab('dictation'), ' tab'),
     title,
-    option('Steam keyboard', false, onStock, ' stock'));
+    option('Steam keyboard', false, onStock, ' stock'),
+  );
 
   /** A general on/off setting as a switch. */
   const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous'): HTMLElement => {
@@ -183,27 +197,53 @@ export const createSettingsView = (
   pageColumn(cols, 'general', 'General').list.append(
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
-    ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []));
+    ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
+  );
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length
-      ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
-        option(o.on, o.value, () => onOption(o.id, true)))))
-      : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })]));
+      ? info.options.map((o) =>
+          o.toggle
+            ? toggle(o)
+            : row(
+                o.name,
+                option(o.off, !o.value, () => onOption(o.id, false)),
+                option(o.on, o.value, () => onOption(o.id, true)),
+              ),
+        )
+      : [Object.assign(doc.createElement('div'), { className: 'none', textContent: 'No options for this keyboard.' })]),
+  );
   let dictationPage: DictationPage | undefined;
   if (info.tab === 'keyboards') {
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
-    hint.append('Tap or drag a layout into your list · drag to reorder · drag out or ', inlineIcon(doc, 'close'), ' to remove · hold ',
-      inlineIcon(doc, 'globe'), ' to jump to one');
+    hint.append(
+      'Tap or drag a layout into your list · drag to reorder · drag out or ',
+      inlineIcon(doc, 'close'),
+      ' to remove · hold ',
+      inlineIcon(doc, 'globe'),
+      ' to jump to one',
+    );
     root.append(head, buildKeyboardsPage(doc, info.keyboards, { onLanguage, onKeyboards }, actions, guard), hint);
   } else if (info.tab === 'dictation' && info.dictation) {
     const none = (): void => {};
-    dictationPage = buildDictationPage(doc, info.dictation, { onSpeechLanguage: none, onChoose: none, onDownload: none, onDelete: none, ...speech },
-      { row, option, dictationSwitch: onOff('Dictation', 'dictation'), continuousSwitch: onOff('Continuous dictation', 'dictationContinuous') },
-      actions, values.dictation);
+    dictationPage = buildDictationPage(
+      doc,
+      info.dictation,
+      { onSpeechLanguage: none, onChoose: none, onDownload: none, onDelete: none, ...speech },
+      {
+        row,
+        option,
+        dictationSwitch: onOff('Dictation', 'dictation'),
+        continuousSwitch: onOff('Continuous dictation', 'dictationContinuous'),
+      },
+      actions,
+      values.dictation,
+    );
     const hint = Object.assign(doc.createElement('div'), { className: 'hintline' });
-    hint.append(values.dictation
-      ? 'Tap a model to use it for the language (it downloads first) · ✕ deletes it · speed and accuracy are Handy\'s benchmarks, not measured on the Frame'
-      : 'The mic key on the toolbar dictates once this is on');
+    hint.append(
+      values.dictation
+        ? "Tap a model to use it for the language (it downloads first) · ✕ deletes it · speed and accuracy are Handy's benchmarks, not measured on the Frame"
+        : 'The mic key on the toolbar dictates once this is on',
+    );
     root.append(head, dictationPage.root, hint);
   } else root.append(head, cols, about);
 
@@ -221,36 +261,46 @@ export const createSettingsView = (
   /** The list a press drags: the innermost .scroll that overflows, else the innermost (nothing to move). */
   const scrollerAt = (target: EventTarget | null): HTMLElement | undefined => {
     const lists: HTMLElement[] = [];
-    for (let n = target as HTMLElement | null; n && n !== root; n = n.parentElement) if (n.classList?.contains('scroll')) lists.push(n);
+    for (let n = target as HTMLElement | null; n && n !== root; n = n.parentElement)
+      if (n.classList?.contains('scroll')) lists.push(n);
     return lists.find((l) => l.scrollHeight > l.clientHeight) ?? lists[0];
   };
   let pressed: HTMLElement | undefined;
   let drag: DragScroll | undefined;
-  listenTouch(root, {
-    start: (p, e) => {
-      pressed = optionAt(e.target);
-      const list = p ? scrollerAt(e.target) : undefined;
-      drag = list && p ? dragScroll(list, p, 'y', SLOP_PX.list) : undefined;
-      themes.start(e.target);
+  listenTouch(
+    root,
+    {
+      start: (p, e) => {
+        pressed = optionAt(e.target);
+        const list = p ? scrollerAt(e.target) : undefined;
+        drag = list && p ? dragScroll(list, p, 'y', SLOP_PX.list) : undefined;
+        themes.start(e.target);
+      },
+      move: (p) => {
+        if (p) drag?.move(p);
+      },
+      end: () => {
+        const hit = pressed;
+        const scrolled = drag?.moved ?? false;
+        pressed = undefined;
+        drag = undefined;
+        if (scrolled) return; // a drag past the slop scrolls and never taps
+        if (themes.end()) return; // a tap outside the open theme list closed it
+        if (hit) actions.get(hit)?.();
+      },
+      cancel: () => {
+        pressed = undefined;
+        drag = undefined;
+      },
+      click: (e) => {
+        e.stopPropagation();
+        if (themes.end(e.target)) return;
+        const hit = optionAt(e.target);
+        if (hit) actions.get(hit)?.();
+      },
     },
-    move: (p) => { if (p) drag?.move(p); },
-    end: () => {
-      const hit = pressed;
-      const scrolled = drag?.moved ?? false;
-      pressed = undefined;
-      drag = undefined;
-      if (scrolled) return; // a drag past the slop scrolls and never taps
-      if (themes.end()) return; // a tap outside the open theme list closed it
-      if (hit) actions.get(hit)?.();
-    },
-    cancel: () => { pressed = undefined; drag = undefined; },
-    click: (e) => {
-      e.stopPropagation();
-      if (themes.end(e.target)) return;
-      const hit = optionAt(e.target);
-      if (hit) actions.get(hit)?.();
-    },
-  }, { guard });
+    { guard },
+  );
   root.addEventListener('mouseover', (e) => setHover(themes.reaches(e.target) ? optionAt(e.target) : undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
 
@@ -264,6 +314,9 @@ export const createSettingsView = (
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
     setDictation: (status) => dictationPage?.setStatus(status) ?? true,
-    destroy: () => { style.remove(); root.remove(); },
+    destroy: () => {
+      style.remove();
+      root.remove();
+    },
   };
 };

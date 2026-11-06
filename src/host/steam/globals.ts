@@ -16,8 +16,7 @@ interface PopupManager {
 /** The global object as Steam fills it. */
 export type SteamGlobals = Record<string, unknown>;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 /** Read a property without letting a throwing getter escape. */
 const read = (value: unknown, key: string): unknown => {

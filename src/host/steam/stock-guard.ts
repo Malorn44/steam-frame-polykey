@@ -10,7 +10,8 @@ const STYLE_ID = 'polykey-stock-guard';
 const CSS = '[role="grid"], [class*="Layout_"] { opacity: 0 !important; pointer-events: none !important; }';
 
 export const shouldSwallow = (type: string, detail: { button?: unknown } | null | undefined): boolean =>
-  LOGICAL_EVENTS.includes(type) || (BUTTON_EVENTS.includes(type) && !PASS_THROUGH_BUTTONS.has(detail?.button as number));
+  LOGICAL_EVENTS.includes(type)
+  || (BUTTON_EVENTS.includes(type) && !PASS_THROUGH_BUTTONS.has(detail?.button as number));
 
 export const createStockGuard = (win: Window) => {
   const doc = win.document;

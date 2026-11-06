@@ -1,21 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef } from '../../src/core/catalog.js';
 import {
-  accuracyGrade, dictationLanguage, dictationLanguages, gradeFor, joinPhrase, micDownload, modelFor, spaceAfter, speedBars, spacedText,
-  type SpeechCatalog, type SpeechModel, type SpeechStatus,
+  accuracyGrade,
+  dictationLanguage,
+  dictationLanguages,
+  gradeFor,
+  joinPhrase,
+  micDownload,
+  modelFor,
+  spaceAfter,
+  speedBars,
+  spacedText,
+  type SpeechCatalog,
+  type SpeechModel,
+  type SpeechStatus,
 } from '../../src/core/dictation.js';
 import { NO_IME, insertText, reading } from '../../src/core/ime.js';
 
-const keyboard = (language?: string) => ({ id: 'x/y', name: 'Y', layout: 'x/l', ...(language ? { language } : {}) }) as KeyboardDef;
+const keyboard = (language?: string) =>
+  ({ id: 'x/y', name: 'Y', layout: 'x/l', ...(language ? { language } : {}) }) as KeyboardDef;
 
 describe('dictation', () => {
-  it('dictates in the keyboard\'s language, English in 英数 mode', () => {
+  it("dictates in the keyboard's language, English in 英数 mode", () => {
     expect(dictationLanguage(keyboard('ja'), false)).toBe('ja');
     expect(dictationLanguage(keyboard('ja'), true)).toBe('en');
     expect(dictationLanguage(keyboard('en-US'), false)).toBe('en');
     expect(dictationLanguage(keyboard(), false)).toBe('en');
     expect(dictationLanguage(keyboard('und;x'), false)).toBe('en');
-    expect(dictationLanguages([keyboard('ja'), keyboard('en-US'), keyboard('ja-JP'), keyboard(), keyboard('und;x')])).toEqual(['en', 'ja']);
+    expect(
+      dictationLanguages([keyboard('ja'), keyboard('en-US'), keyboard('ja-JP'), keyboard(), keyboard('und;x')]),
+    ).toEqual(['en', 'ja']);
   });
 
   it('spaces a phrase like typed words, except where words are not spaced', () => {
@@ -36,13 +50,33 @@ describe('dictation', () => {
 });
 
 describe('dictation models', () => {
-  const m = (id: string, languages: string[], cpuRtf = 10, error: Record<string, number> = {}): SpeechModel =>
-    ({ id, name: id, languages, size: 1, licence: 'MIT', attribution: '', credit: '', ramMB: 1, notes: '', handy: { cpuRtf, error } });
-  const catalog: SpeechCatalog = { engine: { version: '0.4.1', attribution: '', size: 1 },
-    models: [m('en-model', ['en']), m('ja-model', ['ja', 'zh']), m('any-model', ['*'])] };
-  const status = (ready: string[], choices: Record<string, string> = {}, extra: Partial<SpeechStatus> = {}): SpeechStatus => ({
-    rev: 1, engine: { state: 'ready' }, choices,
-    models: Object.fromEntries(catalog.models.map((x) => [x.id, ready.includes(x.id) ? { state: 'ready' } : { state: 'missing' }])),
+  const m = (id: string, languages: string[], cpuRtf = 10, error: Record<string, number> = {}): SpeechModel => ({
+    id,
+    name: id,
+    languages,
+    size: 1,
+    licence: 'MIT',
+    attribution: '',
+    credit: '',
+    ramMB: 1,
+    notes: '',
+    handy: { cpuRtf, error },
+  });
+  const catalog: SpeechCatalog = {
+    engine: { version: '0.4.1', attribution: '', size: 1 },
+    models: [m('en-model', ['en']), m('ja-model', ['ja', 'zh']), m('any-model', ['*'])],
+  };
+  const status = (
+    ready: string[],
+    choices: Record<string, string> = {},
+    extra: Partial<SpeechStatus> = {},
+  ): SpeechStatus => ({
+    rev: 1,
+    engine: { state: 'ready' },
+    choices,
+    models: Object.fromEntries(
+      catalog.models.map((x) => [x.id, ready.includes(x.id) ? { state: 'ready' } : { state: 'missing' }]),
+    ),
     ...extra,
   });
   const use = (language: string, s: SpeechStatus) => modelFor(catalog, s, language)?.id;
@@ -71,8 +105,19 @@ describe('dictation models', () => {
     const bars = (rtf: number) => speedBars(m('a', ['en'], rtf));
     expect([bars(50), bars(14.3), bars(5.9), bars(2), bars(1)]).toEqual([4, 3, 2, 1, 0]); // 0.6, 2.1, 5.1, 15, 30 s
     // A+ below 5/∛4 ≈ 3.15 %, A below 5/∛2 ≈ 3.97 %, A− below 5 %; likewise for B (10 %) and C (20 %).
-    expect([2, 3.5, 4.1, 6, 7.7, 9, 12, 13, 17, 25, 31].map(accuracyGrade)).toEqual(
-      ['A+', 'A', 'A−', 'B+', 'B', 'B−', 'C+', 'C', 'C−', 'D', 'F']);
+    expect([2, 3.5, 4.1, 6, 7.7, 9, 12, 13, 17, 25, 31].map(accuracyGrade)).toEqual([
+      'A+',
+      'A',
+      'A−',
+      'B+',
+      'B',
+      'B−',
+      'C+',
+      'C',
+      'C−',
+      'D',
+      'F',
+    ]);
     expect(accuracyGrade(undefined)).toBe('');
     const whisper = m('w', ['*'], 6, { en: 6.5, ja: 12.8 });
     expect([gradeFor(whisper, 'ja'), gradeFor(whisper, 'en'), gradeFor(whisper, 'de')]).toEqual(['C', 'B', '']);

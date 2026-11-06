@@ -1,6 +1,11 @@
 // Read-only report of the Steam objects polykey relies on (`run.py probe`, after Steam updates).
 
-import { getKeyboardManagers, getKeyboardPopupWindow, getSteamUIWindows, type SteamGlobals } from './host/steam/globals.js';
+import {
+  getKeyboardManagers,
+  getKeyboardPopupWindow,
+  getSteamUIWindows,
+  type SteamGlobals,
+} from './host/steam/globals.js';
 import { otherKeyboards } from './host/steam/others.js';
 import { missingPrerequisites } from './host/steam/probe.js';
 

@@ -4,7 +4,12 @@ export const SURFACE_ID = 'polykey-root';
 /** Bottom strip SteamVR keeps for the keyboard's move bar (280 - 239, measured by fjk). */
 export const RESERVED_BOTTOM_PX = 41;
 
-export interface Rect { top: number; left: number; width: number; height: number }
+export interface Rect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
 
 /** Where the keyboard goes: over the stock key panel, or the popup minus the move-bar strip. */
 export const overlayRect = (win: Window): Rect => {

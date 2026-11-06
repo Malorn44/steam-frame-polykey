@@ -7,8 +7,15 @@
 // laser hover through `actions`.
 
 import {
-  ANY_LANGUAGE, gradeFor, modelFor, serves, speedBars,
-  type FileState, type SpeechCatalog, type SpeechModel, type SpeechStatus,
+  ANY_LANGUAGE,
+  gradeFor,
+  modelFor,
+  serves,
+  speedBars,
+  type FileState,
+  type SpeechCatalog,
+  type SpeechModel,
+  type SpeechStatus,
 } from '../core/dictation.js';
 import { ICONS, INFO_ICON, signalBars } from './icons.js';
 import { languageName, pageColumn } from './keyboards-page.js';
@@ -96,8 +103,12 @@ const share = (s: FileState): number => (s.state === 'downloading' ? s.done / Ma
 const percent = (s: FileState): string => `${Math.floor(share(s) * 100)}%`;
 /** Failures in words; other codes are shown as they are. */
 const FAILURES: Record<string, string> = {
-  network: 'no connection', 'no-space': 'not enough disk space', 'bad-hash': 'file did not verify', 'bad-size': 'file did not verify',
-  unsupported: 'no engine for this CPU', 'bad-archive': 'engine archive did not unpack',
+  network: 'no connection',
+  'no-space': 'not enough disk space',
+  'bad-hash': 'file did not verify',
+  'bad-size': 'file did not verify',
+  unsupported: 'no engine for this CPU',
+  'bad-archive': 'engine archive did not unpack',
 };
 const failure = (code: string): string => FAILURES[code] ?? code;
 
@@ -107,35 +118,59 @@ const engineText = (catalog: SpeechCatalog | null, status: SpeechStatus | null):
   const e = status.engine;
   if (e.state === 'ready') return `transcribe.cpp ${catalog.engine.version}`;
   if (e.state === 'downloading') return `Downloading the speech engine: ${percent(e)}`;
-  return e.error ? `Engine download failed: ${failure(e.error)}` : `Needs the speech engine (${mb(catalog.engine.size)})`;
+  return e.error
+    ? `Engine download failed: ${failure(e.error)}`
+    : `Needs the speech engine (${mb(catalog.engine.size)})`;
 };
 
 /** A model's state: in use, downloaded, its progress, retry after a failure, or its size. */
 const markText = (model: SpeechModel, state: FileState | undefined, inUse: boolean): string =>
-  state?.state === 'ready' ? (inUse ? '✓ in use' : '✓') : state?.state === 'downloading' ? percent(state)
-    : state?.error ? 'retry' : mb(model.size);
+  state?.state === 'ready'
+    ? inUse
+      ? '✓ in use'
+      : '✓'
+    : state?.state === 'downloading'
+      ? percent(state)
+      : state?.error
+        ? 'retry'
+        : mb(model.size);
 
 /** What decides the page's layout (not progress): when it changes the page is drawn again. */
 const shape = (status: SpeechStatus | null): string =>
-  JSON.stringify(status && [status.engine.state, Object.entries(status.models).map(([id, s]) => [id, s.state, 'error' in s ? s.error : '']), status.choices]);
+  JSON.stringify(
+    status && [
+      status.engine.state,
+      Object.entries(status.models).map(([id, s]) => [id, s.state, 'error' in s ? s.error : '']),
+      status.choices,
+    ],
+  );
 
 /** Licence ids as people know them; the full attribution, with links, is in catalog.json and the README. */
 const LICENCES: Record<string, string> = { 'CC-BY-4.0': 'CC BY 4.0', 'FunASR-1.1': 'FunASR Model License 1.1' };
-const ram = (mb: number): string => (mb >= 1000 ? `~${(mb / 1000).toFixed(mb % 1000 ? 1 : 0)} GB RAM` : `~${mb} MB RAM`);
+const ram = (mb: number): string =>
+  mb >= 1000 ? `~${(mb / 1000).toFixed(mb % 1000 ? 1 : 0)} GB RAM` : `~${mb} MB RAM`;
 
 /** A model's details for its ⓘ, a few short lines: what it covers and needs, its notes, licence and credit, Handy's numbers. */
 const modelDetails = (model: SpeechModel, state: FileState | undefined, language: string): [string, string][] => {
-  const languages = model.languages.includes(ANY_LANGUAGE) ? 'Any language'
-    : model.languages.length > 3 ? `${model.languages.length} languages` : model.languages.map(languageName).join(', ');
+  const languages = model.languages.includes(ANY_LANGUAGE)
+    ? 'Any language'
+    : model.languages.length > 3
+      ? `${model.languages.length} languages`
+      : model.languages.map(languageName).join(', ');
   const rtf = model.handy.cpuRtf;
   const error = model.handy.error?.[language];
   return [
     ['', `${languages} · ${mb(model.size)} · ${ram(model.ramMB)}`],
     ['', model.notes],
     ['', `${LICENCES[model.licence] ?? model.licence} · ${model.credit}`],
-    ['bench', `Handy, not the Frame: ${rtf ? `30 s in ${(30 / rtf).toFixed(1)} s` : 'speed unknown'}`
-      + `${error !== undefined ? ` · ${language.toUpperCase()} error ${error.toFixed(1)}%` : ''}`],
-    ...(state?.state === 'missing' && state.error ? [['', `Last download failed: ${failure(state.error)}.`] as [string, string]] : []),
+    [
+      'bench',
+      `Handy, not the Frame: ${rtf ? `30 s in ${(30 / rtf).toFixed(1)} s` : 'speed unknown'}`
+        + `${error !== undefined ? ` · ${language.toUpperCase()} error ${error.toFixed(1)}%` : ''}`,
+    ],
+    ...(state?.state === 'missing' && state.error
+      ? [['', `Last download failed: ${failure(state.error)}.`] as [string, string]]
+      : []),
   ];
 };
 
@@ -151,7 +186,12 @@ export const buildDictationPage = (
   doc: Document,
   info: DictationInfo,
   handlers: DictationHandlers,
-  { row, option, dictationSwitch, continuousSwitch }: {
+  {
+    row,
+    option,
+    dictationSwitch,
+    continuousSwitch,
+  }: {
     row: (name: string, ...options: HTMLElement[]) => HTMLElement;
     option: (label: string, on: boolean, action: () => void, extra?: string) => HTMLElement;
     /** The Dictation on/off row. */
@@ -162,20 +202,27 @@ export const buildDictationPage = (
   actions: Map<HTMLElement, () => void>,
   enabled: boolean,
 ): DictationPage => {
-  const el = (cls: string, text = ''): HTMLElement => Object.assign(doc.createElement('div'), { className: cls, textContent: text });
+  const el = (cls: string, text = ''): HTMLElement =>
+    Object.assign(doc.createElement('div'), { className: cls, textContent: text });
   const { catalog, status } = info;
 
   if (!enabled) {
     const root = el('dm-off');
-    root.append(dictationSwitch,
-      el('note', 'Speech is recognized on the Frame, on its CPU: no audio leaves it, and nothing is logged or saved. '
-        + 'Nothing is downloaded or run until this is on; then the speech engine (about 18 MB) downloads, and you pick a model per language.'));
+    root.append(
+      dictationSwitch,
+      el(
+        'note',
+        'Speech is recognized on the Frame, on its CPU: no audio leaves it, and nothing is logged or saved. '
+          + 'Nothing is downloaded or run until this is on; then the speech engine (about 18 MB) downloads, and you pick a model per language.',
+      ),
+    );
     return { root, setStatus: () => true, hover: () => {} };
   }
 
   const root = el('kbs dm');
   const column = (cls: string, heading: string) => pageColumn(root, cls, heading);
-  const inUse = (language: string): SpeechModel | undefined => (catalog && status ? modelFor(catalog, status, language) : undefined);
+  const inUse = (language: string): SpeechModel | undefined =>
+    catalog && status ? modelFor(catalog, status, language) : undefined;
 
   // ⓘ: details in a popover over the panel, opened by hovering it or by a tap (touch has no hover).
   const details = new Map<HTMLElement, () => [string, string][]>();
@@ -200,8 +247,13 @@ export const buildDictationPage = (
       return;
     }
     icon.classList.add('open');
-    pop.replaceChildren(...(details.get(icon)?.() ?? []).filter(([, text]) => text)
-      .map(([cls, text]) => Object.assign(doc.createElement(cls === 't' ? 'div' : 'p'), { className: cls, textContent: text })));
+    pop.replaceChildren(
+      ...(details.get(icon)?.() ?? [])
+        .filter(([, text]) => text)
+        .map(([cls, text]) =>
+          Object.assign(doc.createElement(cls === 't' ? 'div' : 'p'), { className: cls, textContent: text }),
+        ),
+    );
     panel.append(pop);
     // Beside the ⓘ, left of it (right of it if there is no room), so it never covers the ⓘ and ✕ columns
     // and the laser can go on to the next ⓘ; level with it, moved up as far as it must to stay in the panel.
@@ -210,7 +262,11 @@ export const buildDictationPage = (
     const room = at.left - box.left - 8;
     const leftSide = room >= POP_MIN_PX;
     // At most the models column's width, and half the panel's height.
-    const width = Math.min(POP_PX, list.col.getBoundingClientRect().width || POP_PX, leftSide ? room : box.right - at.right - 8);
+    const width = Math.min(
+      POP_PX,
+      list.col.getBoundingClientRect().width || POP_PX,
+      leftSide ? room : box.right - at.right - 8,
+    );
     pop.style.width = `${width}px`;
     pop.style.maxHeight = `${Math.round(box.height / 2)}px`;
     const height = pop.offsetHeight;
@@ -224,7 +280,8 @@ export const buildDictationPage = (
       show(undefined);
     }
   };
-  for (const type of ['touchstart', 'mousedown'] as const) root.addEventListener(type, closeOnTap, { capture: true, passive: true });
+  for (const type of ['touchstart', 'mousedown'] as const)
+    root.addEventListener(type, closeOnTap, { capture: true, passive: true });
 
   // A download's bar along a row's foot: its share, or a moving stripe until bytes arrive.
   const downloadBar = (into: HTMLElement): ((state: FileState | undefined) => void) => {
@@ -250,7 +307,8 @@ export const buildDictationPage = (
     actions.set(item, () => handlers.onSpeechLanguage(code));
     langs.list.append(item);
   }
-  const onDisk = catalog?.models.filter((m) => ['ready', 'downloading'].includes(status?.models[m.id]?.state ?? '')) ?? [];
+  const onDisk =
+    catalog?.models.filter((m) => ['ready', 'downloading'].includes(status?.models[m.id]?.state ?? '')) ?? [];
   const downloaded = el(info.language === DOWNLOADED ? 'item sel' : 'item');
   downloaded.append(el('nm', 'Downloaded'), el('mark', onDisk.length ? String(onDisk.length) : ''));
   actions.set(downloaded, () => handlers.onSpeechLanguage(DOWNLOADED));
@@ -259,9 +317,13 @@ export const buildDictationPage = (
   langs.col.append(section);
 
   /** Your languages that dictate with `model` now. */
-  const usedFor = (model: SpeechModel): string[] => info.languages.filter((code) => inUse(code) === model).map(languageName);
+  const usedFor = (model: SpeechModel): string[] =>
+    info.languages.filter((code) => inUse(code) === model).map(languageName);
   /** A model's state cell: in use, downloaded, its progress, retry, or its size. */
-  const stateCell = (model: SpeechModel, inUseHere: boolean): { cell: HTMLElement; show: (state: FileState | undefined) => void } => {
+  const stateCell = (
+    model: SpeechModel,
+    inUseHere: boolean,
+  ): { cell: HTMLElement; show: (state: FileState | undefined) => void } => {
     const cell = el('mark');
     return {
       cell,
@@ -274,7 +336,10 @@ export const buildDictationPage = (
   const updates = new Map<string, (state: FileState | undefined) => void>();
   /** A row's ✕ (delete, or stop the download), or an empty cell; set before the row, so a tap on it is its own. */
   const deleteCell = (model: SpeechModel, state: FileState | undefined): HTMLElement => {
-    const x = state?.state === 'ready' || state?.state === 'downloading' ? Object.assign(el('x'), { innerHTML: ICONS.close }) : el('x');
+    const x =
+      state?.state === 'ready' || state?.state === 'downloading'
+        ? Object.assign(el('x'), { innerHTML: ICONS.close })
+        : el('x');
     if (x.innerHTML) actions.set(x, () => handlers.onDelete(model.id));
     return x;
   };
@@ -299,12 +364,20 @@ export const buildDictationPage = (
       const used = usedFor(model);
       const { cell, show } = stateCell(model, false);
       const bar = downloadBar(item);
-      const update = (next: FileState | undefined): void => { show(next); bar(next); };
+      const update = (next: FileState | undefined): void => {
+        show(next);
+        bar(next);
+      };
       update(state);
       updates.set(model.id, update);
       const x = deleteCell(model, state);
-      item.append(el('nm', model.name), el(used.length ? 'used' : 'used none', used.length ? used.join(', ') : 'not used'), cell,
-        infoIcon(model.name, () => modelDetails(model, status?.models[model.id], 'en')), x);
+      item.append(
+        el('nm', model.name),
+        el(used.length ? 'used' : 'used none', used.length ? used.join(', ') : 'not used'),
+        cell,
+        infoIcon(model.name, () => modelDetails(model, status?.models[model.id], 'en')),
+        x,
+      );
       list.list.append(item);
     }
     if (!onDisk.length) list.list.append(el('note detail', 'Nothing downloaded yet.'));
@@ -321,13 +394,22 @@ export const buildDictationPage = (
       const item = el(model === current ? 'item sel' : state?.state === 'ready' ? 'item added' : 'item');
       const { cell, show } = stateCell(model, model === current);
       const bar = downloadBar(item);
-      const update = (next: FileState | undefined): void => { show(next); bar(next); };
+      const update = (next: FileState | undefined): void => {
+        show(next);
+        bar(next);
+      };
       update(state);
       updates.set(model.id, update);
       const grade = gradeFor(model, language);
       const x = deleteCell(model, state);
-      item.append(el('nm', model.name), el(grade ? 'grade' : '', grade), Object.assign(el('speed'), { innerHTML: signalBars(speedBars(model)) }),
-        cell, infoIcon(model.name, () => modelDetails(model, status?.models[model.id], language)), x);
+      item.append(
+        el('nm', model.name),
+        el(grade ? 'grade' : '', grade),
+        Object.assign(el('speed'), { innerHTML: signalBars(speedBars(model)) }),
+        cell,
+        infoIcon(model.name, () => modelDetails(model, status?.models[model.id], language)),
+        x,
+      );
       actions.set(item, () => {
         if (state?.state === 'downloading') return;
         handlers.onChoose(language, model.id);
@@ -336,17 +418,23 @@ export const buildDictationPage = (
       list.list.append(item);
     }
     if (!catalog) list.list.append(el('note', 'Asking the sidecar for the models…'));
-    else if (!current) list.list.append(el('note detail', `No ${languageName(language)} model downloaded yet: tap one.`));
+    else if (!current)
+      list.list.append(el('note detail', `No ${languageName(language)} model downloaded yet: tap one.`));
   }
 
   // The switches, the engine (with its credit), and where dictated Japanese goes.
   const about = column('speech', 'Dictation');
   const engineNote = el('note');
   const retry = option('Download', false, () => handlers.onDownload(), ' dl');
-  const engineRow = row('Engine', engineNote, retry, infoIcon('Speech engine', () => [
-    ['', catalog ? `transcribe.cpp ${catalog.engine.version} · ${mb(catalog.engine.size)} · CPU only` : ''],
-    ['', catalog?.engine.attribution ?? ''],
-  ]));
+  const engineRow = row(
+    'Engine',
+    engineNote,
+    retry,
+    infoIcon('Speech engine', () => [
+      ['', catalog ? `transcribe.cpp ${catalog.engine.version} · ${mb(catalog.engine.size)} · CPU only` : ''],
+      ['', catalog?.engine.attribution ?? ''],
+    ]),
+  );
   engineRow.classList.add('engine');
   const engineBar = downloadBar(engineRow);
   const showEngine = (next: SpeechStatus | null): void => {
@@ -356,8 +444,12 @@ export const buildDictationPage = (
     engineBar(next?.engine);
   };
   showEngine(status);
-  about.list.append(dictationSwitch, continuousSwitch, el('note detail', 'Pauses type what you said. Tap the mic to stop.'),
-    engineRow);
+  about.list.append(
+    dictationSwitch,
+    continuousSwitch,
+    el('note detail', 'Pauses type what you said. Tap the mic to stop.'),
+    engineRow,
+  );
 
   let built = shape(status);
   return {

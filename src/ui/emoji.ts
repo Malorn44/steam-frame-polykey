@@ -13,7 +13,20 @@ import { ICONS } from './icons.js';
 import { BAR_PX, sizeVars } from './sizes.js';
 import { listenTouch, type TouchPoint } from './gesture.js';
 import { themeVars } from './theme.js';
-import { MAX_FAVORITES, TONES, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf, type EmojiData, type EmojiState, type SteamItem, type Tone } from '../core/emoji.js';
+import {
+  MAX_FAVORITES,
+  TONES,
+  steamFromKey,
+  steamKey,
+  removeFavorite,
+  placeFavorite,
+  withTone,
+  baseOf,
+  type EmojiData,
+  type EmojiState,
+  type SteamItem,
+  type Tone,
+} from '../core/emoji.js';
 
 export const RECENT_COLUMNS = 6;
 /** Recent's block is 6 × 4; its last place holds the bin. */
@@ -85,8 +98,15 @@ type Cell = { el: HTMLElement; section: string; base?: string; steam?: SteamItem
 type Section = { id: string; tab: string; x: number; columns: number };
 
 const GROUP_TABS: Record<string, string> = {
-  smileys: ICONS.smileys, people: ICONS.people, animals: ICONS.animals, food: ICONS.food, travel: ICONS.travel,
-  activities: ICONS.activities, objects: ICONS.objects, symbols: ICONS.symbols, flags: ICONS.flags,
+  smileys: ICONS.smileys,
+  people: ICONS.people,
+  animals: ICONS.animals,
+  food: ICONS.food,
+  travel: ICONS.travel,
+  activities: ICONS.activities,
+  objects: ICONS.objects,
+  symbols: ICONS.symbols,
+  flags: ICONS.flags,
 };
 export const RECENT_NOTE = 'Recently used emoji appear here.';
 export const FAVORITES_NOTE = 'Drag and drop from Recent to add a favorite, drop outside to remove.';
@@ -129,8 +149,10 @@ export const createEmojiView = (
   const placeholder = doc.createElement('div');
   placeholder.className = 'placeholder';
   /** A cell's place: sections fill down each column, then across. */
-  const cellPos = (sx: number, i: number): { left: string; top: string } =>
-    ({ left: `${sx + Math.floor(i / rows) * cellSize}px`, top: `${(i % rows) * cellSize}px` });
+  const cellPos = (sx: number, i: number): { left: string; top: string } => ({
+    left: `${sx + Math.floor(i / rows) * cellSize}px`,
+    top: `${(i % rows) * cellSize}px`,
+  });
 
   const shown = (base: string): string => withTone(base, state.tone, input.tones);
   const clamp = (x: number): number => Math.max(0, Math.min(x, Math.max(0, width - grid.clientWidth)));
@@ -155,7 +177,12 @@ export const createEmojiView = (
       const owned = input.steam.find((s) => s.item.kind === item.kind && s.item.name === item.name);
       return { base: key, steam: item, image: owned?.image ?? null };
     };
-    const addCell = (section: string, sx: number, i: number, content: { base?: string; steam?: SteamItem; image?: string | null }): void => {
+    const addCell = (
+      section: string,
+      sx: number,
+      i: number,
+      content: { base?: string; steam?: SteamItem; image?: string | null },
+    ): void => {
       const el = doc.createElement('div');
       el.className = `cell${content.steam?.kind === 'effect' ? ' effect' : ''}${section === 'favorites' ? ' fav' : ''}`;
       Object.assign(el.style, { ...cellPos(sx, i), width: `${cellSize}px`, height: `${cellSize}px` });
@@ -169,12 +196,24 @@ export const createEmojiView = (
       } else if (content.steam) el.textContent = content.steam.name;
       strip.append(el);
       const toned = !content.steam && !!content.base && input.tones.has(content.base);
-      cells.push({ el, section, sx, toned, ...(content.base ? { base: content.base } : {}), ...(content.steam ? { steam: content.steam } : {}) });
+      cells.push({
+        el,
+        section,
+        sx,
+        toned,
+        ...(content.base ? { base: content.base } : {}),
+        ...(content.steam ? { steam: content.steam } : {}),
+      });
     };
     const note = (sx: number, columns: number, text: string): void => {
       const el = doc.createElement('div');
       el.className = 'note';
-      Object.assign(el.style, { left: `${sx}px`, top: '0', width: `${columns * cellSize}px`, height: `${rows * cellSize}px` });
+      Object.assign(el.style, {
+        left: `${sx}px`,
+        top: '0',
+        width: `${columns * cellSize}px`,
+        height: `${rows * cellSize}px`,
+      });
       el.textContent = text;
       strip.append(el);
     };
@@ -233,7 +272,9 @@ export const createEmojiView = (
       const columns = items.length ? Math.ceil(items.length / rows) : 3;
       section(`steam-${kind}`, icon, columns, (sx) => {
         if (!items.length) note(sx, columns, input.steamAvailable === false ? 'Steam items unavailable' : empty);
-        items.forEach(({ item, image }, i) => addCell(`steam-${kind}`, sx, i, { base: steamKey(item), steam: item, image }));
+        items.forEach(({ item, image }, i) =>
+          addCell(`steam-${kind}`, sx, i, { base: steamKey(item), steam: item, image }),
+        );
       });
     }
     width = x;
@@ -270,7 +311,8 @@ export const createEmojiView = (
   const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const guard = touchGuard(now);
 
-  const cellAt = (target: EventTarget | null): Cell | undefined => cells.find((c) => c.el === target || c.el.contains(target as Node));
+  const cellAt = (target: EventTarget | null): Cell | undefined =>
+    cells.find((c) => c.el === target || c.el.contains(target as Node));
   const cellAtPoint = (x: number, y: number): Cell | undefined => {
     const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
     return hits.map(cellAt).find(Boolean);
@@ -359,8 +401,20 @@ export const createEmojiView = (
     mode = 'tones';
     lastTouchAt = now();
     toneMoved = false;
-    toneBox = openHoldPopup(doc, shadow, root, at, variants,
-      { width: cellSize, height: cellSize }, last, false, '', () => { toneMoved = true; });
+    toneBox = openHoldPopup(
+      doc,
+      shadow,
+      root,
+      at,
+      variants,
+      { width: cellSize, height: cellSize },
+      last,
+      false,
+      '',
+      () => {
+        toneMoved = true;
+      },
+    );
   };
   const pickTone = (x: number, y: number): void => toneBox?.pickAt(x, y);
   /** The tone pick moved since hoverAt last said so: a haptic tick, as crossing keys. */
@@ -407,9 +461,15 @@ export const createEmojiView = (
     clearHold();
     const held = pressed;
     if (held && (held.section === 'recent' || held.section === 'favorites')) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, HOLD_MS);
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (mode === 'press') lift(held, last);
+      }, HOLD_MS);
     } else if (held?.toned) {
-      holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') openTones(held); }, HOLD_MS);
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (mode === 'press') openTones(held);
+      }, HOLD_MS);
     }
   };
   let last = { x: 0, y: 0 };
@@ -422,7 +482,10 @@ export const createEmojiView = (
     if (!p) return true;
     last = p;
     lastTouchAt = now();
-    const slop = pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? SLOP_PX.holdWander : SLOP_PX.scroll;
+    const slop =
+      pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites')
+        ? SLOP_PX.holdWander
+        : SLOP_PX.scroll;
     if (mode === 'press' && Math.hypot(p.x - start.x, p.y - start.y) > slop) {
       clearHold();
       mode = 'scroll';
@@ -474,12 +537,16 @@ export const createEmojiView = (
   };
   for (const type of ['touchend', 'pointerup', 'mouseup'] as const) win?.addEventListener(type, endOutside, listen);
   win?.addEventListener('touchcancel', onCancel, listen);
-  root.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    if (mode === 'tones' || mode === 'drag') return; // the stick must not slide the grid under a popup
-    stopGlide();
-    setOffset(offset + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
-  }, { passive: false });
+  root.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      if (mode === 'tones' || mode === 'drag') return; // the stick must not slide the grid under a popup
+      stopGlide();
+      setOffset(offset + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
+    },
+    { passive: false },
+  );
   function onClick(e: MouseEvent): void {
     // Desktop fallback (mouse); touch already handled the press.
     if ((e.target as HTMLElement | null)?.closest?.('.trash')) {
@@ -514,16 +581,23 @@ export const createEmojiView = (
 
   return {
     update: (next) => {
-      const rebuild = next.tone !== state.tone || next.favorites.length !== state.favorites.length
-        || next.recent.join() !== state.recent.join() || next.favorites.join() !== state.favorites.join();
+      const rebuild =
+        next.tone !== state.tone
+        || next.favorites.length !== state.favorites.length
+        || next.recent.join() !== state.recent.join()
+        || next.favorites.join() !== state.favorites.join();
       state = next;
       if (rebuild) build();
     },
     hoverAt: (x, y) => {
       // While the trigger is held, the laser's moves come as touch moves too. The laser moving on with
       // no touch moves means the release was lost somewhere: end the gesture there and then.
-      if ((mode === 'drag' || mode === 'tones' || mode === 'scroll') && now() - lastTouchAt > RELEASE_LOST_MS
-        && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) finish();
+      if (
+        (mode === 'drag' || mode === 'tones' || mode === 'scroll')
+        && now() - lastTouchAt > RELEASE_LOST_MS
+        && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll
+      )
+        finish();
       if (mode === 'tones') {
         pickTone(x, y);
         const moved = toneMoved;
@@ -556,7 +630,8 @@ export const createEmojiView = (
       clearHold();
       stopGlide();
       stopFollowing();
-      for (const type of ['touchend', 'pointerup', 'mouseup'] as const) win?.removeEventListener(type, endOutside, listen);
+      for (const type of ['touchend', 'pointerup', 'mouseup'] as const)
+        win?.removeEventListener(type, endOutside, listen);
       win?.removeEventListener('touchcancel', onCancel, listen);
       style.remove();
       root.remove();

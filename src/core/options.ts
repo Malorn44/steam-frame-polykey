@@ -10,7 +10,13 @@ export type OptionName = keyof KeyboardOptions;
  * How the settings page shows an option: two named choices, or (toggle) a switch beside a statement,
  * worded as Gboard's settings are; invert: the switch is on when the option is off.
  */
-export interface OptionInfo { name: string; off: string; on: string; toggle?: boolean; invert?: boolean }
+export interface OptionInfo {
+  name: string;
+  off: string;
+  on: string;
+  toggle?: boolean;
+  invert?: boolean;
+}
 
 /** In the order the settings page lists them. */
 export const OPTIONS: Record<OptionName, OptionInfo> = {
@@ -26,24 +32,37 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
 };
 
 /** A keyboard with a reading buffer (and so candidates) offers dictationCommit; packs do not list it. */
-const hasReading = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
+const hasReading = (keyboard: KeyboardDef | undefined): boolean =>
+  keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */
-export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
+export const optionsFor = (
+  keyboard: KeyboardDef | undefined,
+  saved: KeyboardOptions | undefined,
+): Required<KeyboardOptions> => {
   const own = keyboard?.options ?? {};
   const pick = (name: OptionName): boolean =>
     name in own ? (typeof saved?.[name] === 'boolean' ? saved[name] : own[name]!) : false;
   return {
-    tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
-    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: hasReading(keyboard) && saved?.dictationCommit === true,
+    tapCycle: pick('tapCycle'),
+    candidatesLeft: pick('candidatesLeft'),
+    flickHints: pick('flickHints'),
+    romajiInput: pick('romajiInput'),
+    qwertyLatin: pick('qwertyLatin'),
+    swipe: pick('swipe'),
+    dictationCommit: hasReading(keyboard) && saved?.dictationCommit === true,
   };
 };
 
 /** The options a keyboard offers, in a stable order. */
 export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
   (Object.keys(OPTIONS) as OptionName[]).filter((name) =>
-    (name === 'dictationCommit' ? hasReading(keyboard) : name in (keyboard?.options ?? {})));
+    name === 'dictationCommit' ? hasReading(keyboard) : name in (keyboard?.options ?? {}),
+  );
 
 /** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
-export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>
-  (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? keyboard.features.swipe.lexicon : undefined);
+export const swipeLexicon = (
+  keyboard: KeyboardDef | undefined,
+  saved: KeyboardOptions | undefined,
+): string | undefined =>
+  keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? keyboard.features.swipe.lexicon : undefined;

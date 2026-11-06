@@ -91,7 +91,9 @@ export const openHoldPopup = (
   if (start) pickAt(start.x, start.y);
   opened = true;
   return {
-    get pick() { return pick; },
+    get pick() {
+      return pick;
+    },
     pickAt,
     close: () => el.remove(),
   };

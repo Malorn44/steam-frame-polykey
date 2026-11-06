@@ -4,12 +4,22 @@
 import type { Effect } from './keyboard.js';
 
 export type EmojiItem = string | readonly string[];
-export interface EmojiGroup { id: string; name: string; items: EmojiItem[] }
-export interface EmojiData { groups: EmojiGroup[] }
+export interface EmojiGroup {
+  id: string;
+  name: string;
+  items: EmojiItem[];
+}
+export interface EmojiData {
+  groups: EmojiGroup[];
+}
 
 export const TONES = ['', 'light', 'medium-light', 'medium', 'medium-dark', 'dark'] as const;
 export type Tone = (typeof TONES)[number];
-export interface EmojiState { recent: string[]; favorites: string[]; tone: Tone }
+export interface EmojiState {
+  recent: string[];
+  favorites: string[];
+  tone: Tone;
+}
 export const NO_EMOJI_STATE: EmojiState = { recent: [], favorites: [], tone: '' };
 
 /** Recent fills a fixed block; Favorites caps at the sidecar's limit. */
@@ -19,7 +29,11 @@ export const baseOf = (item: EmojiItem): string => (typeof item === 'string' ? i
 
 /** Every base emoji that takes a skin tone, with its variants. */
 export const toneTable = (data: EmojiData): Map<string, readonly string[]> =>
-  new Map(data.groups.flatMap((g) => g.items.filter((i): i is readonly string[] => typeof i !== 'string').map((i) => [i[0]!, i])));
+  new Map(
+    data.groups.flatMap((g) =>
+      g.items.filter((i): i is readonly string[] => typeof i !== 'string').map((i) => [i[0]!, i]),
+    ),
+  );
 
 /** The emoji as typed: with the chosen skin tone where it takes one. */
 export const withTone = (base: string, tone: Tone, tones: ReadonlyMap<string, readonly string[]>): string =>
@@ -30,20 +44,27 @@ export const withTone = (base: string, tone: Tone, tones: ReadonlyMap<string, re
  * keeps its place so Recent never shifts under the laser.
  */
 export const useRecent = (recent: readonly string[], base: string, fromRecent: boolean, max: number): string[] =>
-  (fromRecent && recent.includes(base) ? [...recent] : [base, ...recent.filter((e) => e !== base)].slice(0, max));
+  fromRecent && recent.includes(base) ? [...recent] : [base, ...recent.filter((e) => e !== base)].slice(0, max);
 
 /** Favorites with `base` placed at `index` (moved if already there); a full list takes no new ones. */
 export const placeFavorite = (favorites: readonly string[], base: string, index: number): string[] => {
   const without = favorites.filter((e) => e !== base);
   if (without.length === favorites.length && favorites.length >= MAX_FAVORITES) return [...favorites];
-  const at = Math.max(0, Math.min(index > favorites.indexOf(base) && favorites.includes(base) ? index - 1 : index, without.length));
+  const at = Math.max(
+    0,
+    Math.min(index > favorites.indexOf(base) && favorites.includes(base) ? index - 1 : index, without.length),
+  );
   return [...without.slice(0, at), base, ...without.slice(at)];
 };
 
-export const removeFavorite = (favorites: readonly string[], base: string): string[] => favorites.filter((e) => e !== base);
+export const removeFavorite = (favorites: readonly string[], base: string): string[] =>
+  favorites.filter((e) => e !== base);
 
 export type SteamItemKind = 'emoticon' | 'sticker' | 'effect';
-export interface SteamItem { kind: SteamItemKind; name: string }
+export interface SteamItem {
+  kind: SteamItemKind;
+  name: string;
+}
 
 /** A Steam item as kept in Recent and Favorites, next to emoji: "steam:<kind>:<name>". */
 export const steamKey = (item: SteamItem): string => `steam:${item.kind}:${item.name}`;
@@ -56,4 +77,7 @@ export const steamFromKey = (key: string): SteamItem | null => {
 export const steamItemEffects = (item: SteamItem): Effect[] =>
   item.kind === 'emoticon'
     ? [{ kind: 'text', text: `:${item.name}:` }]
-    : [{ kind: 'text', text: `/${item.kind === 'sticker' ? 'sticker' : 'roomeffect'} ${item.name}` }, { kind: 'key', key: 'Enter' }];
+    : [
+        { kind: 'text', text: `/${item.kind === 'sticker' ? 'sticker' : 'roomeffect'} ${item.name}` },
+        { kind: 'key', key: 'Enter' },
+      ];

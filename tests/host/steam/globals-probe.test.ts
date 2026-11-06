@@ -17,7 +17,11 @@ describe('missingPrerequisites', () => {
 
   it('survives getters that throw', () => {
     const g = {};
-    Object.defineProperty(g, 'SteamUIStore', { get: () => { throw new Error('TDZ'); } });
+    Object.defineProperty(g, 'SteamUIStore', {
+      get: () => {
+        throw new Error('TDZ');
+      },
+    });
     expect(missingPrerequisites(g)).toEqual([REQUIRED.popupManager, REQUIRED.keyboardManager]);
   });
 });
@@ -46,7 +50,13 @@ describe('getKeyboardPopupWindow', () => {
   });
 
   it('returns null when the lookup throws', () => {
-    const g = { g_PopupManager: { GetPopupForVROverlayKey: () => { throw new Error('boom'); } } };
+    const g = {
+      g_PopupManager: {
+        GetPopupForVROverlayKey: () => {
+          throw new Error('boom');
+        },
+      },
+    };
     expect(getKeyboardPopupWindow(g)).toBeNull();
   });
 });
@@ -65,7 +75,13 @@ describe('other keyboards', () => {
   });
 
   it('describes fjk and TaiKeid hooks without throwing', () => {
-    const found = otherKeyboards({ __fjk: { version: '0.9.3', state: 'running', enabled: true }, __fullKeyboardNativeV1: {} });
-    expect(found).toEqual(['frame-jp-keyboard 0.9.3 (state=running, enabled=true)', 'TaiKeid Full Keyboard replacement hooks']);
+    const found = otherKeyboards({
+      __fjk: { version: '0.9.3', state: 'running', enabled: true },
+      __fullKeyboardNativeV1: {},
+    });
+    expect(found).toEqual([
+      'frame-jp-keyboard 0.9.3 (state=running, enabled=true)',
+      'TaiKeid Full Keyboard replacement hooks',
+    ]);
   });
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus } from '../../../src/host/steam/diag.js';
+import {
+  classifyTarget,
+  describeStatus,
+  findStatusStore,
+  keyboardMode,
+  readStatus,
+} from '../../../src/host/steam/diag.js';
 import { BUFFERED, MINIMAL, STREAMED, fakeWebpack } from '../../fake-steam.js';
 
 describe('findStatusStore', () => {
@@ -10,12 +16,23 @@ describe('findStatusStore', () => {
 
   it('returns null without a registry or a matching module', () => {
     expect(findStatusStore({})).toBeNull();
-    const noMatch = { push: (chunk: [unknown, unknown, (r: unknown) => void]) => chunk[2](Object.assign(() => ({}), { m: { 1: () => 'x' } })) };
+    const noMatch = {
+      push: (chunk: [unknown, unknown, (r: unknown) => void]) =>
+        chunk[2](Object.assign(() => ({}), { m: { 1: () => 'x' } })),
+    };
     expect(findStatusStore({ webpackChunksteamui: noMatch })).toBeNull();
   });
 
   it('returns null when the registry throws', () => {
-    expect(findStatusStore({ webpackChunksteamui: { push: () => { throw new Error('boom'); } } })).toBeNull();
+    expect(
+      findStatusStore({
+        webpackChunksteamui: {
+          push: () => {
+            throw new Error('boom');
+          },
+        },
+      }),
+    ).toBeNull();
   });
 });
 
@@ -42,7 +59,9 @@ describe('classifyTarget', () => {
   });
 
   it('does not classify a closed keyboard (seen on the Frame: closed status says dispatchToSteamVR=true)', () => {
-    expect(classifyTarget({ bIsOpen: false, bMinimal: false, sOverlayKey: '', bDispatchEventsToSteamVR: true })).toBe('unknown');
+    expect(classifyTarget({ bIsOpen: false, bMinimal: false, sOverlayKey: '', bDispatchEventsToSteamVR: true })).toBe(
+      'unknown',
+    );
   });
 });
 

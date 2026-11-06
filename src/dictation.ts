@@ -7,7 +7,15 @@
 // never logged; failures are logged as their codes.
 
 import type { BridgeReply } from './bridge/client.js';
-import { downloading, micDownload, parseCatalog, parseStatus, type MicState, type SpeechCatalog, type SpeechStatus } from './core/dictation.js';
+import {
+  downloading,
+  micDownload,
+  parseCatalog,
+  parseStatus,
+  type MicState,
+  type SpeechCatalog,
+  type SpeechStatus,
+} from './core/dictation.js';
 
 type Call = (op: string, args?: Record<string, unknown>, timeoutMs?: number) => Promise<BridgeReply>;
 
@@ -32,10 +40,22 @@ export interface Dictation {
 }
 
 export const createDictation = ({
-  call, onState, onText, log, onLevels = () => {}, onListening = () => {}, onError = () => {},
-  continuous = () => false, onPhrase = () => {}, onRecognizing = () => {}, onEnd = () => {},
+  call,
+  onState,
+  onText,
+  log,
+  onLevels = () => {},
+  onListening = () => {},
+  onError = () => {},
+  continuous = () => false,
+  onPhrase = () => {},
+  onRecognizing = () => {},
+  onEnd = () => {},
 }: {
-  call: Call; onState: (state: MicState) => void; onText: (text: string) => void; log: (line: string) => void;
+  call: Call;
+  onState: (state: MicState) => void;
+  onText: (text: string) => void;
+  log: (line: string) => void;
   /** Whether a new session is continuous (read at each start). */
   continuous?: () => boolean;
   /** A continuous session's phrases, in order, as each is recognized. */
@@ -65,7 +85,10 @@ export const createDictation = ({
     state = next;
     if (next === 'error') {
       log(`dictation: ${code ?? '?'}`);
-      errorTimer = setTimeout(() => { errorTimer = null; set('idle'); }, ERROR_MS);
+      errorTimer = setTimeout(() => {
+        errorTimer = null;
+        set('idle');
+      }, ERROR_MS);
     }
     onState(next);
     if ((was === 'listening') !== (next === 'listening')) onListening(next === 'listening');
@@ -109,7 +132,8 @@ export const createDictation = ({
       if (reply['phase'] !== phase || reply['seq'] !== seq) deadline = Date.now() + MAX_SESSION_MS;
       phase = String(reply['phase']);
       if (typeof reply['seq'] === 'number') seq = reply['seq'];
-      if (Array.isArray(reply['texts'])) for (const text of reply['texts']) if (typeof text === 'string' && text) onPhrase(text);
+      if (Array.isArray(reply['texts']))
+        for (const text of reply['texts']) if (typeof text === 'string' && text) onPhrase(text);
       if (typeof reply['recognizing'] === 'boolean' && reply['recognizing'] !== recognizing) {
         recognizing = reply['recognizing'];
         onRecognizing(recognizing);
@@ -139,7 +163,11 @@ export const createDictation = ({
   const start = async (language: string): Promise<void> => {
     set('listening'); // at once, so the press shows
     continuing = continuous();
-    const reply = await call('dictation.start', { language, ...(continuing ? { continuous: true } : {}) }, START_TIMEOUT_MS);
+    const reply = await call(
+      'dictation.start',
+      { language, ...(continuing ? { continuous: true } : {}) },
+      START_TIMEOUT_MS,
+    );
     if (state !== 'listening' || session !== 0) return; // cancelled meanwhile
     if (!reply.ok || typeof reply['session'] !== 'number') {
       set('error', reply.error);
@@ -191,7 +219,13 @@ export interface SpeechModels {
   progress(language: string): number | null;
 }
 
-export const createSpeechModels = ({ call, active, onCatalog, onStatus, warn }: {
+export const createSpeechModels = ({
+  call,
+  active,
+  onCatalog,
+  onStatus,
+  warn,
+}: {
   call: Call;
   /** Whether to ask the sidecar at all: dictation on, and the bridge there. */
   active: () => boolean;
@@ -226,7 +260,11 @@ export const createSpeechModels = ({ call, active, onCatalog, onStatus, warn }: 
       }
       let since: number | undefined;
       for (;;) {
-        const reply = await call('dictation.status', since === undefined ? {} : { since, timeoutMs: STATUS_WAIT_MS }, STATUS_WAIT_MS + 5000);
+        const reply = await call(
+          'dictation.status',
+          since === undefined ? {} : { since, timeoutMs: STATUS_WAIT_MS },
+          STATUS_WAIT_MS + 5000,
+        );
         const next = parseStatus(reply);
         if (next) show(next);
         const more = again;
@@ -247,11 +285,19 @@ export const createSpeechModels = ({ call, active, onCatalog, onStatus, warn }: 
   };
 
   return {
-    get catalog() { return catalog; },
-    get status() { return status; },
+    get catalog() {
+      return catalog;
+    },
+    get status() {
+      return status;
+    },
     follow,
-    download: (modelId) => { void call('dictation.download', modelId ? { model: modelId } : {}).then(after); },
-    delete: (modelId) => { void call('dictation.delete', { model: modelId }).then(after); },
+    download: (modelId) => {
+      void call('dictation.download', modelId ? { model: modelId } : {}).then(after);
+    },
+    delete: (modelId) => {
+      void call('dictation.delete', { model: modelId }).then(after);
+    },
     choose: (language, modelId) => {
       const choices = { ...status?.choices, [language]: modelId };
       if (status) status = { ...status, choices };
@@ -259,7 +305,9 @@ export const createSpeechModels = ({ call, active, onCatalog, onStatus, warn }: 
         if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
       });
     },
-    forget: () => { status = null; },
+    forget: () => {
+      status = null;
+    },
     progress: (language) => micDownload(catalog, status, language),
   };
 };

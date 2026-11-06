@@ -33,16 +33,53 @@ const CATALOG = {
   ok: true,
   engine: { version: '0.4.1', attribution: 'transcribe.cpp by its authors (MIT)', size: 18_185_054 },
   models: [
-    { id: 'whisper-small', name: 'Whisper small', languages: ['*'], size: 269_751_136, licence: 'Apache-2.0', attribution: 'Whisper by OpenAI', credit: 'OpenAI',
-      ramMB: 450, notes: '99 languages.', handy: { cpuRtf: 5.9, error: { en: 6.5, ja: 12.8 } } },
-    { id: 'parakeet', name: 'Parakeet', languages: ['en'], size: 729_574_912, licence: 'CC-BY-4.0', attribution: 'Parakeet by NVIDIA, CC BY 4.0', credit: 'NVIDIA · 8-bit GGUF by handy-computer',
-      ramMB: 1000, notes: 'English.', handy: { cpuRtf: 14.3, error: { en: 4.1 } } },
-    { id: 'sensevoice', name: 'SenseVoice Small', languages: ['ja', 'zh', 'en'], size: 252_684_608, licence: 'FunASR-1.1',
-      attribution: 'SenseVoiceSmall by FunAudioLLM', credit: 'FunAudioLLM', ramMB: 400, notes: 'CJK.', handy: { cpuRtf: 19.7, error: { en: 7.1, ja: 7.6 } } },
+    {
+      id: 'whisper-small',
+      name: 'Whisper small',
+      languages: ['*'],
+      size: 269_751_136,
+      licence: 'Apache-2.0',
+      attribution: 'Whisper by OpenAI',
+      credit: 'OpenAI',
+      ramMB: 450,
+      notes: '99 languages.',
+      handy: { cpuRtf: 5.9, error: { en: 6.5, ja: 12.8 } },
+    },
+    {
+      id: 'parakeet',
+      name: 'Parakeet',
+      languages: ['en'],
+      size: 729_574_912,
+      licence: 'CC-BY-4.0',
+      attribution: 'Parakeet by NVIDIA, CC BY 4.0',
+      credit: 'NVIDIA · 8-bit GGUF by handy-computer',
+      ramMB: 1000,
+      notes: 'English.',
+      handy: { cpuRtf: 14.3, error: { en: 4.1 } },
+    },
+    {
+      id: 'sensevoice',
+      name: 'SenseVoice Small',
+      languages: ['ja', 'zh', 'en'],
+      size: 252_684_608,
+      licence: 'FunASR-1.1',
+      attribution: 'SenseVoiceSmall by FunAudioLLM',
+      credit: 'FunAudioLLM',
+      ramMB: 400,
+      notes: 'CJK.',
+      handy: { cpuRtf: 19.7, error: { en: 7.1, ja: 7.6 } },
+    },
   ],
 };
 /** Everything in place: the engine and Parakeet for English. */
-const READY = { ok: true, enabled: true, rev: 1, engine: ready, models: { 'whisper-small': { state: 'missing' }, parakeet: ready, sensevoice: { state: 'missing' } }, choices: {} };
+const READY = {
+  ok: true,
+  enabled: true,
+  rev: 1,
+  engine: ready,
+  models: { 'whisper-small': { state: 'missing' }, parakeet: ready, sensevoice: { state: 'missing' } },
+  choices: {},
+};
 
 /**
  * A fake sidecar: dictation.wait is answered when the test moves the session on with phase(); a
@@ -69,7 +106,8 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
     else if (req.op === 'dictation.catalog') answer(req.id, CATALOG);
     else if (req.op === 'dictation.status' && req['since'] !== undefined) held = (body) => answer(req.id, body);
     else if (['dictation.status', 'dictation.download', 'dictation.delete'].includes(req.op)) answer(req.id, current);
-    else if (req.op === 'convert') answer(req.id, { ok: true, segments: [{ reading: req['reading'], candidates: [req['reading']] }] });
+    else if (req.op === 'convert')
+      answer(req.id, { ok: true, segments: [{ reading: req['reading'], candidates: [req['reading']] }] });
     else if (req.op === 'predict') answer(req.id, { ok: true, predictions: [] });
     else if (req.op === 'desktop.prepare') answer(req.id, { ok: false, error: 'not-desktop' });
     else answer(req.id, { ok: true });
@@ -97,7 +135,9 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
       swiping!(words);
       await vi.advanceTimersByTimeAsync(20);
     },
-    failStart: (error: string) => { start = { ok: false, error }; },
+    failStart: (error: string) => {
+      start = { ok: false, error };
+    },
   };
 };
 
@@ -123,17 +163,21 @@ const touch = async (el: HTMLElement) => {
   await vi.advanceTimersByTimeAsync(200);
 };
 const tap = async (popup: FakePopupWindow, id: string) => touch(key(popup, id));
-const mic = (popup: FakePopupWindow) => [...key(popup, 'dictate').classList].filter((c) => ['listening', 'recognizing', 'err', 'fetching'].includes(c));
+const mic = (popup: FakePopupWindow) =>
+  [...key(popup, 'dictate').classList].filter((c) => ['listening', 'recognizing', 'err', 'fetching'].includes(c));
 const pre = (popup: FakePopupWindow) => shadowOf(popup).querySelector('.comp.on .pre')?.textContent || null;
 const row = (popup: FakePopupWindow, name: string) =>
-  [...shadowOf(popup).querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.querySelector('.name')?.textContent === name);
+  [...shadowOf(popup).querySelectorAll<HTMLElement>('.panel .row')].find(
+    (r) => r.querySelector('.name')?.textContent === name,
+  );
 const panel = (popup: FakePopupWindow) => shadowOf(popup).querySelector('.panel')!;
 /** Settings → Dictation, from the keys. */
 const openTab = async (popup: FakePopupWindow) => {
   await tap(popup, 'settings');
   await touch([...panel(popup).querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === 'Dictation')!);
 };
-const flipDictation = async (popup: FakePopupWindow) => touch(row(popup, 'Dictation')!.querySelector<HTMLElement>('.switch')!);
+const flipDictation = async (popup: FakePopupWindow) =>
+  touch(row(popup, 'Dictation')!.querySelector<HTMLElement>('.switch')!);
 const closePanel = async (popup: FakePopupWindow) => touch(panel(popup).querySelector<HTMLElement>('.opt.close')!);
 
 describe('dictation controller', () => {
@@ -154,12 +198,19 @@ describe('dictation controller', () => {
     const states: string[] = [];
     const texts: string[] = [];
     let answer: (phase: Partial<BridgeReply>) => void = () => {};
-    const held = (async (op: string, args: Record<string, unknown> = {}) => {
+    const held = async (op: string, args: Record<string, unknown> = {}) => {
       if (op !== 'dictation.wait') return call(op, args);
       calls.push([op, args]);
-      return new Promise<BridgeReply>((resolve) => { answer = (r) => resolve({ id: 0, ok: true, ...r }); });
+      return new Promise<BridgeReply>((resolve) => {
+        answer = (r) => resolve({ id: 0, ok: true, ...r });
+      });
+    };
+    const d = createDictation({
+      call: held,
+      onState: (s) => states.push(s),
+      onText: (t) => texts.push(t),
+      log: () => {},
     });
-    const d = createDictation({ call: held, onState: (s) => states.push(s), onText: (t) => texts.push(t), log: () => {} });
     d.toggle('en');
     await vi.advanceTimersByTimeAsync(0);
     expect(d.state()).toBe('listening');
@@ -183,8 +234,14 @@ describe('dictation controller', () => {
     const errors: string[] = [];
     const listening: boolean[] = [];
     replies['dictation.start'] = () => ({ ok: false, error: 'no-model' });
-    const d = createDictation({ call, onState: () => {}, onText: () => {}, log: (l) => lines.push(l), onError: (c) => errors.push(c),
-      onListening: (on) => listening.push(on) });
+    const d = createDictation({
+      call,
+      onState: () => {},
+      onText: () => {},
+      log: (l) => lines.push(l),
+      onError: (c) => errors.push(c),
+      onListening: (on) => listening.push(on),
+    });
     d.toggle('en');
     await vi.advanceTimersByTimeAsync(0);
     expect(d.state()).toBe('error');
@@ -197,11 +254,21 @@ describe('dictation controller', () => {
 
   it('reports the bars while listening, and listening starting and stopping', async () => {
     const { replies, call } = fake();
-    const answers: Partial<BridgeReply>[] = [{ phase: 'listening', seq: 1, bars: [0, 0, 0, 0, 5] }, { phase: 'done', text: 'x' }];
+    const answers: Partial<BridgeReply>[] = [
+      { phase: 'listening', seq: 1, bars: [0, 0, 0, 0, 5] },
+      { phase: 'done', text: 'x' },
+    ];
     replies['dictation.wait'] = () => answers.shift()!;
     const levels: number[][] = [];
     const listening: boolean[] = [];
-    const d = createDictation({ call, onState: () => {}, onText: () => {}, log: () => {}, onLevels: (l) => levels.push(l), onListening: (on) => listening.push(on) });
+    const d = createDictation({
+      call,
+      onState: () => {},
+      onText: () => {},
+      log: () => {},
+      onLevels: (l) => levels.push(l),
+      onListening: (on) => listening.push(on),
+    });
     d.toggle('en');
     await vi.advanceTimersByTimeAsync(0);
     expect(levels).toEqual([[0, 0, 0, 0, 5]]);
@@ -231,7 +298,10 @@ describe('dictation controller', () => {
     replies['dictation.wait'] = () => ({ phase: 'transcribing' });
     let held = false;
     const slow = async (op: string, args: Record<string, unknown> = {}) => {
-      if (op === 'dictation.wait' && held) return new Promise<BridgeReply>((resolve) => setTimeout(() => resolve({ id: 0, ok: false, error: 'timeout' }), 20_000));
+      if (op === 'dictation.wait' && held)
+        return new Promise<BridgeReply>((resolve) =>
+          setTimeout(() => resolve({ id: 0, ok: false, error: 'timeout' }), 20_000),
+        );
       held = op === 'dictation.wait' || held;
       return call(op, args);
     };
@@ -254,7 +324,10 @@ describe('dictation controller', () => {
 
   it('a wait that times out on the page is asked again', async () => {
     const { calls, replies, call } = fake();
-    const answers: Partial<BridgeReply>[] = [{ ok: false, error: 'timeout' }, { phase: 'done', text: 'ok' }];
+    const answers: Partial<BridgeReply>[] = [
+      { ok: false, error: 'timeout' },
+      { phase: 'done', text: 'ok' },
+    ];
     replies['dictation.wait'] = () => answers.shift()!;
     const texts: string[] = [];
     const d = createDictation({ call, onState: () => {}, onText: (t) => texts.push(t), log: () => {} });
@@ -337,7 +410,7 @@ describe('dictation on the page', () => {
     expect(typed()).toBe('あ今日は晴れ');
   });
 
-  it('where dictated Japanese goes is each reading keyboard\'s own option, shown while dictation is on', async () => {
+  it("where dictated Japanese goes is each reading keyboard's own option, shown while dictation is on", async () => {
     const { popup, api, sidecar } = setup({ dictation: true });
     const dictationRow = () => row(popup, 'Dictation');
     await tap(popup, 'settings');
@@ -346,14 +419,21 @@ describe('dictation on the page', () => {
     api.debug.use('ja/jis');
     await tap(popup, 'settings');
     const choices = () => [...dictationRow()!.querySelectorAll<HTMLElement>('.opt')];
-    expect(choices().map((o) => [o.textContent, o.classList.contains('on')])).toEqual([['Candidates', true], ['Type at once', false]]);
+    expect(choices().map((o) => [o.textContent, o.classList.contains('on')])).toEqual([
+      ['Candidates', true],
+      ['Type at once', false],
+    ]);
     await touch(choices()[1]!);
-    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject(
-      { settings: { keyboardOptions: { 'ja/jis': { dictationCommit: true } } } });
+    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject({
+      settings: { keyboardOptions: { 'ja/jis': { dictationCommit: true } } },
+    });
   });
 
   it('Japanese, typed at once: the reading is sent first, then the text', async () => {
-    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboardOptions: { 'ja/12key': { dictationCommit: true } } });
+    const { popup, api, sidecar, typed } = setup({
+      dictation: true,
+      keyboardOptions: { 'ja/12key': { dictationCommit: true } },
+    });
     api.debug.use('ja/12key');
     await tap(popup, 'あ');
     await tap(popup, 'dictate');
@@ -376,15 +456,22 @@ describe('dictation on the page', () => {
   it('while listening, the speech level moves the bars; recognizing shows the ring', async () => {
     const { popup, sidecar } = setup({ dictation: true });
     await tap(popup, 'dictate');
-    const bars = () => [...key(popup, 'dictate').querySelectorAll<HTMLElement>('.mic-bars i')].map((i) => i.style.transform);
-    expect(sidecar.asked.filter((r) => r.op === 'dictation.wait').at(-1)).toMatchObject({ phase: 'listening', seq: -1 });
+    const bars = () =>
+      [...key(popup, 'dictate').querySelectorAll<HTMLElement>('.mic-bars i')].map((i) => i.style.transform);
+    expect(sidecar.asked.filter((r) => r.op === 'dictation.wait').at(-1)).toMatchObject({
+      phase: 'listening',
+      seq: -1,
+    });
     await sidecar.phase({ phase: 'listening', seq: 3, bars: [0, 0, 2, 8, 4] });
     expect(bars()).toEqual(['scaleY(0.140)', 'scaleY(0.140)', 'scaleY(0.355)', 'scaleY(1.000)', 'scaleY(0.570)']);
     expect(sidecar.asked.filter((r) => r.op === 'dictation.wait').at(-1)).toMatchObject({ phase: 'listening', seq: 3 });
     await sidecar.phase({ phase: 'transcribing' });
     expect(mic(popup)).toEqual(['recognizing']);
     expect(bars().every((t) => t === 'scaleY(0.140)')).toBe(true); // flat for next time
-    expect(sidecar.asked.filter((r) => r.op === 'dictation.wait').at(-1)).toMatchObject({ phase: 'transcribing', seq: 3 });
+    expect(sidecar.asked.filter((r) => r.op === 'dictation.wait').at(-1)).toMatchObject({
+      phase: 'transcribing',
+      seq: 3,
+    });
   });
 
   it('continuous: each phrase is typed as it comes, joined by the space rule, until the mic stops it', async () => {
@@ -407,21 +494,32 @@ describe('dictation on the page', () => {
   });
 
   it('a phrase that comes while a word is swiped follows it, and ends its alternatives', async () => {
-    const { popup, sidecar, typed } = setup({ dictation: true, dictationContinuous: true, keyboardOptions: { 'en/english': { swipe: true } } });
+    const { popup, sidecar, typed } = setup({
+      dictation: true,
+      dictationContinuous: true,
+      keyboardOptions: { 'en/english': { swipe: true } },
+    });
     // jsdom draws nothing: the keys on a grid of 40×30 px cells, and a swipe from one letter's centre to another's.
-    [...shadowOf(popup).querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
+    [...shadowOf(popup).querySelectorAll('.row')].forEach((row, r) =>
+      [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+        el.getBoundingClientRect = () =>
+          ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+      }),
+    );
     const at = (el: Element, type: string, x: number, y: number) => {
       const e = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
       el.dispatchEvent(e);
     };
     const swipe = async (from: string, to: string) => {
-      const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+      const centre = (id: string) => {
+        const r = key(popup, id).getBoundingClientRect();
+        return { x: r.left + 20, y: r.top + 15 };
+      };
       const [a, b] = [centre(from), centre(to)];
       at(key(popup, from), 'touchstart', a.x, a.y);
-      for (let i = 1; i <= 10; i++) at(key(popup, from), 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
+      for (let i = 1; i <= 10; i++)
+        at(key(popup, from), 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
       at(key(popup, from), 'touchend', b.x, b.y);
       await vi.advanceTimersByTimeAsync(20);
     };
@@ -456,11 +554,16 @@ describe('dictation on the page', () => {
     await tap(popup, 'dictate');
     expect(shadowOf(popup).querySelector('.panel .opt.tab.on')!.textContent).toBe('Dictation');
     expect(shadowOf(popup).querySelector('.dm .langs .item.sel')!.textContent).toContain('日本語');
-    expect(shadowOf(popup).querySelector('.dm .models .note')!.textContent).toBe('No 日本語 model downloaded yet: tap one.');
+    expect(shadowOf(popup).querySelector('.dm .models .note')!.textContent).toBe(
+      'No 日本語 model downloaded yet: tap one.',
+    );
   });
 
   it('while the engine downloads the mic is disabled, with the progress along its foot', async () => {
-    const { popup, sidecar } = setup({ dictation: true }, { engine: { state: 'downloading', done: 9_000_000, total: 18_000_000 } });
+    const { popup, sidecar } = setup(
+      { dictation: true },
+      { engine: { state: 'downloading', done: 9_000_000, total: 18_000_000 } },
+    );
     await vi.advanceTimersByTimeAsync(20);
     expect(mic(popup)).toEqual(['fetching']);
     expect(key(popup, 'dictate').querySelector<HTMLElement>('.mic-track i')!.style.transform).toBe('scaleX(0.500)');
@@ -473,11 +576,12 @@ describe('dictation on the page', () => {
     await tap(popup, 'dictate');
     expect(sidecar.ops()).toContain('dictation.start');
   });
-
 });
 
 describe('settings → Dictation', () => {
-  const items = (popup: FakePopupWindow, col: string) => [...panel(popup).querySelectorAll<HTMLElement>(`.dm .${col} .item`)];
+  const items = (popup: FakePopupWindow, col: string) => [
+    ...panel(popup).querySelectorAll<HTMLElement>(`.dm .${col} .item`),
+  ];
   const open = openTab;
 
   it('the switch turns it on, which fetches the engine', async () => {
@@ -503,22 +607,31 @@ describe('settings → Dictation', () => {
     // The title line, outside the scroller, labels the grid's columns: the graded language, speed and size.
     const head = () => [...panel(popup).querySelectorAll('.dm .models .sect.colhead > div')].map((d) => d.textContent);
     expect(head()).toEqual(['English models', 'EN', 'Speed', 'Size']);
-    expect(models().map((i) => i.querySelector('.nm')!.textContent)).toEqual(['Parakeet', 'SenseVoice Small', 'Whisper small']);
+    expect(models().map((i) => i.querySelector('.nm')!.textContent)).toEqual([
+      'Parakeet',
+      'SenseVoice Small',
+      'Whisper small',
+    ]);
     expect(models()[0]!.querySelector('.mark')!.textContent).toBe('✓ in use');
     // Handy's ratings: English error 4.1 % is A−; 30 s of speech in 2.1 s earns three of four bars.
     expect(models()[0]!.querySelector('.grade')!.textContent).toBe('A−');
     expect(models()[0]!.querySelectorAll('.speed rect:not([opacity])')).toHaveLength(3);
     expect(models()[2]!.querySelector('.mark')!.textContent).toBe('270 MB');
     // ✕ ends every row (an empty one where there is nothing to delete), ⓘ just before it.
-    expect(models().map((i) => [i.lastElementChild!.className, i.children[4]!.className])).toEqual(
-      [['x', 'ic i'], ['x', 'ic i'], ['x', 'ic i']]);
+    expect(models().map((i) => [i.lastElementChild!.className, i.children[4]!.className])).toEqual([
+      ['x', 'ic i'],
+      ['x', 'ic i'],
+      ['x', 'ic i'],
+    ]);
     expect(models()[0]!.querySelector('.x svg')).not.toBeNull();
     expect(models()[1]!.querySelector('.x svg')).toBeNull();
     await touch(items(popup, 'langs')[1]!); // 日本語
     expect(head()).toEqual(['日本語 models', 'JA', 'Speed', 'Size']);
     expect(models().map((i) => i.querySelector('.nm')!.textContent)).toEqual(['SenseVoice Small', 'Whisper small']);
     await touch(models()[0]!);
-    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject({ settings: { dictationModels: { ja: 'sensevoice' } } });
+    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject({
+      settings: { dictationModels: { ja: 'sensevoice' } },
+    });
     expect(sidecar.asked.filter((r) => r.op === 'dictation.download').at(-1)).toMatchObject({ model: 'sensevoice' });
     await touch(items(popup, 'langs')[0]!);
     await touch(models()[0]!.querySelector<HTMLElement>('.x')!); // delete Parakeet, not choose it
@@ -526,7 +639,7 @@ describe('settings → Dictation', () => {
     expect(sidecar.asked.filter((r) => r.op === 'dictation.download')).toHaveLength(1);
   });
 
-  it('ⓘ shows a model\'s details while hovered, or after a tap until the next one', async () => {
+  it("ⓘ shows a model's details while hovered, or after a tap until the next one", async () => {
     const { popup, sidecar } = setup({ dictation: true });
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
@@ -534,8 +647,13 @@ describe('settings → Dictation', () => {
     const pop = () => panel(popup).querySelector('.dm-pop');
     icon.dispatchEvent(new Event('mouseover', { bubbles: true }));
     const lines = () => [...pop()!.children].map((c) => c.textContent);
-    expect(lines()).toEqual(['Parakeet', 'English · 730 MB · ~1 GB RAM', 'English.', 'CC BY 4.0 · NVIDIA · 8-bit GGUF by handy-computer',
-      'Handy, not the Frame: 30 s in 2.1 s · EN error 4.1%']);
+    expect(lines()).toEqual([
+      'Parakeet',
+      'English · 730 MB · ~1 GB RAM',
+      'English.',
+      'CC BY 4.0 · NVIDIA · 8-bit GGUF by handy-computer',
+      'Handy, not the Frame: 30 s in 2.1 s · EN error 4.1%',
+    ]);
     items(popup, 'langs')[0]!.dispatchEvent(new Event('mouseover', { bubbles: true }));
     expect(pop()).toBeNull();
     await touch(icon); // touch has no hover: a tap opens it
@@ -551,8 +669,13 @@ describe('settings → Dictation', () => {
   });
 
   it('Downloaded lists what is on disk, which of your languages use it, and deletes only by ✕', async () => {
-    const { popup, sidecar } = setup({ dictation: true }, {
-      models: { 'whisper-small': ready, parakeet: ready, sensevoice: { state: 'downloading', done: 0, total: 200 } }, choices: { ja: 'whisper-small' } });
+    const { popup, sidecar } = setup(
+      { dictation: true },
+      {
+        models: { 'whisper-small': ready, parakeet: ready, sensevoice: { state: 'downloading', done: 0, total: 200 } },
+        choices: { ja: 'whisper-small' },
+      },
+    );
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
     const downloaded = items(popup, 'langs').at(-1)!;
@@ -561,8 +684,13 @@ describe('settings → Dictation', () => {
     await touch(downloaded);
     const head = [...panel(popup).querySelectorAll('.dm .models .colhead > div')].map((d) => d.textContent);
     expect(head).toEqual(['Downloaded · 999 MB', 'Used for', 'Size']); // the finished ones
-    expect(items(popup, 'models').map((i) => ['.nm', '.used', '.mark'].map((c) => i.querySelector(c)!.textContent))).toEqual([
-      ['Whisper small', '日本語', '✓'], ['Parakeet', 'English', '✓'], ['SenseVoice Small', 'not used', '0%']]);
+    expect(
+      items(popup, 'models').map((i) => ['.nm', '.used', '.mark'].map((c) => i.querySelector(c)!.textContent)),
+    ).toEqual([
+      ['Whisper small', '日本語', '✓'],
+      ['Parakeet', 'English', '✓'],
+      ['SenseVoice Small', 'not used', '0%'],
+    ]);
     expect(items(popup, 'models').every((i) => i.lastElementChild!.querySelector('svg'))).toBe(true); // ✕ on each
     await touch(items(popup, 'models')[0]!); // a row tap chooses nothing
     expect(sidecar.ops()).not.toContain('settings.save');
@@ -570,8 +698,11 @@ describe('settings → Dictation', () => {
     expect(sidecar.asked.filter((r) => r.op === 'dictation.delete').at(-1)).toMatchObject({ model: 'whisper-small' });
   });
 
-  it('any-language models are in every language\'s list, graded for it', async () => {
-    const { popup } = setup({ dictation: true }, { models: { ...READY.models, 'whisper-small': ready }, choices: { en: 'whisper-small', ja: 'whisper-small' } });
+  it("any-language models are in every language's list, graded for it", async () => {
+    const { popup } = setup(
+      { dictation: true },
+      { models: { ...READY.models, 'whisper-small': ready }, choices: { en: 'whisper-small', ja: 'whisper-small' } },
+    );
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
     const whisper = items(popup, 'models').find((i) => i.querySelector('.nm')!.textContent === 'Whisper small')!;
@@ -605,11 +736,16 @@ describe('settings → Dictation', () => {
     at('touchstart', 200);
     at('touchend', 203); // a tap
     await vi.advanceTimersByTimeAsync(50);
-    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject({ settings: { dictationModels: { en: 'whisper-small' } } });
+    expect(sidecar.asked.filter((r) => r.op === 'settings.save').at(-1)).toMatchObject({
+      settings: { dictationModels: { en: 'whisper-small' } },
+    });
   });
 
   it('a downloading model shows a bar along its row: a stripe until bytes come, then its share', async () => {
-    const { popup, sidecar } = setup({ dictation: true }, { models: { ...READY.models, sensevoice: { state: 'downloading', done: 0, total: 200 } } });
+    const { popup, sidecar } = setup(
+      { dictation: true },
+      { models: { ...READY.models, sensevoice: { state: 'downloading', done: 0, total: 200 } } },
+    );
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
     const bar = () => items(popup, 'models')[1]!.querySelector<HTMLElement>('.dlbar');
@@ -636,4 +772,3 @@ describe('settings → Dictation', () => {
     expect(sidecar.asked.filter((r) => r.op === 'dictation.download').at(-1)).not.toHaveProperty('model');
   });
 });
-
