@@ -1,6 +1,6 @@
 {
   "name": "polykey",
-  "version": "0.0.1",
+  "version": "0.0.0-development",
   "description": "Modular on-screen keyboard for the Valve Steam Frame, drawn inside Steam's own keyboard popup",
   "private": true,
   "type": "module",

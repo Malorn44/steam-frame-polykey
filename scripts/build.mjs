@@ -1,13 +1,22 @@
 // Build dist/stage/ (bundle.js, probe.js, VERSION, sidecar/): the tree deploy.sh copies to the Frame.
-// Usage: node scripts/build.mjs [--debug]   (--debug: unminified, CSS as written)
+// Usage: node scripts/build.mjs [--debug] [--version X.Y.Z]   (npm run build -- --version X.Y.Z)
+//   --debug    unminified, CSS as written
+//   --version  a release build: exactly this version (release-please picks it from the commits)
+// Without --version the build is a dev build, named after the last release tag (scripts/version.mjs).
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { cssMinify } from './css-minify.mjs';
+import { SEMVER, devVersion } from './version.mjs';
 
-const debug = process.argv.includes('--debug');
-const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
-const version = `${pkg.version}+${stamp}${debug ? '.debug' : ''}`;
+const args = process.argv.slice(2);
+const debug = args.includes('--debug');
+const at = args.indexOf('--version');
+const release = at >= 0 ? (args[at + 1] ?? '') : null;
+if (release !== null && !SEMVER.test(release)) {
+  console.error(`build: --version needs a version like 1.2.3 or 1.2.3-rc.1, not "${release}"`);
+  process.exit(2);
+}
+const version = `${release ?? devVersion()}${debug ? (release ? '+debug' : '.debug') : ''}`;
 const stage = 'dist/stage';
 
 rmSync(stage, { recursive: true, force: true });
