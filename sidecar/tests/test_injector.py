@@ -181,6 +181,26 @@ def test_console_forwarding_defaults_to_dev_builds_and_the_settings_switch(tmp_p
     assert cli.forward_console(None) is True
 
 
+def test_another_version_left_in_steam_is_replaced(tmp_path):
+    async def main():
+        fake = await FakeSteam().start()
+        fake.injected, fake.page_version, fake.injects_version = True, "0.1.0", "0.2.0"
+        out = io.StringIO()
+        cfg = fast_config(fake, tmp_path)
+        (cfg.bundle.parent / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+        stop, task = await start_service(cfg, Log(out))
+        try:
+            await until(lambda: fake.inject_count == 1)
+            await asyncio.sleep(0.4)  # a safety check later, the right version is left alone
+            assert fake.inject_count == 1 and fake.page_version == "0.2.0"
+            assert "Steam runs polykey 0.1.0; injecting 0.2.0" in out.getvalue()
+        finally:
+            await stop_service(stop, task)
+            await fake.stop()
+
+    run(main())
+
+
 def test_missing_bundle_is_reported_and_nothing_is_injected(tmp_path):
     async def main():
         fake = await FakeSteam().start()

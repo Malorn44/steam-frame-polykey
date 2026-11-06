@@ -4,6 +4,7 @@ Event-driven: re-checks on new execution contexts (debounced), with a slow safet
 with backoff when Steam restarts. On stop it calls __polykey.uninstall(). Forwards "[polykey]"
 console lines to the journal when asked (Config.forward_console: a dev build, by default).
 The service also runs the updater (updates.py).
+A polykey of another version found in the page is replaced with ours.
 """
 
 from __future__ import annotations
@@ -31,9 +32,10 @@ TARGET_TITLE = "SharedJSContext"
 LOG_PREFIX = "[polykey]"
 SOURCE_URL = "polykey/bundle.js"
 
+# The version of the polykey running in the page, or false when there is none.
 CHECK_EXPRESSION = (
     "(() => { const p = globalThis.__polykey;"
-    " return typeof p === 'object' && p !== null && p.state !== 'uninstalled'; })()"
+    " return typeof p === 'object' && p !== null && p.state !== 'uninstalled' && String(p.version); })()"
 )
 STATUS_EXPRESSION = "(() => { const p = globalThis.__polykey; return p ? `${p.version} (${p.state})` : 'missing'; })()"
 UNINSTALL_EXPRESSION = (
@@ -157,14 +159,26 @@ async def inject(session: CdpSession, cfg: Config, log: Log) -> bool:
     return True
 
 
+def bundle_version(bundle: Path) -> Optional[str]:
+    """The version of the bundle we inject (its build's VERSION file), if it has one."""
+    try:
+        return (bundle.parent / "VERSION").read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
 async def ensure_injected(session: CdpSession, cfg: Config, log: Log) -> bool:
     try:
-        present = await session.evaluate(CHECK_EXPRESSION)
+        running = await session.evaluate(CHECK_EXPRESSION)
     except (CdpError, asyncio.TimeoutError) as error:
         log.state(f"check failed ({type(error).__name__})")
         return False
-    if present is True:
-        return True
+    if isinstance(running, str):
+        wanted = bundle_version(cfg.bundle)
+        if wanted is None or running == wanted:
+            return True
+        # Another version is in the page (an update whose old sidecar could not remove it): replace it.
+        log.info(f"Steam runs polykey {running}; injecting {wanted}")
     return await inject(session, cfg, log)
 
 
