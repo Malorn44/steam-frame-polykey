@@ -224,14 +224,19 @@ class Updater:
         return self._settings().get("autoUpdate") is not False
 
     def source(self) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
-        """(base URL, allowed hosts, allowed schemes): GitHub, or settings.json "updateUrl"."""
+        """(base URL, allowed hosts, allowed schemes): GitHub, or settings.json "updateUrl" when it is a
+        usable http(s) URL."""
         url = self._settings().get("updateUrl")
-        parts = urlsplit(url) if isinstance(url, str) else None
-        if parts and parts.scheme in ("http", "https") and parts.hostname:
+        try:
+            parts = urlsplit(url) if isinstance(url, str) else None
+            host = parts.hostname if parts else None
+        except ValueError:  # "http://[bad": never leave a check saying "checking"
+            parts = host = None
+        if parts and parts.scheme in ("http", "https") and host:
             base = url if url.endswith("/") else url + "/"
             return (
                 base,
-                (parts.hostname.lower(), *GITHUB_HOSTS),
+                (host.lower(), *GITHUB_HOSTS),
                 (("http", "https") if parts.scheme == "http" else ("https",)),
             )
         return DEFAULT_SOURCE, GITHUB_HOSTS, ("https",)

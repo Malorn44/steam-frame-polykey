@@ -13,7 +13,7 @@ from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import Updater, parse_manifest, UpdateError
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
 from polykey.versions import Versions
 from test_versions import make_tarball
 
@@ -316,6 +316,16 @@ def test_rollback_from_settings_goes_back_and_restarts(home, key, tmp_path):
         assert (await updater(versions, settings, key).handle("update.rollback", {}))["error"] == "no-previous"
 
     run(main())
+
+
+def test_an_unusable_update_url_means_the_default_source(home, key):
+    versions, settings = home
+    up = updater(versions, settings, key)
+    for url in ("http://[bad", "ftp://example.com/", "nonsense", 3):
+        settings.write_text(json.dumps({"updateUrl": url}))
+        assert up.source() == (DEFAULT_SOURCE, GITHUB_HOSTS, ("https",))
+    settings.write_text(json.dumps({"updateUrl": "http://192.168.1.5:8000/r"}))
+    assert up.source() == ("http://192.168.1.5:8000/r/", ("192.168.1.5", *GITHUB_HOSTS), ("http", "https"))
 
 
 def test_a_malformed_redirect_ends_the_check_instead_of_hanging_it(home, key, tmp_path):
