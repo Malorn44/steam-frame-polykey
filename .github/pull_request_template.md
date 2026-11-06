@@ -1,5 +1,5 @@
 <!-- The title is a conventional commit, e.g. `fix(ime): keep the reading after a cancelled conversion`.
-     PRs are squash-merged, so the title becomes the commit on main. -->
+     PRs are squash-merged, so the title becomes the commit on main. See docs/CONTRIBUTING.md. -->
 
 ## What and why
 
