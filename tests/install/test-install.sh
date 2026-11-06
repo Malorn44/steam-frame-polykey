@@ -6,8 +6,9 @@
 #
 # Covers --check, a first install, running it again, an update, --rollback, a manifest not signed by
 # the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, the
-# layout from before releases, --uninstall and --uninstall --purge; and what release.sh makes: the
-# same tarball from the same commit, what the tarball carries, and latest.json.
+# layout from before releases, --uninstall and --uninstall --purge; what release.sh makes: the same
+# tarball from the same commit, what the tarball carries, and latest.json; and sign-release.sh, which
+# signs every release here (with the throwaway key, never ~/.ssh/polykey-release).
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -39,9 +40,8 @@ release() {  # release VERSION DIR: build, sign and serve a release under /DIR
   cp -R dist/release "$T/serve/$2"
   sign "$T/serve/$2"
 }
-sign() {  # sign DIR: DIR/latest.json.sig, as the release key would
-  rm -f "$1/latest.json.sig"
-  ssh-keygen -q -Y sign -f "$T/key" -n polykey-release "$1/latest.json"
+sign() {  # sign DIR: DIR/latest.json.sig, through sign-release.sh with the throwaway key
+  POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --local "$1" >/dev/null
 }
 echo "building releases"
 release 0.1.0 r1
@@ -67,6 +67,17 @@ tarball_sha=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
 expect "latest.json names the release, its URL, size and sha256, and the sha256 of install.sh" \
   '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"name\": \"polykey\", \"version\": \"0.1.0\", \"url\": sys.argv[2], \"size\": int(sys.argv[3]), \"sha256\": sys.argv[4], \"installer\": sys.argv[5]})" "$T/serve/r1/latest.json" "http://127.0.0.1:$port/r1/polykey-0.1.0.tar.gz" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha" "$installer_sha"'
 expect "SHA256SUMS covers the tarball, install.sh and latest.json" '(cd "$T/serve/r1" && sha256sum -c --quiet SHA256SUMS) && [ "$(wc -l < "$T/serve/r1/SHA256SUMS")" = 3 ]'
+
+echo "sign-release.sh"
+verify() { ssh-keygen -Y verify -f "$T/allowed_signers" -I polykey-release -n polykey-release -s "$1.sig" < "$1" >/dev/null 2>&1; }
+expect "--local signs latest.json with the key allowed_signers names" 'verify "$T/serve/r1/latest.json"'
+ssh-keygen -q -t ed25519 -N '' -C polykey-test -f "$T/other-key"
+cp -R "$T/serve/r1" "$T/other"
+expect "--local refuses a key allowed_signers does not name, and leaves no signature" \
+  '! POLYKEY_RELEASE_KEY="$T/other-key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --local "$T/other" > "$T/out" 2>&1 && grep -q "does not check out" "$T/out" && [ ! -e "$T/other/latest.json.sig" ]'
+cp "$T/allowed_signers" "$T/signers-before"
+expect "--init will not replace a key, and leaves allowed_signers as it was" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --init > "$T/out" 2>&1 && grep -q "already exists" "$T/out" && cmp -s "$T/allowed_signers" "$T/signers-before"'
 (cd "$T/serve" && exec "$PYTHON" -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
 server=$!
 for _ in $(seq 50); do curl -fs "http://127.0.0.1:$port/" >/dev/null 2>&1 && break; sleep 0.1; done
