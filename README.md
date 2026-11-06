@@ -25,8 +25,8 @@ Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json
 
 ```sh
 npm install
-python3 -m venv .venv && .venv/bin/pip install aiohttp==3.9.3 pytest   # aiohttp matches the Frame
-npm run check        # typecheck, vitest, pytest, build
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
+npm run check        # lint (ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
 ```
 
 ## Deploy to the Frame

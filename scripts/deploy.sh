@@ -25,7 +25,7 @@ mode=service
 tail=1
 for arg in "$@"; do
   case "$arg" in
-    --fg) mode=fg ;;
+    --fg) mode="fg" ;;
     --no-tail) tail=0 ;;
     --stop) mode=stop ;;
     --probe) mode=probe ;;
@@ -34,6 +34,8 @@ for arg in "$@"; do
   esac
 done
 
+# The commands are built here on purpose (local values like $DEST expand before ssh).
+# shellcheck disable=SC2029
 remote() { ssh "${SSH_OPTS[@]}" "$HOST" "$@"; }
 
 if [ "$mode" = stop ]; then
@@ -56,6 +58,7 @@ if ! npm run --silent check >/tmp/polykey-check.log 2>&1; then
 fi
 
 echo "→ other keyboards on $HOST (read-only)"
+# shellcheck disable=SC2016  # expands on the Frame
 remote 'printf "  frame-jp-keyboard service: %s\n" "$(systemctl --user is-active frame-jp-keyboard 2>/dev/null || true)"
         if pgrep -f "/bin/framekeyboard( |$)" >/dev/null; then echo "  TaiKeid Full Keyboard: running"; else echo "  TaiKeid Full Keyboard: not running"; fi'
 

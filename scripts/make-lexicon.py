@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sidecar"))
-from polykey.lexicon import word_hash  # noqa: E402
+from polykey.lexicon import word_hash
 
 KEEP = 60_000
 blocked = {line.strip() for line in Path(sys.argv[2]).read_text(encoding="utf-8").splitlines() if not line.startswith("#")}

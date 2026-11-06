@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sidecar"))
-from polykey.lexicon import word_hash  # noqa: E402
+from polykey.lexicon import word_hash
 
 section = "BLOCK"
 hashes = set()
