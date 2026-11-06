@@ -8,7 +8,10 @@ const recorder = () => {
 
 const heldAfter = (events: [number, boolean][]): number[] => {
   const held = new Set<number>();
-  for (const [code, down] of events) (down ? held.add(code) : held.delete(code));
+  for (const [code, down] of events) {
+    if (down) held.add(code);
+    else held.delete(code);
+  }
   return [...held];
 };
 

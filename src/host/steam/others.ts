@@ -24,13 +24,17 @@ export const fjkActive = (g: SteamGlobals): boolean => {
   return read(fjk, 'enabled') !== false;
 };
 
+/** A page value as short log text: a string or number as it is, anything else '?'. */
+const text = (value: unknown, max: number): string =>
+  (typeof value === 'string' || typeof value === 'number' ? String(value) : '?').slice(0, max);
+
 /** Log-safe descriptions of the other keyboards present in the page. */
 export const otherKeyboards = (g: SteamGlobals): string[] => {
   const found: string[] = [];
   const fjk = read(g, FJK_GLOBAL);
   if (typeof fjk === 'object' && fjk !== null) {
-    const version = String(read(fjk, 'version') ?? '?').slice(0, 40);
-    const state = String(read(fjk, 'state') ?? '?').slice(0, 20);
+    const version = text(read(fjk, 'version'), 40);
+    const state = text(read(fjk, 'state'), 20);
     found.push(`frame-jp-keyboard ${version} (state=${state}, enabled=${String(read(fjk, 'enabled'))})`);
   }
   if (read(g, FULL_KEYBOARD_GLOBAL) !== undefined) found.push('TaiKeid Full Keyboard replacement hooks');

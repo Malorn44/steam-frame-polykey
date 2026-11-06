@@ -18,7 +18,7 @@ const communityCdn = (g: SteamGlobals): string => {
     const found = req as (((id: string) => unknown) & { m: Record<string, unknown> }) | null;
     for (const id of Object.keys(found?.m ?? {})) {
       if (!String(found!.m[id]).includes('COMMUNITY_CDN_URL:')) continue;
-      for (const value of Object.values((found!(id) ?? {}) as object)) {
+      for (const value of Object.values(found!(id) ?? {})) {
         const url = (value as { COMMUNITY_CDN_URL?: unknown } | null)?.COMMUNITY_CDN_URL;
         if (typeof url === 'string' && /^https:\/\//.test(url)) return (cdn = url);
       }

@@ -474,9 +474,9 @@ export const createView = (
   };
   const openTrail = (): void => {
     if (!swipe) return;
-    const svg = doc.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
+    const svg = doc.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'trail');
-    const line = doc.createElementNS(SVG_NS, 'polyline') as SVGPolylineElement;
+    const line = doc.createElementNS(SVG_NS, 'polyline');
     svg.append(line);
     root.append(svg);
     const origin = root.getBoundingClientRect();

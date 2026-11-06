@@ -16,7 +16,7 @@ describe('listenTouch', () => {
     const el = document.createElement('div');
     outer.append(el);
     document.body.append(outer);
-    let t = 0;
+    const t = 0;
     const guard = touchGuard(() => t);
     const seen: string[] = [];
     outer.addEventListener('touchmove', () => seen.push('outer saw move'));

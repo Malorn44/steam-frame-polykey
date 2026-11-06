@@ -25,8 +25,9 @@ const bundle = async (): Promise<string> => {
 /** A window standing in for SharedJSContext; console output is dropped. */
 const steamWindow = () => {
   const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only' });
-  dom.window.console.log = () => {};
-  dom.window.console.warn = () => {};
+  const console = dom.window.console as Console;
+  console.log = () => {};
+  console.warn = () => {};
   return dom.window;
 };
 

@@ -1,0 +1,13 @@
+{
+  "name": "polykey-eslint",
+  "private": true,
+  "description": "ESLint for polykey, apart from the main install: typescript-eslint needs TypeScript 6's compiler API, and the project builds with TypeScript 7",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0"
+  }
+}

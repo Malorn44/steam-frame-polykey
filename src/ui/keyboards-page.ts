@@ -218,7 +218,7 @@ export const buildKeyboardsPage = (
       mine.list.scrollTop += t.y < r.top + EDGE_PX ? -EDGE_STEP_PX : t.y > r.bottom - EDGE_PX ? EDGE_STEP_PX : 0;
       const shown = others(start.drag.id);
       const at = indexAt(t.y, start.drag.id);
-      if (shown[at]) mine.list.insertBefore(ph, shown[at]!);
+      if (shown[at]) mine.list.insertBefore(ph, shown[at]);
       else mine.list.append(ph);
     } else ph.remove();
   };

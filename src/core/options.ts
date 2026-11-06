@@ -32,7 +32,7 @@ const hasReading = (keyboard: KeyboardDef | undefined): boolean => keyboard?.com
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
   const own = keyboard?.options ?? {};
   const pick = (name: OptionName): boolean =>
-    name in own ? (typeof saved?.[name] === 'boolean' ? saved[name]! : own[name]!) : false;
+    name in own ? (typeof saved?.[name] === 'boolean' ? saved[name] : own[name]!) : false;
   return {
     tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
     qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: hasReading(keyboard) && saved?.dictationCommit === true,
