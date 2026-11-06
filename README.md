@@ -118,4 +118,4 @@ contrib/        polykey.service
 
 ## License
 
-polykey is MIT licensed: see [LICENSE](LICENSE). The code, data, icons and colour schemes it includes from other projects keep their own licences, listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and report security issues as [SECURITY.md](SECURITY.md) describes.
+polykey is MIT licensed: see [LICENSE](LICENSE). The code, data, icons and colour schemes it includes from other projects keep their own licences, listed in [docs/THIRD-PARTY-NOTICES.md](docs/THIRD-PARTY-NOTICES.md). Contributions are welcome: see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md), and report security issues as [docs/SECURITY.md](docs/SECURITY.md) describes.
