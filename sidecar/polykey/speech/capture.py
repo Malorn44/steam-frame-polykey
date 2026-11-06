@@ -107,7 +107,7 @@ class Recorder:
         try:
             self._proc = await spawn(self.tools.record, *AUDIO, "-", stdout=True)
         except OSError:
-            raise SpeechError("no-recorder")
+            raise SpeechError("no-recorder") from None
         self.route = "default"
 
     async def _start_raw(self) -> bool:
@@ -168,7 +168,7 @@ class Recorder:
         try:
             return await asyncio.wait_for(self._read(), READ_TIMEOUT)
         except asyncio.TimeoutError:
-            raise SpeechError("no-microphone")
+            raise SpeechError("no-microphone") from None
 
     async def stop(self) -> None:
         proc, self._proc = self._proc, None

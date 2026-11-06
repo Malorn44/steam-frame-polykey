@@ -25,8 +25,8 @@ Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json
 
 ```sh
 npm install
-python3 -m venv .venv && .venv/bin/pip install aiohttp==3.9.3 pytest   # aiohttp matches the Frame
-npm run check        # typecheck, vitest, pytest, build
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
+npm run check        # lint (ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
 ```
 
 ## Deploy to the Frame
@@ -115,3 +115,7 @@ contrib/        polykey.service
 - The English word list comes from AOSP (Apache-2.0, `packs/en/LICENSE.words`).
 - Emoji data comes from Unicode's `emoji-test.txt` (Unicode License v3, `packs/emoji/LICENSE.unicode`).
 - The themes follow editor colour schemes (Catppuccin, Solarized, gruvbox, Nord, Tokyo Night, Rosé Pine, GitHub Primer, Dracula, Night Owl), all MIT; each one's source and any colour of our own is in [`packs/themes/CREDITS.md`](packs/themes/CREDITS.md).
+
+## License
+
+polykey is MIT licensed: see [LICENSE](LICENSE). The code, data, icons and colour schemes it includes from other projects keep their own licences, listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and report security issues as [SECURITY.md](SECURITY.md) describes.

@@ -106,10 +106,10 @@ class Engine:
             line = await asyncio.wait_for(proc.stdout.readline(), limit)
         except asyncio.TimeoutError:
             await self._stop()  # a stuck helper is not reused
-            raise SpeechError("helper-timeout")
+            raise SpeechError("helper-timeout") from None
         except (OSError, ValueError):
             await self._stop()
-            raise SpeechError("helper-failed")
+            raise SpeechError("helper-failed") from None
         try:
             reply = json.loads(line) if line else None
         except ValueError:

@@ -1,0 +1,6 @@
+# The sidecar's test and lint tools: python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+aiohttp==3.9.3        # the Frame's (SteamOS ships it; the sidecar uses the system Python)
+pytest==9.2.0
+ruff==0.17.4          # lint only (ruff.toml)
+shellcheck-py==0.11.0.1   # shellcheck for scripts/*.sh
+actionlint-py==1.7.12.25  # actionlint for .github/workflows

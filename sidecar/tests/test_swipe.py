@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import math
 import random
@@ -45,7 +46,7 @@ def traced(word: str, rng: random.Random | None = None, noise: float = 0.0) -> l
     corners = [(KEYS[k][0] + (rng.gauss(0, noise) * KEY_WIDTH if rng else 0),
                 KEYS[k][1] + (rng.gauss(0, noise * 0.7) * KEY_WIDTH if rng else 0)) for k in keys]
     points = []
-    for (x0, y0), (x1, y1) in zip(corners, corners[1:]):
+    for (x0, y0), (x1, y1) in itertools.pairwise(corners):
         steps = max(2, int(math.dist((x0, y0), (x1, y1)) / 6))
         points += [(x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps) for i in range(steps)]
     return points + [corners[-1]]

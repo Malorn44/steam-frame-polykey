@@ -18,7 +18,7 @@ import math
 import time
 import unicodedata
 from collections import OrderedDict
-from itertools import accumulate
+from itertools import accumulate, pairwise
 from typing import Mapping, Optional, Protocol, Sequence
 
 Point = tuple[float, float]
@@ -88,7 +88,7 @@ def resample(points: Sequence[Point], n: int = SAMPLES) -> list[Point]:
 
 
 def path_length(points: Sequence[Point]) -> float:
-    return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+    return sum(math.dist(a, b) for a, b in pairwise(points))
 
 
 def normalized(points: Sequence[Point]) -> list[Point]:

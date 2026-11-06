@@ -323,7 +323,7 @@ def test_turning_dictation_on_installs_the_engine_and_then_it_works(setup):
 
 
 def test_models_download_with_progress_and_are_deleted(setup):
-    make, out, _, settings, home, _ = setup
+    make, out, _, _settings, home, _ = setup
 
     async def main():
         runner, port = await server(slow=True)
@@ -492,7 +492,7 @@ def test_a_phrase_without_words_is_dropped_and_the_session_goes_on(continuous, m
 
 
 def test_stopping_mid_phrase_still_recognizes_it(continuous, setup, monkeypatch):
-    make, out = continuous
+    make, _out = continuous
     setup[2].write_bytes(noise(0.3) + tone(20.0))
     monkeypatch.setenv("FAKE_TEXTS", "the end")
 

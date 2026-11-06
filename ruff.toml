@@ -1,0 +1,17 @@
+# Lint only: the sidecar keeps its hand formatting (no `ruff format`).
+target-version = "py310"  # the PC test venv; the Frame runs 3.12
+line-length = 120
+extend-exclude = ["reference", "local"]
+
+[lint]
+# pyflakes, pycodestyle, bugbear, asyncio pitfalls and ruff's own checks; imports keep their hand order.
+select = ["E", "F", "W", "B", "ASYNC", "RUF"]
+ignore = [
+  "E501",    # long lines: no formatter, and some tables read better wide
+  "E731",    # small named lambdas are used on purpose
+  "E741",    # `l` for a list in short comprehensions
+  "B905",    # zip() without strict=: the pairs are built to match
+  "RUF001", "RUF002", "RUF003",  # kana, ×, … and other non-ASCII text are intended
+  "RUF005",  # tuple + (x,) concatenation reads fine
+  "ASYNC240",  # a stat or a /proc read in async code: instant, not worth a thread
+]
