@@ -44,6 +44,7 @@ npm install
 npm ci --prefix tools/eslint   # ESLint on its own TypeScript 6; the project builds with TypeScript 7
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
 npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
+npm run test:install # install.sh end to end: throwaway signed releases, served from localhost
 ```
 
 ## Deploy to the Frame

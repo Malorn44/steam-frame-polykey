@@ -141,6 +141,22 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "bundle.js: $raw bytes, $gz gzipped"
 
+  # The installer's life in a throwaway home: releases built with release.sh, signed with a throwaway
+  # key and served from localhost (the venv's python3 has aiohttp, as SteamOS does).
+  installer:
+    name: installer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt }
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+      - run: npm ci
+      - run: npm run test:install
+
   pr-title:
     name: pr title
     if: github.event_name == 'pull_request'
@@ -159,7 +175,7 @@ jobs:
 
   ci-ok:
     name: ci ok
-    needs: [lint, types, tests-page, tests-sidecar, layouts, layout, build, pr-title]
+    needs: [lint, types, tests-page, tests-sidecar, layouts, layout, build, installer, pr-title]
     if: always()
     runs-on: ubuntu-24.04
     steps:
