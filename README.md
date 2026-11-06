@@ -29,7 +29,7 @@ In Desktop Mode, open Konsole and run:
 curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh
 ```
 
-It checks what polykey needs (Python 3.10+ with aiohttp, both in SteamOS; Steam's debugger on 127.0.0.1:8080), installs the latest release into `~/.local/share/polykey/`, and starts it now and at every login. No sudo. Run it again to update. The same script, run with an option after `sh -s --`, also does:
+It checks what polykey needs (Python 3.10+ with aiohttp, both in SteamOS; Steam's debugger on 127.0.0.1:8080), installs the latest release into `~/.local/share/polykey/`, and starts it now and at every login. No sudo. From then on polykey updates itself: an hour apart it looks for a newer release, and installs one only when its signature checks out against the release key (with `"autoUpdate": false` in `~/.config/polykey/settings.json`, it only reports). Running the script again also updates. The same script, run with an option after `sh -s --`, also does:
 
 ```sh
 … | sh -s -- --check       # report what's missing; change nothing
@@ -118,7 +118,7 @@ src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
 src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
-sidecar/        Python sidecar: CDP injector, bridge, Desktop Mode clipboard (Wayland), speech/ (dictation)
+sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh, release.sh, install.sh
 contrib/        polykey.service

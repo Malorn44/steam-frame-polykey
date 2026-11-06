@@ -3,6 +3,7 @@
 Event-driven: re-checks on new execution contexts (debounced), with a slow safety check; reconnects
 with backoff when Steam restarts. On stop it calls __polykey.uninstall(). Forwards "[polykey]"
 console lines to the journal when asked (Config.forward_console: a dev build, by default).
+The service also runs the updater (updates.py).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .cdp import CdpError, CdpSession, check_loopback, find_target, list_targets
 from .desktop import DesktopPaste
 from .lexicon import Lexicons
 from .speech.session import Dictation
+from .updates import Updater
 
 TARGET_TITLE = "SharedJSContext"
 LOG_PREFIX = "[polykey]"
@@ -280,12 +282,22 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
     settings = cfg.user_dir / "settings.json"
     dictation = Dictation(log, settings)  # nothing is recorded or loaded until dictation is used
     dictation.startup()
+    updates = Updater(log, settings, installed_version(), is_dev(), INSTALL_DIR / "allowed_signers")
+    checks = asyncio.ensure_future(updates.run(stop))
     bridge = Bridge(
-        log, desktop, Lexicons([cfg.user_dir / "packs", cfg.packs]), settings, Converter(), dictation=dictation
+        log,
+        desktop,
+        Lexicons([cfg.user_dir / "packs", cfg.packs]),
+        settings,
+        Converter(),
+        dictation=dictation,
+        updates=updates,
     )
     try:
         await _serve_forever(cfg, log, stop, bridge)
     finally:
+        checks.cancel()
+        await updates.close()
         await dictation.close()  # stops the recorder and the speech helper
         if desktop is not None:
             await desktop.restore()  # never leave typed text on the desktop clipboard

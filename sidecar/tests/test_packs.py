@@ -58,6 +58,7 @@ def test_bundled_packs_are_valid(tmp_path):
         "dictation": False,
         "dictationModels": {},
         "dictationContinuous": False,
+        "autoUpdate": True,
     }
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
@@ -316,6 +317,7 @@ def test_settings_are_read_and_checked(tmp_path):
         "dictation": False,
         "dictationModels": {},
         "dictationContinuous": False,
+        "autoUpdate": True,
     }
     assert "settings.json: unknown keyboards xx/nope" in boot["errors"]
     assert "settings.json: unknown theme themes/nope" in boot["errors"]
@@ -379,6 +381,7 @@ def test_settings_flags_and_saving(tmp_path):
         "dictation": False,
         "dictationModels": {},
         "dictationContinuous": False,
+        "autoUpdate": True,
     }
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})

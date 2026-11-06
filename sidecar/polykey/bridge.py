@@ -22,6 +22,7 @@ from .packs import (
 )
 from .speech.session import OPS as DICTATION_OPS, Dictation
 from .swipe import Swipe
+from .updates import OPS as UPDATE_OPS, Updater
 from .wayland import WaylandError
 
 BINDING_NAME = "polykeyBridge"
@@ -38,6 +39,7 @@ OPS = (
     "learn",
     "swipe",
     *DICTATION_OPS,
+    *UPDATE_OPS,
 )
 MAX_SUGGESTIONS = 12
 
@@ -59,8 +61,10 @@ class Bridge:
         converter: Optional[Converter] = None,
         swipe: Optional[Swipe] = None,
         dictation: Optional[Dictation] = None,
+        updates: Optional[Updater] = None,
     ) -> None:
         self._log = log
+        self._updates = updates
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._dictation = dictation
         self._converter = converter
@@ -104,6 +108,8 @@ class Bridge:
             elif turned is False and self._dictation:
                 await self._dictation.disable()
             return result
+        if op in UPDATE_OPS:
+            return await self._updates.handle(op, request) if self._updates else {"ok": False, "error": "unavailable"}
         if op in DICTATION_OPS:
             return (
                 await self._dictation.handle(op, request) if self._dictation else {"ok": False, "error": "unavailable"}
@@ -135,8 +141,8 @@ class Bridge:
 
     def _save_settings(self, request: dict) -> dict:
         """Save the settings the page may change: theme id, haptics, suggestions, dictation (on/off, the
-        model per language, continuous or not), keyboard options, and the keyboards 🌐 goes through (ids,
-        in order; unknown ones are dropped at the next load)."""
+        model per language, continuous or not), keyboard options, the keyboards 🌐 goes through (ids,
+        in order; unknown ones are dropped at the next load), and automatic updates."""
         changes = request.get("settings")
         if self._settings_path is None or not isinstance(changes, dict):
             return {"ok": False, "error": "bad-settings"}
@@ -149,6 +155,7 @@ class Bridge:
             "dictation": bool,
             "dictationModels": dict,
             "dictationContinuous": bool,
+            "autoUpdate": bool,
         }
         clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
         if "keyboardOptions" in clean:
