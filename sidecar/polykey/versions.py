@@ -7,7 +7,8 @@
                         back from, which automatic updates leave alone until a newer one}
 
 install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
-`run.py rollback`; unpack() does the same unpacking in Python, for the service. The running sidecar
+`run.py rollback`; the updater (updates.py) does the same in the service, with unpack(). A release
+marks itself started (versions/<version>/.started) the first time it reaches Steam. The running sidecar
 imports from its own versions/<version> (run.py resolves the link), so swapping `current` never
 mixes two versions in one process: the switch takes effect when the service restarts.
 """
@@ -24,6 +25,7 @@ from typing import Optional
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$")
 DEV = "dev"
+STARTED = ".started"  # in versions/<version>: that release has reached Steam
 MAX_MEMBER = 32 << 20  # unpack(): the largest file a release may hold, and all of them together
 MAX_TOTAL = 128 << 20
 PART = re.compile(r"^[A-Za-z0-9_.+@-]+$")  # unpack(): what a path part in a release may be
@@ -35,6 +37,15 @@ class VersionError(Exception):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
+
+
+def mark_started(code: Path) -> None:
+    """The release in `code` (versions/<version>) reached Steam. Anything else is left alone."""
+    if code.parent.name == "versions" and is_release(code.name) and not (code / STARTED).exists():
+        try:
+            (code / STARTED).touch()
+        except OSError:
+            pass
 
 
 def app_dir() -> Path:

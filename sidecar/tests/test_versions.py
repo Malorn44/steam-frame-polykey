@@ -12,7 +12,7 @@ import pytest
 
 from polykey import __main__ as cli
 from polykey import versions as versions_module
-from polykey.versions import VersionError, Versions, is_release, newer, parse
+from polykey.versions import VersionError, Versions, is_release, mark_started, newer, parse
 
 SIDECAR = Path(__file__).resolve().parents[1]
 
@@ -221,6 +221,17 @@ def test_a_bad_state_file_is_ignored(versions):
     for text in ("not json", '["0.1.0"]', '{"previous": "../../etc", "skip": 3}'):
         versions.state_file.write_text(text, encoding="utf-8")
         assert versions.state() == {} and versions.previous() is None and versions.skipped() is None
+
+
+def test_only_an_installed_release_is_marked_started(versions, tmp_path):
+    install(versions, "0.1.0")
+    mark_started(versions.versions / "0.1.0")
+    assert (versions.versions / "0.1.0" / ".started").is_file()
+    assert versions.installed() == ["0.1.0"]
+    versions.dev.mkdir()
+    for other in (versions.dev, tmp_path):  # a dev deploy or a checkout
+        mark_started(other)
+        assert not (other / ".started").exists()
 
 
 def test_activate_and_rollback_work_when_the_rest_of_the_release_does_not(tmp_path, monkeypatch):

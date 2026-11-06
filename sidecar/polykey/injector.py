@@ -27,6 +27,7 @@ from .desktop import DesktopPaste
 from .lexicon import Lexicons
 from .speech.session import Dictation
 from .updates import Updater
+from .versions import mark_started
 
 TARGET_TITLE = "SharedJSContext"
 LOG_PREFIX = "[polykey]"
@@ -156,6 +157,7 @@ async def inject(session: CdpSession, cfg: Config, log: Log) -> bool:
     except (CdpError, asyncio.TimeoutError):
         status = "?"
     log.info(f"injected {path.name} -> {status}")
+    mark_started(INSTALL_DIR)  # this release has reached Steam
     return True
 
 

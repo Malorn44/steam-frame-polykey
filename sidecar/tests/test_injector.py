@@ -201,6 +201,28 @@ def test_another_version_left_in_steam_is_replaced(tmp_path):
     run(main())
 
 
+def test_a_release_marks_itself_started_once_it_reaches_steam(tmp_path, monkeypatch):
+    code = tmp_path / "versions" / "0.1.0"
+    code.mkdir(parents=True)
+    monkeypatch.setattr(injector, "INSTALL_DIR", code)
+
+    async def main():
+        fake = await FakeSteam().start()
+        fake.has_target = False
+        stop, task = await start_service(fast_config(fake, tmp_path), Log(io.StringIO()))
+        try:
+            await asyncio.sleep(0.2)
+            assert not (code / ".started").exists()  # not before it is in Steam
+            fake.has_target = True
+            await until(lambda: fake.inject_count == 1)
+            assert (code / ".started").exists()
+        finally:
+            await stop_service(stop, task)
+            await fake.stop()
+
+    run(main())
+
+
 def test_missing_bundle_is_reported_and_nothing_is_injected(tmp_path):
     async def main():
         fake = await FakeSteam().start()
