@@ -49,7 +49,7 @@ npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, v
 npm run test:install # install.sh end to end: throwaway signed releases, served from localhost
 ```
 
-Releases come from release-please's release PR: merging it has CI draft the release, which is then smoke-tested, signed and published. See [docs/RELEASING.md](docs/RELEASING.md).
+Releases come from release-please's release PR. Merging it has CI build and check a draft, and once you have smoke-tested the draft and approved it, CI signs and publishes it. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Deploy to the Frame
 
