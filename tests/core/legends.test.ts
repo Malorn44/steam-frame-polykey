@@ -95,7 +95,12 @@ describe('keyLegends', () => {
     const letters: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'], label: 'abc', sub: '2' };
     const hinted = { arrangement: 'edges', l: 'b', t: 'c', b: '2' };
     expect(shown(letters, mods(), ctx({ hints: true }))).toEqual({ ...hinted, c: 'a' });
-    expect(shown(letters, mods({ shift: 'once' }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'A', l: 'B', t: 'C' });
+    expect(shown(letters, mods({ shift: 'once' }), ctx({ hints: true }))).toEqual({
+      ...hinted,
+      c: 'A',
+      l: 'B',
+      t: 'C',
+    });
     expect(shown(letters, mods({ caps: true }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'A', l: 'B', t: 'C' });
     expect(shown(letters, mods({ shift: 'once', caps: true }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'a' }); // Shift undoes Caps
     expect(shown(letters, mods({ shift: 'once' }))).toMatchObject({ c: 'ABC' }); // without hints, as before

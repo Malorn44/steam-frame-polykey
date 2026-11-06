@@ -42,29 +42,57 @@ const placesIn = (keyboard: KeyboardDef, layoutId: string): Place[] => {
   const modes = keyboard.modes?.some((mode) => mode.latin) ? [false, true] : [false];
   // The layout as the main page (in each mode, unless 英数 has a page of its own), the 英数 page, or a symbols page.
   const pages: { latin: boolean; symbols: 0 | 1 | 2 }[] = [
-    ...(keyboard.layout === layoutId ? (latinPages.length ? [false] : modes).map((l) => ({ latin: l, symbols: 0 as const })) : []),
+    ...(keyboard.layout === layoutId
+      ? (latinPages.length ? [false] : modes).map((l) => ({ latin: l, symbols: 0 as const }))
+      : []),
     ...(latinPages.includes(layoutId) ? [{ latin: true, symbols: 0 as const }] : []),
-    ...(keyboard.pages?.symbols ?? []).flatMap((id, i) => (id === layoutId ? modes.map((l) => ({ latin: l, symbols: (i + 1) as 1 | 2 })) : [])),
+    ...(keyboard.pages?.symbols ?? []).flatMap((id, i) =>
+      id === layoutId ? modes.map((l) => ({ latin: l, symbols: (i + 1) as 1 | 2 })) : [],
+    ),
   ];
   const buffered = keyboard.composer === 'kana' || keyboard.composer === 'romaji';
-  const romajis = keyboard.composer === 'romaji' ? [true]
-    : keyboard.composer === 'kana' ? values('romajiInput' in options, !!options.romajiInput) : [false];
-  return pages.flatMap((page) => romajis.flatMap((romaji) => values('flickHints' in options, !!options.flickHints).map((hints) => ({
-    name: [keyboard.id, page.latin ? '英数' : buffered ? 'かな' : '', page.symbols ? `symbols ${page.symbols}` : '',
-      romaji && buffered ? 'romaji' : '', hints ? 'flick hints' : ''].filter(Boolean).join(', '),
-    latin: page.latin, romaji, kana: buffered && !page.latin, symbols: page.symbols, letters: modeLetters(keyboard, page.latin), hints,
-  }))));
+  const romajis =
+    keyboard.composer === 'romaji'
+      ? [true]
+      : keyboard.composer === 'kana'
+        ? values('romajiInput' in options, !!options.romajiInput)
+        : [false];
+  return pages.flatMap((page) =>
+    romajis.flatMap((romaji) =>
+      values('flickHints' in options, !!options.flickHints).map((hints) => ({
+        name: [
+          keyboard.id,
+          page.latin ? '英数' : buffered ? 'かな' : '',
+          page.symbols ? `symbols ${page.symbols}` : '',
+          romaji && buffered ? 'romaji' : '',
+          hints ? 'flick hints' : '',
+        ]
+          .filter(Boolean)
+          .join(', '),
+        latin: page.latin,
+        romaji,
+        kana: buffered && !page.latin,
+        symbols: page.symbols,
+        letters: modeLetters(keyboard, page.latin),
+        hints,
+      })),
+    ),
+  );
 };
 
 /** Every place a keyboard shows the layout; a layout no keyboard names (the emoji row) on its own. */
 const placesOf = (layoutId: string): Place[] => {
   const places = Object.values(boot.catalog.keyboards).flatMap((keyboard) => placesIn(keyboard, layoutId));
-  return places.length ? places
+  return places.length
+    ? places
     : [{ name: 'on its own', latin: false, romaji: false, kana: false, symbols: 0, letters: undefined, hints: false }];
 };
 
 const MODS: [string, Mods][] = [
-  ['no modifier', NO_MODS], ['Shift', { ...NO_MODS, shift: 'once' }], ['Caps', { ...NO_MODS, caps: true }], ['Fn', { ...NO_MODS, fn: 'once' }],
+  ['no modifier', NO_MODS],
+  ['Shift', { ...NO_MODS, shift: 'once' }],
+  ['Caps', { ...NO_MODS, caps: true }],
+  ['Fn', { ...NO_MODS, fn: 'once' }],
 ];
 const SHIFT: Mods = { ...NO_MODS, shift: 'once' };
 
@@ -90,12 +118,19 @@ const mainLegend = (el: HTMLElement): string => text(el.querySelector('.s-dual')
 const shiftLegend = (el: HTMLElement, place: Place): Element | null => {
   if (el.classList.contains('stack')) return el.querySelector('.lg.t');
   if (el.classList.contains('tri')) return el.querySelector('.lg.tl');
-  if (el.classList.contains('quad')) return el.querySelector(place.romaji ? '.lg.t' : place.latin ? '.lg.tl' : '.lg.tr');
+  if (el.classList.contains('quad'))
+    return el.querySelector(place.romaji ? '.lg.t' : place.latin ? '.lg.tl' : '.lg.tr');
   return null;
 };
 /** The flick hint for each direction after the tap (left, up, right, down). */
 const EDGES = ['.lg.l', '.lg.t', '.lg.r', '.lg.b'];
-const STEP: [number, number][] = [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1]];
+const STEP: [number, number][] = [
+  [0, 0],
+  [-1, 0],
+  [0, -1],
+  [1, 0],
+  [0, 1],
+];
 
 const touch = (el: Element, type: string, x = 100, y = 100): void => {
   const e = new Event(type, { bubbles: true, cancelable: true });
@@ -108,13 +143,28 @@ const render = (layout: Layout, place: Place, mods: Mods) => {
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
   const pressed: { key: KeyDef; alternate: string | undefined }[] = [];
-  const view = createView(document, shadow, layout, boot.catalog.themes['themes/steam']!, (key, alternate) => pressed.push({ key, alternate }),
-    undefined, undefined, { latin: place.latin, romaji: place.romaji, symbols: place.symbols, letters: place.letters, hints: place.hints });
+  const view = createView(
+    document,
+    shadow,
+    layout,
+    boot.catalog.themes['themes/steam']!,
+    (key, alternate) => pressed.push({ key, alternate }),
+    undefined,
+    undefined,
+    { latin: place.latin, romaji: place.romaji, symbols: place.symbols, letters: place.letters, hints: place.hints },
+  );
   view.update(mods);
   const keys = [
-    ...[...shadow.querySelectorAll<HTMLElement>('.bar .key')].map((el) => ({ el, where: `toolbar "${el.dataset['k']}"` })),
-    ...[...shadow.querySelectorAll('.row')].flatMap((row, r) => [...row.querySelectorAll<HTMLElement>('.key')]
-      .map((el, c) => ({ el, where: `row ${r} key ${c} "${el.dataset['k']}"` }))),
+    ...[...shadow.querySelectorAll<HTMLElement>('.bar .key')].map((el) => ({
+      el,
+      where: `toolbar "${el.dataset['k']}"`,
+    })),
+    ...[...shadow.querySelectorAll('.row')].flatMap((row, r) =>
+      [...row.querySelectorAll<HTMLElement>('.key')].map((el, c) => ({
+        el,
+        where: `row ${r} key ${c} "${el.dataset['k']}"`,
+      })),
+    ),
   ].filter(({ el }) => !['gap', 'tall-middle', 'tall-bottom'].some((cls) => el.classList.contains(cls))); // drawn on the top piece
   const tap = (el: HTMLElement) => {
     pressed.length = 0;
@@ -122,12 +172,23 @@ const render = (layout: Layout, place: Place, mods: Mods) => {
     touch(el, 'touchend');
     return pressed.length === 1 ? pressed[0] : undefined;
   };
-  return { shadow, pressed, keys, tap, done: () => { view.destroy(); host.remove(); } };
+  return {
+    shadow,
+    pressed,
+    keys,
+    tap,
+    done: () => {
+      view.destroy();
+      host.remove();
+    },
+  };
 };
 
 /** A key whose label is its own (a label, a legend in c or an icon) shows a name, not what it types. */
 const labelled = (key: KeyDef, el: HTMLElement): boolean =>
-  ('label' in key && key.label !== undefined) || ('legends' in key && key.legends?.c !== undefined) || el.querySelector('.lbl svg') !== null;
+  ('label' in key && key.label !== undefined)
+  || ('legends' in key && key.legends?.c !== undefined)
+  || el.querySelector('.lbl svg') !== null;
 
 describe.each(ids)('%s', (id) => {
   const layout = boot.catalog.layouts[id];
@@ -137,7 +198,9 @@ describe.each(ids)('%s', (id) => {
   describe.each(placesOf(id))('$name', (place) => {
     it.each(MODS)('every key draws a label (%s)', (_, mods) => {
       const { keys, done } = render(layout, place, mods);
-      expect(keys.filter(({ el }) => !(el.textContent ?? '').trim() && !el.querySelector('svg')).map(({ where }) => where)).toEqual([]);
+      expect(
+        keys.filter(({ el }) => !(el.textContent ?? '').trim() && !el.querySelector('svg')).map(({ where }) => where),
+      ).toEqual([]);
       done();
     });
 
@@ -146,14 +209,16 @@ describe.each(ids)('%s', (id) => {
       const wrong: string[] = [];
       // A press that sends a key or a chord (Fn's F1) types no text to compare.
       const check = (where: string, shows: string, types: string | undefined) => {
-        if (types !== undefined && shows !== types) wrong.push(`${where} shows ${JSON.stringify(shows)} but types ${JSON.stringify(types)}`);
+        if (types !== undefined && shows !== types)
+          wrong.push(`${where} shows ${JSON.stringify(shows)} but types ${JSON.stringify(types)}`);
       };
       for (const { el, where } of keys.filter(({ where: w }) => w.startsWith('row'))) {
         const shown = mainLegend(el);
         const hit = tap(el);
         if (!hit || (hit.key.type !== 'char' && hit.key.type !== 'flick')) continue;
         const { key } = hit;
-        if (!labelled(key, el) || (key.type === 'flick' && (place.hints || key.hints))) check(where, shown, typed(key, undefined, mods, place));
+        if (!labelled(key, el) || (key.type === 'flick' && (place.hints || key.hints)))
+          check(where, shown, typed(key, undefined, mods, place));
         const shift = mods === NO_MODS ? shiftLegend(el, place) : null;
         if (shift) check(`${where} (Shift legend)`, text(shift), typed(key, undefined, SHIFT, place));
         if (key.type === 'flick') {
@@ -165,9 +230,15 @@ describe.each(ids)('%s', (id) => {
             const cell = shadow.querySelector('.fl div.pick');
             const guide = cell?.classList.contains('empty') ? '' : text(cell);
             touch(el, 'touchend', 100 + dx * 40, 100 + dy * 40);
-            const out = pressed.length === 1 ? typed(pressed[0]!.key, pressed[0]!.alternate, mods, place) : pressed.length ? `${pressed.length} presses` : '';
+            const out =
+              pressed.length === 1
+                ? typed(pressed[0]!.key, pressed[0]!.alternate, mods, place)
+                : pressed.length
+                  ? `${pressed.length} presses`
+                  : '';
             check(`${where} (flick ${way}, its guide)`, guide, out);
-            if (way && (place.hints || key.hints)) check(`${where} (flick ${way}, its hint)`, text(el.querySelector(EDGES[way - 1]!)), out);
+            if (way && (place.hints || key.hints))
+              check(`${where} (flick ${way}, its hint)`, text(el.querySelector(EDGES[way - 1]!)), out);
           });
         }
         // The small legend top right: the character a long press offers.
@@ -179,7 +250,10 @@ describe.each(ids)('%s', (id) => {
           const offered = [...shadow.querySelectorAll('.alts .key')].map((cell) => text(cell));
           touch(el, 'touchend');
           vi.useRealTimers();
-          if (!offered.includes(text(hint))) wrong.push(`${where} shows ${JSON.stringify(text(hint))} to hold for, but holding offers ${JSON.stringify(offered)}`);
+          if (!offered.includes(text(hint)))
+            wrong.push(
+              `${where} shows ${JSON.stringify(text(hint))} to hold for, but holding offers ${JSON.stringify(offered)}`,
+            );
         }
       }
       expect(wrong).toEqual([]);
