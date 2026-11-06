@@ -60,8 +60,9 @@ refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, i
    **Contents: read and write** and **Pull requests: read and write** (Metadata: read comes with
    them). Add it to the repo as the Actions secret `RELEASE_PLEASE_TOKEN` (Settings → Secrets and
    variables → Actions). Only the `release` job sees it, and that job runs nothing but
-   release-please. Without the secret, or once the token expires, that job fails on every push to
-   main until you put a new token in the secret.
+   release-please. Until the secret is set, that job skips with a notice saying so, and no release PR
+   opens. Once the token expires, the job fails on every push to main until you put a new token in
+   the secret.
 
 ## Each release
 

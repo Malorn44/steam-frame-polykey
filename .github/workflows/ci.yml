@@ -237,8 +237,8 @@ jobs:
 
   # release-please (release-please-config.json) acts with RELEASE_PLEASE_TOKEN, a fine-grained token
   # (this repo; contents and pull requests read/write), so CI runs on the release PR: what the Actions
-  # token does starts no workflow. Only release-please runs in this job, so the token never meets the
-  # build's packages.
+  # token does starts no workflow. Nothing but release-please (and a check that the secret is set)
+  # runs in this job, so the token never meets the build's packages.
   release:
     name: release
     needs: ci-ok # after every check, so a red main never releases
@@ -250,7 +250,20 @@ jobs:
       tag: ${{ steps.release-please.outputs.tag_name }}
       version: ${{ steps.release-please.outputs.version }}
     steps:
+      # A secret can't be read in `if:`, so a step says whether it is set. Until it is, this job (and
+      # every release job after it) skips rather than turn main red.
+      - name: release-please token
+        id: token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -n "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No RELEASE_PLEASE_TOKEN secret, so release-please did not run. Set it to a fine-grained token for this repo with Contents and Pull requests read and write (docs/RELEASING.md)."
+          fi
       - id: release-please
+        if: steps.token.outputs.present == 'true'
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
