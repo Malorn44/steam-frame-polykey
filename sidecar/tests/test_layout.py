@@ -2,6 +2,7 @@
 needs. tests/layout.test.ts checks the same layout in the page. CI runs both for each layout
 (`npm run test:layout -- ja/flick`); POLYKEY_LAYOUT names the layout, and without it every bundled layout
 is checked."""
+
 from __future__ import annotations
 
 import functools
@@ -56,7 +57,9 @@ def width(row: list) -> float:
 
 
 def has_ctrl(rows: list) -> bool:
-    return any(isinstance(key, dict) and key.get("type") == "mod" and key.get("mod") == "ctrl" for row in rows for key in row)
+    return any(
+        isinstance(key, dict) and key.get("type") == "mod" and key.get("mod") == "ctrl" for row in rows for key in row
+    )
 
 
 each_layout = pytest.mark.parametrize("layout_id", layout_ids())
@@ -65,7 +68,9 @@ each_layout = pytest.mark.parametrize("layout_id", layout_ids())
 @each_layout
 def test_it_is_one_bundled_layout(layout_id):
     assert layout_id in files_by_id(), f"no bundled pack has the id {layout_id}"
-    assert len(files_by_id()[layout_id]) == 1, f"{layout_id} is defined by {', '.join(map(str, files_by_id()[layout_id]))}"
+    assert len(files_by_id()[layout_id]) == 1, (
+        f"{layout_id} is defined by {', '.join(map(str, files_by_id()[layout_id]))}"
+    )
     assert raw(layout_id).get("kind") == "layout"
 
 
@@ -122,7 +127,11 @@ def test_its_rows_are_as_wide_as_its_kind_needs(layout_id):
     if base in layouts:
         needs.append((f"as wide as {base}, which it extends", width(layouts[base]["rows"][0])))
     shown = [("row", rows), ("with one keyboard, row", layout.get("aloneRows", []))]
-    problems = [f"{label} {index} is {width(row):g} units wide, not {units:g} ({reason})"
-                for label, each in shown for index, row in enumerate(each)
-                for reason, units in needs if abs(width(row) - units) > 1e-6]
+    problems = [
+        f"{label} {index} is {width(row):g} units wide, not {units:g} ({reason})"
+        for label, each in shown
+        for index, row in enumerate(each)
+        for reason, units in needs
+        if abs(width(row) - units) > 1e-6
+    ]
     assert problems == []
