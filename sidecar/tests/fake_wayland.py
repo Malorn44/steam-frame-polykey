@@ -3,6 +3,7 @@
 It models one data-control client, the clipboard and primary selection (initially owned by another
 app with known text), offers for the current selections, and an app pasting (paste()).
 """
+
 from __future__ import annotations
 
 import array
@@ -32,14 +33,21 @@ class _Args:
 
     def string(self) -> str:
         n = self.uint()
-        raw = self.body[self.off:self.off + n - 1]
+        raw = self.body[self.off : self.off + n - 1]
         self.off += (n + 3) & ~3
         return raw.decode()
 
 
 class FakeCompositor:
-    def __init__(self, path: Path, *, data_control: bool = True, version: int = 2,
-                 selection: Optional[str] = "old clipboard", primary: Optional[str] = "old primary") -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        data_control: bool = True,
+        version: int = 2,
+        selection: Optional[str] = "old clipboard",
+        primary: Optional[str] = "old primary",
+    ) -> None:
         self.path = path
         self.data_control = data_control
         self.version = version
@@ -99,7 +107,7 @@ class FakeCompositor:
         for level, kind, cdata in ancillary:
             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                 fds = array.array("i")
-                fds.frombytes(cdata[:len(cdata) - len(cdata) % fds.itemsize])
+                fds.frombytes(cdata[: len(cdata) - len(cdata) % fds.itemsize])
                 self._fds.extend(fds)
         if not data:
             asyncio.get_running_loop().remove_reader(self._client.fileno())
@@ -153,8 +161,7 @@ class FakeCompositor:
             source = args.uint()
             previous = self.owner[slot]
             self.owner[slot] = ("client", source) if source else None
-            if previous and previous[0] == "client" and previous[1] != source \
-                    and previous not in self.owner.values():
+            if previous and previous[0] == "client" and previous[1] != source and previous not in self.owner.values():
                 self._event(previous[1], 1)  # cancelled
             self._announce(slot)
         elif kind == "offer" and opcode == 0:  # receive(mime, fd)

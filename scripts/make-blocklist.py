@@ -4,6 +4,7 @@
 Usage: python3 scripts/make-blocklist.py LIST > packs/en/blocked.sha256
 LIST: words one per line; only the [BLOCK] section is used when the file has sections; # comments.
 """
+
 import sys
 from pathlib import Path
 

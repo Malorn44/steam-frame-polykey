@@ -43,8 +43,13 @@ def traced(word: str, rng: random.Random | None = None, noise: float = 0.0) -> l
     """A swipe through the word's keys: straight between them, each key landed on with some error, and
     sampled every few px as the laser reports it."""
     keys = fold(word, frozenset(KEYS))
-    corners = [(KEYS[k][0] + (rng.gauss(0, noise) * KEY_WIDTH if rng else 0),
-                KEYS[k][1] + (rng.gauss(0, noise * 0.7) * KEY_WIDTH if rng else 0)) for k in keys]
+    corners = [
+        (
+            KEYS[k][0] + (rng.gauss(0, noise) * KEY_WIDTH if rng else 0),
+            KEYS[k][1] + (rng.gauss(0, noise * 0.7) * KEY_WIDTH if rng else 0),
+        )
+        for k in keys
+    ]
     points = []
     for (x0, y0), (x1, y1) in itertools.pairwise(corners):
         steps = max(2, int(math.dist((x0, y0), (x1, y1)) / 6))
@@ -76,8 +81,22 @@ def test_resample_spaces_points_evenly():
 
 
 def test_a_word_traced_through_its_keys_ranks_first():
-    for word in ["hello", "world", "the", "keyboard", "swipe", "quick", "brown", "jumps", "about",
-                 "people", "because", "question", "would", "great"]:
+    for word in [
+        "hello",
+        "world",
+        "the",
+        "keyboard",
+        "swipe",
+        "quick",
+        "brown",
+        "jumps",
+        "about",
+        "people",
+        "because",
+        "question",
+        "would",
+        "great",
+    ]:
         assert decode(traced(word))[0] == word, word
     # Some words share one path: typing and topping both run straight along the top row (t y u i o p), so
     # the commoner wins and the other is offered.
@@ -87,7 +106,11 @@ def test_a_word_traced_through_its_keys_ranks_first():
 def test_most_sloppy_swipes_still_rank_first_or_close():
     rng = random.Random(7)
     counts = LEXICON.counts()
-    pool = [w for w in sorted(counts, key=counts.get, reverse=True)[50:3000] if w.isalpha() and w.islower() and len(fold(w, frozenset(KEYS))) >= 3]
+    pool = [
+        w
+        for w in sorted(counts, key=counts.get, reverse=True)[50:3000]
+        if w.isalpha() and w.islower() and len(fold(w, frozenset(KEYS))) >= 3
+    ]
     words = rng.sample(pool, 100)
     top1 = top3 = 0
     for word in words:

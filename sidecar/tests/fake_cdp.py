@@ -3,6 +3,7 @@
 It models only what the injector relies on: whether window.__polykey exists, execution context
 events, console messages, and Steam restarting (the target id changes and sockets close).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -52,11 +53,23 @@ class FakeSteam:
             await self._runner.cleanup()
 
     async def _json(self, _request: web.Request) -> web.Response:
-        targets = [{"type": "page", "title": "SteamVR - Keyboard", "id": "K1",
-                    "webSocketDebuggerUrl": f"ws://127.0.0.1:{self.port}/devtools/page/K1"}]
+        targets = [
+            {
+                "type": "page",
+                "title": "SteamVR - Keyboard",
+                "id": "K1",
+                "webSocketDebuggerUrl": f"ws://127.0.0.1:{self.port}/devtools/page/K1",
+            }
+        ]
         if self.has_target:
-            targets.append({"type": "page", "title": "SharedJSContext", "id": self.target_id,
-                            "webSocketDebuggerUrl": f"ws://127.0.0.1:{self.port}/devtools/page/{self.target_id}"})
+            targets.append(
+                {
+                    "type": "page",
+                    "title": "SharedJSContext",
+                    "id": self.target_id,
+                    "webSocketDebuggerUrl": f"ws://127.0.0.1:{self.port}/devtools/page/{self.target_id}",
+                }
+            )
         return web.json_response(targets)
 
     async def _ws(self, request: web.Request) -> web.StreamResponse:
@@ -124,8 +137,9 @@ class FakeSteam:
     async def call_binding(self, name: str, payload: str, context_id: int = 1) -> None:
         """The page called a CDP binding function."""
         for ws in list(self.sockets):
-            await self._send(ws, "Runtime.bindingCalled",
-                             {"name": name, "payload": payload, "executionContextId": context_id})
+            await self._send(
+                ws, "Runtime.bindingCalled", {"name": name, "payload": payload, "executionContextId": context_id}
+            )
 
     def bridge_replies(self) -> list[dict]:
         """Replies the sidecar delivered through __polykey.bridgeReply(...)."""
@@ -136,8 +150,11 @@ class FakeSteam:
         return replies
 
     async def console(self, *values: str, age_ms: float = 0, level: str = "log") -> None:
-        params = {"type": level, "timestamp": time.time() * 1000 - age_ms,
-                  "args": [{"type": "string", "value": v} for v in values]}
+        params = {
+            "type": level,
+            "timestamp": time.time() * 1000 - age_ms,
+            "args": [{"type": "string", "value": v} for v in values],
+        }
         for ws in list(self.sockets):
             await self._send(ws, "Runtime.consoleAPICalled", params)
 

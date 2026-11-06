@@ -8,6 +8,7 @@ against the floor again when it ends, so noise at the very start is dropped rath
 Frame's microphone sends exact zeros while its noise gate is closed (and all the time off the head),
 so zero frames are silence but never count towards the floor.
 """
+
 from __future__ import annotations
 
 import math

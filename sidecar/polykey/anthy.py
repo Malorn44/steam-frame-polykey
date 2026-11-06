@@ -89,8 +89,9 @@ class Anthy:
         self._lib.anthy_get_segment_stat(self._ctx, index, ctypes.byref(stat))
         return stat
 
-    def convert(self, reading: str, lengths: Optional[list[int]] = None,
-                resize: Optional[tuple[int, int]] = None) -> list[dict]:
+    def convert(
+        self, reading: str, lengths: Optional[list[int]] = None, resize: Optional[tuple[int, int]] = None
+    ) -> list[dict]:
         """Segments with candidates; with `lengths`, re-cut left to right first; then `resize` (index, ±1)."""
         if self._lib.anthy_set_string(self._ctx, reading.encode("utf-8")) != 0:
             return []
@@ -106,10 +107,12 @@ class Anthy:
         segments = []
         for index in range(self._count()):
             count = min(self._segment_stat(index).nr_candidate, MAX_CANDIDATES)
-            segments.append({
-                "reading": self._text(self._lib.anthy_get_segment, index, UNCONVERTED),
-                "candidates": [self._text(self._lib.anthy_get_segment, index, n) for n in range(count)],
-            })
+            segments.append(
+                {
+                    "reading": self._text(self._lib.anthy_get_segment, index, UNCONVERTED),
+                    "candidates": [self._text(self._lib.anthy_get_segment, index, n) for n in range(count)],
+                }
+            )
         return segments
 
     def predict(self, reading: str) -> list[str]:
@@ -118,7 +121,6 @@ class Anthy:
         stat = _PredictionStat()
         self._lib.anthy_get_prediction_stat(self._ctx, ctypes.byref(stat))
         return [self._text(self._lib.anthy_get_prediction, n) for n in range(min(stat.nr_prediction, MAX_PREDICTIONS))]
-
 
     def learn(self, reading: str, lengths: list[int], choices: list[int], texts: list[str]) -> bool:
         """Learn a sent conversion: re-create it, check every picked text, then commit each segment."""
@@ -170,14 +172,23 @@ class Converter:
             if isinstance(prediction, str):
                 return {"ok": engine.learn_prediction(reading, prediction)}
             lengths, choices, texts = request.get("lengths"), request.get("choices"), request.get("texts")
-            if not (isinstance(lengths, list) and isinstance(choices, list) and isinstance(texts, list)
-                    and all(isinstance(n, int) for n in lengths + choices) and all(isinstance(t, str) for t in texts)):
+            if not (
+                isinstance(lengths, list)
+                and isinstance(choices, list)
+                and isinstance(texts, list)
+                and all(isinstance(n, int) for n in lengths + choices)
+                and all(isinstance(t, str) for t in texts)
+            ):
                 return {"ok": False, "error": "bad-learn"}
             return {"ok": engine.learn(reading, lengths, choices, texts)}
         lengths = request.get("lengths")
-        if lengths is not None and not (isinstance(lengths, list) and all(isinstance(n, int) and n > 0 for n in lengths)):
+        if lengths is not None and not (
+            isinstance(lengths, list) and all(isinstance(n, int) and n > 0 for n in lengths)
+        ):
             return {"ok": False, "error": "bad-lengths"}
         resize = request.get("resize")
-        if resize is not None and not (isinstance(resize, list) and len(resize) == 2 and all(isinstance(n, int) for n in resize)):
+        if resize is not None and not (
+            isinstance(resize, list) and len(resize) == 2 and all(isinstance(n, int) for n in resize)
+        ):
             return {"ok": False, "error": "bad-resize"}
         return {"ok": True, "segments": engine.convert(reading, lengths, tuple(resize) if resize else None)}

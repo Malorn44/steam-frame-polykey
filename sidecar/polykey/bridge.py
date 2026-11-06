@@ -2,6 +2,7 @@
 
 Requests may carry typed text: never logged or echoed. Errors are short log-safe kinds.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,8 +12,14 @@ from typing import Optional
 from .anthy import Converter
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
-from .packs import (clean_dictation_models, clean_emoji_state, clean_keyboard_list, clean_keyboard_options,
-                    save_settings, write_json)
+from .packs import (
+    clean_dictation_models,
+    clean_emoji_state,
+    clean_keyboard_list,
+    clean_keyboard_options,
+    save_settings,
+    write_json,
+)
 from .speech.session import OPS as DICTATION_OPS, Dictation
 from .swipe import Swipe
 from .wayland import WaylandError
@@ -20,20 +27,39 @@ from .wayland import WaylandError
 BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
-OPS = ("desktop.prepare", "desktop.wait", "suggest", "settings.save", "emoji.save", "convert", "predict", "learn", "swipe",
-       *DICTATION_OPS)
+OPS = (
+    "desktop.prepare",
+    "desktop.wait",
+    "suggest",
+    "settings.save",
+    "emoji.save",
+    "convert",
+    "predict",
+    "learn",
+    "swipe",
+    *DICTATION_OPS,
+)
 MAX_SUGGESTIONS = 12
 
 
 def reply_expression(reply: dict) -> str:
-    return (f"globalThis.__polykey && typeof globalThis.__polykey.{REPLY_FUNCTION} === 'function'"
-            f" && globalThis.__polykey.{REPLY_FUNCTION}({json.dumps(reply, ensure_ascii=True)})")
+    return (
+        f"globalThis.__polykey && typeof globalThis.__polykey.{REPLY_FUNCTION} === 'function'"
+        f" && globalThis.__polykey.{REPLY_FUNCTION}({json.dumps(reply, ensure_ascii=True)})"
+    )
 
 
 class Bridge:
-    def __init__(self, log, desktop: Optional[DesktopPaste] = None, lexicons: Optional[Lexicons] = None,
-                 settings_path: Optional[Path] = None, converter: Optional[Converter] = None,
-                 swipe: Optional[Swipe] = None, dictation: Optional[Dictation] = None) -> None:
+    def __init__(
+        self,
+        log,
+        desktop: Optional[DesktopPaste] = None,
+        lexicons: Optional[Lexicons] = None,
+        settings_path: Optional[Path] = None,
+        converter: Optional[Converter] = None,
+        swipe: Optional[Swipe] = None,
+        dictation: Optional[Dictation] = None,
+    ) -> None:
         self._log = log
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._dictation = dictation
@@ -79,7 +105,9 @@ class Bridge:
                 await self._dictation.disable()
             return result
         if op in DICTATION_OPS:
-            return await self._dictation.handle(op, request) if self._dictation else {"ok": False, "error": "unavailable"}
+            return (
+                await self._dictation.handle(op, request) if self._dictation else {"ok": False, "error": "unavailable"}
+            )
         if op == "emoji.save":
             return self._save_emoji(request)
         if op in ("convert", "predict", "learn"):
@@ -93,8 +121,11 @@ class Bridge:
             # Shift+Insert into anything else would paste whatever is on that app's clipboard.
             process = await focused_process(self._desktop.display)
             if process != NESTED_DESKTOP_PROCESS:
-                return {"ok": False, "error": "not-desktop" if process else "focus-unknown",
-                        "process": (process or "")[:32]}
+                return {
+                    "ok": False,
+                    "error": "not-desktop" if process else "focus-unknown",
+                    "process": (process or "")[:32],
+                }
             await self._desktop.prepare(text)
             return {"ok": True}
         # desktop.wait
@@ -109,8 +140,16 @@ class Bridge:
         changes = request.get("settings")
         if self._settings_path is None or not isinstance(changes, dict):
             return {"ok": False, "error": "bad-settings"}
-        allowed = {"theme": str, "haptics": bool, "suggestions": bool, "keyboardOptions": dict, "keyboards": list,
-                   "dictation": bool, "dictationModels": dict, "dictationContinuous": bool}
+        allowed = {
+            "theme": str,
+            "haptics": bool,
+            "suggestions": bool,
+            "keyboardOptions": dict,
+            "keyboards": list,
+            "dictation": bool,
+            "dictationModels": dict,
+            "dictationContinuous": bool,
+        }
         clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
         if "keyboardOptions" in clean:
             options = clean_keyboard_options(clean["keyboardOptions"])

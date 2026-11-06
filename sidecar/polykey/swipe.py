@@ -11,6 +11,7 @@ swipe is from that ideal path (location), how different its shape is once both a
 size (shape), and how common the word is. Work that depends only on the word list or the geometry is
 done once and cached, so a decode only touches the few hundred words that survive pruning.
 """
+
 from __future__ import annotations
 
 import heapq
@@ -62,8 +63,15 @@ class Decoder(Protocol):
 
     id: str
 
-    def decode(self, lexicon_id: str, counts: Mapping[str, int], path: Sequence[Point],
-               keys: Mapping[str, Point], key_width: float, limit: int) -> list[str]: ...
+    def decode(
+        self,
+        lexicon_id: str,
+        counts: Mapping[str, int],
+        path: Sequence[Point],
+        keys: Mapping[str, Point],
+        key_width: float,
+        limit: int,
+    ) -> list[str]: ...
 
 
 def resample(points: Sequence[Point], n: int = SAMPLES) -> list[Point]:
@@ -132,7 +140,9 @@ class _Index:
                 best[lower] = (word, count, keys)
         self.buckets: dict[tuple[str, str], list[tuple[float, str, str]]] = {}
         for word, count, keys in best.values():
-            self.buckets.setdefault((keys[0], keys[-1]), []).append((FREQUENCY_WEIGHT * count / FREQUENCY_SCALE, keys, word))
+            self.buckets.setdefault((keys[0], keys[-1]), []).append(
+                (FREQUENCY_WEIGHT * count / FREQUENCY_SCALE, keys, word)
+            )
         for bucket in self.buckets.values():
             bucket.sort(reverse=True)
 
@@ -197,8 +207,15 @@ class GeometricDecoder:
         """Build the word list's index ahead of the first swipe."""
         self._index(lexicon_id, counts, letters)
 
-    def decode(self, lexicon_id: str, counts: Mapping[str, int], path: Sequence[Point],
-               keys: Mapping[str, Point], key_width: float, limit: int) -> list[str]:
+    def decode(
+        self,
+        lexicon_id: str,
+        counts: Mapping[str, int],
+        path: Sequence[Point],
+        keys: Mapping[str, Point],
+        key_width: float,
+        limit: int,
+    ) -> list[str]:
         if len(path) < 2 or len(keys) < 2 or key_width <= 0:
             return []
         index = self._index(lexicon_id, counts, frozenset(keys))
@@ -211,11 +228,13 @@ class GeometricDecoder:
         start, end = raw[0], raw[-1]
         near_start = {k: math.dist(start, c) for k, c in centres.items()}
         near_end = {k: math.dist(end, c) for k, c in centres.items()}
-        firsts = [k for k, d in near_start.items() if d <= START_RADIUS] or [min(near_start, key=near_start.__getitem__)]
+        firsts = [k for k, d in near_start.items() if d <= START_RADIUS] or [
+            min(near_start, key=near_start.__getitem__)
+        ]
         lasts = [k for k, d in near_end.items() if d <= END_RADIUS] or [min(near_end, key=near_end.__getitem__)]
-        location_scale = 1 / (2 * LOCATION_SIGMA ** 2)
-        shape_scale = 1 / (2 * SHAPE_SIGMA ** 2)
-        ends_scale = 1 / (2 * END_SIGMA ** 2)
+        location_scale = 1 / (2 * LOCATION_SIGMA**2)
+        shape_scale = 1 / (2 * SHAPE_SIGMA**2)
+        ends_scale = 1 / (2 * END_SIGMA**2)
         # Every word in a bucket starts and ends on the same keys, so the ends' cost is the bucket's.
         # Buckets go cheapest first and words most frequent first; a word can score no more than its
         # frequency less that cost, so the rest of a bucket is skipped once that cannot reach the best few.
@@ -250,8 +269,11 @@ class GeometricDecoder:
 
 
 def _point(value: object) -> Optional[Point]:
-    if isinstance(value, (list, tuple)) and len(value) == 2 \
-            and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in value):
+    if (
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+        and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in value)
+    ):
         return float(value[0]), float(value[1])
     return None
 

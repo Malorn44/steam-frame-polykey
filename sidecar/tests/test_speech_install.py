@@ -1,4 +1,5 @@
 """The speech engine's installation from its release archives, and the bundled catalogue."""
+
 from __future__ import annotations
 
 import copy
@@ -36,24 +37,52 @@ def wheel_of(path: Path, files: dict) -> Path:
 
 
 TOP = "transcribe-native-linux-aarch64-cpu-vulkan/"
-NATIVE = {TOP + "libtranscribe.so": b"t", TOP + "libggml.so": b"g", TOP + "libggml-base.so": b"b",
-          TOP + "libggml-cpu-armv8.2_1.so": b"c", TOP + "libggml-vulkan.so": b"v" * 100,
-          TOP + "contract.json": json.dumps({"version": "0.4.1"}).encode(),
-          TOP + "licenses/LICENSE": b"MIT", TOP + "licenses/ggml/LICENSE": b"MIT ggml",
-          TOP + "../escape.so": b"x", "/abs/libx.so": b"x", TOP + "sub/libdeep.so": b"x"}
-WHEEL = {"transcribe_cpp/__init__.py": b"# binding", "transcribe_cpp/_abi.py": b"#", "transcribe_cpp/py.typed": b"",
-         "transcribe_cpp-0.4.1.dist-info/licenses/LICENSE": b"MIT", "transcribe_cpp-0.4.1.dist-info/RECORD": b"",
-         "../evil.py": b"x", "transcribe_cpp/sub/evil.py": b"x"}
+NATIVE = {
+    TOP + "libtranscribe.so": b"t",
+    TOP + "libggml.so": b"g",
+    TOP + "libggml-base.so": b"b",
+    TOP + "libggml-cpu-armv8.2_1.so": b"c",
+    TOP + "libggml-vulkan.so": b"v" * 100,
+    TOP + "contract.json": json.dumps({"version": "0.4.1"}).encode(),
+    TOP + "licenses/LICENSE": b"MIT",
+    TOP + "licenses/ggml/LICENSE": b"MIT ggml",
+    TOP + "../escape.so": b"x",
+    "/abs/libx.so": b"x",
+    TOP + "sub/libdeep.so": b"x",
+}
+WHEEL = {
+    "transcribe_cpp/__init__.py": b"# binding",
+    "transcribe_cpp/_abi.py": b"#",
+    "transcribe_cpp/py.typed": b"",
+    "transcribe_cpp-0.4.1.dist-info/licenses/LICENSE": b"MIT",
+    "transcribe_cpp-0.4.1.dist-info/RECORD": b"",
+    "../evil.py": b"x",
+    "transcribe_cpp/sub/evil.py": b"x",
+}
 
 
 def test_unpacks_only_the_cpu_libraries_and_the_binding(tmp_path):
     target = tmp_path / "engine" / "0.4.1"
-    unpack(tar_of(tmp_path / "n.tgz", NATIVE, links=((TOP + "libggml-cpu-armv9.2_1.so", "/etc/passwd"),)),
-           wheel_of(tmp_path / "w.whl", WHEEL), target, "0.4.1")
+    unpack(
+        tar_of(tmp_path / "n.tgz", NATIVE, links=((TOP + "libggml-cpu-armv9.2_1.so", "/etc/passwd"),)),
+        wheel_of(tmp_path / "w.whl", WHEEL),
+        target,
+        "0.4.1",
+    )
     files = sorted(str(p.relative_to(target)) for p in target.rglob("*") if p.is_file())
-    assert files == ["lib/contract.json", "lib/libggml-base.so", "lib/libggml-cpu-armv8.2_1.so", "lib/libggml.so",
-                     "lib/libtranscribe.so", "licenses/ggml", "licenses/transcribe.cpp", "licenses/transcribe_cpp",
-                     "python/transcribe_cpp/__init__.py", "python/transcribe_cpp/_abi.py", "python/transcribe_cpp/py.typed"]
+    assert files == [
+        "lib/contract.json",
+        "lib/libggml-base.so",
+        "lib/libggml-cpu-armv8.2_1.so",
+        "lib/libggml.so",
+        "lib/libtranscribe.so",
+        "licenses/ggml",
+        "licenses/transcribe.cpp",
+        "licenses/transcribe_cpp",
+        "python/transcribe_cpp/__init__.py",
+        "python/transcribe_cpp/_abi.py",
+        "python/transcribe_cpp/py.typed",
+    ]
     assert installed(tmp_path, "0.4.1") and not (tmp_path / "escape.so").exists()
 
 
@@ -69,6 +98,7 @@ def test_an_incomplete_or_mismatched_archive_installs_nothing(tmp_path):
 
 # --- the catalogue ---------------------------------------------------------------------------------
 
+
 def test_the_bundled_catalogue_loads_and_pins_everything():
     catalog = catalog_module.load()
     assert catalog is not None and catalog.engine.version == "0.4.1"
@@ -76,8 +106,15 @@ def test_the_bundled_catalogue_loads_and_pins_everything():
     for remote in (*catalog.engine.native.values(), catalog.engine.python):
         assert remote.url.startswith("https://github.com/handy-computer/transcribe.cpp/releases/download/v0.4.1/")
     ids = [m.id for m in catalog.models]
-    assert ids == ["whisper-small", "whisper-base", "parakeet-tdt-0.6b-v2", "parakeet-tdt-ctc-110m", "sensevoice-small",
-                   "canary-180m-flash", "parakeet-tdt-0.6b-v3"]
+    assert ids == [
+        "whisper-small",
+        "whisper-base",
+        "parakeet-tdt-0.6b-v2",
+        "parakeet-tdt-ctc-110m",
+        "sensevoice-small",
+        "canary-180m-flash",
+        "parakeet-tdt-0.6b-v3",
+    ]
     for model in catalog.models:
         assert model.remote.url.startswith("https://huggingface.co/handy-computer/") and "/resolve/" in model.remote.url
         assert model.remote.hosts == ("huggingface.co", "hf.co") and model.attribution and model.licence

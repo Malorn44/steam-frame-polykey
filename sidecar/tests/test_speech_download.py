@@ -17,10 +17,16 @@ SIZE = len(BLOB)
 def test_redirects_only_to_the_pinned_hosts_over_https():
     hf = lambda url: host_allowed(url, HF_HOSTS, ("https",))
     assert hf("https://huggingface.co/x") and hf("https://cdn-lfs.hf.co/x") and hf("https://cas-bridge.xethub.hf.co/x")
-    assert not hf("http://huggingface.co/x") and not hf("https://evilhuggingface.co/x") and not hf("https://hf.co.evil.com/x")
+    assert (
+        not hf("http://huggingface.co/x")
+        and not hf("https://evilhuggingface.co/x")
+        and not hf("https://hf.co.evil.com/x")
+    )
     assert not hf("https://github.com/x")
     gh = lambda url: host_allowed(url, GITHUB_HOSTS, ("https",))
-    assert gh("https://github.com/a/b/releases/download/v1/x.tar.gz") and gh("https://release-assets.githubusercontent.com/x")
+    assert gh("https://github.com/a/b/releases/download/v1/x.tar.gz") and gh(
+        "https://release-assets.githubusercontent.com/x"
+    )
     assert not gh("https://huggingface.co/x") and not gh("https://githubusercontent.com.evil.org/x")
 
 
@@ -43,12 +49,14 @@ def fetch(tmp_path, name, routes, size=SIZE, sha=SHA, **kwargs):
             return job, await job.run()
         finally:
             await runner.cleanup()
+
     return asyncio.run(main())
 
 
 def redirect(to):
     async def handler(_request):
         raise web.HTTPFound(to)
+
     return handler
 
 
@@ -61,7 +69,9 @@ async def blob(request):
     ranges.append(header)
     if header:
         start = int(header.split("=")[1].rstrip("-"))
-        return web.Response(status=206, body=BLOB[start:], headers={"Content-Range": f"bytes {start}-{len(BLOB) - 1}/{len(BLOB)}"})
+        return web.Response(
+            status=206, body=BLOB[start:], headers={"Content-Range": f"bytes {start}-{len(BLOB) - 1}/{len(BLOB)}"}
+        )
     return web.Response(body=BLOB)
 
 
@@ -129,6 +139,7 @@ def test_a_server_without_ranges_starts_again(tmp_path):
 
     async def whole(_request):
         return web.Response(body=BLOB)
+
     _job, ok = fetch(tmp_path, "m.gguf", [web.get("/resolve/m.gguf", whole)])
     assert ok and (tmp_path / "models" / "m.gguf").read_bytes() == BLOB
 

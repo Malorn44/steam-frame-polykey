@@ -7,6 +7,7 @@ redirects streams aimed at the microphone to the filters, so we start pw-record 
 the microphone ourselves with pw-link, through the session manager's socket. Without that socket, one
 clear microphone, or audio within STALL seconds, we record the default source instead.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,6 +33,7 @@ READ_TIMEOUT = 2.0  # any recorder silent this long (not zeros: nothing at all) 
 @dataclass
 class Tools:
     """The PipeWire commands (tests pass fakes) and the runtime directory with PipeWire's sockets."""
+
     record: str = "pw-record"
     dump: str = "pw-dump"
     link: str = "pw-link"
@@ -76,8 +78,11 @@ def raw_microphone(dump: object) -> Optional[tuple[str, list[str]]]:
         if not rules:
             continue
         # The filters' own nodes share a link group; the device has none.
-        found = [n for n in nodes if "node.link-group" not in _props(n)
-                 and all(str(_props(n).get(k)) == v for k, v in rules.items())]
+        found = [
+            n
+            for n in nodes
+            if "node.link-group" not in _props(n) and all(str(_props(n).get(k)) == v for k, v in rules.items())
+        ]
         if len(found) != 1:
             return None
         targets.add(found[0].get("id"))
@@ -85,9 +90,14 @@ def raw_microphone(dump: object) -> Optional[tuple[str, list[str]]]:
         return None
     target = targets.pop()
     name = next((_props(n).get("node.name") for n in nodes if n.get("id") == target), None)
-    ports = sorted(p["port.name"] for p in map(_props, (o for o in objects if o.get("type") == "PipeWire:Interface:Port"))
-                   if p.get("node.id") == target and p.get("port.direction") == "out"
-                   and str(p.get("port.monitor")).lower() != "true" and isinstance(p.get("port.name"), str))
+    ports = sorted(
+        p["port.name"]
+        for p in map(_props, (o for o in objects if o.get("type") == "PipeWire:Interface:Port"))
+        if p.get("node.id") == target
+        and p.get("port.direction") == "out"
+        and str(p.get("port.monitor")).lower() != "true"
+        and isinstance(p.get("port.name"), str)
+    )
     return (name, ports) if isinstance(name, str) and ports else None
 
 
@@ -125,8 +135,15 @@ class Recorder:
         name, ports = mic
         node = f"{NODE_NAME}-{os.getpid()}"
         try:
-            self._proc = await spawn(self.tools.record, *AUDIO, "-P", f"{{ node.autoconnect = false, node.name = {node} }}",
-                                     "-", stdout=True, env=env)
+            self._proc = await spawn(
+                self.tools.record,
+                *AUDIO,
+                "-P",
+                f"{{ node.autoconnect = false, node.name = {node} }}",
+                "-",
+                stdout=True,
+                env=env,
+            )
         except OSError:
             return False
         # Every channel into the one mono input; the links go away with the recorder.

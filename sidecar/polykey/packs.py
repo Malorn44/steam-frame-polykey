@@ -4,6 +4,7 @@ Bundled packs come first; a user pack in ~/.config/polykey/packs/ replaces the b
 same id. Files are validated against schema/pack.schema.json with a small stdlib validator for the
 subset of JSON Schema that file uses. Bad files are skipped and reported, never fatal.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,20 +16,36 @@ from typing import Any, Optional
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
 KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
-DEFAULT_SETTINGS = {"keyboards": ["en/english"], "theme": "themes/steam", "haptics": True, "suggestions": True,
-                    "dictation": False, "dictationModels": {}, "dictationContinuous": False}
+DEFAULT_SETTINGS = {
+    "keyboards": ["en/english"],
+    "theme": "themes/steam",
+    "haptics": True,
+    "suggestions": True,
+    "dictation": False,
+    "dictationModels": {},
+    "dictationContinuous": False,
+}
 # The model dictation uses per language (settings.json "dictationModels": {language: model id}).
 DICTATION_LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
 DICTATION_MODEL = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
 # dictationCommit, on a keyboard with a reading: dictated text is typed at once instead of going into the
 # reading for its candidates.
-KEYBOARD_OPTIONS = ("tapCycle", "candidatesLeft", "flickHints", "romajiInput", "qwertyLatin", "swipe", "dictationCommit")
+KEYBOARD_OPTIONS = (
+    "tapCycle",
+    "candidatesLeft",
+    "flickHints",
+    "romajiInput",
+    "qwertyLatin",
+    "swipe",
+    "dictationCommit",
+)
 
 
 # The strip above the keys, for a layout that does not set its own ("toolbar": [] means none).
-DEFAULT_TOOLBAR = [{"type": "action", "action": a}
-                   for a in ("settings", "emoji", "dictate", "copy", "cut", "paste", "menu", "hide")]
+DEFAULT_TOOLBAR = [
+    {"type": "action", "action": a} for a in ("settings", "emoji", "dictate", "copy", "cut", "paste", "menu", "hide")
+]
 
 
 MAX_KEYBOARDS = 20
@@ -37,8 +54,12 @@ KEYBOARD_ID = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 
 def clean_keyboard_list(value: object) -> bool:
     """Whether a keyboards list from the page is sane: 1-20 distinct ids."""
-    return (isinstance(value, list) and 0 < len(value) <= MAX_KEYBOARDS and len(set(value)) == len(value)
-            and all(isinstance(k, str) and KEYBOARD_ID.match(k) for k in value))
+    return (
+        isinstance(value, list)
+        and 0 < len(value) <= MAX_KEYBOARDS
+        and len(set(value)) == len(value)
+        and all(isinstance(k, str) and KEYBOARD_ID.match(k) for k in value)
+    )
 
 
 def clean_keyboard_options(value: object) -> Optional[dict]:
@@ -59,8 +80,10 @@ def clean_dictation_models(value: object) -> Optional[dict]:
     """{language: model id}, or None when it is not that shape (unknown ids are ignored later)."""
     if not isinstance(value, dict) or len(value) > 64:
         return None
-    if not all(isinstance(k, str) and DICTATION_LANGUAGE.match(k) and isinstance(v, str) and DICTATION_MODEL.match(v)
-               for k, v in value.items()):
+    if not all(
+        isinstance(k, str) and DICTATION_LANGUAGE.match(k) and isinstance(v, str) and DICTATION_MODEL.match(v)
+        for k, v in value.items()
+    ):
         return None
     return dict(value)
 
@@ -90,8 +113,11 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
         # Report the option the value was meant to be: its "type"/"kind" matched.
         tags = (f"{path}/type: must be", f"{path}/kind: must be")
         wrong_type = (f"{path or '/'}: must be a ", f"{path or '/'}: must be an ")
-        meant = [r for r in results
-                 if not any(e.startswith(tags) for e in r) and not (len(r) == 1 and r[0].startswith(wrong_type))]
+        meant = [
+            r
+            for r in results
+            if not any(e.startswith(tags) for e in r) and not (len(r) == 1 and r[0].startswith(wrong_type))
+        ]
         return min(meant, key=len) if meant else max(results, key=lambda r: max(e.count("/") for e in r))
     errors: list[str] = []
     where = path or "/"
@@ -176,7 +202,7 @@ def _scan(directory: Path, schema: dict, errors: list[str]) -> dict[str, dict]:
                 continue
             data = read_json(file.read_text(encoding="utf-8"))
         except DuplicateKey as error:
-            errors.append(f"{name}: \"{str(error.args[0])[:40]}\" appears twice in one object")
+            errors.append(f'{name}: "{str(error.args[0])[:40]}" appears twice in one object')
             continue
         except (OSError, ValueError) as error:
             errors.append(f"{name}: not valid JSON ({type(error).__name__})")
@@ -244,8 +270,11 @@ def load_emoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
 def clean_emoji_state(data: object) -> dict:
     """Recent and favorites (emoji, or Steam item keys like "steam:sticker:<name>") and the skin tone; anything else is dropped."""
     data = data if isinstance(data, dict) else {}
-    pick = lambda key: [e for e in data.get(key, []) if isinstance(e, str) and 0 < len(e) <= 96][:MAX_EMOJI_LIST] \
-        if isinstance(data.get(key), list) else []
+    pick = lambda key: (
+        [e for e in data.get(key, []) if isinstance(e, str) and 0 < len(e) <= 96][:MAX_EMOJI_LIST]
+        if isinstance(data.get(key), list)
+        else []
+    )
     tone = data.get("tone") if data.get("tone") in TONES else ""
     return {"recent": pick("recent"), "favorites": pick("favorites"), "tone": tone}
 
@@ -280,8 +309,9 @@ MAX_EXTENDS = 4  # how deep "extends" may chain
 NOT_INHERITED = ("id", "name", "description", "extends", "rows")
 
 
-def _extend(layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]],
-            chain: tuple[str, ...] = ()) -> Optional[dict]:
+def _extend(
+    layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]], chain: tuple[str, ...] = ()
+) -> Optional[dict]:
     """The layout with what it extends filled in, or None (reported once) if that cannot be done."""
     if layout_id in done:
         return done[layout_id]
@@ -289,8 +319,9 @@ def _extend(layouts: dict, layout_id: str, errors: list[str], done: dict[str, Op
     return done[layout_id]
 
 
-def _extend_one(layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]],
-                chain: tuple[str, ...]) -> Optional[dict]:
+def _extend_one(
+    layouts: dict, layout_id: str, errors: list[str], done: dict[str, Optional[dict]], chain: tuple[str, ...]
+) -> Optional[dict]:
     layout = layouts[layout_id]
     base_id = layout.get("extends")
     if base_id is None:
@@ -360,10 +391,16 @@ def _expand_spans(layout_id: str, layout: dict, errors: list[str]) -> bool:
                         if place < len(below):
                             x += _width(below[place])
                     if below is None or slot is None or notch >= width:
-                        where = f"there is no row {index + depth}" if below is None else f"row {index + depth} has no room for it"
+                        where = (
+                            f"there is no row {index + depth}"
+                            if below is None
+                            else f"row {index + depth} has no room for it"
+                        )
                         errors.append(f"{layout_id}: row {index}: {_key_id(key)} is {span} rows high but {where}")
                         return False
-                    below.insert(slot, {**piece, "w": width - notch, "tall": "bottom" if depth == span - 1 else "middle"})
+                    below.insert(
+                        slot, {**piece, "w": width - notch, "tall": "bottom" if depth == span - 1 else "middle"}
+                    )
                 row[position] = {**{k: v for k, v in key.items() if k != "rows"}, "tall": "top", "span": span}
             at += width
     layout["rows"] = rows
@@ -377,7 +414,9 @@ def _check_rows(layout_id: str, layout: dict, errors: list[str], width: Optional
     ok = True
     for index, row_width in enumerate(widths):
         if abs(row_width - want) > 1e-6:
-            errors.append(f"{layout_id}: row {index} is {row_width:g} wide, {'row 0 is' if width is None else 'the layout is'} {want:g}")
+            errors.append(
+                f"{layout_id}: row {index} is {row_width:g} wide, {'row 0 is' if width is None else 'the layout is'} {want:g}"
+            )
             ok = False
     return ok
 
@@ -400,7 +439,12 @@ def _alone_rows(layout_id: str, layout: dict, errors: list[str]) -> Optional[lis
     if _expand_spans(layout_id, alone, trial) and _check_rows(layout_id, alone, trial, width):
         return alone["rows"]
     errors.extend(f"{e} (with one keyboard; 🌐 left as a gap)" for e in trial)
-    gap = {"rows": [[{"type": "gap", "w": _width(key)} if _is_globe(key) else _without_alone(key) for key in row] for row in rows]}
+    gap = {
+        "rows": [
+            [{"type": "gap", "w": _width(key)} if _is_globe(key) else _without_alone(key) for key in row]
+            for row in rows
+        ]
+    }
     _expand_spans(layout_id, gap, [])
     return gap["rows"]
 
@@ -440,7 +484,9 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
         _check_rows(layout_id, layout, errors)
         if alone is not None:
             layout["aloneRows"] = alone
-        has_modify_key = any(isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row)
+        has_modify_key = any(
+            isinstance(key, dict) and key.get("action") == "modify" for row in layout["rows"] for key in row
+        )
         if has_modify_key and not layout.get("modify"):
             errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")
 
@@ -474,8 +520,14 @@ def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
                 result = None
             else:
                 base = resolve(base_id, chain + (keyboard_id,))
-                inherited = {k: json.loads(json.dumps(v)) for k, v in (base or {}).items() if k not in ("id", "name", "description", "extends")}
-                result = None if base is None else {**inherited, **{k: v for k, v in keyboard.items() if k != "extends"}}
+                inherited = {
+                    k: json.loads(json.dumps(v))
+                    for k, v in (base or {}).items()
+                    if k not in ("id", "name", "description", "extends")
+                }
+                result = (
+                    None if base is None else {**inherited, **{k: v for k, v in keyboard.items() if k != "extends"}}
+                )
         if result is not None and "layout" not in result:
             errors.append(f"{keyboard_id}: needs a layout, or extends a keyboard with one")
             result = None
@@ -500,8 +552,11 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {"catalog": {kind: {} for kind in KINDS.values()}, "settings": dict(DEFAULT_SETTINGS),
-                "errors": [f"cannot read the pack schema {schema_path}"]}
+        return {
+            "catalog": {kind: {} for kind in KINDS.values()},
+            "settings": dict(DEFAULT_SETTINGS),
+            "errors": [f"cannot read the pack schema {schema_path}"],
+        }
     user = user or user_dir()
     items = _scan(bundled, schema, errors)
     items.update(_scan(user / "packs", schema, errors))  # user items replace bundled ones by id
@@ -517,8 +572,9 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         if missing:
             errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]
-        elif (keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})) \
-                and "entries" not in catalog["tables"].get(keyboard.get("table"), {}):
+        elif (
+            keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})
+        ) and "entries" not in catalog["tables"].get(keyboard.get("table"), {}):
             errors.append(f"{keyboard_id}: romaji table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
         elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
@@ -529,15 +585,21 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     unknown = [k for k in settings["keyboards"] if k not in catalog["keyboards"]]
     if unknown:
         errors.append(f"settings.json: unknown keyboards {', '.join(unknown)}")
-    settings["keyboards"] = [k for k in settings["keyboards"] if k in catalog["keyboards"]] \
-        or sorted(catalog["keyboards"])[:1]
+    settings["keyboards"] = [k for k in settings["keyboards"] if k in catalog["keyboards"]] or sorted(
+        catalog["keyboards"]
+    )[:1]
     if settings["theme"] not in catalog["themes"]:
         errors.append(f"settings.json: unknown theme {settings['theme']}")
         default = DEFAULT_SETTINGS["theme"]
         settings["theme"] = default if default in catalog["themes"] else next(iter(sorted(catalog["themes"])), "")
     emoji = load_emoji([user / "packs", bundled], errors)
-    return {"catalog": catalog, "settings": settings, "errors": errors,
-            "emoji": emoji, "emojiState": load_emoji_state(user / "emoji.json")}
+    return {
+        "catalog": catalog,
+        "settings": settings,
+        "errors": errors,
+        "emoji": emoji,
+        "emojiState": load_emoji_state(user / "emoji.json"),
+    }
 
 
 if __name__ == "__main__":

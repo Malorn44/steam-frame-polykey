@@ -1,4 +1,5 @@
 """The helper process: engine.py driving the real worker.py, over a stand-in transcribe_cpp."""
+
 from __future__ import annotations
 
 import asyncio
@@ -60,13 +61,17 @@ def test_transcribes_through_the_helper_and_unloads_when_idle(helper):
         finally:
             await engine.close()
         assert not engine.loaded
+
     asyncio.run(main())
     lines = log.read_text().splitlines()
     assert lines.count("load a.gguf backend=cpu env=cpu library=libtranscribe.so") == 2
     assert lines.count("session threads=4") == 2 and "log callback" in lines
     # PCM goes in as float samples; a language the model lists is passed on, another is left to it.
     assert [line for line in lines if line.startswith("run")] == [
-        "run samples=16000 type=f language=en", "run samples=8000 type=f language=None", "run samples=8000 type=f language=ja"]
+        "run samples=16000 type=f language=en",
+        "run samples=8000 type=f language=None",
+        "run samples=8000 type=f language=ja",
+    ]
     assert "Hello" not in out.getvalue()  # never the transcript in the log
     assert "speech helper loaded (a, cpu unknown" in out.getvalue() and "unloaded (idle)" in out.getvalue()
 
@@ -86,6 +91,7 @@ def test_another_model_restarts_the_helper(helper):
             assert not engine.loaded
         finally:
             await engine.close()
+
     asyncio.run(main())
     assert [line.split()[1] for line in log.read_text().splitlines() if line.startswith("load")] == ["a.gguf", "b.gguf"]
     assert "unloaded (another model)" in out.getvalue()
@@ -114,7 +120,9 @@ def test_missing_engine_or_model_a_failing_load_and_a_crash(helper, tmp_path, mo
 
 def test_a_broken_engine_reports_it(helper, monkeypatch):
     home, models, _ = helper
-    (home / "engine" / "0.4.1" / "python" / "transcribe_cpp" / "__init__.py").write_text("raise ImportError('no library')\n")
+    (home / "engine" / "0.4.1" / "python" / "transcribe_cpp" / "__init__.py").write_text(
+        "raise ImportError('no library')\n"
+    )
     assert asyncio.run(code(make(home), models / "a.gguf")) == "engine-failed"
 
 

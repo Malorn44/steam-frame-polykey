@@ -3,6 +3,7 @@
 Messages: object id (u32), size << 16 | opcode (u32), 4-byte-padded args. FDs arrive as SCM_RIGHTS
 in order; handlers take them with take_fd().
 """
+
 from __future__ import annotations
 
 import array
@@ -49,7 +50,7 @@ class Args:
         length = self.uint()
         if length == 0:
             return None
-        raw = self._body[self._offset:self._offset + length - 1]
+        raw = self._body[self._offset : self._offset + length - 1]
         self._offset += (length + 3) & ~3
         return raw.decode("utf-8", "replace")
 
@@ -143,6 +144,7 @@ class Connection:
         def done(_opcode: int, _args: Args) -> None:
             if not future.done():
                 future.set_result(None)
+
         callback = self.new_id(done)
         self.send(DISPLAY_ID, 0, pack_uint(callback))  # wl_display.sync
         waiters = {future} if self._closed is None else {future, self._closed}
@@ -164,6 +166,7 @@ class Connection:
                 name = args.uint()
                 interface = args.string() or ""
                 found[interface] = (name, args.uint())
+
         registry = self.new_id(on_global)
         self.send(DISPLAY_ID, 1, pack_uint(registry))  # wl_display.get_registry
         await self.roundtrip()
@@ -204,7 +207,7 @@ class Connection:
         for level, kind, cdata in ancillary:
             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                 fds = array.array("i")
-                fds.frombytes(cdata[:len(cdata) - len(cdata) % fds.itemsize])
+                fds.frombytes(cdata[: len(cdata) - len(cdata) % fds.itemsize])
                 self._fds.extend(fds)
         if not data:
             self._shutdown("compositor closed the connection")

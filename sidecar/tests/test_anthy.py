@@ -15,7 +15,10 @@ class FakeAnthy:
 
     def convert(self, reading, lengths=None, resize=None):
         self.calls.append((reading, lengths, resize))
-        return [{"reading": reading[:2], "candidates": ["今日", "きょう"]}, {"reading": reading[2:], "candidates": ["は"]}]
+        return [
+            {"reading": reading[:2], "candidates": ["今日", "きょう"]},
+            {"reading": reading[2:], "candidates": ["は"]},
+        ]
 
     def predict(self, reading):
         return [reading + "ね"]
@@ -51,6 +54,7 @@ def test_bad_requests_and_a_missing_library():
 
     def missing():
         raise AnthyUnavailable("no libanthy")
+
     bridge = Bridge(Log(out), converter=Converter(missing))
     assert ask(bridge, op="convert", reading="ひみつ")["error"] == "unavailable"
     assert "ひみつ" not in out.getvalue()  # readings are typed text: never logged
