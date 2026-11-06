@@ -8,8 +8,10 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:debug": "node scripts/build.mjs --debug",
-    "lint": "npm run lint:ts && npm run lint:py && npm run lint:sh && npm run lint:ci",
+    "lint": "npm run lint:ts && npm run format:check && npm run lint:py && npm run lint:sh && npm run lint:ci",
     "lint:ts": "tools/eslint/node_modules/.bin/eslint -c tools/eslint/eslint.config.js .",
+    "format": "prettier --write src tests scripts tools/eslint '*.{js,json,ts}'",
+    "format:check": "prettier --check src tests scripts tools/eslint '*.{js,json,ts}'",
     "lint:py": ".venv/bin/ruff check sidecar scripts && .venv/bin/ruff format --check sidecar scripts",
     "lint:sh": ".venv/bin/shellcheck scripts/*.sh",
     "lint:ci": ".venv/bin/actionlint",
@@ -22,6 +24,7 @@
     "@types/jsdom": "^30.0.0",
     "esbuild": "^0.28.2",
     "jsdom": "^29.1.1",
+    "prettier": "3.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }

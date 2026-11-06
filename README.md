@@ -27,7 +27,7 @@ Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json
 npm install
 npm ci --prefix tools/eslint   # ESLint on its own TypeScript 6; the project builds with TypeScript 7
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
-npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
+npm run check        # lint (ESLint, Prettier, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
 ```
 
 ## Deploy to the Frame

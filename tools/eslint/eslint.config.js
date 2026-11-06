@@ -36,7 +36,7 @@ export default defineConfig(
   },
   {
     basePath: root,
-    files: ['scripts/**/*.mjs', 'tools/eslint/eslint.config.js'],
+    files: ['scripts/**/*.mjs', 'tools/eslint/eslint.config.js', 'prettier.config.js'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },

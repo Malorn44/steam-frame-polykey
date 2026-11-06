@@ -1,0 +1,5 @@
+# Prettier also skips what .gitignore lists. Packs and schemas are hand-laid data; lockfiles belong to npm.
+dist/
+packs/
+schema/
+package-lock.json
