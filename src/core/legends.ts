@@ -12,7 +12,7 @@
 // at the edges).
 
 import { normalizeFn, type KeyDef, type LegendDef, type LegendSlot } from './catalog.js';
-import { charText, keyLabel, type Mods } from './keyboard.js';
+import { charText, flickText, keyLabel, type Mods } from './keyboard.js';
 import { pageLabel } from './pages.js';
 
 export type SlotName = LegendSlot;
@@ -150,7 +150,7 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
 
   const label = ((): Legend => {
     if (ctx.label !== undefined) return text(ctx.label, 'key', 'text');
-    if (key.type === 'flick' && (ctx.hints || key.hints)) return text(key.flick[0], 'key', 'text');
+    if (key.type === 'flick' && (ctx.hints || key.hints)) return text(flickText(key.flick[0], mods), 'key', 'text');
     if (ctx.icon) return { kind: 'icon', icon: ctx.icon };
     return text(pageLabel(key, { letters: ctx.letters, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
   })();
@@ -158,12 +158,13 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
   const shown: Legend = key.type === 'flick' && key.sub && !(ctx.hints || key.hints) && label.kind === 'text'
     ? { ...label, under: text(key.sub, 'sub', 'legend') } : label;
 
-  // Flick hints: each direction's kana small at the key's left, top, right and bottom edge.
+  // Flick hints: each direction's kana small at the key's left, top, right and bottom edge, as Shift and
+  // Caps type it (capitals on the ABC page), like the label without hints and the flick guide.
   if (key.type === 'flick' && (ctx.hints || key.hints)) {
     const slots: Partial<Record<SlotName, Legend>> = { c: shown };
     (['l', 't', 'r', 'b'] as const).forEach((slot, i) => {
       const value = key.flick[i + 1];
-      if (value) slots[slot] = text(value, 'hint', 'legend');
+      if (value) slots[slot] = text(flickText(value, mods), 'hint', 'legend');
     });
     return { arrangement: 'edges', slots };
   }
