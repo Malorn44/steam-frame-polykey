@@ -25,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 import time
 from pathlib import Path, PurePosixPath
@@ -58,14 +59,20 @@ def mark_started(code: Path) -> None:
 
 def fall_back(code: Path) -> Optional[str]:
     """The release in `code` (versions/<version>) failed to start. When it is the current release, has
-    never reached Steam, and a release ran before it, go back to that one (skipping this one) and
-    return its version. Anything else is left alone."""
+    never reached Steam, and a release ran before it, go back to that one (skipping this one), say so
+    on stderr and return its version. Anything else is left alone."""
     if code.parent.name != "versions" or not is_release(code.name) or (code / STARTED).exists():
         return None
     versions = Versions(code.parent.parent)
     if versions.current() != code.name or versions.previous() is None:
         return None
-    return versions.rollback()[1]
+    to = versions.rollback()[1]
+    print(
+        f"polykey: this release could not start; went back to {to} (updates skip it until a newer one)",
+        file=sys.stderr,
+        flush=True,
+    )
+    return to
 
 
 def app_dir() -> Path:
