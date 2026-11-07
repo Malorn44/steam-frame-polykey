@@ -29,7 +29,7 @@ In Desktop Mode, open Konsole and run:
 curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh
 ```
 
-It checks what polykey needs (Python 3.10+ with aiohttp, both in SteamOS; Steam's debugger on 127.0.0.1:8080), installs the latest release into `~/.local/share/polykey/`, and starts it now and at every login. No sudo. From then on polykey updates itself: an hour apart it looks for a newer release, and installs one only when its signature checks out against the release key (with `"autoUpdate": false` in `~/.config/polykey/settings.json`, it only reports). Running the script again also updates. The same script, run with an option after `sh -s --`, also does:
+It checks what polykey needs (Python 3.10.12+ with aiohttp, both in SteamOS; Steam's debugger on 127.0.0.1:8080), installs the latest release into `~/.local/share/polykey/`, and starts it now and at every login. No sudo. From then on polykey updates itself: an hour apart it looks for a newer release, and installs one only when its signature checks out against the release key (with `"autoUpdate": false` in `~/.config/polykey/settings.json`, it only reports). Running the script again also updates. The same script, run with an option after `sh -s --`, also does:
 
 ```sh
 … | sh -s -- --check       # report what's missing; change nothing

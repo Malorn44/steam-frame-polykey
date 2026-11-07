@@ -1,6 +1,6 @@
-"""Command line: run.py {run,once,probe,uninstall,activate,rollback} [options].
+"""Command line: run.py {run,once,probe,uninstall,unpack,rollback} [options].
 
-activate and rollback import nothing but versions.py, so they work even when the rest of a release
+unpack and rollback import nothing but versions.py, so they work even when the rest of a release
 does not: a release that cannot start can still be left.
 """
 
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import signal
 import sys
 from pathlib import Path
@@ -21,11 +20,11 @@ COMMANDS = {
     "once": "inject once and exit",
     "probe": "print a read-only report of the Steam objects polykey uses, and exit",
     "uninstall": "remove polykey from Steam (restores the stock keyboard) and exit",
-    "activate": "make an installed release the current one (restart the service after)",
+    "unpack": "unpack a release tarball into versions/ and make it current (restart the service after)",
     "rollback": "go back to the release before this one; updates skip the one left until a newer release",
 }
 
-VERSION_COMMANDS = ("activate", "rollback")
+VERSION_COMMANDS = ("unpack", "rollback")
 
 
 def forward_console(choice: Optional[bool]) -> bool:
@@ -34,39 +33,39 @@ def forward_console(choice: Optional[bool]) -> bool:
 
     if choice is not None:
         return choice
-    if injector.is_dev():
-        return True
-    try:
-        return json.loads((packs.user_dir() / "settings.json").read_text(encoding="utf-8")).get("console") is True
-    except (OSError, ValueError, AttributeError):
-        return False
+    return injector.is_dev() or packs.read_settings(packs.user_dir() / "settings.json").get("console") is True
 
 
 def _versions(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="run.py")
     parser.add_argument("command", choices=VERSION_COMMANDS)
-    parser.add_argument("version", nargs="?", help="activate: the release (default: the one this run.py is in)")
+    parser.add_argument("tarball", nargs="?", type=Path, help="unpack: the release tarball")
+    parser.add_argument("--root", type=Path, help="the polykey folder (default: the one this release is in)")
+    parser.add_argument(
+        "--version", help="unpack: the release the tarball must hold (install.sh passes the signed one)"
+    )
     args = parser.parse_args(argv)
-    version = args.version or Path(__file__).resolve().parents[2].name  # activate: versions/<version>/sidecar
-    versions = Versions()
+    if args.command == "unpack" and args.tarball is None:
+        parser.error("unpack needs a release tarball")
+    versions = Versions(args.root)
     try:
-        if args.command == "activate":
-            versions.activate(version)
-            print(f"current: {versions.current()}", flush=True)
+        if args.command == "unpack":
+            print(versions.install(args.tarball, args.version), flush=True)  # only the version: install.sh reads it
         else:
             before, after = versions.rollback()
             skip = f"; updates skip {before} until a newer release" if before and before != "dev" else ""
             print(f"rolled back from {before} to {after}{skip}", flush=True)
-    except VersionError as error:  # a refusal (exit 3), told apart from a crash (exit 1)
+    except VersionError as error:
+        release = f"polykey {args.version}" if args.version else "polykey"
         reasons = {
             "no-previous": "no earlier release to go back to",
-            "not-installed": f"{version} is not installed",
-            "busy": "another install or update of polykey is under way; try again in a minute",
+            "busy": "another polykey install or update holds the lock; try again in a minute",
+            "bad-archive": f"{args.tarball} is not a {release} release tarball",
         }
-        print(reasons.get(error.code, error.code), flush=True)
-        return 3
+        print(reasons.get(error.code, error.code), file=sys.stderr, flush=True)
+        return 1
     except OSError as error:
-        print(f"{args.command} failed: {error.strerror or type(error).__name__}", flush=True)
+        print(f"{args.command} failed: {error.strerror or type(error).__name__}", file=sys.stderr, flush=True)
         return 1
     return 0
 

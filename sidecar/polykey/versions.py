@@ -5,11 +5,11 @@
   current              the link the service runs: versions/<version> or dev
   updates/state.json   {"previous": the release that ran before this one, "skip": a release rolled
                         back from, which automatic updates leave alone until a newer one}
-  updates/lock         one writer at a time: unpack, activate and rollback here, and
-                        install.sh's own unpacking, each hold an exclusive flock on it
+  updates/lock         one writer at a time: install, activate and rollback each hold an exclusive
+                        flock on it
 
-install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
-`run.py rollback`; the updater (updates.py) does the same in the service, with unpack(). A release
+install.sh runs `run.py unpack <tarball>` from the release it installs, and `run.py rollback` from the
+current one; the updater (updates.py) does the same in the service, with install(). A release
 marks itself started (versions/<version>/.started) the first time it reaches Steam; one that fails
 before that while it is current goes back to the release before it by itself (run.py, fall_back), and
 is skipped. The running sidecar imports from its own versions/<version> (run.py resolves the link), so
@@ -34,10 +34,8 @@ from typing import Iterator, Optional
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$")
 DEV = "dev"
 STARTED = ".started"  # in versions/<version>: that release has reached Steam
-MAX_MEMBER = 32 << 20  # unpack(): the largest file a release may hold, and all of them together
-MAX_TOTAL = 128 << 20
-PART = re.compile(r"^[A-Za-z0-9_.+@-]+$")  # unpack(): what a path part in a release may be
-LOCK_WAIT = 60.0  # how long a writer waits for another one to finish (install.sh waits as long)
+MAX_TOTAL = 128 << 20  # install(): what all the files in a release may hold together
+LOCK_WAIT = 60.0  # how long a writer waits for another one to finish before it gives up with "busy"
 
 
 class VersionError(Exception):
@@ -167,8 +165,9 @@ class Versions:
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:
         """Hold the lock every writer of versions/, `current` and state.json takes: the service's
-        updater, `run.py activate|rollback` and install.sh. Waits up to LOCK_WAIT for another writer,
-        then gives up with "busy". Blocking: in the service, run it off the loop."""
+        updater, and `run.py unpack|rollback` for install.sh. Waits up to LOCK_WAIT for another writer,
+        then gives up with "busy" (a stuck holder never hangs an install). Blocking: in the service, run
+        it off the loop."""
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
         try:
@@ -203,16 +202,28 @@ class Versions:
         becomes the one a rollback goes to; one asked for by name is no longer skipped. `running`, the
         release a process still runs from until it restarts, is kept too."""
         with self._locked():
-            if not is_release(version) or version not in self.installed():
-                raise VersionError("not-installed")
-            before, state = self.current(), self.state()
-            self._point(version)
-            if is_release(before) and before != version:
-                state["previous"] = before
-            if state.get("skip") == version:
-                state.pop("skip")
-            self._save_state(state)
-            self._prune(running)
+            self._activate(version, running)
+
+    def install(self, tarball: Path, version: Optional[str] = None, running: Optional[str] = None) -> str:
+        """Unpack a release tarball into versions/<version>/ and activate() it, under one hold of the
+        lock; -> its version. `version`, when given, is the release the tarball must hold. A release
+        already in versions/ is replaced: installing it again repairs it."""
+        with self._locked():
+            version = self._unpack(tarball, version)
+            self._activate(version, running)
+            return version
+
+    def _activate(self, version: str, running: Optional[str]) -> None:
+        if not is_release(version) or version not in self.installed():
+            raise VersionError("not-installed")
+        before, state = self.current(), self.state()
+        self._point(version)
+        if is_release(before) and before != version:
+            state["previous"] = before
+        if state.get("skip") == version:
+            state.pop("skip")
+        self._save_state(state)
+        self._prune(running)
 
     def rollback(self) -> tuple[Optional[str], str]:
         """Go back to previous(); the release left is skipped by automatic updates. -> (from, to)."""
@@ -239,63 +250,47 @@ class Versions:
         if not self.versions.is_dir():
             return
         for entry in self.versions.iterdir():
-            if entry.name not in keep and (entry.name.endswith(".new") or is_release(entry.name)):
+            if entry.name not in keep and (entry.name.endswith((".new", ".old")) or is_release(entry.name)):
                 shutil.rmtree(entry, ignore_errors=True)
 
-    def unpack(self, tarball: Path, version: str) -> Path:
-        """Unpack a verified release tarball (polykey-<version>/… inside) into versions/<version>/.
-        Only directories and regular files with plain names, under that one top folder; nothing can
-        land anywhere else. Assembled beside its place and renamed in, under the lock (blocking: run it
-        off the loop).
-        The current release is left as it is: a process may be running from it."""
-        with self._locked():
-            return self._unpack(tarball, version)
-
-    def _unpack(self, tarball: Path, version: str) -> Path:
-        if not is_release(version):
-            raise VersionError("bad-version")
-        top = f"polykey-{version}"
-        work = self.versions / f"{version}.new"
+    def _unpack(self, tarball: Path, version: Optional[str]) -> str:
+        """Refused unless the tarball holds one top folder, polykey-<version>/, whose VERSION says the
+        same, with only directories and regular files in it and MAX_TOTAL bytes in all; tarfile's data
+        filter keeps them inside it. Assembled in versions/.new and renamed in."""
+        work = self.versions / ".new"
         shutil.rmtree(work, ignore_errors=True)
         work.mkdir(parents=True)
-        total = 0
         try:
-            with tarfile.open(tarball, "r:gz") as tar:
-                for member in tar:
-                    parts = PurePosixPath(member.name).parts
-                    if not parts or parts[0] != top or not all(PART.match(p) and p not in (".", "..") for p in parts):
+            try:
+                with tarfile.open(tarball, "r:gz") as tar:
+                    members = tar.getmembers()
+                    top = members[0].name.split("/")[0] if members else ""
+                    version = version or top.removeprefix("polykey-")
+                    if (
+                        top != f"polykey-{version}"
+                        or not is_release(version)
+                        or sum(m.size for m in members) > MAX_TOTAL
+                        or not all(
+                            (m.isfile() or m.isdir()) and m.name.split("/")[0] == top and ".." not in m.name.split("/")
+                            for m in members
+                        )
+                    ):
                         raise VersionError("bad-archive")
-                    dest = work.joinpath(*parts[1:])
-                    if member.isdir():
-                        dest.mkdir(parents=True, exist_ok=True)
-                        continue
-                    if not member.isfile() or member.size > MAX_MEMBER or len(parts) < 2:
-                        raise VersionError("bad-archive")
-                    total += member.size
-                    if total > MAX_TOTAL:
-                        raise VersionError("bad-archive")
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    source = tar.extractfile(member)
-                    if source is None:
-                        raise VersionError("bad-archive")
-                    with source, open(dest, "wb") as out:
-                        shutil.copyfileobj(source, out)
-                    os.chmod(dest, 0o755 if member.mode & 0o100 else 0o644)
-            if (work / "VERSION").read_text(encoding="utf-8").strip() != version or not (
-                work / "sidecar" / "run.py"
-            ).is_file():
-                raise VersionError("bad-archive")
-        except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
+                    tar.extractall(work, filter="data")
+                if (work / top / "VERSION").read_text(encoding="utf-8").strip() != version or not (
+                    work / top / "sidecar" / "run.py"
+                ).is_file():
+                    raise VersionError("bad-archive")
+            except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
+                raise VersionError("bad-archive") from None
+            # A release already there (a repair) is renamed aside, not deleted, until the new one is in:
+            # `current` never points at a half-deleted folder.
+            final, old = self.versions / version, self.versions / f"{version}.old"
+            if final.exists():
+                shutil.rmtree(old, ignore_errors=True)
+                os.replace(final, old)
+            os.replace(work / top, final)
+            shutil.rmtree(old, ignore_errors=True)
+            return version
+        finally:
             shutil.rmtree(work, ignore_errors=True)
-            raise VersionError("bad-archive") from None
-        except VersionError:
-            shutil.rmtree(work, ignore_errors=True)
-            raise
-        final = self.versions / version
-        if final.exists():
-            if self.current() == version:
-                shutil.rmtree(work, ignore_errors=True)  # already running it: leave it be
-                return final
-            shutil.rmtree(final)
-        os.replace(work, final)
-        return final

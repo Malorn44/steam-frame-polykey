@@ -84,19 +84,24 @@ def add_member(tarball: Path, member: tarfile.TarInfo) -> None:
         tar.addfile(member)
 
 
-def test_unpack_installs_a_release_into_its_own_folder(versions, tmp_path):
-    folder = versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
-    assert folder == versions.versions / "0.1.0"
+def test_install_unpacks_a_release_into_its_own_folder_and_makes_it_current(versions, tmp_path):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    odd = tarfile.TarInfo("polykey-0.1.0/odd")
+    odd.mode = 0o6777
+    add_member(tarball, odd)
+    assert versions.install(tarball) == "0.1.0"
+    folder = versions.versions / "0.1.0"
     assert (folder / "VERSION").read_text() == "0.1.0\n"
     assert os.access(folder / "install.sh", os.X_OK) and not os.access(folder / "bundle.js", os.X_OK)
-    assert versions.installed() == ["0.1.0"]
-    assert not (versions.versions / "0.1.0.new").exists()
+    assert (folder / "odd").stat().st_mode & 0o7777 == 0o755  # the data filter's modes
+    assert versions.current() == "0.1.0" and os.listdir(versions.versions) == ["0.1.0"]
 
 
 @pytest.mark.parametrize(
-    "bad", ["link", "dotdot", "absolute", "top", "two-tops", "version", "no-sidecar", "not-gzip", "big", "too-much"]
+    "bad",
+    ["link", "dotdot", "absolute", "top", "not-a-release", "two-tops", "version", "no-sidecar", "not-gzip", "too-much"],
 )
-def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
+def test_install_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
     tarball = tmp_path / "bad.tar.gz"
     if bad == "link":
         link = tarfile.TarInfo("polykey-0.1.0/evil")
@@ -108,6 +113,8 @@ def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versio
         make_tarball(tarball, "0.1.0", top="/tmp/polykey-0.1.0")
     elif bad == "top":
         make_tarball(tarball, "0.1.0", top="something-else")
+    elif bad == "not-a-release":  # its folder name is no version: it would land outside versions/
+        make_tarball(tarball, "..")
     elif bad == "two-tops":
         add_member(make_tarball(tarball, "0.1.0"), tarfile.TarInfo("polykey-0.2.0/VERSION"))
     elif bad == "version":
@@ -117,43 +124,55 @@ def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versio
             info = tarfile.TarInfo("polykey-0.1.0/VERSION")
             info.size = 6
             tar.addfile(info, io.BytesIO(b"0.1.0\n"))
-    elif bad == "big":  # one file over the cap
-        monkeypatch.setattr(versions_module, "MAX_MEMBER", 100)
-        make_tarball(tarball, "0.1.0", {"bundle.js": "x" * 101})
-    elif bad == "too-much":  # files each under the cap, together over it
+    elif bad == "too-much":
         monkeypatch.setattr(versions_module, "MAX_TOTAL", 100)
         make_tarball(tarball, "0.1.0", {"a.js": "x" * 60, "b.js": "x" * 60})
     else:
         tarball.write_bytes(b"not a tarball")
     with pytest.raises(VersionError) as error:
-        versions.unpack(tarball, "0.1.0")
+        versions.install(tarball)
     assert error.value.code == "bad-archive"
-    assert versions.installed() == []
-    assert not (versions.versions / "0.1.0.new").exists()
+    assert versions.current() is None and os.listdir(versions.versions) == []
     assert not (tmp_path / "escape").exists()
 
 
-def test_unpack_refuses_a_version_that_is_not_a_release(versions, tmp_path):
+def test_install_refuses_a_tarball_of_another_release_than_asked_for(versions, tmp_path):
     with pytest.raises(VersionError) as error:
-        versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "../0.1.0")
-    assert error.value.code == "bad-version"
+        versions.install(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.2.0")
+    assert error.value.code == "bad-archive"
+    assert versions.current() is None and os.listdir(versions.versions) == []
 
 
-def test_unpacking_the_running_release_again_leaves_it_alone(versions, tmp_path):
-    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
-    versions.activate("0.1.0")
-    marker = versions.versions / "0.1.0" / "speech-in-use"
-    marker.write_text("x")
-    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
-    assert marker.exists() and not (versions.versions / "0.1.0.new").exists()
-
-
-def test_unpacking_a_release_that_is_not_current_replaces_it(versions, tmp_path):
-    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+def test_installing_a_release_again_repairs_it(versions, tmp_path):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    versions.install(tarball)
     (versions.versions / "0.1.0" / "left-over").write_text("x")
-    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
+    (versions.versions / "0.1.0" / "bundle.js").unlink()
+    versions.install(tarball)
+    assert (versions.versions / "0.1.0" / "bundle.js").exists()
     assert not (versions.versions / "0.1.0" / "left-over").exists()
-    assert versions.installed() == ["0.1.0"]
+    assert versions.current() == "0.1.0" and versions.previous() is None
+
+
+def test_a_repair_never_deletes_the_release_in_use_before_its_new_copy_is_in(versions, tmp_path, monkeypatch):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    versions.install(tarball)
+    live, rmtree = versions.versions / "0.1.0", shutil.rmtree
+
+    def careful_rmtree(path, *args, **kwargs):
+        assert Path(path) != live, "deleted the release current points at"
+        rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", careful_rmtree)
+    versions.install(tarball)
+    assert (live / "bundle.js").exists() and sorted(os.listdir(versions.versions)) == ["0.1.0"]
+
+
+def test_a_copy_left_aside_by_an_interrupted_repair_is_pruned(versions, tmp_path):
+    install(versions, "0.1.0")
+    (versions.versions / "0.1.0.old").mkdir()
+    versions.activate("0.1.0")
+    assert sorted(os.listdir(versions.versions)) == ["0.1.0"]
 
 
 def test_activate_points_current_at_the_release_and_remembers_the_one_before(versions):
@@ -242,38 +261,35 @@ def hold_lock(versions: Versions, seconds: float) -> threading.Thread:
     return holder
 
 
-def test_a_second_writer_waits_for_the_first(versions):
-    install(versions, "0.1.0", "0.2.0")
+def test_a_second_writer_waits_for_the_first(versions, tmp_path):
+    install(versions, "0.1.0")
     versions.activate("0.1.0")
-    holder = hold_lock(versions, 0.3)
-    started = time.monotonic()
-    versions.activate("0.2.0")
-    waited = time.monotonic() - started
-    holder.join()
-    assert waited >= 0.25 and versions.current() == "0.2.0" and versions.previous() == "0.1.0"
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.2.0")
+    for write in (lambda: versions.install(tarball), versions.rollback, lambda: versions.activate("0.2.0")):
+        holder = hold_lock(versions, 0.3)
+        started = time.monotonic()
+        write()
+        waited = time.monotonic() - started
+        holder.join()
+        assert waited >= 0.25
+    assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
 
 
-def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, tmp_path, monkeypatch, capsys):
+def test_a_writer_gives_up_with_busy_rather_than_wait_for_ever(versions, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(versions_module, "LOCK_WAIT", 0.1)
-    monkeypatch.setenv("XDG_DATA_HOME", str(versions.root.parent))  # run.py finds the same folder
     install(versions, "0.1.0", "0.2.0")
     versions.activate("0.1.0")
     versions.activate("0.2.0")
     tarball = make_tarball(tmp_path / "r.tar.gz", "0.3.0")
     holder = hold_lock(versions, 1.0)
     try:
-        writes = (
-            lambda: versions.activate("0.1.0"),
-            versions.rollback,
-            lambda: versions.unpack(tarball, "0.3.0"),
-        )
-        for write in writes:
+        for write in (lambda: versions.activate("0.1.0"), versions.rollback, lambda: versions.install(tarball)):
             with pytest.raises(VersionError) as error:
                 write()
             assert error.value.code == "busy"
         with pytest.raises(SystemExit) as code:
-            cli.main(["rollback"])
-        assert code.value.code == 3 and "under way" in capsys.readouterr().out
+            cli.main(["rollback", "--root", str(versions.root)])
+        assert code.value.code == 1 and "holds the lock" in capsys.readouterr().err
     finally:
         holder.join()
     assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
@@ -314,29 +330,30 @@ def test_a_release_that_reached_steam_stays_put(versions, tmp_path):
     assert versions.current() == "0.2.0" and versions.skipped() is None
 
 
-def test_run_py_activate_and_rollback(tmp_path, monkeypatch, capsys):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+def test_run_py_unpack_and_rollback(tmp_path, monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "polykey.injector", None)  # they work when the rest of the release does not
-    versions = Versions(tmp_path / "polykey")
-    install(versions, "0.1.0", "0.2.0")
-    for args in (["activate", "0.1.0"], ["activate", "0.2.0"], ["rollback"]):
+    root = str(tmp_path / "polykey")
+    for v in ("0.1.0", "0.2.0"):
         with pytest.raises(SystemExit) as code:
-            cli.main(args)
-        assert code.value.code == 0
-    out = capsys.readouterr().out
-    assert "current: 0.2.0" in out and "rolled back from 0.2.0 to 0.1.0; updates skip 0.2.0" in out
+            cli.main(["unpack", str(make_tarball(tmp_path / f"{v}.tar.gz", v)), "--root", root])
+        assert code.value.code == 0 and capsys.readouterr().out == f"{v}\n"  # the version, and nothing else
     with pytest.raises(SystemExit) as code:
-        cli.main(["rollback"])
-    assert code.value.code == 3
-    assert "no earlier release" in capsys.readouterr().out
+        cli.main(["rollback", "--root", root])
+    assert code.value.code == 0
+    assert "rolled back from 0.2.0 to 0.1.0; updates skip 0.2.0" in capsys.readouterr().out
     with pytest.raises(SystemExit) as code:
-        cli.main(["activate", "0.9.0"])
-    assert code.value.code == 3
-    assert "0.9.0 is not installed" in capsys.readouterr().out
+        cli.main(["rollback", "--root", root])
+    assert code.value.code == 1
+    assert "no earlier release" in capsys.readouterr().err
+    (tmp_path / "bad.tar.gz").write_bytes(b"not a tarball")
     with pytest.raises(SystemExit) as code:
-        cli.main(["activate"])  # this checkout is no installed release
-    assert code.value.code == 3
-    assert f"{SIDECAR.parent.name} is not installed" in capsys.readouterr().out
+        cli.main(["unpack", str(tmp_path / "bad.tar.gz"), "--root", root])
+    out, err = capsys.readouterr()
+    assert code.value.code == 1 and out == "" and "bad.tar.gz is not a polykey release tarball" in err
+    with pytest.raises(SystemExit) as code:
+        cli.main(["unpack", "--root", root])
+    assert code.value.code == 2 and "needs a release tarball" in capsys.readouterr().err
+    assert Versions(Path(root)).current() == "0.1.0"
 
 
 def test_run_py_imports_from_the_release_current_points_at(tmp_path):
@@ -361,23 +378,25 @@ def test_run_py_imports_from_the_release_current_points_at(tmp_path):
 
 
 def test_an_installed_release_finds_its_folder_from_where_it_is(tmp_path):
-    """`run.py activate` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
-    says, so install.sh (which unpacks to ~/.local/share/polykey) and the service always agree."""
-    root = tmp_path / "polykey"
-    release = root / "versions" / "0.1.0"
+    """`run.py rollback` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
+    says, so install.sh (which runs it through ~/.local/share/polykey/current) and the service agree."""
+    versions = Versions(tmp_path / "polykey")
+    install(versions, "0.1.0")
+    release = versions.versions / "0.2.0"
     shutil.copytree(SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
-    (release / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    (release / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
     env = {**os.environ, "XDG_DATA_HOME": str(tmp_path / "elsewhere")}
     out = subprocess.run(
-        [sys.executable, "-I", "-B", str(release / "sidecar" / "run.py"), "activate"],
+        [sys.executable, "-I", "-B", str(versions.link / "sidecar" / "run.py"), "rollback"],
         capture_output=True,
         text=True,
         check=True,
         env=env,
     ).stdout
-    assert "current: 0.1.0" in out
-    assert os.readlink(root / "current") == "versions/0.1.0"
+    assert "rolled back from 0.2.0 to 0.1.0" in out and versions.current() == "0.1.0"
     assert not (tmp_path / "elsewhere" / "polykey").exists()
 
 
@@ -396,9 +415,7 @@ def test_the_service_falls_back_from_a_release_that_cannot_start(tmp_path, broke
     }
     versions = Versions(tmp_path / "polykey")
     for v, main in (("0.1.0", "def main():\n    pass\n"), ("0.2.0", broken)):
-        tarball = make_tarball(tmp_path / f"{v}.tar.gz", v, {**real, "sidecar/polykey/__main__.py": main})
-        versions.unpack(tarball, v)
-        versions.activate(v)
+        versions.install(make_tarball(tmp_path / f"{v}.tar.gz", v, {**real, "sidecar/polykey/__main__.py": main}))
     run_py = versions.link / "sidecar" / "run.py"
     result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True)
     assert result.returncode != 0 and "went back to 0.1.0" in result.stderr

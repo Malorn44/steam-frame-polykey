@@ -12,12 +12,12 @@ import contextlib
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, Union
 
+from ..changes import Changes
 from .catalog import Catalog, Model
 from .download import Download
 from .install import EngineDownload, installed
 
 ENGINE = "engine"  # the engine's download, among the models'
-MAX_WAIT = 20.0
 
 
 class Library:
@@ -29,8 +29,7 @@ class Library:
         self._jobs: dict[str, tuple[Union[Download, EngineDownload], asyncio.Task]] = {}
         self._failed: dict[str, str] = {}  # the last failure per download, until it is tried again
         self._auto = True  # an automatic engine download may still be tried
-        self.rev = 0
-        self._changed: Optional[asyncio.Event] = None
+        self.changes = Changes()
 
     def model_path(self, model: Model) -> Path:
         return self.home / "models" / model.file
@@ -41,22 +40,6 @@ class Library:
     def ready(self) -> set:
         """The ids of the downloaded models."""
         return {m.id for m in self.catalog.models if self.model_path(m).is_file()} if self.catalog else set()
-
-    def _bump(self) -> None:
-        self.rev += 1
-        if self._changed is not None:
-            self._changed.set()
-        self._changed = asyncio.Event()
-
-    async def wait(self, since: object, timeout: object) -> None:
-        """Until `rev` is not `since` any more, or the timeout (ms, at most MAX_WAIT s)."""
-        if not isinstance(since, int) or since != self.rev:
-            return
-        seconds = min(max(timeout / 1000, 0), MAX_WAIT) if isinstance(timeout, (int, float)) else MAX_WAIT
-        if self._changed is None:
-            self._changed = asyncio.Event()
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(self._changed.wait(), seconds)
 
     def _state(self, key: str, ready: bool) -> dict:
         job = self._jobs.get(key)
@@ -70,7 +53,7 @@ class Library:
         models = (
             {m.id: self._state(m.id, self.model_path(m).is_file()) for m in self.catalog.models} if self.catalog else {}
         )
-        return {"rev": self.rev, "engine": self._state(ENGINE, self.engine_ready()), "models": models}
+        return {"rev": self.changes.rev, "engine": self._state(ENGINE, self.engine_ready()), "models": models}
 
     def page_catalog(self) -> dict:
         """dictation.catalog: the engine and models, without where they come from."""
@@ -118,14 +101,14 @@ class Library:
         options = dict(self._download_options)
         if key == ENGINE:
             job: Union[Download, EngineDownload] = EngineDownload(
-                self.catalog.engine, self.home, on_progress=self._bump, **options
+                self.catalog.engine, self.home, on_progress=self.changes.bump, **options
             )
             what = "the speech engine"
         else:
             model = self.catalog.model(key)
             assert model is not None
             options.pop("machine", None)
-            job = Download(model.remote, self.model_path(model), on_progress=self._bump, **options)
+            job = Download(model.remote, self.model_path(model), on_progress=self.changes.bump, **options)
             what = f"speech model {model.id}"
         self._failed.pop(key, None)
         self._log.info(f"dictation: downloading {what}")
@@ -142,10 +125,10 @@ class Library:
             else:
                 self._failed[key] = job.error or "failed"
                 self._log.info(f"dictation: {what} download failed ({job.error})")
-            self._bump()
+            self.changes.bump()
 
         self._jobs[key] = (job, asyncio.ensure_future(run()))
-        self._bump()
+        self.changes.bump()
 
     async def _stop_job(self, key: str) -> None:
         entry = self._jobs.pop(key, None)
@@ -165,11 +148,11 @@ class Library:
             path.unlink()
         self._failed.pop(model.id, None)
         self._log.info(f"dictation: speech model {model.id} deleted")
-        self._bump()
+        self.changes.bump()
         return None
 
     async def stop(self) -> None:
         """Stop every download."""
         for key in list(self._jobs):
             await self._stop_job(key)
-        self._bump()
+        self.changes.bump()

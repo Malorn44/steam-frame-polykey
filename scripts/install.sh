@@ -36,6 +36,7 @@ die() { say "✗ $*" >&2; exit 1; }
 
 mode=install
 tarball=""
+version=""  # set by download(): the release latest.json names, which the tarball must hold
 purge=0
 parse() {
   while [ $# -gt 0 ]; do
@@ -59,26 +60,15 @@ parse() {
 # Hard requirements fail the install; the rest are warnings. Prints a line for each.
 check() {
   ok=1
-  if "$PY" -I -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
-    say "✓ $("$PY" -I -c 'import platform; print("python3", platform.python_version())')"
+  if found=$("$PY" -I -c 'import platform, sys, tarfile, aiohttp; sys.version_info >= (3, 10) and hasattr(tarfile, "data_filter") or sys.exit(1); print("python3", platform.python_version(), "with aiohttp", aiohttp.__version__)' 2>/dev/null); then
+    say "✓ $found"
   else
-    say "✗ python3 3.10 or newer at $PY: missing. SteamOS ships it."; ok=0
-  fi
-  if "$PY" -I -c 'import aiohttp' 2>/dev/null; then
-    say "✓ aiohttp $("$PY" -I -c 'import aiohttp; print(aiohttp.__version__)')"
-  else
-    say "✗ aiohttp for $PY: missing. SteamOS ships it; elsewhere install your distribution's python3-aiohttp"
-    say "  (polykey runs on the system Python, not pip)."; ok=0
+    say "✗ python3 3.10.12 or newer with aiohttp at $PY: missing. SteamOS ships both."; ok=0
   fi
   if systemctl --user show-environment >/dev/null 2>&1; then
     say "✓ systemd user session"
   else
     say "✗ systemd user session: not reachable. Run this from your desktop session (Konsole)."; ok=0
-  fi
-  if command -v flock >/dev/null 2>&1; then
-    say "✓ flock (one install or update at a time)"
-  else
-    say "✗ flock: missing. It comes with util-linux, which SteamOS ships."; ok=0
   fi
   if command -v ssh-keygen >/dev/null 2>&1; then
     say "✓ ssh-keygen (checks release signatures)"
@@ -114,21 +104,6 @@ fetch() {  # fetch URL FILE
   curl -fsSL --proto '=https,http' --retry 2 --max-time 300 -o "$2" "$1" || die "could not download $1"
 }
 
-version_of() {  # the release a tarball holds, from its top folder polykey-<version>/
-  "$PY" -I - "$1" <<'EOF'
-import re, sys, tarfile
-try:
-    with tarfile.open(sys.argv[1], "r:gz") as tar:
-        top = {m.name.split("/", 1)[0] for m in tar}
-except (OSError, tarfile.TarError, EOFError):
-    sys.exit("not a polykey release tarball")
-match = re.fullmatch(r"polykey-((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?)", top.pop()) if len(top) == 1 else None
-if not match:
-    sys.exit("not a polykey release tarball")
-print(match.group(1))
-EOF
-}
-
 # Download latest.json and its signature, check the signature, then the tarball beside them against
 # the size and hash latest.json gives. Sets $tarball and $version.
 download() {
@@ -155,8 +130,6 @@ EOF
   [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$sha256" ] || die "the download does not match its sha256; nothing was installed"
 }
 
-current() { readlink "$DATA/current" 2>/dev/null || true; }
-
 restart() {
   systemctl --user daemon-reload
   systemctl --user restart "$APP"
@@ -171,19 +144,11 @@ restart() {
 # --- commands --------------------------------------------------------------------------------------
 
 rollback() {
-  cur=$(current)
-  [ -n "$cur" ] || die "polykey is not installed"
-  # Run it with the code of another release first: the current one may be the release that does not
-  # work. Exit 3 is a refusal (nowhere to go back to); anything else but 0 means that code would not
-  # run, so the next one is tried.
-  for dir in "$DATA"/versions/* "$DATA/current"; do
-    if [ "versions/${dir##*/}" = "$cur" ] || [ ! -f "$dir/sidecar/run.py" ]; then continue; fi
-    rc=0
-    "$PY" -I -B "$dir/sidecar/run.py" rollback 2>/dev/null || rc=$?
-    if [ "$rc" = 0 ]; then restart; return; fi
-    if [ "$rc" = 3 ]; then exit 1; fi
-  done
-  die "no installed release could run the rollback; reinstall with the one-line installer"
+  [ -f "$DATA/current/sidecar/run.py" ] || die "polykey is not installed"
+  # The current release's own code does it; if that cannot run, an earlier release's tarball still can.
+  "$PY" -I -B "$DATA/current/sidecar/run.py" rollback \
+    || die "could not roll back; to go back by hand, install an earlier release's tarball (from https://github.com/Malorn44/steam-frame-polykey/releases): sh install.sh --tarball polykey-X.Y.Z.tar.gz"
+  restart
 }
 
 uninstall() {
@@ -195,8 +160,7 @@ uninstall() {
     rm -rf "${DATA:?}" "${CONFIG:?}"
     say "✓ removed polykey, its settings and dictation models"
   else
-    rm -rf "${DATA:?}/versions" "${DATA:?}/dev" "${DATA:?}/current" "${DATA:?}/updates" "${DATA:?}/.current.new"
-    rm -rf "${DATA:?}/bundle.js" "${DATA:?}/probe.js" "${DATA:?}/VERSION" "${DATA:?}/sidecar" "${DATA:?}/packs" "${DATA:?}/schema"
+    [ ! -d "$DATA" ] || find "$DATA" -mindepth 1 -maxdepth 1 ! -name speech -exec rm -rf {} +
     say "✓ removed polykey; settings ($CONFIG) and dictation models ($DATA/speech) stay"
     say "  (sh install.sh --uninstall --purge removes them too)"
   fi
@@ -208,42 +172,25 @@ install() {
   work=$(mktemp -d)
   if [ -n "$tarball" ]; then
     [ -f "$tarball" ] || die "no such file: $tarball"
-    version=$(version_of "$tarball") || die "$tarball is not a polykey release tarball"
-    say "→ installing polykey $version from $tarball (sha256 $(sha256sum "$tarball" | cut -d' ' -f1))"
+    say "→ installing polykey from $tarball"
   else
     download
   fi
 
-  # Unpacked afresh even when it is the current release: running the installer again repairs it.
-  target="$DATA/versions/$version"
-  [ "$(current)" != "versions/$version" ] || say "→ polykey $version is the current release; reinstalling it"
-  mkdir -p "$work/unpacked" "$DATA/versions"
-  tar -xzf "$tarball" -C "$work/unpacked" --no-same-owner
-  unpacked="$work/unpacked/polykey-$version"
-  [ "$(cat "$unpacked/VERSION" 2>/dev/null)" = "$version" ] && [ -f "$unpacked/sidecar/run.py" ] \
-    || die "the tarball does not hold polykey $version"
-  # One writer at a time in versions/: the service's updater and run.py take the same lock
-  # (versions.py), and run.py activate below takes it itself, so it is let go first.
-  mkdir -p "$DATA/updates"
-  exec 9>>"$DATA/updates/lock"
-  flock -w 60 9 || die "another install or update of polykey is under way; try again in a minute"
-  rm -rf "${target:?}.new"
-  cp -R "$unpacked" "$target.new"
-  rm -rf "${target:?}"
-  mv "$target.new" "$target"
-  exec 9>&-
-
+  # The release's own run.py unpacks it into versions/ and switches to it, under the lock the updater
+  # takes too; a release already there is unpacked afresh, which repairs it. Here the tarball is
+  # unpacked only to find that run.py.
+  mkdir "$work/unpacked"
+  tar -xzf "$tarball" -C "$work/unpacked" --no-same-owner 2>/dev/null || die "$tarball is not a polykey release tarball"
+  set -- "$work"/unpacked/polykey-*/sidecar/run.py
+  [ -f "$1" ] || die "$tarball is not a polykey release tarball"
   # The switch first: if it fails, nothing else has changed.
-  "$PY" -I -B "$target/sidecar/run.py" activate "$version" >/dev/null || die "could not switch to polykey $version"
-  # A dev deploy from before releases filled ~/.local/share/polykey/ itself: those files go.
-  if [ -d "$DATA/sidecar" ] && [ ! -L "$DATA/sidecar" ]; then
-    rm -rf "${DATA:?}/bundle.js" "${DATA:?}/probe.js" "${DATA:?}/VERSION" "${DATA:?}/sidecar" "${DATA:?}/packs" "${DATA:?}/schema"
-  fi
+  version=$("$PY" -I -B "$1" unpack "$tarball" --root "$DATA" ${version:+--version "$version"}) || die "could not install polykey"
   mkdir -p "$UNIT_DIR"
-  cp "$target/polykey.service" "$UNIT_DIR/$APP.service"
+  cp "$DATA/versions/$version/polykey.service" "$UNIT_DIR/$APP.service"
   systemctl --user daemon-reload
   systemctl --user enable "$APP" >/dev/null 2>&1 || say "! could not enable $APP at login"
-  say "✓ polykey $version installed in $target"
+  say "✓ polykey $version installed in $DATA/versions/$version"
   restart
   say "  Open any text field: the keyboard is polykey's. Settings: the ⚙ key on its toolbar."
 }

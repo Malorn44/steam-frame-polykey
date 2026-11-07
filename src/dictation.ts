@@ -6,12 +6,9 @@
 // is followed the same way, and only while something downloads. Texts go to onText and onPhrase only:
 // never logged; failures are logged as their codes.
 
-import type { BridgeReply } from './bridge/client.js';
+import { WAIT_MS, createFollow, type BridgeReply, type Call } from './bridge/client.js';
 import { downloading, micDownload, parseCatalog, parseStatus, type MicState, type SpeechCatalog, type SpeechStatus } from './core/dictation.js';
 
-type Call = (op: string, args?: Record<string, unknown>, timeoutMs?: number) => Promise<BridgeReply>;
-
-const WAIT_MS = 15_000;
 const START_TIMEOUT_MS = 5000;
 /** How long the mic key shows a failure. */
 export const ERROR_MS = 2500;
@@ -20,8 +17,6 @@ export const ERROR_MS = 2500;
  * past it the mic gives up and comes back, whatever the sidecar does.
  */
 export const MAX_SESSION_MS = 150_000;
-/** How long a dictation.status waits for the next change while something downloads. */
-const STATUS_WAIT_MS = 15_000;
 
 export interface Dictation {
   /** The mic key pressed: start listening in `language`, stop listening, or give up on a recognition. */
@@ -203,40 +198,20 @@ export const createSpeechModels = ({ call, active, onCatalog, onStatus, warn }: 
 }): SpeechModels => {
   let catalog: SpeechCatalog | null = null;
   let status: SpeechStatus | null = null;
-  let following = false;
-  /** Asked to follow while already following: a download may have started since the last answer. */
-  let again = false;
 
   const show = (next: SpeechStatus): void => {
     status = next;
     onStatus(next);
   };
 
-  const follow = (): void => {
-    if (!active()) return;
-    if (following) {
-      again = true;
-      return;
-    }
-    following = true;
-    void (async () => {
-      if (!catalog) {
-        catalog = parseCatalog(await call('dictation.catalog'));
-        if (catalog) onCatalog();
-      }
-      let since: number | undefined;
-      for (;;) {
-        const reply = await call('dictation.status', since === undefined ? {} : { since, timeoutMs: STATUS_WAIT_MS }, STATUS_WAIT_MS + 5000);
-        const next = parseStatus(reply);
-        if (next) show(next);
-        const more = again;
-        again = false;
-        if (!active() || !next || (!downloading(next) && !more)) break;
-        since = more ? undefined : next.rev;
-      }
-      following = false;
-    })();
-  };
+  const follow = createFollow({
+    call, op: 'dictation.status', parse: parseStatus, busy: downloading, show, active,
+    before: async () => {
+      if (catalog) return;
+      catalog = parseCatalog(await call('dictation.catalog'));
+      if (catalog) onCatalog();
+    },
+  });
 
   /** A reply carrying the status (download, delete): shown, and followed while something downloads. */
   const after = (reply: BridgeReply): void => {
