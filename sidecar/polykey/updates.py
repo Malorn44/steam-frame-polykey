@@ -3,10 +3,10 @@
 A minute after start and then every hour it reads latest.json and latest.json.sig from the release
 source (the latest GitHub release, or settings.json "updateUrl"), and believes the manifest only when
 `ssh-keygen -Y verify` says the release key in this release's allowed_signers signed it. A newer
-release, polykey-<version>.tar.gz beside them, is downloaded (pinned by the manifest's size and
-sha256, from the source's hosts only), unpacked into versions/<version>/ and made current; then the
-service restarts into it. With settings.json "autoUpdate": false (Settings → Update automatically)
-checks only report.
+release, polykey-<version>.tar.gz (beside them, or on GitHub in release v<version>), is downloaded
+(pinned by the manifest's size and sha256, from the source's hosts only), unpacked into
+versions/<version>/ and made current; then the service restarts into it. With settings.json
+"autoUpdate": false (Settings → Update automatically) checks only report.
 
 An automatic install waits for the keyboard to be hidden before it restarts (state "installed"), so
 polykey never leaves Steam's popup mid-word; an install asked for (update.install) restarts at once.
@@ -47,7 +47,8 @@ from .versions import DEV, VersionError, Versions, is_release, newer
 
 OPS = ("update.status", "update.check", "update.install", "update.rollback")
 # GitHub redirects latest/download/<file> to the latest release's <file>.
-DEFAULT_SOURCE = "https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/"
+RELEASES = "https://github.com/Malorn44/steam-frame-polykey/releases/"
+DEFAULT_SOURCE = f"{RELEASES}latest/download/"
 GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirect to *.githubusercontent.com
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
@@ -117,6 +118,14 @@ def parse_manifest(data: bytes) -> dict:
     if not isinstance(sha, str) or not SHA256.match(sha):
         raise UpdateError("bad-manifest")
     return {"version": manifest["version"], "size": size, "sha256": sha}
+
+
+def tarball_url(base: str, version: str) -> str:
+    """Where polykey-<version>.tar.gz is: beside latest.json, except on GitHub, where latest/download/
+    may be a newer release by the time it is fetched, so it comes from release v<version> itself."""
+    if base == DEFAULT_SOURCE:
+        base = f"{RELEASES}download/v{version}/"
+    return urljoin(base, f"polykey-{version}.tar.gz")
 
 
 async def fetch(
@@ -357,9 +366,8 @@ class Updater:
         try:
             if version not in self.versions.installed():
                 work = self.versions.root / "updates"
-                url = urljoin(base, f"polykey-{version}.tar.gz")
                 download = Download(
-                    Remote(url, self.latest["size"], self.latest["sha256"], hosts),
+                    Remote(tarball_url(base, version), self.latest["size"], self.latest["sha256"], hosts),
                     work / f"polykey-{version}.tar.gz",
                     schemes=schemes,
                     on_progress=self._bump,

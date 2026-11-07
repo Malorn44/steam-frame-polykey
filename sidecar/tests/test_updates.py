@@ -13,7 +13,7 @@ from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, UpdateError, parse_manifest, tarball_url
 from polykey.versions import Versions
 from test_versions import hold_lock, install, make_tarball
 
@@ -450,6 +450,14 @@ def test_an_unusable_update_url_means_the_default_source(home, key):
         assert up.source() == (DEFAULT_SOURCE, GITHUB_HOSTS, ("https",))
     settings.write_text(json.dumps({"updateUrl": "http://192.168.1.5:8000/r"}))
     assert up.source() == ("http://192.168.1.5:8000/r/", ("192.168.1.5", *GITHUB_HOSTS), ("http", "https"))
+
+
+def test_the_tarball_comes_from_its_own_release_on_github():
+    # latest/download/ would follow a release published after the check, and 404.
+    assert tarball_url(DEFAULT_SOURCE, "0.2.0") == (
+        "https://github.com/Malorn44/steam-frame-polykey/releases/download/v0.2.0/polykey-0.2.0.tar.gz"
+    )
+    assert tarball_url("http://192.168.1.5:8000/r/", "0.2.0") == "http://192.168.1.5:8000/r/polykey-0.2.0.tar.gz"
 
 
 def test_a_malformed_redirect_ends_the_check_instead_of_hanging_it(home, key, tmp_path):
