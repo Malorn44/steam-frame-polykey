@@ -8,8 +8,8 @@
 # the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, the
 # layout from before releases, --uninstall and --uninstall --purge; what release.sh makes: the same
 # tarball from the same commit, what the tarball carries, and latest.json; and sign-release.sh, which
-# signs every release here (with the throwaway key, never ~/.ssh/polykey-release), makes a key with
-# --init (in the throwaway folder), and compares tarballs.
+# signs every release here (with the throwaway key, never ~/.ssh/polykey-release), makes keys with
+# --init and --init --add (in the throwaway folder), and compares tarballs.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -89,6 +89,15 @@ expect "and says to back up a copy with a passphrase, then delete the plain key"
 cp -R "$T/serve/r1" "$T/init-release"
 expect "--local signs with that key, asking for nothing" \
   'POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --local "$T/init-release" > /dev/null < /dev/null && ssh-keygen -Y verify -f "$T/init-signers" -I polykey-release -n polykey-release -s "$T/init-release/latest.json.sig" < "$T/init-release/latest.json" >/dev/null 2>&1'
+cp "$T/init-signers" "$T/init-signers-before"
+expect "a second --init, with no key file at its path, refuses while allowed_signers holds a key, and changes nothing" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && grep -q "already holds a release key" "$T/out" && grep -qF "To change keys" "$T/out" && grep -qF -- "--init --add" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
+expect "--init takes nothing after it but --add" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --addd > "$T/out" 2>&1 < /dev/null && grep -q "usage: scripts/sign-release.sh --init \[--add\]" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
+expect "--init --add still will not replace a key" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && grep -q "already exists" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before"'
+expect "--init --add makes a second key, appends exactly its line, and says the old key signs the next release" \
+  'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && cmp -s <(head -n -1 "$T/init-signers") "$T/init-signers-before" && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init2/key.pub")" ] && grep -q "Once Frames have that release" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init2/key")" "$T/out"'
 mkdir "$T/repack"
 tar -xzf "$T/serve/r1/polykey-0.1.0.tar.gz" -C "$T/repack"
 tar -C "$T/repack" -cf - polykey-0.1.0 | gzip -1 > "$T/repacked.tar.gz"
