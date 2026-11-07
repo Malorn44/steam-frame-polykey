@@ -15,7 +15,7 @@ import pytest
 
 from polykey import __main__ as cli
 from polykey import versions as versions_module
-from polykey.versions import VersionError, Versions, is_release, mark_started, newer, parse
+from polykey.versions import VersionError, Versions, fall_back, is_release, mark_started, newer, parse
 
 SIDECAR = Path(__file__).resolve().parents[1]
 
@@ -291,6 +291,29 @@ def test_only_an_installed_release_is_marked_started(versions, tmp_path):
         assert not (other / ".started").exists()
 
 
+def test_a_release_that_never_started_falls_back_once(versions):
+    install(versions, "0.1.0", "0.2.0")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
+    assert fall_back(versions.versions / "0.1.0") is None  # not the current release
+    assert fall_back(versions.versions / "0.2.0") == "0.1.0"
+    assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0"
+    assert fall_back(versions.versions / "0.1.0") is None  # nothing before it
+    assert versions.current() == "0.1.0"
+
+
+def test_a_release_that_reached_steam_stays_put(versions, tmp_path):
+    install(versions, "0.1.0", "0.2.0")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
+    mark_started(versions.versions / "0.2.0")
+    assert fall_back(versions.versions / "0.2.0") is None and versions.current() == "0.2.0"
+    versions.dev.mkdir()
+    for other in (versions.dev, tmp_path):  # a dev deploy or a checkout never falls back
+        assert fall_back(other) is None
+    assert versions.current() == "0.2.0" and versions.skipped() is None
+
+
 def test_activate_and_rollback_work_when_the_rest_of_the_release_does_not(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     versions = Versions(tmp_path / "polykey")
@@ -367,3 +390,55 @@ def test_an_installed_release_finds_its_folder_from_where_it_is(tmp_path):
     assert "current: 0.1.0" in out
     assert os.readlink(root / "current") == "versions/0.1.0"
     assert not (tmp_path / "elsewhere" / "polykey").exists()
+
+
+@pytest.mark.parametrize(
+    "broken",
+    ["raise ImportError('broken release')\n", "def main():\n    raise RuntimeError('broken release')\n"],
+    ids=["at-import", "in-main"],
+)
+def test_the_service_falls_back_from_a_release_that_cannot_start(tmp_path, broken):
+    """run.py itself: a release whose code fails (at import, or out of main()), started as the service,
+    goes back."""
+    real = {
+        "sidecar/run.py": (SIDECAR / "run.py").read_text(encoding="utf-8"),
+        "sidecar/polykey/__init__.py": "",
+        "sidecar/polykey/versions.py": (SIDECAR / "polykey" / "versions.py").read_text(encoding="utf-8"),
+    }
+    versions = Versions(tmp_path / "polykey")
+    for v, main in (("0.1.0", "def main():\n    pass\n"), ("0.2.0", broken)):
+        tarball = make_tarball(tmp_path / f"{v}.tar.gz", v, {**real, "sidecar/polykey/__main__.py": main})
+        versions.unpack(tarball, v)
+        versions.activate(v)
+    run_py = versions.link / "sidecar" / "run.py"
+    result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True)
+    assert result.returncode != 0 and "went back to 0.1.0" in result.stderr
+    assert "broken release" in result.stderr  # the failure itself is still raised, for the journal
+    assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0"
+    # Started by hand (not the service), nothing moves.
+    versions.activate("0.2.0")
+    result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "probe"], capture_output=True, text=True)
+    assert result.returncode != 0 and "went back" not in result.stderr
+    assert versions.current() == "0.2.0"
+
+
+def test_the_service_falls_back_from_a_value_error_too(tmp_path):
+    """The real sidecar's code, with a service that raises a ValueError (a JSONDecodeError, say) before
+    it reaches Steam: that is the release's failure, not a refused debugger, so it goes back too."""
+    versions = Versions(tmp_path / "polykey")
+    for v in ("0.1.0", "0.2.0"):
+        release = versions.versions / v
+        shutil.copytree(
+            SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__")
+        )
+        shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
+        (release / "VERSION").write_text(f"{v}\n", encoding="utf-8")
+        versions.activate(v)
+    with open(versions.versions / "0.2.0" / "sidecar" / "polykey" / "injector.py", "a", encoding="utf-8") as injector:
+        injector.write("\n\nasync def run_service(cfg, log, stop):\n    raise ValueError('broken release')\n")
+    env = {**os.environ, "HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "config")}
+    run_py = versions.link / "sidecar" / "run.py"
+    result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True, env=env)
+    assert result.returncode == 1 and "went back to 0.1.0" in result.stderr
+    assert "ValueError: broken release" in result.stderr
+    assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0"

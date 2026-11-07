@@ -11,8 +11,9 @@ import aiohttp
 import pytest
 
 from fake_cdp import FakeSteam, until
+from polykey import __main__ as cli
 from polykey import injector
-from polykey.cdp import check_loopback, find_target, list_targets
+from polykey.cdp import NotLoopback, check_loopback, find_target, list_targets
 from polykey.injector import Config, Log
 
 
@@ -385,8 +386,17 @@ def test_debugger_unreachable_is_retried_quietly(tmp_path):
 
 @pytest.mark.parametrize("endpoint", ["http://192.168.1.20:8080", "http://frame:8081", "http://0.0.0.0:8080"])
 def test_refuses_non_loopback_debuggers(endpoint):
-    with pytest.raises(ValueError):
+    with pytest.raises(NotLoopback):
         check_loopback(endpoint)
+
+
+@pytest.mark.parametrize("command", ["run", "once", "probe", "uninstall"])
+def test_a_non_loopback_debugger_ends_the_sidecar_with_exit_2(command, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    with pytest.raises(SystemExit) as code:
+        cli.main([command, "--devtools", "http://192.168.1.20:8080"])
+    assert code.value.code == 2
+    assert "refusing non-loopback debugger endpoint '192.168.1.20'" in capsys.readouterr().out
 
 
 def test_accepts_loopback_debuggers():

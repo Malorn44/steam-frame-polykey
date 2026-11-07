@@ -10,9 +10,11 @@
 
 install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
 `run.py rollback`; the updater (updates.py) does the same in the service, with unpack(). A release
-marks itself started (versions/<version>/.started) the first time it reaches Steam. The running sidecar
-imports from its own versions/<version> (run.py resolves the link), so swapping `current` never
-mixes two versions in one process: the switch takes effect when the service restarts.
+marks itself started (versions/<version>/.started) the first time it reaches Steam; one that fails
+before that while it is current goes back to the release before it by itself (run.py, fall_back), and
+is skipped. The running sidecar imports from its own versions/<version> (run.py resolves the link), so
+swapping `current` never mixes two versions in one process: the switch takes effect when the service
+restarts.
 """
 
 from __future__ import annotations
@@ -52,6 +54,18 @@ def mark_started(code: Path) -> None:
             (code / STARTED).touch()
         except OSError:
             pass
+
+
+def fall_back(code: Path) -> Optional[str]:
+    """The release in `code` (versions/<version>) failed to start. When it is the current release, has
+    never reached Steam, and a release ran before it, go back to that one (skipping this one) and
+    return its version. Anything else is left alone."""
+    if code.parent.name != "versions" or not is_release(code.name) or (code / STARTED).exists():
+        return None
+    versions = Versions(code.parent.parent)
+    if versions.current() != code.name or versions.previous() is None:
+        return None
+    return versions.rollback()[1]
 
 
 def app_dir() -> Path:
