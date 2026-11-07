@@ -5,7 +5,6 @@
 #                              reproducible from the same commit
 #   install.sh                 the installer, with the release key in it
 #   latest.json                what the updater and install.sh read: version, tarball URL, size, sha256
-#                              (and install.sh's sha256, so the signature covers the installer too)
 #
 # Usage: scripts/release.sh <version> [--base URL]
 #   --base URL   where the tarball will be served (default: the GitHub release v<version>), e.g.
@@ -28,7 +27,7 @@ base=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a URL}"; base="${base%/}"; shift 2 ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) version="$1"; shift ;;
   esac
@@ -53,11 +52,9 @@ cp dist/stage/install.sh "$OUT/install.sh"
 
 size=$(stat -c %s "$OUT/$top.tar.gz")
 sha=$(sha256sum "$OUT/$top.tar.gz" | cut -d' ' -f1)
-installer=$(sha256sum "$OUT/install.sh" | cut -d' ' -f1)
-VERSION="$version" URL="$url" SIZE="$size" SHA="$sha" INSTALLER="$installer" node -e '
+VERSION="$version" URL="$url" SIZE="$size" SHA="$sha" node -e '
   const e = process.env;
-  const manifest = { format: 1, version: e.VERSION, url: e.URL, size: Number(e.SIZE), sha256: e.SHA,
-    installer: e.INSTALLER };
+  const manifest = { format: 1, version: e.VERSION, url: e.URL, size: Number(e.SIZE), sha256: e.SHA };
   process.stdout.write(JSON.stringify(manifest, null, 2) + "\n");
 ' > "$OUT/latest.json"
 
