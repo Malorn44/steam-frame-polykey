@@ -31,6 +31,7 @@ Audio and text are never logged or written; the log gets codes and durations onl
 small numbers for the mic key, worked out from the frames already read; they are sent only while
 speech is heard (and until they are flat again), so silence costs nothing.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,8 +49,16 @@ from .engine import Engine
 from .library import MAX_WAIT, Library
 from .vad import FRAMES_PER_SECOND, RATE, Segmenter
 
-OPS = ("dictation.status", "dictation.catalog", "dictation.download", "dictation.delete", "dictation.start",
-       "dictation.stop", "dictation.cancel", "dictation.wait")
+OPS = (
+    "dictation.status",
+    "dictation.catalog",
+    "dictation.download",
+    "dictation.delete",
+    "dictation.start",
+    "dictation.stop",
+    "dictation.cancel",
+    "dictation.wait",
+)
 NO_SPEECH = 8 * FRAMES_PER_SECOND  # listening this long without a phrase starting ends a session
 IDLE_STOP = 60 * FRAMES_PER_SECOND  # a continuous session with no phrase started this long stops
 MAX_BEHIND = 300 * RATE * 2  # audio waiting for recognition in a continuous session; past it a phrase is dropped
@@ -86,9 +95,16 @@ def pick(catalog: Catalog, language: str, choices: dict, ready: set) -> Optional
 
 
 class Dictation:
-    def __init__(self, log, settings_path: Optional[Path], home: Optional[Path] = None, tools: Optional[Tools] = None,
-                 engine: Optional[Engine] = None, catalog: Optional[Catalog] = None,
-                 download_options: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        log,
+        settings_path: Optional[Path],
+        home: Optional[Path] = None,
+        tools: Optional[Tools] = None,
+        engine: Optional[Engine] = None,
+        catalog: Optional[Catalog] = None,
+        download_options: Optional[dict] = None,
+    ) -> None:
         self._log = log
         self._settings_path = settings_path
         catalog = catalog or load_catalog()
@@ -140,7 +156,11 @@ class Dictation:
 
     def choices(self) -> dict:
         choices = self._settings().get("dictationModels")
-        return {k: v for k, v in choices.items() if isinstance(k, str) and isinstance(v, str)} if isinstance(choices, dict) else {}
+        return (
+            {k: v for k, v in choices.items() if isinstance(k, str) and isinstance(v, str)}
+            if isinstance(choices, dict)
+            else {}
+        )
 
     # --- requests -----------------------------------------------------------------------------------
 
@@ -205,7 +225,12 @@ class Dictation:
         return {"ok": True, "session": self._session, "model": model.id}
 
     async def _wait(self, request: dict) -> dict:
-        session, phase, timeout, seq = request.get("session"), request.get("phase"), request.get("timeoutMs"), request.get("seq")
+        session, phase, timeout, seq = (
+            request.get("session"),
+            request.get("phase"),
+            request.get("timeoutMs"),
+            request.get("seq"),
+        )
         seconds = min(max(timeout / 1000, 0), MAX_WAIT) if isinstance(timeout, (int, float)) else MAX_WAIT
         loop = asyncio.get_running_loop()
         deadline = loop.time() + seconds
@@ -403,7 +428,9 @@ class Dictation:
         finally:
             await recorder.stop()
 
-    async def _recognize_all(self, name: str, phrases: asyncio.Queue, language: str, model: Model, counts: dict) -> None:
+    async def _recognize_all(
+        self, name: str, phrases: asyncio.Queue, language: str, model: Model, counts: dict
+    ) -> None:
         loop = asyncio.get_running_loop()
         number = 0
         while True:

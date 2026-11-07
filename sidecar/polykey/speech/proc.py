@@ -1,5 +1,6 @@
 """Child processes for speech (pw-record, pw-dump, pw-link, the speech helper): no inherited output,
 no core dumps (they hold audio), and they die with the sidecar."""
+
 from __future__ import annotations
 
 import asyncio
@@ -24,11 +25,19 @@ def child_setup() -> None:
         _LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0)
 
 
-async def spawn(*argv: str, stdout: bool = False, stdin: bool = False, env: Optional[dict] = None) -> asyncio.subprocess.Process:
+async def spawn(
+    *argv: str, stdout: bool = False, stdin: bool = False, env: Optional[dict] = None
+) -> asyncio.subprocess.Process:
     pipe, devnull = asyncio.subprocess.PIPE, asyncio.subprocess.DEVNULL
     return await asyncio.create_subprocess_exec(
-        *argv, stdin=pipe if stdin else devnull, stdout=asyncio.subprocess.PIPE if stdout else asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL, env=env, preexec_fn=child_setup, close_fds=True)
+        *argv,
+        stdin=pipe if stdin else devnull,
+        stdout=asyncio.subprocess.PIPE if stdout else asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+        env=env,
+        preexec_fn=child_setup,
+        close_fds=True,
+    )
 
 
 async def run(*argv: str, timeout: float, env: Optional[dict] = None) -> tuple[int, bytes]:

@@ -1,5 +1,6 @@
 """Fakes for dictation tests: synthetic PCM, small executables standing in for pw-record, pw-dump and
 pw-link (Python scripts run with this interpreter), and a stand-in for transcribe.cpp's binding."""
+
 from __future__ import annotations
 
 import math

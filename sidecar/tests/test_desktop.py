@@ -41,6 +41,7 @@ def test_reads_the_current_clipboard_and_primary(socket_path):
         finally:
             clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -60,6 +61,7 @@ def test_paste_offers_the_text_marked_secret_then_restores(socket_path):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -74,6 +76,7 @@ def test_a_secret_hint_read_does_not_count_as_a_paste(socket_path):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -88,6 +91,7 @@ def test_no_paste_still_restores(socket_path):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -103,6 +107,7 @@ def test_an_empty_clipboard_is_cleared_again(socket_path):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -119,6 +124,7 @@ def test_restores_by_itself_when_wait_never_comes(socket_path, monkeypatch):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -136,6 +142,7 @@ def test_back_to_back_pastes_keep_the_original_clipboard(socket_path):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -151,6 +158,7 @@ def test_unavailable_without_a_socket_or_data_control(socket_path):
             assert no_protocol.value.kind == "no-data-control"
         finally:
             fake.stop()
+
     run(main())
 
 
@@ -166,4 +174,5 @@ def test_without_primary_selection_support_only_the_clipboard_is_used(socket_pat
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())

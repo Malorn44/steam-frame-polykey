@@ -2,6 +2,7 @@
 
 Request/response with timeouts, plus an event callback. Nothing here knows about polykey.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,13 +39,15 @@ async def list_targets(http: aiohttp.ClientSession, devtools: str) -> list:
 
 
 def find_target(targets: list, title: str) -> Optional[dict]:
-    return next((t for t in targets
-                 if isinstance(t, dict) and t.get("title") == title and t.get("webSocketDebuggerUrl")), None)
+    return next(
+        (t for t in targets if isinstance(t, dict) and t.get("title") == title and t.get("webSocketDebuggerUrl")), None
+    )
 
 
 class CdpSession:
-    def __init__(self, ws: aiohttp.ClientWebSocketResponse, on_event: Optional[EventHandler] = None,
-                 call_timeout: float = 15.0) -> None:
+    def __init__(
+        self, ws: aiohttp.ClientWebSocketResponse, on_event: Optional[EventHandler] = None, call_timeout: float = 15.0
+    ) -> None:
         self._ws = ws
         self._ids = itertools.count(1)
         self._pending: dict[int, asyncio.Future] = {}

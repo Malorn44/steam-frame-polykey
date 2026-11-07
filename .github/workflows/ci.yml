@@ -1,7 +1,7 @@
 # Every push to main, every pull request (on any base: the PRs are stacked) and a manual run. Each part
-# of the check is its own job, named by its tool so they group on a PR: eslint, ruff:lint, shellcheck and
-# actionlint; tsc; test:page, test:sidecar and test:layout:<id> for each bundled layout (test:layout lists
-# them); build; pr:title. The ruleset requires only `ci ok`, which fails when any job failed or was
+# of the check is its own job, named by its tool so they group on a PR: eslint, ruff:lint, ruff:format,
+# shellcheck and actionlint; tsc; test:page, test:sidecar and test:layout:<id> for each bundled layout
+# (test:layout lists them); build; pr:title. The ruleset requires only `ci ok`, which fails when any job failed or was
 # cancelled.
 #
 # Actions are pinned to commits (Dependabot proposes bumps); the version is in the comment. Python is
@@ -48,6 +48,17 @@ jobs:
         with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt }
       - run: python -m venv .venv && .venv/bin/pip install -c requirements-dev.txt ruff
       - run: npm run lint:ruff
+
+  ruff-format:
+    name: ruff:format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt }
+      - run: python -m venv .venv && .venv/bin/pip install -c requirements-dev.txt ruff
+      - run: npm run lint:ruff-format
 
   shellcheck:
     name: shellcheck
@@ -191,7 +202,7 @@ jobs:
 
   ci-ok:
     name: ci ok # the name the ruleset requires
-    needs: [eslint, ruff-lint, shellcheck, actionlint, tsc, test-page, test-sidecar, test-layout, test-layout-id, build, pr-title]
+    needs: [eslint, ruff-lint, ruff-format, shellcheck, actionlint, tsc, test-page, test-sidecar, test-layout, test-layout-id, build, pr-title]
     if: always()
     runs-on: ubuntu-24.04
     steps:

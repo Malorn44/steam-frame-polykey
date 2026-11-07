@@ -17,8 +17,16 @@ def fast_config(fake: FakeSteam, tmp_path: Path, **overrides) -> Config:
     bundle.write_text("/* bundle */", encoding="utf-8")
     probe = tmp_path / "probe.js"
     probe.write_text("var __polykeyProbe = { report: () => ({}) };", encoding="utf-8")
-    values = dict(devtools=fake.devtools, bundle=bundle, probe=probe, debounce=0.02, safety_check=0.3,
-                  backoff_start=0.02, backoff_max=0.1, uninstall_timeout=1.0)
+    values = dict(
+        devtools=fake.devtools,
+        bundle=bundle,
+        probe=probe,
+        debounce=0.02,
+        safety_check=0.3,
+        backoff_start=0.02,
+        backoff_max=0.1,
+        uninstall_timeout=1.0,
+    )
     values.update(overrides)
     return Config(**values)
 
@@ -49,6 +57,7 @@ def test_injects_once_and_leaves_a_running_instance_alone(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -63,6 +72,7 @@ def test_reinjects_after_the_page_reloads(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -77,6 +87,7 @@ def test_reconnects_and_reinjects_after_steam_restarts(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -95,6 +106,7 @@ def test_waits_while_steam_is_not_up_yet(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -109,6 +121,7 @@ def test_stopping_removes_polykey_from_steam(tmp_path):
         assert not fake.injected
         assert "stock keyboard restored" in out.getvalue()
         await fake.stop()
+
     run(main())
 
 
@@ -132,6 +145,7 @@ def test_forwards_only_new_polykey_console_lines(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -149,6 +163,7 @@ def test_missing_bundle_is_reported_and_nothing_is_injected(tmp_path):
         finally:
             await stop_service(stop, task)
             await fake.stop()
+
     run(main())
 
 
@@ -160,6 +175,7 @@ def test_once_injects_and_returns_zero(tmp_path):
             assert fake.inject_count == 1
         finally:
             await fake.stop()
+
     run(main())
 
 
@@ -171,6 +187,7 @@ def test_once_without_a_target_returns_one(tmp_path):
             assert await injector.run_once(fast_config(fake, tmp_path), Log(io.StringIO())) == 1
         finally:
             await fake.stop()
+
     run(main())
 
 
@@ -183,6 +200,7 @@ def test_uninstall_command(tmp_path):
             assert fake.uninstall_count == 1 and not fake.injected
         finally:
             await fake.stop()
+
     run(main())
 
 
@@ -198,18 +216,19 @@ def test_probe_prints_the_report_and_targets(tmp_path):
             assert fake.inject_count == 0  # read-only
         finally:
             await fake.stop()
+
     run(main())
 
 
 def test_debugger_unreachable_is_retried_quietly(tmp_path):
     async def main():
         out = io.StringIO()
-        cfg = Config(devtools="http://127.0.0.1:9", backoff_start=0.02, backoff_max=0.05,
-                     bundle=tmp_path / "bundle.js")
+        cfg = Config(devtools="http://127.0.0.1:9", backoff_start=0.02, backoff_max=0.05, bundle=tmp_path / "bundle.js")
         stop, task = await start_service(cfg, Log(out))
         await asyncio.sleep(0.3)
         await stop_service(stop, task)
         assert out.getvalue().count("debugger unavailable") == 1
+
     run(main())
 
 

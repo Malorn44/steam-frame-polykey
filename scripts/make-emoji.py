@@ -6,15 +6,22 @@ Source: https://unicode.org/Public/emoji/15.0/emoji-test.txt (15.0 matches Noto 
 Keeps fully-qualified emoji in Unicode's groups and order; an emoji with skin tones becomes
 [base, light, medium-light, medium, medium-dark, dark] (multi-person: the same tone for each person).
 """
+
 import json
 import re
 import sys
 
 TONES = [chr(c) for c in range(0x1F3FB, 0x1F400)]
 GROUP_IDS = {
-    "Smileys & Emotion": "smileys", "People & Body": "people", "Animals & Nature": "animals",
-    "Food & Drink": "food", "Travel & Places": "travel", "Activities": "activities",
-    "Objects": "objects", "Symbols": "symbols", "Flags": "flags",
+    "Smileys & Emotion": "smileys",
+    "People & Body": "people",
+    "Animals & Nature": "animals",
+    "Food & Drink": "food",
+    "Travel & Places": "travel",
+    "Activities": "activities",
+    "Objects": "objects",
+    "Symbols": "symbols",
+    "Flags": "flags",
 }
 
 groups, group, order, variants = [], None, [], {}
@@ -40,11 +47,21 @@ for line in open(sys.argv[1], encoding="utf-8"):
     variants.setdefault(base, {})[tones.pop()] = emoji
 
 for group in groups:
+
     def toned(e):
         found = variants.get(e.replace("\ufe0f", ""), {})
         return [e] + [found[t] for t in TONES] if len(found) == 5 else e
+
     group["items"] = [toned(e) for e in group["items"]]
 
-print(json.dumps({"version": "15.0",
-                  "notice": "Derived from Unicode emoji-test.txt 15.0; Unicode License v3, see LICENSE.unicode",
-                  "groups": groups}, ensure_ascii=False, separators=(",", ":")))
+print(
+    json.dumps(
+        {
+            "version": "15.0",
+            "notice": "Derived from Unicode emoji-test.txt 15.0; Unicode License v3, see LICENSE.unicode",
+            "groups": groups,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+)

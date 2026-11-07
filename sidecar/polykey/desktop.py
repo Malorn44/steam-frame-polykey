@@ -5,6 +5,7 @@ number-row keys. Instead: prepare(text) saves the clipboard and primary selectio
 text on both (wlr-data-control, marked secret so Plasma's history skips it); the page presses a
 paste chord; wait() reports whether an app fetched it and restores the saved text.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,7 +54,8 @@ def parse_cardinal(xprop_output: str) -> Optional[int]:
 async def _xprop(args: list[str], display: str) -> str:
     env = {**os.environ, "DISPLAY": display}
     process = await asyncio.create_subprocess_exec(
-        "xprop", *args, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        "xprop", *args, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+    )
     try:
         out, _ = await asyncio.wait_for(process.communicate(), 2)
     except asyncio.TimeoutError:
@@ -147,6 +149,7 @@ class DataControl:
                     mime = offer_args.string()
                     if mime and offer_id in self._offers:
                         self._offers[offer_id].add(mime)
+
             assert self._conn is not None
             self._conn.on(offer, on_offer)
         elif opcode == 1:  # selection(offer or null)
@@ -229,7 +232,7 @@ def _write_and_close(fd: int, data: bytes) -> None:
         os.set_blocking(fd, True)
         view = memoryview(data)
         while view:
-            view = view[os.write(fd, view):]
+            view = view[os.write(fd, view) :]
     except OSError:
         pass
     finally:
@@ -257,6 +260,7 @@ async def _read_all(fd: int) -> Optional[bytes]:
             return
         if not done.done():
             done.set_result(chunk == b"")  # EOF: complete; otherwise too big
+
     loop.add_reader(fd, readable)
     try:
         complete = await done
@@ -279,8 +283,10 @@ class DesktopPaste:
         async with self._lock:
             await self._restore_locked()  # an unfinished paste is finished first
             await self.clipboard.ensure()
-            saved = {"selection": await self.clipboard.read("selection"),
-                     "primary": await self.clipboard.read("primary")}
+            saved = {
+                "selection": await self.clipboard.read("selection"),
+                "primary": await self.clipboard.read("primary"),
+            }
             try:
                 await self.clipboard.put("selection", text)
                 await self.clipboard.put("primary", text)

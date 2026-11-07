@@ -12,7 +12,7 @@ from polykey.speech.vad import FRAME_BYTES, Segmenter, level_db
 
 
 def frames(pcm: bytes):
-    return [pcm[i:i + FRAME_BYTES] for i in range(0, len(pcm) - FRAME_BYTES + 1, FRAME_BYTES)]
+    return [pcm[i : i + FRAME_BYTES] for i in range(0, len(pcm) - FRAME_BYTES + 1, FRAME_BYTES)]
 
 
 def feed(seg: Segmenter, pcm: bytes) -> list[bytes]:
@@ -80,7 +80,10 @@ def test_finish_returns_the_phrase_so_far_and_long_phrases_are_cut():
 
 
 def test_spa_rules():
-    assert parse_rules('{ media.class = "Audio/Source", alsa.card = 0 }') == {"media.class": "Audio/Source", "alsa.card": "0"}
+    assert parse_rules('{ media.class = "Audio/Source", alsa.card = 0 }') == {
+        "media.class": "Audio/Source",
+        "alsa.card": "0",
+    }
     assert parse_rules("nope") == {} and parse_rules(None) == {}
 
 
@@ -89,15 +92,27 @@ def node(id_, **props):
 
 
 def port(node_id, name, direction="out", monitor=False):
-    return {"id": 900 + len(name), "type": "PipeWire:Interface:Port",
-            "info": {"props": {"node.id": node_id, "port.name": name, "port.direction": direction, "port.monitor": monitor}}}
+    return {
+        "id": 900 + len(name),
+        "type": "PipeWire:Interface:Port",
+        "info": {
+            "props": {"node.id": node_id, "port.name": name, "port.direction": direction, "port.monitor": monitor}
+        },
+    }
 
 
-SMART = {"media.class": "Audio/Source", "filter.smart": True, "node.link-group": "filter-chain-1",
-         "filter.smart.target": '{ media.class = "Audio/Source", device.api = "alsa" }'}
+SMART = {
+    "media.class": "Audio/Source",
+    "filter.smart": True,
+    "node.link-group": "filter-chain-1",
+    "filter.smart.target": '{ media.class = "Audio/Source", device.api = "alsa" }',
+}
 DUMP = [
     node(40, **{"media.class": "Audio/Source", "device.api": "alsa", "node.name": "alsa_input.mic"}),
-    port(40, "capture_FL"), port(40, "capture_FR"), port(40, "monitor_FL", monitor=True), port(40, "playback", "in"),
+    port(40, "capture_FL"),
+    port(40, "capture_FR"),
+    port(40, "monitor_FL", monitor=True),
+    port(40, "playback", "in"),
     node(41, **{"media.class": "Audio/Sink", "device.api": "alsa", "node.name": "alsa_output.speaker"}),
     node(50, **SMART),
     node(51, **{"media.class": "Audio/Source", "device.api": "alsa", "node.link-group": "filter-chain-1"}),
@@ -124,8 +139,16 @@ def tools(tmp_path, monkeypatch):
         monkeypatch.setenv(name, str(value))
     runtime = tmp_path / "run"
     runtime.mkdir()
-    return Tools(record=str(tool(tmp_path, "pw-record", PW_RECORD)), dump=str(tool(tmp_path, "pw-dump", PW_DUMP)),
-                 link=str(tool(tmp_path, "pw-link", PW_LINK)), runtime_dir=str(runtime)), log, runtime
+    return (
+        Tools(
+            record=str(tool(tmp_path, "pw-record", PW_RECORD)),
+            dump=str(tool(tmp_path, "pw-dump", PW_DUMP)),
+            link=str(tool(tmp_path, "pw-link", PW_LINK)),
+            runtime_dir=str(runtime),
+        ),
+        log,
+        runtime,
+    )
 
 
 async def read_all(recorder: Recorder) -> bytes:
@@ -145,6 +168,7 @@ def test_records_the_default_source_without_the_manager_socket(tools):
         data = await read_all(recorder)
         await recorder.stop()
         return data
+
     assert len(asyncio.run(main())) == len(noise(0.2) + tone(0.5))
     assert log.read_text().splitlines() == ["record --raw --rate 16000 --channels 1 --format s16 - remote="]
 
@@ -161,12 +185,18 @@ def test_links_the_raw_microphone_through_the_manager_socket(tools, monkeypatch)
         data = b"".join([await recorder.read() for _ in range(35)])
         await recorder.stop()
         return data
+
     assert asyncio.run(main()) == noise(0.2) + tone(0.5)
     lines = log.read_text().splitlines()
-    assert lines[0].startswith("record --raw --rate 16000 --channels 1 --format s16 -P { node.autoconnect = false, node.name = polykey-dictation-")
+    assert lines[0].startswith(
+        "record --raw --rate 16000 --channels 1 --format s16 -P { node.autoconnect = false, node.name = polykey-dictation-"
+    )
     assert lines[0].endswith("remote=pipewire-0-manager")
     node_name = lines[0].split("node.name = ")[1].split(" ")[0]
-    assert lines[1:] == [f"link alsa_input.mic:capture_FL {node_name}:input_MONO", f"link alsa_input.mic:capture_FR {node_name}:input_MONO"]
+    assert lines[1:] == [
+        f"link alsa_input.mic:capture_FL {node_name}:input_MONO",
+        f"link alsa_input.mic:capture_FR {node_name}:input_MONO",
+    ]
 
 
 def test_a_silent_linked_recorder_falls_back_to_the_default_source(tools, monkeypatch):
@@ -182,6 +212,7 @@ def test_a_silent_linked_recorder_falls_back_to_the_default_source(tools, monkey
         await recorder.read()
         await recorder.stop()
         return route
+
     assert asyncio.run(main()) == "default"
     assert log.read_text().splitlines()[-1].endswith(" - remote=")
 
@@ -191,6 +222,7 @@ def test_a_recorder_that_cannot_start_or_stalls_is_an_error(tools, tmp_path, mon
 
     async def missing():
         await Recorder(Tools(record=str(tmp_path / "nope"), runtime_dir=fake.runtime_dir)).start()
+
     with pytest.raises(SpeechError) as error:
         asyncio.run(missing())
     assert error.value.code == "no-recorder"
@@ -205,6 +237,7 @@ def test_a_recorder_that_cannot_start_or_stalls_is_an_error(tools, tmp_path, mon
             await read_all(recorder)
         finally:
             await recorder.stop()
+
     with pytest.raises(SpeechError) as error:
         asyncio.run(stalls())
     assert error.value.code == "no-microphone"

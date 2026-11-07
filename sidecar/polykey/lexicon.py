@@ -12,6 +12,7 @@ Blocked words (slurs; profanity is allowed) are never suggested, from any list: 
 holds SHA-256 hashes of normalized words, so the repo has no readable slur list; a user may add plain
 words in `<ns>/blocked.txt`. Both are read from every pack folder and combined.
 """
+
 from __future__ import annotations
 
 import bisect
@@ -37,9 +38,9 @@ def _neighbours() -> dict[str, frozenset[str]]:
         for c, ch in enumerate(row):
             near = [row[c - 1] if c > 0 else "", row[c + 1] if c + 1 < len(row) else ""]
             if r > 0:
-                near += [_ROWS[r - 1][c:c + 2]]
+                near += [_ROWS[r - 1][c : c + 2]]
             if r + 1 < len(_ROWS):
-                near += [_ROWS[r + 1][max(0, c - 1):c + 1]]
+                near += [_ROWS[r + 1][max(0, c - 1) : c + 1]]
             out[ch] = frozenset("".join(near))
     return out
 
@@ -136,8 +137,11 @@ class Lexicon:
         if len(lower) < 2 or not all(c in LETTERS for c in lower):
             return []
         one = edits1(lower)
-        scored = [(cost * COST_WEIGHT - self._counts[w], w)
-                  for candidate, cost in one.items() if (w := self._lower.get(candidate))]
+        scored = [
+            (cost * COST_WEIGHT - self._counts[w], w)
+            for candidate, cost in one.items()
+            if (w := self._lower.get(candidate))
+        ]
         if not scored and 3 <= len(lower) <= 10:
             seen: set[str] = set()
             for first in one:
@@ -185,12 +189,16 @@ class Lexicons:
         for directory in self._dirs:
             try:
                 text = (directory / namespace / "blocked.sha256").read_text(encoding="utf-8")
-                hashes.update(h for h in (line.strip() for line in text.splitlines()) if re.fullmatch(r"[0-9a-f]{64}", h))
+                hashes.update(
+                    h for h in (line.strip() for line in text.splitlines()) if re.fullmatch(r"[0-9a-f]{64}", h)
+                )
             except OSError:
                 pass
             try:
                 text = (directory / namespace / "blocked.txt").read_text(encoding="utf-8")
-                hashes.update(word_hash(w) for w in (line.strip() for line in text.splitlines()) if w and not w.startswith("#"))
+                hashes.update(
+                    word_hash(w) for w in (line.strip() for line in text.splitlines()) if w and not w.startswith("#")
+                )
             except OSError:
                 pass
         return frozenset(hashes)

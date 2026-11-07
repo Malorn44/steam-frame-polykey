@@ -4,6 +4,7 @@ Event-driven: re-checks on new execution contexts (debounced), with a slow safet
 with backoff when Steam restarts. On stop it calls __polykey.uninstall(). Forwards "[polykey]"
 console lines to the journal.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,9 +33,7 @@ CHECK_EXPRESSION = (
     "(() => { const p = globalThis.__polykey;"
     " return typeof p === 'object' && p !== null && p.state !== 'uninstalled'; })()"
 )
-STATUS_EXPRESSION = (
-    "(() => { const p = globalThis.__polykey; return p ? `${p.version} (${p.state})` : 'missing'; })()"
-)
+STATUS_EXPRESSION = "(() => { const p = globalThis.__polykey; return p ? `${p.version} (${p.state})` : 'missing'; })()"
 UNINSTALL_EXPRESSION = (
     "(() => { const p = globalThis.__polykey;"
     " if (p && typeof p.uninstall === 'function') { p.uninstall(); return true; } return false; })()"
@@ -220,13 +219,19 @@ class Watch:
                 parts.append(value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
             else:
                 parts.append(str(arg.get("description") or arg.get("type") or "?").splitlines()[0])
-        text = " ".join(parts)[len(LOG_PREFIX):].strip()
+        text = " ".join(parts)[len(LOG_PREFIX) :].strip()
         level = params.get("type", "log")
         self._log.info(f"page: {text}" if level == "log" else f"page {level}: {text}")
 
 
-async def watch_target(http: aiohttp.ClientSession, target: dict, cfg: Config, log: Log,
-                       stop: asyncio.Event, bridge: Optional[Bridge] = None) -> None:
+async def watch_target(
+    http: aiohttp.ClientSession,
+    target: dict,
+    cfg: Config,
+    log: Log,
+    stop: asyncio.Event,
+    bridge: Optional[Bridge] = None,
+) -> None:
     """Keep the bundle injected into one target until its websocket closes or we are stopped."""
     ws = await http.ws_connect(target["webSocketDebuggerUrl"], max_msg_size=0)
     watch = Watch(cfg, log, bridge)
@@ -262,7 +267,9 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
     settings = cfg.user_dir / "settings.json"
     dictation = Dictation(log, settings)  # nothing is recorded or loaded until dictation is used
     dictation.startup()
-    bridge = Bridge(log, desktop, Lexicons([cfg.user_dir / "packs", cfg.packs]), settings, Converter(), dictation=dictation)
+    bridge = Bridge(
+        log, desktop, Lexicons([cfg.user_dir / "packs", cfg.packs]), settings, Converter(), dictation=dictation
+    )
     try:
         await _serve_forever(cfg, log, stop, bridge)
     finally:
@@ -315,8 +322,10 @@ async def _with_session(cfg: Config, log: Log, action) -> int:
 
 async def run_once(cfg: Config, log: Log) -> int:
     """Inject once, unconditionally; the bundle replaces a running instance itself."""
+
     async def action(session: CdpSession, _http) -> int:
         return 0 if await inject(session, cfg, log) else 1
+
     return await _with_session(cfg, log, action)
 
 
@@ -324,6 +333,7 @@ async def run_uninstall(cfg: Config, log: Log) -> int:
     async def action(session: CdpSession, _http) -> int:
         await uninstall_in_page(session, log, cfg.uninstall_timeout)
         return 0
+
     return await _with_session(cfg, log, action)
 
 
@@ -341,4 +351,5 @@ async def run_probe(cfg: Config, log: Log) -> int:
         titles = [t.get("title") for t in await list_targets(http, cfg.devtools) if isinstance(t, dict)]
         log.info(json.dumps({"steam": data, "targets": titles}, ensure_ascii=False, indent=2))
         return 0 if isinstance(data, dict) and not data.get("missing") else 2
+
     return await _with_session(cfg, log, action)

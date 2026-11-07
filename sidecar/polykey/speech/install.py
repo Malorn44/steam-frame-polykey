@@ -10,6 +10,7 @@ Nothing is compiled. It goes to ~/.local/share/polykey/speech/engine/<version>/:
 Unpacking takes only regular files with plain names, so an archive cannot write anywhere else. The
 directory is assembled beside its final place and renamed into it; older versions are removed.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,7 +42,9 @@ def engine_dir(home: Path, version: str) -> Path:
 
 def installed(home: Path, version: str) -> bool:
     directory = engine_dir(home, version)
-    return (directory / "lib" / "libtranscribe.so").is_file() and (directory / "python" / "transcribe_cpp" / "__init__.py").is_file()
+    return (directory / "lib" / "libtranscribe.so").is_file() and (
+        directory / "python" / "transcribe_cpp" / "__init__.py"
+    ).is_file()
 
 
 def _copy(source, dest: Path, size: int) -> None:
@@ -81,9 +84,15 @@ def unpack(native: Path, wheel: Path, target: Path, version: str) -> None:
                 with whl.open(info) as source:
                     _copy(source, work / "licenses" / "transcribe_cpp", info.file_size)
     lib = work / "lib"
-    contract = json.loads((lib / "contract.json").read_text(encoding="utf-8")) if (lib / "contract.json").is_file() else {}
-    if (not all((lib / name).is_file() for name in REQUIRED) or not any(lib.glob("libggml-cpu*.so"))
-            or not (work / "python" / "transcribe_cpp" / "__init__.py").is_file() or contract.get("version") != version):
+    contract = (
+        json.loads((lib / "contract.json").read_text(encoding="utf-8")) if (lib / "contract.json").is_file() else {}
+    )
+    if (
+        not all((lib / name).is_file() for name in REQUIRED)
+        or not any(lib.glob("libggml-cpu*.so"))
+        or not (work / "python" / "transcribe_cpp" / "__init__.py").is_file()
+        or contract.get("version") != version
+    ):
         shutil.rmtree(work, ignore_errors=True)
         raise SpeechError("bad-archive")
     shutil.rmtree(target, ignore_errors=True)
@@ -93,8 +102,14 @@ def unpack(native: Path, wheel: Path, target: Path, version: str) -> None:
 class EngineDownload:
     """Download and install the engine; progress in `done` / `total` (both files), failure in `error`."""
 
-    def __init__(self, engine: Engine, home: Path, machine: Optional[str] = None, schemes: tuple[str, ...] = ("https",),
-                 on_progress: Optional[Callable[[], None]] = None) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        home: Path,
+        machine: Optional[str] = None,
+        schemes: tuple[str, ...] = ("https",),
+        on_progress: Optional[Callable[[], None]] = None,
+    ) -> None:
         self.engine = engine
         self.home = home
         self.native = engine.native.get(machine or platform.machine())
@@ -124,7 +139,9 @@ class EngineDownload:
             files.append(job.path)
         target = engine_dir(self.home, self.engine.version)
         try:
-            await asyncio.get_running_loop().run_in_executor(None, unpack, files[0], files[1], target, self.engine.version)
+            await asyncio.get_running_loop().run_in_executor(
+                None, unpack, files[0], files[1], target, self.engine.version
+            )
         except SpeechError as error:
             self.error = error.code
         except (OSError, tarfile.TarError, zipfile.BadZipFile, ValueError, EOFError):

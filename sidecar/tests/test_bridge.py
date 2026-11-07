@@ -29,6 +29,7 @@ def fast(monkeypatch):
 def focus(monkeypatch, process):
     async def fake_focused_process(display=":0"):
         return process
+
     monkeypatch.setattr(desktop, "focused_process", fake_focused_process)
     monkeypatch.setattr("polykey.bridge.focused_process", fake_focused_process)
 
@@ -44,6 +45,7 @@ def test_rejects_bad_requests():
         assert await bridge.handle("[1]") == {"id": None, "ok": False, "error": "bad-request"}
         assert await bridge.handle(request(op="rm -rf")) == {"id": 7, "ok": False, "error": "unknown-op"}
         assert (await bridge.handle(request(op="desktop.prepare", text=TEXT)))["error"] == "desktop-paste-off"
+
     run(main())
 
 
@@ -54,6 +56,7 @@ def test_validates_text(tmp_path, monkeypatch):
         bridge = Bridge(Log(io.StringIO()), DesktopPaste(tmp_path / "wayland-0"))
         for bad in ("", 5, None, "x" * (MAX_TEXT_CHARS + 1)):
             assert (await bridge.handle(request(op="desktop.prepare", text=bad)))["error"] == "bad-text"
+
     run(main())
 
 
@@ -69,6 +72,7 @@ def test_refuses_to_paste_outside_the_desktop(tmp_path, monkeypatch):
             assert fake.owner["selection"] == ("app", "old clipboard")  # untouched
         finally:
             fake.stop()
+
     run(main())
 
 
@@ -84,6 +88,7 @@ def test_refuses_when_nothing_has_focus(tmp_path, monkeypatch):
             assert fake.owner["selection"] == ("app", "old clipboard")
         finally:
             fake.stop()
+
     run(main())
 
 
@@ -104,6 +109,7 @@ def test_prepare_and_wait_through_the_bridge(tmp_path, monkeypatch):
         finally:
             paste.clipboard.close()
             fake.stop()
+
     run(main())
 
 
@@ -114,6 +120,7 @@ def test_desktop_missing_is_a_short_error(tmp_path, monkeypatch):
         bridge = Bridge(Log(io.StringIO()), DesktopPaste(tmp_path / "nope"))
         reply = await bridge.handle(request(op="desktop.prepare", text=TEXT))
         assert reply == {"id": 7, "ok": False, "error": "no-desktop-socket"}
+
     run(main())
 
 
@@ -133,8 +140,14 @@ def test_injector_registers_the_binding_and_answers_calls(tmp_path, monkeypatch)
         bundle = tmp_path / "bundle.js"
         bundle.write_text("/* bundle */", encoding="utf-8")
         out = io.StringIO()
-        cfg = Config(devtools=steam.devtools, bundle=bundle, debounce=0.02, safety_check=0.3,
-                     backoff_start=0.02, desktop_socket=tmp_path / "wayland-0")
+        cfg = Config(
+            devtools=steam.devtools,
+            bundle=bundle,
+            debounce=0.02,
+            safety_check=0.3,
+            backoff_start=0.02,
+            desktop_socket=tmp_path / "wayland-0",
+        )
         stop = asyncio.Event()
         task = asyncio.ensure_future(injector.run_service(cfg, Log(out), stop))
         try:
@@ -157,6 +170,7 @@ def test_injector_registers_the_binding_and_answers_calls(tmp_path, monkeypatch)
             await asyncio.wait_for(task, 3)
             compositor.stop()
             await steam.stop()
+
     run(main())
 
 
@@ -168,8 +182,14 @@ def test_stopping_the_service_restores_an_unfinished_paste(tmp_path, monkeypatch
         compositor = await FakeCompositor(tmp_path / "wayland-0").start()
         bundle = tmp_path / "bundle.js"
         bundle.write_text("/* bundle */", encoding="utf-8")
-        cfg = Config(devtools=steam.devtools, bundle=bundle, debounce=0.02, safety_check=0.3,
-                     backoff_start=0.02, desktop_socket=tmp_path / "wayland-0")
+        cfg = Config(
+            devtools=steam.devtools,
+            bundle=bundle,
+            debounce=0.02,
+            safety_check=0.3,
+            backoff_start=0.02,
+            desktop_socket=tmp_path / "wayland-0",
+        )
         stop = asyncio.Event()
         task = asyncio.ensure_future(injector.run_service(cfg, Log(io.StringIO()), stop))
         try:
@@ -186,4 +206,5 @@ def test_stopping_the_service_restores_an_unfinished_paste(tmp_path, monkeypatch
         finally:
             compositor.stop()
             await steam.stop()
+
     run(main())

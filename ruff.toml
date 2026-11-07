@@ -1,4 +1,4 @@
-# Lint only: the sidecar keeps its hand formatting (no `ruff format`).
+# Lint, and `ruff format` with its defaults (`npm run lint` checks both).
 target-version = "py310"  # the PC test venv; the Frame runs 3.12
 line-length = 120
 extend-exclude = ["reference", "local"]
@@ -7,7 +7,7 @@ extend-exclude = ["reference", "local"]
 # pyflakes, pycodestyle, bugbear, asyncio pitfalls and ruff's own checks; imports keep their hand order.
 select = ["E", "F", "W", "B", "ASYNC", "RUF"]
 ignore = [
-  "E501",    # long lines: no formatter, and some tables read better wide
+  "E501",    # long lines: `ruff format` wraps code at 120 but leaves long strings and comments whole
   "E731",    # small named lambdas are used on purpose
   "E741",    # `l` for a list in short comprehensions
   "B905",    # zip() without strict=: the pairs are built to match

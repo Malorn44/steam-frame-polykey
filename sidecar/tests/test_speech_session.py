@@ -26,17 +26,33 @@ MODEL_BLOB = b"m" * 300_000
 
 
 def model(model_id: str, languages: tuple, port: int = 9, blob: bytes = MODEL_BLOB) -> Model:
-    remote = Remote(f"http://127.0.0.1:{port}/m/{model_id}.gguf", len(blob), hashlib.sha256(blob).hexdigest(), ("127.0.0.1",))
-    return Model(model_id, model_id, languages, remote, f"{model_id}.gguf", "MIT", f"{model_id} by someone", 300,
-                 {"id": model_id, "languages": list(languages), "size": len(blob)})
+    remote = Remote(
+        f"http://127.0.0.1:{port}/m/{model_id}.gguf", len(blob), hashlib.sha256(blob).hexdigest(), ("127.0.0.1",)
+    )
+    return Model(
+        model_id,
+        model_id,
+        languages,
+        remote,
+        f"{model_id}.gguf",
+        "MIT",
+        f"{model_id} by someone",
+        300,
+        {"id": model_id, "languages": list(languages), "size": len(blob)},
+    )
 
 
 def engine_archives() -> tuple[bytes, bytes]:
     """A release with the stand-in binding: installing it gives an engine that really runs (in tests)."""
     native, wheel = io.BytesIO(), io.BytesIO()
     with tarfile.open(fileobj=native, mode="w:gz") as tar:
-        for name, data in (("libtranscribe.so", b""), ("libggml.so", b""), ("libggml-base.so", b""),
-                           ("libggml-cpu-x.so", b""), ("contract.json", b'{"version": "0.4.1"}')):
+        for name, data in (
+            ("libtranscribe.so", b""),
+            ("libggml.so", b""),
+            ("libggml-base.so", b""),
+            ("libggml-cpu-x.so", b""),
+            ("contract.json", b'{"version": "0.4.1"}'),
+        ):
             info = tarfile.TarInfo("top/" + name)
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
@@ -49,24 +65,32 @@ NATIVE, WHEEL = engine_archives()
 
 
 def catalog_at(port: int) -> Catalog:
-    file = lambda name, blob: Remote(f"http://127.0.0.1:{port}/e/{name}", len(blob), hashlib.sha256(blob).hexdigest(), ("127.0.0.1",))
+    file = lambda name, blob: Remote(
+        f"http://127.0.0.1:{port}/e/{name}", len(blob), hashlib.sha256(blob).hexdigest(), ("127.0.0.1",)
+    )
     engine = EngineInfo("0.4.1", {"test": file("native.tgz", NATIVE)}, file("binding.whl", WHEEL), "engine by someone")
-    return Catalog(engine, (model("en-model", ("en",), port), model("ja-model", ("ja", "zh"), port), model("any-model", ("*",), port)))
+    return Catalog(
+        engine,
+        (model("en-model", ("en",), port), model("ja-model", ("ja", "zh"), port), model("any-model", ("*",), port)),
+    )
 
 
 async def server(slow: bool = False):
     """A local stand-in for GitHub and Hugging Face; `slow` sends model files in pieces over a few seconds."""
+
     async def serve_model(request):
         if not slow:
             return web.Response(body=MODEL_BLOB)
         response = web.StreamResponse(headers={"Content-Length": str(len(MODEL_BLOB))})
         await response.prepare(request)
         for i in range(0, len(MODEL_BLOB), 10_000):
-            await response.write(MODEL_BLOB[i:i + 10_000])
+            await response.write(MODEL_BLOB[i : i + 10_000])
             await asyncio.sleep(0.1)
         return response
+
     async def serve_engine(request):
         return web.Response(body=NATIVE if request.match_info["name"] == "native.tgz" else WHEEL)
+
     app = web.Application()
     app.add_routes([web.get("/m/{name}", serve_model), web.get("/e/{name}", serve_engine)])
     runner = web.AppRunner(app)
@@ -102,8 +126,16 @@ def setup(tmp_path, monkeypatch):
     def make(port: int = 9):
         # Never GitHub or Hugging Face from a test: by default downloads go to a closed local port.
         engine = Engine(home, "0.4.1", Log(out), use_scope=False)
-        return Dictation(Log(out), settings, home=home, tools=tools, engine=engine, catalog=catalog_at(port),
-                         download_options=OPTIONS)
+        return Dictation(
+            Log(out),
+            settings,
+            home=home,
+            tools=tools,
+            engine=engine,
+            catalog=catalog_at(port),
+            download_options=OPTIONS,
+        )
+
     return make, out, pcm, settings, home, log
 
 
@@ -134,6 +166,7 @@ def test_a_phrase_is_heard_recognized_and_handed_out_once(setup):
             return seen, again
         finally:
             await dictation.close()
+
     seen, again = asyncio.run(main())
     assert [s["phase"] for s in seen] == ["transcribing", "done"]
     assert seen[-1]["text"] == TEXT
@@ -147,7 +180,9 @@ def test_a_phrase_is_heard_recognized_and_handed_out_once(setup):
 def test_the_model_follows_the_language_and_the_choices():
     catalog = catalog_at(9)
     ready = {"en-model", "ja-model", "any-model"}
-    use = lambda language, choices, have=ready: (pick(catalog, language, choices, have) or type("N", (), {"id": None})).id
+    use = lambda language, choices, have=ready: (
+        (pick(catalog, language, choices, have) or type("N", (), {"id": None})).id
+    )
     assert use("en", {}) == "en-model" and use("ja", {}) == "ja-model" and use("zh", {}) == "ja-model"
     assert use("de", {}) == "any-model"  # nothing for German: the one for any language
     assert use("en", {"en": "any-model"}) == "any-model"
@@ -171,6 +206,7 @@ def test_pressing_again_stops_and_recognizes_what_was_said(setup, monkeypatch):
             return await follow(dictation, 1)
         finally:
             await dictation.close()
+
     assert asyncio.run(main())[-1] == {"ok": True, "session": 1, "phase": "done", "text": TEXT}
 
 
@@ -195,6 +231,7 @@ def test_the_speech_level_reaches_the_page_while_listening_and_silence_sends_not
         finally:
             await dictation.close()
         return updates
+
     updates = asyncio.run(main())
     assert updates[0] == [0, 0, 0, 0, 0]  # the first wait answers at once with where the bars are
     assert any(max(bars) >= 3 for bars in updates)  # the tone shows
@@ -215,6 +252,7 @@ def test_no_speech_ends_the_session(setup, monkeypatch, audio, code):
             return await follow(dictation, 1)
         finally:
             await dictation.close()
+
     assert asyncio.run(main())[-1] == {"ok": True, "session": 1, "phase": "error", "error": code}
 
 
@@ -234,13 +272,18 @@ def test_off_busy_bad_language_and_what_is_missing(setup):
             assert (await ask(dictation, "dictation.start", language="en"))["error"] == "no-engine"
             status = await until_settled(dictation)  # the missing engine was fetched again, once (and failed here)
             assert status["engine"] == {"state": "missing", "error": "network"}
-            assert status["models"] == {"en-model": {"state": "ready"}, "ja-model": {"state": "ready"}, "any-model": {"state": "missing"}}
+            assert status["models"] == {
+                "en-model": {"state": "ready"},
+                "ja-model": {"state": "ready"},
+                "any-model": {"state": "missing"},
+            }
             assert (await ask(dictation, "dictation.download", model="nope"))["error"] == "unknown-model"
             settings.write_text(json.dumps({"dictation": False}))
             assert (await ask(dictation, "dictation.start", language="en"))["error"] == "off"
             assert (await ask(dictation, "dictation.download"))["error"] == "off"
         finally:
             await dictation.close()
+
     asyncio.run(main())
 
 
@@ -255,15 +298,24 @@ def test_settings_through_the_bridge(setup):
             assert (await call(op="settings.save", settings={"dictation": False}))["ok"]
             assert (await call(op="dictation.wait", session=1, phase="listening"))["phase"] == "cancelled"
             assert (await call(op="settings.save", settings={"dictationModels": {"en": 3}}))["error"] == "bad-settings"
-            assert (await call(op="settings.save", settings={"dictationModels": {"english": "x"}}))["error"] == "bad-settings"
-            choices = {"en": "any-model", "zh-Hant": "ja-model", "fr": "any-model"}  # fr: kept without a keyboard for it
+            assert (await call(op="settings.save", settings={"dictationModels": {"english": "x"}}))[
+                "error"
+            ] == "bad-settings"
+            choices = {
+                "en": "any-model",
+                "zh-Hant": "ja-model",
+                "fr": "any-model",
+            }  # fr: kept without a keyboard for it
             assert (await call(op="settings.save", settings={"dictation": True, "dictationModels": choices}))["ok"]
             assert json.loads(settings.read_text()) == {"dictation": True, "dictationModels": choices}
             assert (await call(op="dictation.status"))["choices"] == choices
         finally:
             await dictation.close()
+
     asyncio.run(main())
-    assert (asyncio.run(Bridge(Log(io.StringIO())).handle(json.dumps({"id": 2, "op": "dictation.status"}))))["error"] == "unavailable"
+    assert (asyncio.run(Bridge(Log(io.StringIO())).handle(json.dumps({"id": 2, "op": "dictation.status"}))))[
+        "error"
+    ] == "unavailable"
 
 
 def test_the_catalog_for_the_page_has_no_sources(setup):
@@ -275,6 +327,7 @@ def test_the_catalog_for_the_page_has_no_sources(setup):
             return await ask(dictation, "dictation.catalog")
         finally:
             await dictation.close()
+
     reply = asyncio.run(main())
     assert reply["ok"] and [m["id"] for m in reply["models"]] == ["en-model", "ja-model", "any-model"]
     assert "127.0.0.1" not in json.dumps(reply) and reply["engine"]["version"] == "0.4.1"
@@ -317,6 +370,7 @@ def test_turning_dictation_on_installs_the_engine_and_then_it_works(setup):
         finally:
             await dictation.close()
             await runner.cleanup()
+
     assert asyncio.run(main())["text"] == TEXT  # through the installed (stand-in) binding
     assert out.getvalue().count("downloading the speech engine") == 1 and "speech engine ready" in out.getvalue()
     assert sorted(p.name for p in (home / "engine").iterdir()) == ["0.4.1"]
@@ -350,6 +404,7 @@ def test_models_download_with_progress_and_are_deleted(setup):
         finally:
             await dictation.close()
             await runner.cleanup()
+
     first, last = asyncio.run(main())
     assert first["models"]["any-model"] == {"state": "missing"} and last["models"]["any-model"] == {"state": "missing"}
     assert sorted(p.name for p in (home / "models").iterdir()) == ["en-model.gguf", "ja-model.gguf"]
@@ -380,6 +435,7 @@ def test_without_network_it_fails_once_and_waits_for_a_retry(setup):
             return failed, retried
         finally:
             await dictation.close()
+
     failed, retried = asyncio.run(main())
     assert failed["engine"] == {"state": "missing", "error": "network"} and retried["engine"] == {"state": "ready"}
     assert out.getvalue().count("downloading the speech engine") == 2
@@ -401,6 +457,7 @@ def test_turning_dictation_off_cancels_downloads(setup):
         finally:
             await dictation.close()
             await runner.cleanup()
+
     status = asyncio.run(main())
     assert status["models"]["any-model"] == {"state": "missing"} and status["enabled"] is False
     assert sorted(p.name for p in (home / "models").iterdir()) == ["en-model.gguf", "ja-model.gguf"]  # no part left
@@ -420,6 +477,7 @@ def test_every_session_logs_how_it_ended(setup, monkeypatch):
             await ask(dictation, "dictation.cancel")
         finally:
             await dictation.close()
+
     asyncio.run(main())
     assert out.getvalue().splitlines() == ["dictation 1: listening (default)", "dictation 1: cancelled while listening"]
 
@@ -462,6 +520,7 @@ def test_continuous_types_each_phrase_while_listening_until_stopped(continuous, 
             return await follow_continuous(dictation, stop_after=3)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == ["alpha", "bravo", "charlie"]
     # The first two arrived while it was still listening, the session ending only on stop.
@@ -486,6 +545,7 @@ def test_a_phrase_without_words_is_dropped_and_the_session_goes_on(continuous, m
             return await follow_continuous(dictation, stop_after=2)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == ["alpha", "charlie"] and seen[-1]["phase"] == "done"
     assert "phrase 2 dropped (no words;" in out.getvalue() and "stopped (2 phrases, 1 dropped)" in out.getvalue()
@@ -505,6 +565,7 @@ def test_stopping_mid_phrase_still_recognizes_it(continuous, setup, monkeypatch)
             return await follow_continuous(dictation)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == ["the end"] and seen[-1]["phase"] == "done"
 
@@ -524,6 +585,7 @@ def test_a_phrase_is_dropped_when_recognition_falls_far_behind(continuous, setup
             return await follow_continuous(dictation, stop_after=2)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == ["alpha", "bravo"] and seen[-1]["phase"] == "done"
     assert "a phrase dropped (recognition 1 s behind)" in out.getvalue()
@@ -541,6 +603,7 @@ def test_a_failing_helper_ends_a_continuous_session(continuous, monkeypatch):
             return await follow_continuous(dictation)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == [] and seen[-1] == {"ok": True, "session": 1, "phase": "error", "error": "helper-failed"}
     assert "dictation 1: helper-failed (0 phrases, 0 dropped)" in out.getvalue()
@@ -558,6 +621,7 @@ def test_a_forgotten_mic_stops_by_itself(setup, monkeypatch):
             return await follow_continuous(dictation)
         finally:
             await dictation.close()
+
     texts, seen = asyncio.run(main())
     assert texts == [] and seen[-1]["phase"] == "done"
     assert "dictation 1: idle-stop (0 phrases, 0 dropped)" in out.getvalue()

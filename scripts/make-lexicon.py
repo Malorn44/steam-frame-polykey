@@ -5,6 +5,7 @@ Usage: python3 scripts/make-lexicon.py en_US_wordlist.combined.gz packs/en/block
 Source: https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/dictionaries/
 Keeps the most frequent words (profanity included), drops blocked words and AOSP's not-a-word entries.
 """
+
 import gzip
 import re
 import sys
@@ -14,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sidecar"))
 from polykey.lexicon import word_hash
 
 KEEP = 60_000
-blocked = {line.strip() for line in Path(sys.argv[2]).read_text(encoding="utf-8").splitlines() if not line.startswith("#")}
+blocked = {
+    line.strip() for line in Path(sys.argv[2]).read_text(encoding="utf-8").splitlines() if not line.startswith("#")
+}
 entries = []
 with gzip.open(sys.argv[1], "rt", encoding="utf-8") as source:
     for line in source:

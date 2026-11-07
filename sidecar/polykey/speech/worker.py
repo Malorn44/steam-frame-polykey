@@ -16,6 +16,7 @@ go to a copy of it), and stderr is /dev/null too. No audio or text is ever writt
     python3 -I worker.py ENGINE_DIR MODEL THREADS --check FILE.wav
 prints the text of a 16 kHz mono 16-bit WAV and how long it took (README, Dictation).
 """
+
 import array
 import json
 import os
@@ -33,7 +34,7 @@ def cpu_variant() -> str:
             for line in maps:
                 name = line.rsplit("/", 1)[-1].strip()
                 if name.startswith("libggml-cpu") and name.endswith(".so"):
-                    return name[len("libggml-cpu-"):-len(".so")] or "cpu"
+                    return name[len("libggml-cpu-") : -len(".so")] or "cpu"
     except OSError:
         pass
     return "unknown"
@@ -66,6 +67,7 @@ def recognize(session, languages, pcm: bytes, language: str) -> str:
 
 def check(engine: str, model_path: str, threads: int, wav_path: str) -> int:
     import wave
+
     with wave.open(wav_path, "rb") as w:
         if (w.getframerate(), w.getnchannels(), w.getsampwidth()) != (16000, 1, 2):
             print("needs a 16 kHz mono 16-bit WAV", file=sys.stderr)
@@ -89,7 +91,13 @@ def serve(engine: str, model_path: str, threads: int) -> int:
     try:
         tc, _model, session, languages = load(engine, model_path, threads)
     except Exception as error:  # a missing or broken engine or model
-        reply({"error": "model-failed" if type(error).__name__ in ("ModelLoadError", "ModelFileNotFound") else "engine-failed"})
+        reply(
+            {
+                "error": "model-failed"
+                if type(error).__name__ in ("ModelLoadError", "ModelFileNotFound")
+                else "engine-failed"
+            }
+        )
         return 1
     reply({"ready": True, "cpu": cpu_variant()})
     stdin = sys.stdin.buffer
