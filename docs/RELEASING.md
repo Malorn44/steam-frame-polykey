@@ -16,9 +16,9 @@ CI gates every commit. A release reaches Frames only after you smoke-test its dr
 `release:sign` waits for your approval in the `release` environment, the only place the signing key
 is kept. It signs only the `latest.json` that `release:verify` found to be what the tagged commit
 builds to, rebuilt on a fresh runner, and only while the tag still points at that commit, which
-`release` found on main. No build runs in the job that holds the key. Installers and updaters
-refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, in
-`~/.local/share/polykey/dev/`) is never replaced by an update.
+`release` found on main. No build runs in a job that can write to the repo or holds the key.
+Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
+(`scripts/deploy.sh`, in `~/.local/share/polykey/dev/`) is never replaced by an update.
 
 ## Once
 
@@ -82,14 +82,19 @@ refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, i
 2. **Merge the release PR.** CI tags vX.Y.Z on the merge commit and creates a draft release with
    the PR's notes. `release` checks that the tagged commit is on main, and the jobs after it build
    and check that commit, never the tag by name. Then:
-   - `release:assets` checks out the commit, runs `npm ci --ignore-scripts` and
-     `scripts/release.sh X.Y.Z`, and attaches `polykey-X.Y.Z.tar.gz`, `install.sh`, `latest.json`
-     and `SHA256SUMS` to the draft.
-   - `release:verify`, on a fresh runner, downloads the draft and checks its files against each
-     other: version, URL, sha256, size, the installer's hash and SHA256SUMS. It then builds the
-     commit again and requires the same release (`sign-release.sh --compare`), the same
-     `install.sh`, and exactly the `latest.json` that build writes for the draft's tarball.
+   - `release:build` checks out the commit and runs `npm ci --ignore-scripts` and
+     `scripts/release.sh X.Y.Z`. `release:assets` attaches what it built, `polykey-X.Y.Z.tar.gz`,
+     `install.sh`, `latest.json` and `SHA256SUMS`, to the draft.
+   - `release:rebuild` builds the same commit again, on another runner.
+   - `release:verify` downloads the draft and checks its files against each other: version, URL,
+     sha256, size, the installer's hash and SHA256SUMS. It then requires the rebuild's release
+     (`sign-release.sh --compare`), the same `install.sh`, and exactly the `latest.json` the rebuild
+     writes for the draft's tarball.
    - `release:sign` then waits for your approval.
+
+   The two builds can only read the repo, and the jobs that write to it run nothing from npm. So a
+   package's code can't change the draft or forge the check, though one that changed both builds
+   alike would still pass it.
 
    If a job fails on something passing, such as the network, use Re-run failed jobs on that run.
    `release:assets` replaces any files already attached.

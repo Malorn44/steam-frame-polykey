@@ -5,10 +5,11 @@
 # fails when any job failed or was cancelled.
 #
 # On a push to main, once `ci ok` passes: release (release-please keeps the release PR up to date, and
-# when one is merged, tags vX.Y.Z and drafts its GitHub release), release:assets (builds the tag and
-# attaches its files to the draft), release:verify (checks the draft against a build of the tag), then
-# release:sign, which waits for your approval in the release environment while you smoke-test the
-# draft, and then signs and publishes it (docs/RELEASING.md).
+# when one is merged, tags vX.Y.Z on main and drafts its GitHub release), release:build and
+# release:rebuild (build the tagged commit on two runners, in jobs that can only read),
+# release:assets (attaches the first build to the draft), release:verify (checks the draft against
+# the second), then release:sign, which waits for your approval in the release environment while you
+# smoke-test the draft, and then signs and publishes it (docs/RELEASING.md).
 #
 # Actions are pinned to commits (Dependabot proposes bumps); the version is in the comment. Python is
 # 3.12, the Frame's; the Python tools' versions come from requirements-dev.txt.
@@ -306,17 +307,18 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "$TAG is $SHA, on main"
 
-  # The new draft's files: the tagged commit built by scripts/release.sh, which makes the same files
-  # from the same commit. Re-running this job replaces files already attached.
-  release-assets:
-    name: release:assets
+  # The release's commit built by scripts/release.sh, which makes the same files from the same commit.
+  # The build runs its packages' code, so this job can only read; release:assets attaches its files.
+  release-build:
+    name: release:build
     needs: release
     if: needs.release.outputs.created == 'true'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write # attach files to the draft
+      contents: read
     outputs:
       built: ${{ steps.key.outputs.present }}
+      artifact: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -333,7 +335,7 @@ jobs:
       - if: steps.key.outputs.present == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
-      # No package's install scripts run in a job that can write the repo (the build needs none).
+      # No package's install scripts run (the build needs none).
       - if: steps.key.outputs.present == 'true'
         run: npm ci --ignore-scripts
       - if: steps.key.outputs.present == 'true'
@@ -341,22 +343,73 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: scripts/release.sh "$VERSION"
       - if: steps.key.outputs.present == 'true'
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-build
+          path: dist/release/
+          if-no-files-found: error
+
+  # Attaches release:build's files to the draft. Nothing from the repo or npm runs here. Re-running
+  # this job replaces files already attached.
+  release-assets:
+    name: release:assets
+    needs: [release, release-build]
+    if: needs.release-build.outputs.built == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach files to the draft
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.release-build.outputs.artifact }} # the one release:build uploaded
+          path: ${{ runner.temp }}/build
+      - name: attach the files to the draft
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release.outputs.tag }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
-          cd dist/release
+          cd "$RUNNER_TEMP/build"
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
             "polykey-$VERSION.tar.gz" install.sh latest.json SHA256SUMS
 
-  # The draft as it is now, on a fresh runner: its files agree with each other, and the tag built again
-  # here makes the same release. No secret is in this job, so the build's packages never meet the
-  # signing key; release:sign signs only the latest.json checked here.
+  # The release's commit built again, on another runner, for release:verify to compare the draft with.
+  # Like release:build, it can only read.
+  release-rebuild:
+    name: release:rebuild
+    needs: [release, release-build]
+    if: needs.release-build.outputs.built == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      - run: npm ci --ignore-scripts # as in release:build
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: scripts/release.sh "$VERSION"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-rebuild
+          path: dist/release/
+          if-no-files-found: error
+
+  # The draft as it is now: its files agree with each other and with release:rebuild's build of the
+  # same commit. Nothing from npm runs here (the runner's own node reads the JSON), so no build can
+  # forge this check. No secret is in this job either; release:sign signs only the latest.json
+  # checked here.
   release-verify:
     name: release:verify
-    needs: [release, release-assets]
-    if: needs.release-assets.outputs.built == 'true'
+    needs: [release, release-assets, release-rebuild]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # only write access sees a draft
@@ -372,10 +425,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          ref: ${{ needs.release.outputs.sha }} # for scripts/sign-release.sh --compare
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: 24, cache: npm }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.release-rebuild.outputs.artifact }} # the one release:rebuild uploaded
+          path: ${{ runner.temp }}/rebuild
       - name: download the draft
         id: draft
         env:
@@ -416,16 +471,14 @@ jobs:
           [ "$(field installer)" = "$(sha "$d/install.sh")" ] || fail "install.sh does not match latest.json"
           (cd "$d" && sha256sum "$t" install.sh latest.json) | cmp -s - "$d/SHA256SUMS" \
             || fail "SHA256SUMS is not the sums of the draft's files"
-      - run: npm ci --ignore-scripts # as in release:assets
-      - run: scripts/release.sh "$VERSION"
       - name: compare with the build
         id: compare
         run: |
           fail() { echo "::error::$*"; exit 1; }
-          d=$RUNNER_TEMP/draft t=polykey-$VERSION.tar.gz
-          scripts/sign-release.sh --compare "$d/$t" "dist/release/$t" \
+          d=$RUNNER_TEMP/draft b=$RUNNER_TEMP/rebuild t=polykey-$VERSION.tar.gz
+          scripts/sign-release.sh --compare "$d/$t" "$b/$t" \
             || fail "the draft's tarball differs from a build of $TAG: do not sign it; delete the draft and find out why"
-          cmp -s "$d/install.sh" dist/release/install.sh || fail "the draft's install.sh differs from a build of $TAG"
+          cmp -s "$d/install.sh" "$b/install.sh" || fail "the draft's install.sh differs from a build of $TAG"
           # The signature covers every field, so all of latest.json must be what the build writes for the
           # draft's tarball (the same files may compress to other bytes on another runner).
           SIZE=$(stat -c %s "$d/$t") SHA=$(sha256sum "$d/$t" | cut -d' ' -f1) node -e '
@@ -433,7 +486,7 @@ jobs:
             m.size = Number(process.env.SIZE);
             m.sha256 = process.env.SHA;
             process.stdout.write(JSON.stringify(m, null, 2) + "\n");
-          ' dist/release/latest.json | cmp -s - "$d/latest.json" \
+          ' "$b/latest.json" | cmp -s - "$d/latest.json" \
             || fail "the draft's latest.json is not what a build of $TAG writes for its tarball"
           echo "latest=$(sha256sum "$d/latest.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "the draft holds what $TAG builds to; release:sign waits for an approval"
