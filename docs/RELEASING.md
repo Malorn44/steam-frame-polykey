@@ -94,7 +94,7 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
 ## Each release
 
 1. **The release PR.** After a push to main passes CI, release-please opens or updates a PR titled
-   `chore(main): release X.Y.Z`. It sets `.release-please-manifest.json` to the next version and adds
+   `chore(main): release X.Y.Z`. It sets `.github/release-please/manifest.json` to the next version and adds
    that version's notes to CHANGELOG.md. Pull requests are squash-merged, so their titles are the
    conventional commits it reads:
    - `feat` bumps the minor version, and `fix` and `perf` bump the patch.
