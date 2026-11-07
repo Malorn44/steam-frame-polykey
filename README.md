@@ -32,6 +32,14 @@ It installs the latest release into `~/.local/share/polykey/` and starts polykey
 
 **What it needs:** Python 3.10.12+ with aiohttp, both in SteamOS, and Steam's debugger, which polykey draws through. If the script says the debugger isn't answering, turn on Steam → Settings → Developer → Enable CEF remote debugging. polykey talks to it on 127.0.0.1 only.
 
+On the Frame, this setting also opens Steam's debugger to your local network on port 8081, through a SteamOS service. Anyone on the same network (a café, dorm or guest Wi-Fi) could read what you type through any keyboard, or control Steam. The script warns you when port 8081 is open. polykey doesn't use it, so close it with:
+
+```sh
+sudo systemctl mask --now steam-web-debug-portforward.service
+```
+
+To undo that: `sudo systemctl unmask --now steam-web-debug-portforward.service`.
+
 **Updates:** from then on polykey updates itself. An hour apart it looks for a newer release, and installs one only when its signature checks out against the release key; the new release starts when the keyboard closes. In settings, **Update automatically** (under General) turns this off, so polykey only reports new releases (it sets `"autoUpdate": false` in `~/.config/polykey/settings.json`). The line by the version, at the foot of the Settings tab, shows what the updater found, with buttons to check, install or go back. Running the script again also updates.
 
 ![The Settings tab: General on the left, with the theme, haptics, suggestions and Update automatically turned on, the 12-key's own options on the right, and the version at the foot](docs/images/settings.png)
