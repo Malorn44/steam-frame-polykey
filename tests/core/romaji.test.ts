@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyDef } from '../../src/core/catalog.js';
 import { NO_IME, pressIme, reading, settleRomaji, type Ime } from '../../src/core/ime.js';
-import { feedRomaji, romajiTable } from '../../src/core/romaji.js';
+import { feedRomaji, romajiTable, type TableEntry } from '../../src/core/romaji.js';
 
-const table = romajiTable(JSON.parse(readFileSync('packs/ja/romaji-table.json', 'utf8')).entries);
+const table = romajiTable((JSON.parse(readFileSync('packs/ja/romaji-table.json', 'utf8')) as { entries: TableEntry[] }).entries);
 const feed = (s: string) => feedRomaji(s, table);
 
 describe('romaji', () => {

@@ -6,7 +6,7 @@ import { missingPrerequisites } from './host/steam/probe.js';
 
 declare const __POLYKEY_VERSION__: string;
 
-export const report = (g: SteamGlobals = globalThis as unknown as SteamGlobals) => {
+export const report = (g: SteamGlobals = globalThis) => {
   const win = getKeyboardPopupWindow(g);
   const polykey = g['__polykey'] as { version?: unknown; state?: unknown } | undefined;
   return {

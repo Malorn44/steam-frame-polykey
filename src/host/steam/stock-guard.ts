@@ -15,7 +15,7 @@ export const shouldSwallow = (type: string, detail: { button?: unknown } | null 
 export const createStockGuard = (win: Window) => {
   const doc = win.document;
   const swallow = (e: Event): void => {
-    if (!shouldSwallow(e.type, (e as CustomEvent).detail)) return;
+    if (!shouldSwallow(e.type, (e as CustomEvent<{ button?: unknown } | null>).detail)) return;
     e.stopImmediatePropagation();
     e.preventDefault();
   };

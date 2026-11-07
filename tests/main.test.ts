@@ -6,6 +6,22 @@ import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, inst
 import { bundledBoot } from './boot.js';
 import { MINIMAL, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
+/** A request the page sent the fake sidecar, with the fields these tests look at. */
+type SentRequest = {
+  op: string;
+  id: number;
+  prefix?: string;
+  settings?: unknown;
+  state?: unknown;
+  prepare?: unknown;
+  reading?: string;
+  lengths?: number[];
+  resize?: number[];
+  choices?: unknown;
+  texts?: unknown;
+};
+const request = (payload: string) => JSON.parse(payload) as SentRequest;
+
 let logged: string[];
 let installed: PolykeyApi[];
 
@@ -126,8 +142,8 @@ describe('suggestions', () => {
     const words = ['hello', 'help', 'held', 'helmet'];
     const asked: string[] = [];
     g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
-      if (req.op === 'suggest') asked.push(req.prefix);
+      const req = request(payload);
+      if (req.op === 'suggest') asked.push(req.prefix ?? '');
       const found = words.filter((w) => w.startsWith(String(req.prefix).toLowerCase()));
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: found }), 1);
     };
@@ -195,7 +211,7 @@ describe('settings', () => {
     const haptics: unknown[] = [];
     Object.assign(popup, { SteamClient: { OpenVR: { TriggerOverlayHapticEffect: (...a: unknown[]) => haptics.push(a) } } });
     g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       if (req.op === 'settings.save') saved.push(req.settings);
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: [] }), 1);
     };
@@ -232,8 +248,8 @@ describe('settings', () => {
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
     steam.g[BOOT_GLOBAL] = bundledBoot();
     steam.g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
-      const words = req.op === 'suggest' ? ['dog', 'door'].filter((w) => w.startsWith(req.prefix)) : [];
+      const req = request(payload);
+      const words = req.op === 'suggest' ? ['dog', 'door'].filter((w) => w.startsWith(req.prefix ?? '')) : [];
       setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 1);
     };
     const api = installPolykey(steam.g);
@@ -258,7 +274,7 @@ describe('settings', () => {
     const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
     steam.g[BOOT_GLOBAL] = boot;
     const asked: string[] = [];
-    steam.g['polykeyBridge'] = (payload: string) => asked.push(JSON.parse(payload).op);
+    steam.g['polykeyBridge'] = (payload: string) => asked.push(request(payload).op);
     installed.push(installPolykey(steam.g));
     await tap(popup, 'h');
     expect(asked).not.toContain('suggest');
@@ -283,7 +299,7 @@ describe('swipe typing', () => {
   const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
     const requests: Record<string, unknown>[] = [];
     g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       requests.push(req);
       const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 5);
@@ -339,7 +355,7 @@ describe('swipe typing', () => {
   it('the word list is loaded when the keyboard first shows, once', async () => {
     const { popup, requests } = setupSwipe([]);
     for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
-    expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number),
+    expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
       keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
   });
 
@@ -458,7 +474,7 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     steam.g[BOOT_GLOBAL] = boot;
     const requests: Record<string, unknown>[] = [];
     steam.g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       requests.push(req);
       const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
       setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words, segments: [], predictions: [] }), 5);
@@ -542,7 +558,7 @@ describe('emoji', () => {
     steam.g[BOOT_GLOBAL] = boot;
     const saved: unknown[] = [];
     steam.g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       if (req.op === 'emoji.save') saved.push(req.state);
       // Like the real sidecar outside KDE Desktop Mode: no paste route.
       const reply = req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : { ok: true };
@@ -576,7 +592,7 @@ describe('Japanese 12-key', () => {
     const asked: string[] = [];
     const learned: unknown[] = [];
     g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       asked.push(req.op);
       let reply: Record<string, unknown> = { ok: true };
       if (req.op === 'settings.save') saved.push(req.settings);
@@ -585,7 +601,7 @@ describe('Japanese 12-key', () => {
       if (req.op === 'predict') reply = { ok: true, predictions: [] };
       if (req.op === 'convert') {
         const cut = req.lengths?.[0] === 2 && req.resize?.[1] === 1 ? 3 : 2;
-        const r: string = req.reading;
+        const r = req.reading ?? '';
         reply = { ok: true, segments: r === 'かんじ'
           ? [{ reading: r.slice(0, cut), candidates: cut === 2 ? ['漢', '感'] : ['漢字'] }, ...(cut < 3 ? [{ reading: r.slice(cut), candidates: ['字', 'じ'] }] : [])]
           : [{ reading: r, candidates: [r] }] };
@@ -765,7 +781,7 @@ describe('settings → Keyboards', () => {
     const { popup, g, api } = setup();
     const saved: unknown[] = [];
     g['polykeyBridge'] = (payload: string) => {
-      const req = JSON.parse(payload);
+      const req = request(payload);
       if (req.op === 'settings.save') saved.push(req.settings);
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true }), 1);
     };

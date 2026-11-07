@@ -95,6 +95,7 @@ function* templates(source) {
 
 const fill = (css, holes) => {
   let n = 0;
+  // eslint-disable-next-line no-control-regex -- \u0001 marks a hole; CSS text never holds one
   return css.replace(/\u0001/g, () => holes[n++]);
 };
 

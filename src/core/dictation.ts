@@ -71,7 +71,7 @@ export const parseStatus = (reply: Record<string, unknown>): SpeechStatus | null
 
 /** dictation.catalog's reply; null when it is not one (the sidecar checked catalog.json strictly). */
 export const parseCatalog = (reply: Record<string, unknown>): SpeechCatalog | null =>
-  (reply['ok'] === true && Array.isArray(reply['models']) ? { engine: reply['engine'], models: reply['models'] } as SpeechCatalog : null);
+  (reply['ok'] === true && Array.isArray(reply['models']) ? { engine: reply['engine'], models: reply['models'] as SpeechModel[] } as SpeechCatalog : null);
 
 export const serves = (model: SpeechModel, language: string): boolean =>
   model.languages.includes(ANY_LANGUAGE) || model.languages.includes(language);
@@ -138,7 +138,7 @@ export const downloading = (status: SpeechStatus | null): boolean =>
  * punctuation, fullwidth forms, vertical forms, Thai, Lao, Khmer, Myanmar, Tibetan. Not Hangul: Korean
  * spaces its words. (Property escapes: ES2018, and Chromium since 64.)
  */
-const UNSPACED_SCRIPT = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Tibetan}　-〿ー︰-﹏＀-ﾟ￠-￯]/u;
+const UNSPACED_SCRIPT = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Tibetan}\u3000-\u303fー\ufe30-\ufe4f\uff00-\uff9f\uffe0-\uffef]/u;
 /** Punctuation that closes or follows: never a space before it. */
 const CLOSING = /[.,!?;:)\]}…‥%、。，．！？：；）］｝」』】〕〉》〗〙〛｣]/u;
 /** Punctuation that opens: never a space after it. */

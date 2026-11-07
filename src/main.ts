@@ -74,7 +74,7 @@ export interface PolykeyApi {
 
 const errorKind = (error: unknown): string => (error instanceof Error ? error.name : typeof error);
 
-export const installPolykey = (g: SteamGlobals = globalThis as unknown as SteamGlobals): PolykeyApi => {
+export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const previous = g[GLOBAL] as Partial<PolykeyApi> | undefined;
   if (typeof previous?.uninstall === 'function') {
     try {

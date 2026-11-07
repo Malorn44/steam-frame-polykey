@@ -55,7 +55,7 @@ describe('createView', () => {
     expect([one.querySelector('.lg.tl')!.textContent, labelOf(one)]).toEqual(['1', '!']);
     view.update({ ...NO_MODS, fn: 'locked' });
     expect(labelOf(rows[0]!.querySelector<HTMLElement>('.key')!)).toBe('Esc');
-    expect(labelOf(keyIn(0, '=')!)).toBe('F12');
+    expect(labelOf(keyIn(0, '='))).toBe('F12');
     expect(one.querySelector('.lg.tr')).toBeNull();
     const fnKey = rows[4]!.querySelector<HTMLElement>('.key.mod')!;
     expect(fnKey.classList.contains('locked')).toBe(true);
@@ -116,7 +116,7 @@ describe('icons', () => {
     const host = document.createElement('div');
     document.body.append(host);
     const shadow = host.attachShadow({ mode: 'open' });
-    const full: Layout = { id: 't/t', name: 't', toolbar: [], rows: [], ...layout } as Layout;
+    const full: Layout = { id: 't/t', name: 't', toolbar: [], rows: [], ...layout };
     createView(document, shadow, full, bundledBoot().catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
     const key = (k: string) => [...shadow.querySelectorAll<HTMLElement>('.kb .key')].find((el) => el.dataset['k'] === k)!;
     return { key, svg: (k: string) => key(k).querySelector('svg'), text: (k: string) => key(k).querySelector('.lbl')!.textContent };
@@ -150,7 +150,7 @@ describe('icons', () => {
   it('the schema lists every icon', async () => {
     const { readFileSync } = await import('node:fs');
     const { ICONS } = await import('../../src/ui/icons.js');
-    const schema = JSON.parse(readFileSync('schema/pack.schema.json', 'utf8'));
+    const schema = JSON.parse(readFileSync('schema/pack.schema.json', 'utf8')) as { $defs: { icon: { enum: unknown[] } } };
     expect(schema.$defs.icon.enum).toEqual([...Object.keys(ICONS), null]);
   });
 });
