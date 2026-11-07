@@ -9,13 +9,13 @@
 import type { Theme } from '../core/catalog.js';
 import { SLOP_PX, touchGuard } from '../core/interaction.js';
 import { dragScroll, listenTouch, type DragScroll } from './gesture.js';
-import { ICONS, INFO_ICON } from './icons.js';
+import { ICONS } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
-import { INFO_CSS } from './info.js';
+import { INFO_CSS, infoTips } from './info.js';
 import type { SpeechStatus } from '../core/dictation.js';
 import { updateSummary, type UpdateAction, type UpdateStatus } from '../updates.js';
 
@@ -96,13 +96,8 @@ const CSS = `
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
-/* ⓘ after a row's name, a laser-sized target: a tap shows or hides one line under the row. */
-.row .name:has(> .info) { display: flex; align-items: center; }
-.ic.info { align-items: center; justify-content: center; width: 32px; height: var(--row-height); margin-left: 4px;
-  border-radius: var(--radius); color: var(--legend); }
-.ic.info.hover { box-shadow: inset 0 0 0 2px var(--ring); }
-.ic.info.open { background: var(--accent); color: var(--accent-text); }
-.info-line { margin: -2px 0 2px; color: var(--legend); font-size: var(--ui-small); }
+/* ⓘ right after a row's name (ui/info.ts). */
+.row .name:has(> .ic.i) { display: flex; align-items: center; gap: 6px; }
 .about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--error); }
 .about .ver { display: flex; align-items: center; gap: 8px; min-height: 24px; }
@@ -175,16 +170,11 @@ export const createSettingsView = (
     el.classList.add('sw');
     return el;
   };
-  /** A row with ⓘ after its name: a tap shows or hides `text` on a line under it (the laser has no hover). */
-  const explained = (el: HTMLElement, text: string): HTMLElement[] => {
-    const line = Object.assign(doc.createElement('div'), { className: 'info-line', textContent: text, hidden: true });
-    const icon = Object.assign(doc.createElement('span'), { className: 'ic info', innerHTML: INFO_ICON });
-    actions.set(icon, () => {
-      line.hidden = !line.hidden;
-      icon.classList.toggle('open', !line.hidden);
-    });
-    el.querySelector('.name')?.append(icon);
-    return [el, line];
+  const tips = infoTips(doc, root, actions); // General's ⓘ; the Dictation tab has its own
+  /** A row with ⓘ after its name, showing `title` and `text` as the Dictation tab's ⓘ do. */
+  const explained = (el: HTMLElement, title: string, text: string): HTMLElement => {
+    el.querySelector('.name')?.append(tips.icon(title, () => [['', text]]));
+    return el;
   };
 
   const about = doc.createElement('div');
@@ -226,7 +216,7 @@ export const createSettingsView = (
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
     ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
-    ...explained(onOff('Update automatically', 'autoUpdate'), 'Checks at start and hourly; installs when the keyboard closes.'));
+    explained(onOff('Update automatically', 'autoUpdate'), 'Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.'));
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length
       ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
@@ -258,7 +248,8 @@ export const createSettingsView = (
     hovered?.classList.remove('hover');
     hovered = el;
     el?.classList.add('hover');
-    dictationPage?.hover(el); // its ⓘ show their details while hovered
+    dictationPage?.hover(el); // an ⓘ shows its details while hovered
+    tips.hover(el);
     return true;
   };
   /** The list a press drags: the innermost .scroll that overflows, else the innermost (nothing to move). */
