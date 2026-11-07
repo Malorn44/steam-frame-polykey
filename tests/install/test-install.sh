@@ -30,7 +30,7 @@ port=$("$PYTHON" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)
 mkdir -p "$T/serve"
 release() {  # release VERSION DIR: build, sign and serve a release under /DIR
   POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" SOURCE_DATE_EPOCH=1700000000 \
-    scripts/release.sh "$1" --base "http://127.0.0.1:$port/$2" >/dev/null
+    scripts/release.sh "$1" >/dev/null
   rm -rf "${T:?}/serve/$2"
   cp -R dist/release "$T/serve/$2"
   sign "$T/serve/$2"
@@ -59,8 +59,8 @@ expect "it carries the licences, the unit, the release key and the installer wit
 expect "and the code: VERSION, the bundle, the sidecar, the packs" \
   '[ "$(cat "$R/VERSION")" = 0.1.0 ] && [ -s "$R/bundle.js" ] && [ -f "$R/sidecar/run.py" ] && [ -d "$R/packs" ] && [ -d "$R/schema" ] && ! find "$R" -name __pycache__ | grep -q .'
 tarball_sha=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
-expect "latest.json names the release, its URL, size and sha256" \
-  '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"version\": \"0.1.0\", \"url\": sys.argv[2], \"size\": int(sys.argv[3]), \"sha256\": sys.argv[4]})" "$T/serve/r1/latest.json" "http://127.0.0.1:$port/r1/polykey-0.1.0.tar.gz" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha"'
+expect "latest.json names the release and the tarball's size and sha256" \
+  '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"version\": \"0.1.0\", \"size\": int(sys.argv[2]), \"sha256\": sys.argv[3]})" "$T/serve/r1/latest.json" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha"'
 
 (cd "$T/serve" && exec "$PYTHON" -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
 server=$!
@@ -71,7 +71,7 @@ cp -R "$T/serve/r2" "$T/serve/tampered"
 sed -i 's/"size": [0-9]*/"size": 1/' "$T/serve/tampered/latest.json"
 cp -R "$T/serve/r2" "$T/serve/swapped"
 cp "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/serve/swapped/polykey-0.2.0.tar.gz"
-sed -i -e "s,/r2/,/swapped/," -e "s/\"size\": [0-9]*/\"size\": $(stat -c %s "$T/serve/swapped/polykey-0.2.0.tar.gz")/" "$T/serve/swapped/latest.json"
+sed -i "s/\"size\": [0-9]*/\"size\": $(stat -c %s "$T/serve/swapped/polykey-0.2.0.tar.gz")/" "$T/serve/swapped/latest.json"
 sign "$T/serve/swapped"
 
 # --- a Frame-like home ---------------------------------------------------------------------------

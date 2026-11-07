@@ -55,7 +55,6 @@ class Release:
         manifest = {
             "format": 1,
             "version": version,
-            "url": f"{self.base}/polykey-{version}.tar.gz",
             "size": len(tarball),
             "sha256": hashlib.sha256(tarball).hexdigest(),
         }
@@ -538,15 +537,8 @@ def test_a_release_with_a_new_unit_replaces_the_installed_one(home, key, tmp_pat
 
 
 def test_manifest_fields_are_checked():
-    good = {
-        "format": 1,
-        "version": "1.2.3",
-        "url": "https://github.com/a/b/releases/download/v1.2.3/p.tar.gz",
-        "size": 10,
-        "sha256": "a" * 64,
-    }
-    hosts = ("github.com", "githubusercontent.com")
-    assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"
+    good = {"format": 1, "version": "1.2.3", "size": 10, "sha256": "a" * 64}
+    assert parse_manifest(json.dumps(good).encode()) == {"version": "1.2.3", "size": 10, "sha256": "a" * 64}
     for change in (
         {"format": 0},
         {"version": "v1.2.3"},
@@ -554,11 +546,9 @@ def test_manifest_fields_are_checked():
         {"size": True},
         {"size": 1 << 40},
         {"sha256": "A" * 64},
-        {"url": "http://github.com/x"},
-        {"url": "https://github.com.evil/x"},
     ):
         with pytest.raises(UpdateError):
-            parse_manifest(json.dumps({**good, **change}).encode(), hosts, ("https",))
+            parse_manifest(json.dumps({**good, **change}).encode())
 
 
 def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_path):

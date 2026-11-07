@@ -3,9 +3,10 @@
 A minute after start and then every hour it reads latest.json and latest.json.sig from the release
 source (the latest GitHub release, or settings.json "updateUrl"), and believes the manifest only when
 `ssh-keygen -Y verify` says the release key in this release's allowed_signers signed it. A newer
-release is downloaded (pinned by the manifest's size and sha256, from the source's hosts only),
-unpacked into versions/<version>/ and made current; then the service restarts into it. With
-settings.json "autoUpdate": false (Settings → Update automatically) checks only report.
+release, polykey-<version>.tar.gz beside them, is downloaded (pinned by the manifest's size and
+sha256, from the source's hosts only), unpacked into versions/<version>/ and made current; then the
+service restarts into it. With settings.json "autoUpdate": false (Settings → Update automatically)
+checks only report.
 
 An automatic install waits for the keyboard to be hidden before it restarts (state "installed"), so
 polykey never leaves Steam's popup mid-word; an install asked for (update.install) restarts at once.
@@ -45,6 +46,7 @@ from .speech.download import Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
 OPS = ("update.status", "update.check", "update.install", "update.rollback")
+# GitHub redirects latest/download/<file> to the latest release's <file>.
 DEFAULT_SOURCE = "https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/"
 GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirect to *.githubusercontent.com
 NAMESPACE = "polykey-release"
@@ -102,21 +104,19 @@ async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -
         raise UpdateError("bad-signature")
 
 
-def parse_manifest(data: bytes, hosts: tuple[str, ...], schemes: tuple[str, ...]) -> dict:
+def parse_manifest(data: bytes) -> dict:
     try:
         manifest = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         raise UpdateError("bad-manifest") from None
     if not isinstance(manifest, dict) or manifest.get("format") != 1 or not is_release(manifest.get("version")):
         raise UpdateError("bad-manifest")
-    url, size, sha = manifest.get("url"), manifest.get("size"), manifest.get("sha256")
-    if not isinstance(url, str) or not host_allowed(url, hosts, schemes):
-        raise UpdateError("bad-manifest")
+    size, sha = manifest.get("size"), manifest.get("sha256")
     if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_TARBALL:
         raise UpdateError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
         raise UpdateError("bad-manifest")
-    return {"version": manifest["version"], "url": url, "size": size, "sha256": sha}
+    return {"version": manifest["version"], "size": size, "sha256": sha}
 
 
 async def fetch(
@@ -320,7 +320,7 @@ class Updater:
                 manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_SMALL)
                 signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
-            self.latest = parse_manifest(manifest, hosts, schemes)
+            self.latest = parse_manifest(manifest)
         except UpdateError as error:
             self._fail(error.code)
             return
@@ -352,13 +352,14 @@ class Updater:
         for, else once the keyboard is hidden."""
         if self.dev or not self.latest or self.latest["version"] != version:
             return
-        _, hosts, schemes = self.source()
+        base, hosts, schemes = self.source()
         loop = asyncio.get_running_loop()  # versions/ changes off the loop: they may wait for install.sh
         try:
             if version not in self.versions.installed():
                 work = self.versions.root / "updates"
+                url = urljoin(base, f"polykey-{version}.tar.gz")
                 download = Download(
-                    Remote(self.latest["url"], self.latest["size"], self.latest["sha256"], hosts),
+                    Remote(url, self.latest["size"], self.latest["sha256"], hosts),
                     work / f"polykey-{version}.tar.gz",
                     schemes=schemes,
                     on_progress=self._bump,
