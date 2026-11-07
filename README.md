@@ -32,7 +32,7 @@ npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, v
 
 ## Deploy to the Frame
 
-This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login.
+This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `python3 -I -B ~/.local/share/polykey/current/sidecar/run.py rollback` goes back to the newest one.
 
 ```sh
 scripts/deploy.sh            # build, copy, restart the service, follow the log
@@ -87,7 +87,7 @@ All are 8-bit GGUF conversions by handy-computer on Hugging Face. Their full att
 ```sh
 cd ~/.local/share/polykey/speech
 curl -sLO https://raw.githubusercontent.com/ggml-org/whisper.cpp/d1be6fde11ac6e0407606b4e42fe72d34add8037/samples/jfk.wav
-python3 -I ~/.local/share/polykey/sidecar/polykey/speech/worker.py engine/0.4.1 models/whisper-small-Q8_0.gguf 4 --check jfk.wav
+python3 -I ~/.local/share/polykey/current/sidecar/polykey/speech/worker.py engine/0.4.1 models/whisper-small-Q8_0.gguf 4 --check jfk.wav
 ```
 
 **Troubleshooting:** if the check prints garbage, move the newest CPU variants aside so ggml falls back to an older one (`mkdir -p engine/off && mv engine/0.4.1/lib/libggml-cpu-armv9.2_* engine/0.4.1/lib/libggml-cpu-armv8.6_* engine/off/`) and run the check again (code built with i8mm has produced garbage on the Frame; armv8.2 with dot product works). The journal's "speech helper loaded (…, cpu …)" line names the variant in use. Status codes: `no-engine`, `no-model`, `engine-failed`, `model-failed`, `no-recorder`, `no-microphone`, `no-speech`, `mic-silent`, `helper-failed`, `helper-timeout`, and for downloads `network`, `bad-hash`, `bad-size`, `bad-host`, `bad-archive`, `unsupported`, `no-space`.

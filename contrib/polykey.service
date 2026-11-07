@@ -7,7 +7,8 @@ After=graphical-session.target
 [Service]
 Type=simple
 # -I isolated (no user site-packages, no PYTHON* variables), -B no .pyc files, -u unbuffered logs.
-ExecStart=/usr/bin/python3 -I -B -u %h/.local/share/polykey/sidecar/run.py run
+# `current` links to the release in use (versions/<version>) or a dev deploy (dev).
+ExecStart=/usr/bin/python3 -I -B -u %h/.local/share/polykey/current/sidecar/run.py run
 Restart=on-failure
 RestartSec=5
 # Stopping removes polykey from Steam first (up to 2 s), restoring the stock keyboard.
