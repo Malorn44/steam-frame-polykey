@@ -531,7 +531,7 @@ describe('settings → Dictation', () => {
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
     const icon = items(popup, 'models')[0]!.querySelector<HTMLElement>('.ic.i')!;
-    const pop = () => panel(popup).querySelector('.dm-pop');
+    const pop = () => panel(popup).querySelector('.info-pop');
     icon.dispatchEvent(new Event('mouseover', { bubbles: true }));
     const lines = () => [...pop()!.children].map((c) => c.textContent);
     expect(lines()).toEqual(['Parakeet', 'English · 730 MB · ~1 GB RAM', 'English.', 'CC BY 4.0 · NVIDIA · 8-bit GGUF by handy-computer',

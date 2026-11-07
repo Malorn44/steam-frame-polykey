@@ -29,6 +29,7 @@ import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
 import { NO_IME, composing, flush, insertText, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
 import { createDictation, createSpeechModels } from './dictation.js';
+import { createUpdates } from './updates.js';
 import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
 import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
 import { fullName, languageName } from './ui/keyboards-page.js';
@@ -146,6 +147,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     suggestions: boot?.settings.suggestions !== false,
     dictation: boot?.settings.dictation === true, // off until turned on
     dictationContinuous: boot?.settings.dictationContinuous === true,
+    autoUpdate: boot?.settings.autoUpdate !== false, // on unless turned off
   };
   const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
@@ -171,6 +173,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (onDictationTab() && panel && !panel.setDictation(status)) render();
       view?.setMicProgress(speech.progress(currentDictationLanguage()));
     },
+  });
+  // The update line under the version on the Settings tab, followed only while it is on screen.
+  const onSettingsTab = (): boolean => page === 'settings' && settingsTab === 'general';
+  const updates = createUpdates({
+    call: bridge.call, active: () => onSettingsTab() && bridge.available(), warn,
+    onStatus: (status) => { if (onSettingsTab()) panel?.setUpdate(status); },
   });
   /** The language the Dictation tab shows; the current keyboard's until one is picked there. */
   let speechLanguage: string | undefined;
@@ -764,6 +772,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
           ring,
           language: settingsLanguage ?? keyboard?.language ?? 'en',
         },
+        update: updates.status,
         dictation: {
           catalog: speech.catalog, status: speech.status,
           languages: dictationLanguages(Object.values(boot.catalog.keyboards)),
@@ -785,8 +794,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         onDelete: speech.delete,
         onStock: () => { page = 'keys'; stock = true; switchTo(current); },
         onClose: () => { page = 'keys'; render(); },
+        onUpdate: (action) => {
+          if (surface) tick(surface.win, hand);
+          updates.run(action);
+        },
       });
       applyBounds();
+      updates.follow(); // what the updater says now (and while a check or download runs)
     } else {
       // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
       const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;

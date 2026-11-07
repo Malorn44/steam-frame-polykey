@@ -1,6 +1,7 @@
 // The settings page, drawn in the keyboard area instead of the keys while open. Three tabs: Settings has
-// General (theme, haptics, suggestions) on the left, the current keyboard's own options on the right,
-// and the version and any pack errors at the bottom; Keyboards picks and orders the keyboards 🌐 goes
+// General (theme, haptics, suggestions, automatic updates) on the left, the current keyboard's own
+// options on the right, and the version, its update line (src/updates.ts) and any pack errors at the
+// bottom; Keyboards picks and orders the keyboards 🌐 goes
 // through (ui/keyboards-page.ts); Dictation turns it on and picks its models (ui/dictation-page.ts).
 // Changes apply at once; ✕ goes back to the keys, and "Steam keyboard" hands over to Steam's own (🌐
 // skips it).
@@ -14,7 +15,9 @@ import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
+import { INFO_CSS, infoTips } from './info.js';
 import type { SpeechStatus } from '../core/dictation.js';
+import { updateSummary, type UpdateAction, type UpdateStatus } from '../updates.js';
 
 export type SettingsTab = 'general' | 'keyboards' | 'dictation';
 
@@ -25,6 +28,8 @@ export interface SettingsValues {
   dictation: boolean;
   /** Pauses type each phrase and listening goes on until the mic is pressed again. */
   dictationContinuous: boolean;
+  /** Install a newer release when one is found (off: checks only report). */
+  autoUpdate: boolean;
 }
 
 export interface SettingsInfo {
@@ -41,6 +46,8 @@ export interface SettingsInfo {
   keyboards: KeyboardsInfo;
   /** The Dictation tab's models and their state. */
   dictation?: DictationInfo;
+  /** The updater's status, for the line under the version (null until the sidecar answers). */
+  update?: UpdateStatus | null;
 }
 
 export interface SettingsHandlers extends KeyboardsHandlers, Partial<DictationHandlers> {
@@ -49,6 +56,7 @@ export interface SettingsHandlers extends KeyboardsHandlers, Partial<DictationHa
   onOption(id: string, value: boolean): void;
   onStock(): void;
   onClose(): void;
+  onUpdate(action: UpdateAction): void;
 }
 
 const CSS = `
@@ -88,8 +96,13 @@ const CSS = `
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
+/* ⓘ right after a row's name (ui/info.ts). */
+.row .name:has(> .ic.i) { display: flex; align-items: center; gap: 6px; }
 .about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--error); }
+.about .ver { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.about .ver > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.about .opt.small { flex: none; min-height: 22px; padding: 1px 10px; font-size: var(--ui-caption); color: var(--text); }
 `;
 
 export interface SettingsView {
@@ -97,6 +110,8 @@ export interface SettingsView {
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
   /** Show a new dictation.status (download progress) in place; false when the page must be drawn again. */
   setDictation(status: SpeechStatus | null): boolean;
+  /** Show the updater's new status in place. */
+  setUpdate(status: UpdateStatus | null): void;
   destroy(): void;
 }
 
@@ -106,10 +121,10 @@ export const createSettingsView = (
   theme: Theme,
   values: SettingsValues,
   info: SettingsInfo,
-  { onTab, onChange, onOption, onStock, onClose, onLanguage, onKeyboards, ...speech }: SettingsHandlers,
+  { onTab, onChange, onOption, onStock, onClose, onUpdate, onLanguage, onKeyboards, ...speech }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS;
+  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS + INFO_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   root.style.cssText = themeVars(theme) + sizeVars('normal');
@@ -147,7 +162,7 @@ export const createSettingsView = (
     option('Steam keyboard', false, onStock, ' stock'));
 
   /** A general on/off setting as a switch. */
-  const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous'): HTMLElement => {
+  const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous' | 'autoUpdate'): HTMLElement => {
     const sw = doc.createElement('div');
     sw.className = `switch${values[key] ? ' on' : ''}`;
     actions.set(sw, () => onChange({ [key]: !values[key] }));
@@ -155,10 +170,27 @@ export const createSettingsView = (
     el.classList.add('sw');
     return el;
   };
+  const tips = infoTips(doc, root, actions); // General's ⓘ; the Dictation tab has its own
+  /** A row with ⓘ after its name, showing `title` and `text` as the Dictation tab's ⓘ do. */
+  const explained = (el: HTMLElement, title: string, text: string): HTMLElement => {
+    el.querySelector('.name')?.append(tips.icon(title, () => [['', text]]));
+    return el;
+  };
 
   const about = doc.createElement('div');
   about.className = 'about';
-  about.textContent = `polykey ${info.version}`;
+  // The version, what the updater says, and its buttons (Check, Install, Back).
+  const versionLine = doc.createElement('div');
+  versionLine.className = 'ver';
+  const drawUpdate = (status: UpdateStatus | null): void => {
+    for (const el of versionLine.querySelectorAll<HTMLElement>('.opt')) actions.delete(el);
+    const { text, actions: buttons } = updateSummary(status);
+    const label = doc.createElement('span');
+    label.textContent = `polykey ${info.version}${text ? ` · ${text}` : ''}`;
+    versionLine.replaceChildren(label, ...buttons.map((b) => option(b.label, false, () => onUpdate(b.action), ' small')));
+  };
+  drawUpdate(info.update ?? null);
+  about.append(versionLine);
   for (const error of info.errors.slice(0, 3)) {
     const line = doc.createElement('div');
     line.className = 'err';
@@ -183,7 +215,8 @@ export const createSettingsView = (
   pageColumn(cols, 'general', 'General').list.append(
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
-    ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []));
+    ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
+    explained(onOff('Update automatically', 'autoUpdate'), 'Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.'));
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length
       ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
@@ -215,7 +248,8 @@ export const createSettingsView = (
     hovered?.classList.remove('hover');
     hovered = el;
     el?.classList.add('hover');
-    dictationPage?.hover(el); // its ⓘ show their details while hovered
+    dictationPage?.hover(el); // an ⓘ shows its details while hovered
+    tips.hover(el);
     return true;
   };
   /** The list a press drags: the innermost .scroll that overflows, else the innermost (nothing to move). */
@@ -264,6 +298,7 @@ export const createSettingsView = (
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
     setDictation: (status) => dictationPage?.setStatus(status) ?? true,
+    setUpdate: (status) => drawUpdate(status),
     destroy: () => { style.remove(); root.remove(); },
   };
 };

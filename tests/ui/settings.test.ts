@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { SLOP_PX } from '../../src/core/interaction.js';
 import { createSettingsView, type SettingsInfo, type SettingsValues } from '../../src/ui/settings.js';
+import type { UpdateAction, UpdateStatus } from '../../src/updates.js';
 import { bundledBoot } from '../boot.js';
 
 const touch = (el: Element, type: string, x = 0, y = 0) => {
@@ -15,7 +16,7 @@ const tap = (el: Element) => {
 };
 
 /** Settings with two bundled themes (Night Owl, Steam), plus `extra` made-up ones (to fill the list past what fits). */
-const setup = (extra = 0) => {
+const setup = (extra = 0, update: UpdateStatus | null = null) => {
   const boot = bundledBoot();
   const host = document.createElement('div');
   document.body.append(host);
@@ -24,13 +25,14 @@ const setup = (extra = 0) => {
     .map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] }));
   for (let i = 1; i <= extra; i++) themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
   const changes: Partial<SettingsValues>[] = [];
+  const asked: UpdateAction[] = [];
   const view = createSettingsView(document, shadow, boot.catalog.themes['themes/steam']!,
-    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false }, {
+    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false, autoUpdate: true }, {
       themes, version: 'test', errors: [], suggestions: false, keyboardName: 'English', options: [], tab: 'general',
-      keyboards: { all: [], ring: [], language: 'en' },
+      keyboards: { all: [], ring: [], language: 'en' }, update,
     }, {
       onTab: () => {}, onChange: (c) => changes.push(c), onOption: () => {}, onStock: () => {}, onClose: () => {},
-      onLanguage: () => {}, onKeyboards: () => {},
+      onLanguage: () => {}, onKeyboards: () => {}, onUpdate: (a) => asked.push(a),
     });
   const picker = shadow.querySelector<HTMLElement>('.pick')!;
   const control = picker.firstElementChild as HTMLElement;
@@ -40,8 +42,73 @@ const setup = (extra = 0) => {
     .querySelector<HTMLElement>('.switch')!;
   const isOpen = () => picker.classList.contains('open');
   const at = (hits: Element[]) => Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => hits });
-  return { view, shadow, picker, control, list, item, haptics, isOpen, at, changes };
+  return { view, shadow, picker, control, list, item, haptics, isOpen, at, changes, asked };
 };
+
+const STATUS: UpdateStatus = { rev: 1, version: 'test', dev: false, auto: true, state: 'idle', latest: null, available: false, skipped: false };
+
+describe('settings: updates', () => {
+  it('a switch turns automatic updates off', () => {
+    const { shadow, changes } = setup();
+    const row = [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Update automatically')!;
+    expect(row.querySelector('.switch.on')).not.toBeNull();
+    tap(row.querySelector('.switch')!);
+    expect(changes).toEqual([{ autoUpdate: false }]);
+  });
+
+  it('ⓘ after the switch\'s name says when updates happen, as the Dictation tab\'s ⓘ do, and leaves the switch alone', () => {
+    const { shadow, changes } = setup();
+    const row = [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Update automatically')!;
+    const info = row.querySelector<HTMLElement>('.name > .ic.i')!;
+    const pop = () => shadow.querySelector('.info-pop');
+    const over = (el: Element) => el.dispatchEvent(new Event('mouseover', { bubbles: true }));
+    expect(pop()).toBeNull(); // hidden at first
+    over(info); // the laser over it
+    expect([...pop()!.children].map((c) => c.textContent))
+      .toEqual(['Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.']);
+    over(row.querySelector('.name')!);
+    expect(pop()).toBeNull();
+    tap(info); // a tap keeps it open
+    over(row.querySelector('.name')!);
+    expect(pop()).not.toBeNull();
+    expect(changes).toEqual([]); // the switch is untouched
+    expect(row.querySelector('.switch.on')).not.toBeNull();
+    tap(shadow.querySelector('.sect')!); // a tap elsewhere closes it
+    expect(pop()).toBeNull();
+  });
+
+  it('the version line says what the updater found, and its buttons ask for it', () => {
+    const { shadow, view, asked } = setup(0, { ...STATUS, latest: '0.2.0', available: true, previous: '0.0.9' });
+    const line = () => shadow.querySelector<HTMLElement>('.about .ver')!;
+    expect(line().querySelector('span')!.textContent).toBe('polykey test · 0.2.0 is available');
+    expect([...line().querySelectorAll('.opt')].map((b) => b.textContent)).toEqual(['Install 0.2.0', 'Back to 0.0.9']);
+    tap(line().querySelectorAll('.opt')[0]!);
+    tap(line().querySelectorAll('.opt')[1]!);
+    expect(asked).toEqual(['install', 'rollback']);
+    // A new status is drawn in place, and only its own buttons answer.
+    view.setUpdate({ ...STATUS, rev: 2, state: 'downloading', latest: '0.2.0', done: 50, total: 200 });
+    expect(line().textContent).toBe('polykey test · Downloading 0.2.0… 25%');
+    view.setUpdate({ ...STATUS, rev: 3, latest: '0.2.0' });
+    expect(line().querySelector('span')!.textContent).toBe('polykey test · Up to date');
+    tap(line().querySelector('.opt')!);
+    expect(asked).toEqual(['install', 'rollback', 'check']);
+  });
+
+  it('an installed update waiting for the keyboard offers Restart now and Stay on the running release', () => {
+    const { shadow, asked } = setup(0, { ...STATUS, state: 'installed', latest: '0.2.0', available: true, previous: '0.1.0' });
+    const line = shadow.querySelector<HTMLElement>('.about .ver')!;
+    expect(line.querySelector('span')!.textContent).toBe('polykey test · 0.2.0 is installed; it starts when the keyboard closes');
+    expect([...line.querySelectorAll('.opt')].map((b) => b.textContent)).toEqual(['Restart now', 'Stay on 0.1.0']);
+    tap(line.querySelectorAll('.opt')[0]!);
+    tap(line.querySelectorAll('.opt')[1]!);
+    expect(asked).toEqual(['install', 'rollback']);
+  });
+
+  it('before the sidecar answers there is only the version', () => {
+    const { shadow } = setup();
+    expect(shadow.querySelector('.about .ver')!.textContent).toBe('polykey test');
+  });
+});
 
 describe('settings: the theme dropdown', () => {
   it('shows the current theme with a swatch; tapping it lists every theme, the current one marked', () => {

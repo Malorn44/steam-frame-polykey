@@ -152,6 +152,8 @@ export interface Boot {
     keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean;
     /** Dictation, and continuous dictation (both off by default). */
     dictation?: boolean; dictationContinuous?: boolean;
+    /** Install newer releases when found (on by default). */
+    autoUpdate?: boolean;
     /** The user's choices, by keyboard id. */
     keyboardOptions?: Record<string, KeyboardOptions>;
   };
