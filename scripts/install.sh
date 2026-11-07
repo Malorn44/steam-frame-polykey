@@ -157,8 +157,7 @@ uninstall() {
     rm -rf "${DATA:?}" "${CONFIG:?}"
     say "✓ removed polykey, its settings and dictation models"
   else
-    rm -rf "${DATA:?}/versions" "${DATA:?}/dev" "${DATA:?}/current" "${DATA:?}/updates" "${DATA:?}/.current.new"
-    rm -rf "${DATA:?}/bundle.js" "${DATA:?}/probe.js" "${DATA:?}/VERSION" "${DATA:?}/sidecar" "${DATA:?}/packs" "${DATA:?}/schema"
+    [ ! -d "$DATA" ] || find "$DATA" -mindepth 1 -maxdepth 1 ! -name speech -exec rm -rf {} +
     say "✓ removed polykey; settings ($CONFIG) and dictation models ($DATA/speech) stay"
     say "  (sh install.sh --uninstall --purge removes them too)"
   fi
@@ -184,10 +183,6 @@ install() {
   [ -f "$1" ] || die "$tarball is not a polykey release tarball"
   # The switch first: if it fails, nothing else has changed.
   version=$("$PY" -I -B "$1" unpack "$tarball" --root "$DATA") || die "could not install polykey"
-  # A dev deploy from before releases filled ~/.local/share/polykey/ itself: those files go.
-  if [ -d "$DATA/sidecar" ] && [ ! -L "$DATA/sidecar" ]; then
-    rm -rf "${DATA:?}/bundle.js" "${DATA:?}/probe.js" "${DATA:?}/VERSION" "${DATA:?}/sidecar" "${DATA:?}/packs" "${DATA:?}/schema"
-  fi
   mkdir -p "$UNIT_DIR"
   cp "$DATA/versions/$version/polykey.service" "$UNIT_DIR/$APP.service"
   systemctl --user daemon-reload

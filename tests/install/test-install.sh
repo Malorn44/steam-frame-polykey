@@ -103,15 +103,14 @@ echo "installer"
 expect "--check passes and reports python and aiohttp" 'run --check && grep -q "^✓ python3 3\.[0-9.]* with aiohttp [0-9]" "$T/out"'
 expect "--check changes nothing" '[ ! -e "$DATA" ]'
 
-# The layout dev deploys used before releases.
-mkdir -p "$DATA/sidecar" "$DATA/speech/models" "$HOME/.config/polykey"
-touch "$DATA/bundle.js" "$DATA/speech/models/m.gguf"
+# A dictation model and the settings: only --purge removes them.
+mkdir -p "$DATA/speech/models" "$HOME/.config/polykey"
+touch "$DATA/speech/models/m.gguf"
 echo '{"theme": "themes/nord"}' > "$HOME/.config/polykey/settings.json"
 
 expect "installs the latest release" 'run --base "http://127.0.0.1:$port/r1" && [ "$(current)" = versions/0.1.0 ]'
 expect "the unit runs current/ and is enabled and restarted" \
   'grep -q "polykey/current/sidecar/run.py" "$HOME/.config/systemd/user/polykey.service" && grep -q "enable polykey" "$HOME/systemctl.log" && grep -q "restart polykey" "$HOME/systemctl.log"'
-expect "files from before releases are gone, dictation models stay" '[ ! -e "$DATA/sidecar" ] && [ ! -e "$DATA/bundle.js" ] && [ -e "$DATA/speech/models/m.gguf" ]'
 expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.js" && run --base "http://127.0.0.1:$port/r1" && [ -f "$DATA/versions/0.1.0/bundle.js" ]'
 expect "updates to a newer release" 'run --base "http://127.0.0.1:$port/r2" && [ "$(current)" = versions/0.2.0 ] && state | grep -q "\"previous\": \"0.1.0\""'
 expect "refuses a manifest changed after signing" '! run --base "http://127.0.0.1:$port/tampered" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
@@ -141,7 +140,7 @@ expect "an install.sh without a release key installs nothing" \
   '! run --base "http://127.0.0.1:$port/r2" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 INSTALL="$T/serve/r2/install.sh"
 expect "--uninstall removes polykey, keeps settings and models" \
-  'run --uninstall && [ ! -e "$DATA/versions" ] && [ ! -e "$DATA/current" ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
+  'run --uninstall && [ "$(ls -A "$DATA")" = speech ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
 expect "--uninstall --purge removes the rest" 'run --uninstall --purge && [ ! -e "$DATA" ] && [ ! -e "$HOME/.config/polykey" ]'
 
 echo "$passed passed, $failed failed"
