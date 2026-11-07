@@ -22,10 +22,14 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
 
 ## Once
 
-1. **Make the release key** and commit its public half, through a PR like any change:
+1. **Make the release key** and commit its public half, through a PR like any change. This is done:
+   `contrib/allowed_signers` on main holds the key. For the record:
 
    ```sh
-   scripts/sign-release.sh --init     # ~/.ssh/polykey-release (ed25519, no passphrase: CI signs with it)
+   # ed25519, no passphrase: CI signs with it
+   ssh-keygen -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release
+   printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release.pub)" \
+     >> contrib/allowed_signers
    git switch -c chore/release-key
    git add contrib/allowed_signers && git commit -m "chore(release): the release key"
    git push -u origin HEAD && gh pr create --fill
@@ -42,8 +46,8 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
 
    Don't skip the backup. GitHub never gives a secret back, and installed releases trust only the
    keys they shipped with, so without it a lost key means every user reinstalls by hand (see
-   [The key](#the-key)). Merge the PR before the first release PR: a tag without the key gets a
-   draft with no files, and CI only says why.
+   [The key](#the-key)). Merge the PR before the first release PR: a release build refuses an
+   `allowed_signers` without the key, so `release:build` fails and the draft gets no files.
 
 2. **Make the repo public**, before the first release PR is merged. On this plan, an environment
    can require an approval (step 3) only in a public repo. GitHub also serves a private repo's
@@ -53,7 +57,7 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    - **Required reviewers:** you. Leave "Prevent self-review" off: you merge the release PR and
      approve it too.
    - **Deployment branches and tags:** selected branches, `main` only.
-   - **Environment secret `RELEASE_SIGNING_KEY`:** the release key, as `--init` printed:
+   - **Environment secret `RELEASE_SIGNING_KEY`:** the release key:
 
      ```sh
      gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < ~/.ssh/polykey-release
@@ -61,8 +65,8 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
 
    `release:sign` checks that the repo is public and the environment requires a reviewer, and signs
    nothing otherwise. Once the secret is set, delete the plain key from this PC
-   (`rm ~/.ssh/polykey-release`), so only the secret and your encrypted backup hold it. `--local`
-   (below) then needs a throwaway key.
+   (`rm ~/.ssh/polykey-release`), so only the secret and your encrypted backup hold it.
+   [Trying a release from this PC](#trying-a-release-from-this-pc) then signs with a throwaway key.
 
 4. **The token.** release-please acts with a fine-grained personal access token, so CI runs on its
    release PR (whatever the Actions token does starts no workflow, and `ci ok` is required). On
@@ -106,12 +110,11 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    and check that commit, never the tag by name. Then:
    - `release:build` checks out the commit and runs `npm ci --ignore-scripts` and
      `scripts/release.sh X.Y.Z`. `release:assets` attaches what it built, `polykey-X.Y.Z.tar.gz`,
-     `install.sh`, `latest.json` and `SHA256SUMS`, to the draft.
+     `install.sh` and `latest.json`, to the draft.
    - `release:rebuild` builds the same commit again, on another runner.
-   - `release:verify` downloads the draft and checks its files against each other: version, URL,
-     sha256, size, the installer's hash and SHA256SUMS. It then requires the rebuild's release
-     (`sign-release.sh --compare`), the same `install.sh`, and exactly the `latest.json` the rebuild
-     writes for the draft's tarball.
+   - `release:verify` downloads the draft and checks its files against each other: `latest.json`'s
+     version, and the tarball's size and sha256. It then requires each of the three files to be
+     byte for byte the one the rebuild made (`cmp`).
    - `release:sign` then waits for your approval.
 
    The two builds can only read the repo, and the jobs that write to it run nothing from npm. So a
@@ -119,7 +122,11 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    alike would still pass it.
 
    If a job fails on something passing, such as the network, use Re-run failed jobs on that run.
-   `release:assets` replaces any files already attached.
+   `release:assets` replaces any files already attached. `release.sh` makes the same bytes from the
+   same commit, but if GitHub updated the runner image between the two builds (each job's "Set up
+   job" step names its image), they can differ, and `release:verify` refuses the draft. Then re-run
+   `release:build` (the job, from the run's page): that builds both again and runs every job after
+   it.
 
 3. **Smoke test the draft on the Frame:**
 
@@ -133,9 +140,9 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
 
 4. **For 0.1.0, write the notes by hand, before you approve.** Its generated notes list every PR
    since releases began. Replace them on GitHub (the draft → Edit → Save draft). The notes aren't
-   signed: `latest.json` only links to the release page, so editing them doesn't change what gets
-   signed. Don't touch the draft's files: if `latest.json` changes after `release:verify` checked
-   it, `release:sign` refuses. CHANGELOG.md keeps the generated list.
+   signed: `latest.json` holds only the version and the tarball's size and sha256, so editing them
+   doesn't change what gets signed. Don't touch the draft's files: if `latest.json` changes after
+   `release:verify` checked it, `release:sign` refuses. CHANGELOG.md keeps the generated list.
 
 5. **Approve.** In the workflow run (Actions → the run of the release PR's merge → Review
    deployments), approve `release`. `release:sign` then:
@@ -183,17 +190,18 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   copy) signs `latest.json`. Installers and updaters check it with `ssh-keygen -Y verify` against
   the `allowed_signers` they shipped with.
 - **To change keys:**
-  1. Make the new one with `--add`, which puts its line in `contrib/allowed_signers` beside the old
-     one (plain `--init` refuses while that file holds a release key):
+  1. Make a second key, and add its line to `contrib/allowed_signers` by hand, beside the old one:
 
      ```sh
-     POLYKEY_RELEASE_KEY=~/.ssh/polykey-release-2 scripts/sign-release.sh --init --add
+     ssh-keygen -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release-2
+     printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release-2.pub)" \
+       >> contrib/allowed_signers
      ```
 
      Back it up encrypted, as in [Once](#once), step 1.
   2. Merge that and release it. The secret still holds the old key, so the old key signs it.
-  3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY`, drop the old line,
-     and release again.
+  3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY` (and delete it from
+     this PC, as in [Once](#once), step 3), drop the old line, and release again.
 
   `release:sign` also checks each signature against the latest published release's
   `allowed_signers`, so a new key stored before step 2's release is published is refused there, not
@@ -211,9 +219,9 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
 
   It is the same key, so installed releases notice nothing.
 - **If the key is lost** (the secret replaced or deleted, and no backup), installed releases cannot
-  verify anything newer. Make a new key with `scripts/sign-release.sh --init --add`
-  (`allowed_signers` still holds the lost one), back it up as in [Once](#once), step 1, delete the
-  lost key's line from `allowed_signers`, and store the new key in `RELEASE_SIGNING_KEY`.
+  verify anything newer. Make a new key as in step 1 of changing keys, back it up as in
+  [Once](#once), step 1, replace the lost key's line in `allowed_signers` with the new one's, and
+  store the new key in `RELEASE_SIGNING_KEY`.
   `release:sign` then refuses to publish, because the latest published release doesn't trust the
   new key. So that one release takes two PRs: one before it that takes the check against the latest
   published release out of the "check the signature" step, and one after it is published that puts
@@ -223,17 +231,19 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
 ## Trying a release from this PC
 
 To walk an install, update and rollback on the Frame without GitHub, serve a release over the LAN.
-`sign-release.sh --local` signs with `~/.ssh/polykey-release`. Once you have deleted that from this
-PC ([Once](#once), step 3), use a throwaway key instead: a Frame installed this way then trusts only
-that key, so reinstall it with the one-line installer afterwards.
+The release key isn't on this PC ([Once](#once), step 3), so build and sign with a throwaway key: a
+Frame installed this way then trusts only that key, so reinstall it with the one-line installer
+afterwards.
 
 ```sh
-# only without the release key here: a throwaway key, and the allowed_signers that trusts it
-export POLYKEY_RELEASE_KEY=/tmp/rehearsal-key POLYKEY_ALLOWED_SIGNERS=/tmp/rehearsal-signers
-scripts/sign-release.sh --init
+# a throwaway key, and the allowed_signers that trusts it, which the build puts in the release
+ssh-keygen -q -t ed25519 -N '' -C polykey-rehearsal -f /tmp/rehearsal-key
+printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 /tmp/rehearsal-key.pub)" \
+  > /tmp/rehearsal-signers
+export POLYKEY_ALLOWED_SIGNERS=/tmp/rehearsal-signers
 
-scripts/release.sh 0.1.0-rc.1 --base http://<this PC's IP>:8000
-scripts/sign-release.sh --local
+scripts/release.sh 0.1.0-rc.1
+ssh-keygen -Y sign -f /tmp/rehearsal-key -n polykey-release dist/release/latest.json
 python3 -m http.server -d dist/release 8000
 ```
 
@@ -248,16 +258,3 @@ To have the updater follow this server instead of GitHub, put `"updateUrl": "htt
 Check for updates finds it. Pre-releases sort before their release (0.1.0-rc.2 < 0.1.0). From WSL,
 the Frame reaches the PC only with WSL's mirrored networking or a Windows port proxy, and a firewall
 rule for the port.
-
-## Checking install.sh by hand
-
-`latest.json` carries the sha256 of `install.sh` (`installer`), so the signature covers the
-installer too. Before piping it into `sh`, a careful user can check it with the key in
-`contrib/allowed_signers`:
-
-```sh
-base=https://github.com/Malorn44/steam-frame-polykey/releases/latest/download
-curl -fsSL -O "$base/install.sh" -O "$base/latest.json" -O "$base/latest.json.sig"
-ssh-keygen -Y verify -f allowed_signers -I polykey-release -n polykey-release -s latest.json.sig < latest.json \
-  && grep -q "\"installer\": \"$(sha256sum install.sh | cut -d' ' -f1)\"" latest.json && sh install.sh
-```

@@ -37,8 +37,6 @@ It checks what polykey needs (Python 3.10.12+ with aiohttp, both in SteamOS; Ste
 … | sh -s -- --uninstall   # remove polykey (settings and dictation models stay; add --purge to remove them)
 ```
 
-Each release is signed with the release key. To check `install.sh` before you run it, see [Checking install.sh by hand](docs/RELEASING.md#checking-installsh-by-hand).
-
 ## Develop (WSL)
 
 ```sh
