@@ -90,7 +90,6 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(prog="run.py", description="polykey sidecar for the Steam Frame")
     parser.add_argument("command", choices=list(COMMANDS), help="; ".join(f"{k}: {v}" for k, v in COMMANDS.items()))
-    parser.add_argument("version", nargs="?", help="activate: the release (default: the one this run.py is in)")
     defaults = Config()
     parser.add_argument(
         "--devtools", default=defaults.devtools, help=f"debugger endpoint (default {defaults.devtools})"
