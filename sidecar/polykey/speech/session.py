@@ -42,11 +42,12 @@ from collections import deque
 from pathlib import Path
 from typing import Optional
 
+from ..changes import MAX_WAIT
 from . import SpeechError
 from .capture import Recorder, Tools
 from .catalog import ANY, Catalog, Model, load as load_catalog
 from .engine import Engine
-from .library import MAX_WAIT, Library
+from .library import Library
 from .vad import FRAMES_PER_SECOND, RATE, Segmenter
 
 OPS = (
@@ -166,7 +167,7 @@ class Dictation:
 
     async def handle(self, op: str, request: dict) -> dict:
         if op == "dictation.status":
-            await self.library.wait(request.get("since"), request.get("timeoutMs"))
+            await self.library.changes.wait(request.get("since"), request.get("timeoutMs"))
             return self.status()
         if op == "dictation.catalog":
             return self.library.page_catalog()

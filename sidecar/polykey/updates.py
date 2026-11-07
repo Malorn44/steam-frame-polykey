@@ -42,6 +42,7 @@ from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 
+from .changes import Changes
 from .speech.download import Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
@@ -55,7 +56,6 @@ INTERVAL = 3600.0
 MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
 MAX_REDIRECTS = 5
-MAX_WAIT = 30.0
 VERIFY_TIMEOUT = 15.0
 KEYBOARD_POLL = 5.0  # an automatic install restarts once the keyboard is hidden at two readings in a row
 HIDDEN_READINGS = 2
@@ -201,8 +201,7 @@ class Updater:
         self._unit_changed = False
         self._pending: Optional[str] = None  # installed, waiting for the keyboard to be hidden
         self._restart_now = asyncio.Event()
-        self.rev = 0
-        self._changed = asyncio.Event()
+        self.changes = Changes()
 
     # --- settings ---------------------------------------------------------------------------------
 
@@ -236,16 +235,11 @@ class Updater:
 
     # --- status -----------------------------------------------------------------------------------
 
-    def _bump(self) -> None:
-        self.rev += 1
-        self._changed.set()
-        self._changed = asyncio.Event()
-
     def status(self) -> dict:
         latest = self.latest["version"] if self.latest else None
         out = {
             "ok": True,
-            "rev": self.rev,
+            "rev": self.changes.rev,
             "version": self.version,
             "dev": self.dev,
             "state": self.state,
@@ -264,16 +258,9 @@ class Updater:
             out["done"], out["total"] = self._download.done, self._download.total
         return out
 
-    async def wait(self, since: object, timeout_ms: object) -> None:
-        if not isinstance(since, int) or since != self.rev:
-            return
-        seconds = min(max(timeout_ms / 1000, 0), MAX_WAIT) if isinstance(timeout_ms, (int, float)) else 10.0
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(self._changed.wait(), seconds)
-
     def _set(self, state: str, error: Optional[str] = None) -> None:
         self.state, self.error = state, error
-        self._bump()
+        self.changes.bump()
 
     def _note(self, message: str) -> None:
         """A line for the journal, once per distinct message in a row (an hourly failure logs once)."""
@@ -285,7 +272,7 @@ class Updater:
 
     async def handle(self, op: str, request: dict) -> dict:
         if op == "update.status":
-            await self.wait(request.get("since"), request.get("timeoutMs"))
+            await self.changes.wait(request.get("since"), request.get("timeoutMs"))
             return self.status()
         if op == "update.rollback":
             return await self.rollback()
@@ -362,7 +349,7 @@ class Updater:
                     Remote(url, self.latest["size"], self.latest["sha256"], hosts),
                     work / f"polykey-{version}.tar.gz",
                     schemes=schemes,
-                    on_progress=self._bump,
+                    on_progress=self.changes.bump,
                 )
                 self._download = download
                 self._note(f"downloading {version}")
