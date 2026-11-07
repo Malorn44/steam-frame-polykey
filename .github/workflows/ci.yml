@@ -362,10 +362,11 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/build"
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
-            "polykey-$VERSION.tar.gz" install.sh latest.json SHA256SUMS
+            "polykey-$VERSION.tar.gz" install.sh latest.json
 
   # The release's commit built again, on another runner, for release:verify to compare the draft with.
-  # Like release:build, it can only read.
+  # Like release:build, it can only read. It runs after release:build, so re-running that job builds
+  # both again.
   release-rebuild:
     name: release:rebuild
     needs: [release, release-build]
@@ -392,10 +393,10 @@ jobs:
           path: dist/release/
           if-no-files-found: error
 
-  # The draft as it is now: its files agree with each other and with release:rebuild's build of the
-  # same commit. Nothing from npm runs here (the runner's own node reads the JSON), so no build can
-  # forge this check. No secret is in this job either; release:sign signs only the latest.json
-  # checked here.
+  # The draft as it is now: its files agree with each other and are byte for byte release:rebuild's
+  # build of the same commit. Nothing from the repo or npm runs here (the runner's own node reads the
+  # JSON), so no build can forge this check. No secret is in this job either; release:sign signs only
+  # the latest.json checked here.
   release-verify:
     name: release:verify
     needs: [release, release-assets, release-rebuild]
@@ -412,10 +413,6 @@ jobs:
       run:
         shell: bash # -eo pipefail
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release.outputs.sha }} # for scripts/sign-release.sh --compare
-          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.release-rebuild.outputs.artifact }} # the one release:rebuild uploaded
@@ -438,7 +435,7 @@ jobs:
           [ "${found#* }" = true ] || fail "$TAG is already published"
           echo "id=${found% *}" >> "$GITHUB_OUTPUT"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$d" \
-            --pattern "polykey-$VERSION.tar.gz" --pattern install.sh --pattern latest.json --pattern SHA256SUMS
+            --pattern "polykey-$VERSION.tar.gz" --pattern install.sh --pattern latest.json
       - name: check the draft's files against each other
         run: |
           fail() { echo "::error::$*"; exit 1; }
@@ -447,36 +444,25 @@ jobs:
             node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[process.argv[2]] ?? "")' \
               "$d/latest.json" "$1"
           }
-          sha() { sha256sum "$1" | cut -d' ' -f1; }
           t=polykey-$VERSION.tar.gz
-          for f in "$t" install.sh latest.json SHA256SUMS; do
+          for f in "$t" install.sh latest.json; do
             [ -f "$d/$f" ] || fail "the draft has no $f"
           done
           [ "$(field version)" = "$VERSION" ] || fail "latest.json is for $(field version)"
-          [ "$(field url)" = "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$t" ] \
-            || fail "latest.json points somewhere else: $(field url)"
-          [ "$(field sha256)" = "$(sha "$d/$t")" ] || fail "the tarball does not match latest.json"
+          [ "$(field sha256)" = "$(sha256sum "$d/$t" | cut -d' ' -f1)" ] || fail "the tarball does not match latest.json"
           [ "$(field size)" = "$(stat -c %s "$d/$t")" ] || fail "the tarball is not the size latest.json gives"
-          [ "$(field installer)" = "$(sha "$d/install.sh")" ] || fail "install.sh does not match latest.json"
-          (cd "$d" && sha256sum "$t" install.sh latest.json) | cmp -s - "$d/SHA256SUMS" \
-            || fail "SHA256SUMS is not the sums of the draft's files"
+      # release.sh makes the same bytes from the same commit, so every file must match the rebuild's
+      # exactly. If GitHub updated the runner image between the two builds, they can still differ:
+      # that fails here, which is safe, and re-running release:build builds both again.
       - name: compare with the build
         id: compare
         run: |
           fail() { echo "::error::$*"; exit 1; }
-          d=$RUNNER_TEMP/draft b=$RUNNER_TEMP/rebuild t=polykey-$VERSION.tar.gz
-          scripts/sign-release.sh --compare "$d/$t" "$b/$t" \
-            || fail "the draft's tarball differs from a build of $TAG: do not sign it; delete the draft and find out why"
-          cmp -s "$d/install.sh" "$b/install.sh" || fail "the draft's install.sh differs from a build of $TAG"
-          # The signature covers every field, so all of latest.json must be what the build writes for the
-          # draft's tarball (the same files may compress to other bytes on another runner).
-          SIZE=$(stat -c %s "$d/$t") SHA=$(sha256sum "$d/$t" | cut -d' ' -f1) node -e '
-            const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-            m.size = Number(process.env.SIZE);
-            m.sha256 = process.env.SHA;
-            process.stdout.write(JSON.stringify(m, null, 2) + "\n");
-          ' "$b/latest.json" | cmp -s - "$d/latest.json" \
-            || fail "the draft's latest.json is not what a build of $TAG writes for its tarball"
+          d=$RUNNER_TEMP/draft b=$RUNNER_TEMP/rebuild
+          for f in "polykey-$VERSION.tar.gz" install.sh latest.json; do
+            cmp -s "$d/$f" "$b/$f" \
+              || fail "the draft's $f differs from release:rebuild's build of $TAG. If the two builds ran on different runner images (each job's \"Set up job\" names its image), re-run release:build, which builds both again. Otherwise don't sign it: delete the draft and find out why."
+          done
           echo "latest=$(sha256sum "$d/latest.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "the draft holds what $TAG builds to; release:sign waits for an approval"
 
