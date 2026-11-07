@@ -67,6 +67,16 @@ describe('dev versions', () => {
     expect(devVersion(dir, NOW)).toBe(`0.0.0+dev.2.g${sha}.${STAMP}`);
   });
 
+  it('see past a tag that is not a release to the release tag before it', () => {
+    git('init', '-q');
+    commit('one');
+    git('tag', 'v0.1.0');
+    commit('two');
+    git('tag', 'v1.2');
+    const sha = commit('three');
+    expect(devVersion(dir, NOW)).toBe(`0.1.0+dev.2.g${sha}.${STAMP}`);
+  });
+
   it('count the commits since the last release tag', () => {
     git('init', '-q');
     commit('one');

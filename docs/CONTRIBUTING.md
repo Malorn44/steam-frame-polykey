@@ -4,13 +4,9 @@ Thanks for helping. Bug reports, packs (layouts, keyboards, themes) and fixes ar
 
 ## Set up and check
 
-You need Node 24 and Python 3.12 (the Frame's Python).
-
-```sh
-npm install
-python3 -m venv .venv && .venv/bin/pip install aiohttp==3.9.3 pytest   # aiohttp matches the Frame
-npm run check        # typecheck, vitest, pytest, build
-```
+You need Node 24 and Python 3.12 (the Frame's Python). Set up as the README's
+[Develop](../README.md#develop-wsl) section shows. `npm run check` runs lint (ESLint, ruff, shellcheck,
+actionlint), typecheck, vitest, pytest and the build.
 
 `npm run check` must pass before you open a PR; CI runs the same check. To try a change on a Frame,
 see the README's [Deploy to the Frame](../README.md#deploy-to-the-frame).
