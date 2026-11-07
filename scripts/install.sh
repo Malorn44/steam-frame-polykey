@@ -36,6 +36,7 @@ die() { say "✗ $*" >&2; exit 1; }
 
 mode=install
 tarball=""
+version=""  # set by download(): the release latest.json names, which the tarball must hold
 purge=0
 parse() {
   while [ $# -gt 0 ]; do
@@ -184,7 +185,7 @@ install() {
   set -- "$work"/unpacked/polykey-*/sidecar/run.py
   [ -f "$1" ] || die "$tarball is not a polykey release tarball"
   # The switch first: if it fails, nothing else has changed.
-  version=$("$PY" -I -B "$1" unpack "$tarball" --root "$DATA") || die "could not install polykey"
+  version=$("$PY" -I -B "$1" unpack "$tarball" --root "$DATA" ${version:+--version "$version"}) || die "could not install polykey"
   mkdir -p "$UNIT_DIR"
   cp "$DATA/versions/$version/polykey.service" "$UNIT_DIR/$APP.service"
   systemctl --user daemon-reload
