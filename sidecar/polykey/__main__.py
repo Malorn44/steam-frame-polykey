@@ -62,7 +62,6 @@ def _versions(argv: list[str]) -> int:
         reasons = {
             "no-previous": "no earlier release to go back to",
             "bad-archive": f"{args.tarball} is not a polykey release tarball",
-            "busy": "another install or update of polykey is under way; try again in a minute",
         }
         print(reasons.get(error.code, error.code), file=sys.stderr, flush=True)
         return 1

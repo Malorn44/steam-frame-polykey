@@ -27,7 +27,6 @@ import re
 import shutil
 import sys
 import tarfile
-import time
 from pathlib import Path, PurePosixPath
 from typing import Iterator, Optional
 
@@ -35,7 +34,6 @@ SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]
 DEV = "dev"
 STARTED = ".started"  # in versions/<version>: that release has reached Steam
 MAX_TOTAL = 128 << 20  # install(): what all the files in a release may hold together
-LOCK_WAIT = 60.0  # how long a writer waits for another one to finish
 
 
 class VersionError(Exception):
@@ -165,20 +163,12 @@ class Versions:
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:
         """Hold the lock every writer of versions/, `current` and state.json takes: the service's
-        updater, and `run.py unpack|rollback` for install.sh. Waits up to LOCK_WAIT for another writer,
-        then gives up with "busy". Blocking: in the service, run it off the loop."""
+        updater, and `run.py unpack|rollback` for install.sh. Waits for another writer to finish.
+        Blocking: in the service, run it off the loop."""
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
         try:
-            deadline = time.monotonic() + LOCK_WAIT
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if time.monotonic() >= deadline:
-                        raise VersionError("busy") from None
-                    time.sleep(0.05)
+            fcntl.flock(fd, fcntl.LOCK_EX)
             yield
         finally:
             os.close(fd)  # closing it lets the lock go

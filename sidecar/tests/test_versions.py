@@ -240,42 +240,18 @@ def hold_lock(versions: Versions, seconds: float) -> threading.Thread:
     return holder
 
 
-def test_a_second_writer_waits_for_the_first(versions):
-    install(versions, "0.1.0", "0.2.0")
+def test_a_second_writer_waits_for_the_first(versions, tmp_path):
+    install(versions, "0.1.0")
     versions.activate("0.1.0")
-    holder = hold_lock(versions, 0.3)
-    started = time.monotonic()
-    versions.activate("0.2.0")
-    waited = time.monotonic() - started
-    holder.join()
-    assert waited >= 0.25 and versions.current() == "0.2.0" and versions.previous() == "0.1.0"
-
-
-def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(versions_module, "LOCK_WAIT", 0.1)
-    monkeypatch.setenv("XDG_DATA_HOME", str(versions.root.parent))  # run.py finds the same folder
-    install(versions, "0.1.0", "0.2.0")
-    versions.activate("0.1.0")
-    versions.activate("0.2.0")
-    tarball = make_tarball(tmp_path / "r.tar.gz", "0.3.0")
-    holder = hold_lock(versions, 1.0)
-    try:
-        writes = (
-            lambda: versions.activate("0.1.0"),
-            versions.rollback,
-            lambda: versions.install(tarball),
-        )
-        for write in writes:
-            with pytest.raises(VersionError) as error:
-                write()
-            assert error.value.code == "busy"
-        with pytest.raises(SystemExit) as code:
-            cli.main(["rollback"])
-        assert code.value.code == 1 and "under way" in capsys.readouterr().err
-    finally:
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.2.0")
+    for write in (lambda: versions.install(tarball), versions.rollback, lambda: versions.activate("0.2.0")):
+        holder = hold_lock(versions, 0.3)
+        started = time.monotonic()
+        write()
+        waited = time.monotonic() - started
         holder.join()
+        assert waited >= 0.25
     assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
-    assert sorted(p.name for p in versions.versions.iterdir()) == ["0.1.0", "0.2.0"]
 
 
 def test_only_an_installed_release_is_marked_started(versions, tmp_path):
