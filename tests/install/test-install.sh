@@ -117,7 +117,7 @@ expect "updates to a newer release" 'run --base "http://127.0.0.1:$port/r2" && [
 expect "refuses a manifest changed after signing" '! run --base "http://127.0.0.1:$port/tampered" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a tarball that does not match its hash" '! run --base "http://127.0.0.1:$port/swapped" && grep -q "does not match its sha256" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a signed version that is not a folder name" '! run --base "http://127.0.0.1:$port/climbs" && grep -q "not a polykey release manifest" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
-echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/__main__.py"
+echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/injector.py"
 expect "--rollback leaves even a release that cannot start, and skips it" 'run --rollback && [ "$(current)" = versions/0.1.0 ] && state | grep -q "\"skip\": \"0.2.0\""'
 expect "--rollback with nowhere to go fails" '! run --rollback && grep -q "no earlier release" "$T/out"'
 cut_ok=1

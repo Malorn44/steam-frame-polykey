@@ -171,19 +171,9 @@ restart() {
 # --- commands --------------------------------------------------------------------------------------
 
 rollback() {
-  cur=$(current)
-  [ -n "$cur" ] || die "polykey is not installed"
-  # Run it with the code of another release first: the current one may be the release that does not
-  # work. Exit 3 is a refusal (nowhere to go back to); anything else but 0 means that code would not
-  # run, so the next one is tried.
-  for dir in "$DATA"/versions/* "$DATA/current"; do
-    if [ "versions/${dir##*/}" = "$cur" ] || [ ! -f "$dir/sidecar/run.py" ]; then continue; fi
-    rc=0
-    "$PY" -I -B "$dir/sidecar/run.py" rollback 2>/dev/null || rc=$?
-    if [ "$rc" = 0 ]; then restart; return; fi
-    if [ "$rc" = 3 ]; then exit 1; fi
-  done
-  die "no installed release could run the rollback; reinstall with the one-line installer"
+  [ -f "$DATA/current/sidecar/run.py" ] || die "polykey is not installed"
+  "$PY" -I -B "$DATA/current/sidecar/run.py" rollback || exit 1
+  restart
 }
 
 uninstall() {
