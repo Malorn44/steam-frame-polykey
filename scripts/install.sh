@@ -144,7 +144,9 @@ restart() {
 
 rollback() {
   [ -f "$DATA/current/sidecar/run.py" ] || die "polykey is not installed"
-  "$PY" -I -B "$DATA/current/sidecar/run.py" rollback || exit 1
+  # The current release's own code does it; if that cannot run, an earlier release's tarball still can.
+  "$PY" -I -B "$DATA/current/sidecar/run.py" rollback \
+    || die "could not roll back; to go back by hand, install an earlier release's tarball (from https://github.com/Malorn44/steam-frame-polykey/releases): sh install.sh --tarball polykey-X.Y.Z.tar.gz"
   restart
 }
 
