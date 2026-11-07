@@ -13,7 +13,7 @@
     "lint:ruff": ".venv/bin/ruff check sidecar scripts",
     "lint:ruff-format": ".venv/bin/ruff format --check sidecar scripts",
     "lint:shellcheck": ".venv/bin/shellcheck scripts/*.sh",
-    "lint:actionlint": ".venv/bin/actionlint",
+    "lint:actionlint": ".venv/bin/actionlint -shellcheck .venv/bin/shellcheck",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:py": ".venv/bin/python -m pytest sidecar/tests -q",
