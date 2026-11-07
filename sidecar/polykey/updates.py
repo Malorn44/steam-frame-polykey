@@ -277,7 +277,9 @@ class Updater:
             "skipped": bool(latest and latest == self.versions.skipped()),
         }
         previous = self.versions.previous()
-        if previous and previous != self.version:
+        # While an automatic install waits for the keyboard, `current` is the new release and Back
+        # goes to the one still running: offer it then, and in no other state.
+        if previous and (previous != self.version or self.state == "installed"):
             out["previous"] = previous
         if self.error:
             out["error"] = self.error
