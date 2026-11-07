@@ -28,6 +28,8 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/$APP"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 PY="${POLYKEY_PYTHON:-/usr/bin/python3}"  # the unit's interpreter (the variable is for tests)
 DEBUGGER="http://127.0.0.1:8080/json/version"
+PROC_NET="${POLYKEY_PROC_NET:-/proc/net}"  # where the tcp and tcp6 socket tables are (for tests)
+PORTFORWARD=steam-web-debug-portforward.service  # SteamOS's: it forwards 0.0.0.0:8081 to the debugger
 
 say() { printf '%s\n' "$*"; }
 die() { say "✗ $*" >&2; exit 1; }
@@ -85,6 +87,36 @@ check() {
   else
     say "! Steam's debugger is not answering on 127.0.0.1:8080; polykey draws through it. Turn on"
     say "  Steam → Settings → Developer → Enable CEF remote debugging (or check that Steam is running)."
+  fi
+  # A socket in LISTEN (0A) on port 8081 (1F91), bound to anything but loopback. The kernel writes
+  # each 32-bit word of an address in host byte order.
+  if "$PY" -I -c '
+import ipaddress, struct, sys
+for name in ("tcp", "tcp6"):
+    try:
+        rows = [row.split() for row in open(sys.argv[1] + "/" + name).readlines()[1:]]
+    except OSError:
+        continue
+    for row in rows:
+        try:
+            addr, port = row[1].split(":")
+            if row[3] != "0A" or int(port, 16) != 8081:
+                continue
+            ip = ipaddress.ip_address(b"".join(struct.pack("=I", int(addr[i : i + 8], 16)) for i in range(0, len(addr), 8)))
+        except (IndexError, ValueError):
+            continue
+        if not (getattr(ip, "ipv4_mapped", None) or ip).is_loopback:
+            sys.exit(0)
+sys.exit(1)' "$PROC_NET" 2>/dev/null; then
+    if systemctl is-active --quiet "$PORTFORWARD" 2>/dev/null; then
+      say "! SteamOS's $PORTFORWARD opens Steam's debugger to your network on port 8081:"
+    else
+      say "! Something on port 8081 is open to your network. If it is Steam's debugger (SteamOS forwards it there),"
+    fi
+    say "  anyone on the same network could read what you type or control Steam. polykey uses only"
+    say "  127.0.0.1:8080, so it keeps working if you close 8081 with"
+    say "  sudo systemctl mask --now $PORTFORWARD"
+    say "  (to undo that: sudo systemctl unmask --now $PORTFORWARD)"
   fi
   if systemctl --user is-active --quiet frame-jp-keyboard 2>/dev/null; then
     say "! frame-jp-keyboard is running: polykey stays out of the way while it is. To switch, stop it with"

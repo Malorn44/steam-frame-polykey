@@ -95,11 +95,26 @@ cat > "$T/bin/systemctl" <<'EOF'
 echo "$*" >> "$HOME/systemctl.log"
 case "$*" in
   *is-active*frame-jp-keyboard*) exit 3 ;;
+  *is-active*steam-web-debug-portforward*) [ "${PORTFORWARD:-active}" = active ] || exit 3 ;;
 esac
 exit 0
 EOF
 chmod +x "$T/bin/systemctl"
-export PATH="$T/bin:$PATH" POLYKEY_PYTHON="$PYTHON"
+# A fake /proc/net: listen FILE ADDRESS:PORT... writes those sockets, in LISTEN, as the kernel does.
+mkdir "$T/net"
+listen() {
+  local file=$1 i=0 a
+  shift
+  echo "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode" > "$T/net/$file"
+  for a in "$@"; do
+    printf '%4d: %s %s 0A 00000000:00000000 00:00000000 00000000     0        0 %d 1 0000000000000000 100 0 0 10 0\n' \
+      "$i" "$a" "${a//[0-9A-F]/0}" $((1000 + i)) >> "$T/net/$file"
+    i=$((i + 1))
+  done
+}
+listen tcp
+listen tcp6
+export PATH="$T/bin:$PATH" POLYKEY_PYTHON="$PYTHON" POLYKEY_PROC_NET="$T/net"
 DATA="$HOME/.local/share/polykey"
 INSTALL="$T/serve/r2/install.sh"
 run() { sh "$INSTALL" "$@" > "$T/out" 2>&1; }
@@ -147,6 +162,29 @@ INSTALL=scripts/install.sh
 expect "an install.sh without a release key installs nothing" \
   '! run --base "http://127.0.0.1:$port/r2" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 INSTALL="$T/serve/r2/install.sh"
+
+echo "Steam's debugger on the network"
+both() {  # --check, then an install; both pass, and $T/both holds what they said
+  run --check && cp "$T/out" "$T/both" && run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && cat "$T/out" >> "$T/both"
+}
+said() { [ "$(grep -c -- "$1" "$T/both")" = "$2" ]; }  # said TEXT N: N lines of it hold TEXT
+listen tcp 0100007F:1F90 00000000:1F91
+expect "a listener on 0.0.0.0:8081 warns, names SteamOS's unit, and says how to close it and undo that" \
+  'both && said "^! SteamOS.s steam-web-debug-portforward.service opens Steam.s debugger to your network on port 8081:$" 2 && said "^  sudo systemctl mask --now steam-web-debug-portforward.service$" 2 && said "^  (to undo that: sudo systemctl unmask --now steam-web-debug-portforward.service)$" 2'
+listen tcp 0100007F:1F90 0100007F:1F91 0101A8C0:1F91
+sed -i '$s/ 0A / 01 /' "$T/net/tcp"  # 192.168.1.1:8081, but a connection, not a listener
+listen tcp6 00000000000000000000000001000000:1F91 0000000000000000FFFF00000100007F:1F91
+expect "a listener on 127.0.0.1:8081 (or ::1, or ::ffff:127.0.0.1) does not" 'both && said 8081 0'
+listen tcp 0100007F:1F90 00000000:0016
+listen tcp6 00000000000000000000000000000000:0016
+expect "nor does none on 8081" 'both && said 8081 0'
+listen tcp 0100007F:1F90
+listen tcp6 00000000000000000000000000000000:1F91
+expect "a tcp6 listener on [::]:8081 warns; with SteamOS's unit not running, as something on 8081" \
+  'PORTFORWARD=inactive both && said "^! Something on port 8081 is open to your network" 2 && said "^  sudo systemctl mask --now steam-web-debug-portforward.service$" 2'
+listen tcp
+listen tcp6
+
 expect "--uninstall removes polykey, keeps settings and models" \
   'run --uninstall && [ "$(ls -A "$DATA")" = speech ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
 expect "--uninstall --purge removes the rest" 'run --uninstall --purge && [ ! -e "$DATA" ] && [ ! -e "$HOME/.config/polykey" ]'
