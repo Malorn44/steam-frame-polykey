@@ -8,10 +8,14 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:debug": "node scripts/build.mjs --debug",
+    "lint": "npm run lint:py && npm run lint:sh && npm run lint:ci",
+    "lint:py": ".venv/bin/ruff check sidecar scripts",
+    "lint:sh": ".venv/bin/shellcheck scripts/*.sh",
+    "lint:ci": ".venv/bin/actionlint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:py": ".venv/bin/python -m pytest sidecar/tests -q",
-    "check": "npm run typecheck && npm test && npm run test:py && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:py && npm run build"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

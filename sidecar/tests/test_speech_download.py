@@ -11,6 +11,7 @@ from polykey.speech.download import GITHUB_HOSTS, HF_HOSTS, Download, Remote, ho
 
 BLOB = os.urandom(3 * 1024 * 1024 + 17)
 SHA = hashlib.sha256(BLOB).hexdigest()
+SIZE = len(BLOB)
 
 
 def test_redirects_only_to_the_pinned_hosts_over_https():
@@ -33,7 +34,7 @@ async def serve(routes):
     return runner, f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}"
 
 
-def fetch(tmp_path, name, routes, size=len(BLOB), sha=SHA, **kwargs):
+def fetch(tmp_path, name, routes, size=SIZE, sha=SHA, **kwargs):
     async def main():
         runner, base = await serve(routes)
         try:
@@ -128,7 +129,7 @@ def test_a_server_without_ranges_starts_again(tmp_path):
 
     async def whole(_request):
         return web.Response(body=BLOB)
-    job, ok = fetch(tmp_path, "m.gguf", [web.get("/resolve/m.gguf", whole)])
+    _job, ok = fetch(tmp_path, "m.gguf", [web.get("/resolve/m.gguf", whole)])
     assert ok and (tmp_path / "models" / "m.gguf").read_bytes() == BLOB
 
 

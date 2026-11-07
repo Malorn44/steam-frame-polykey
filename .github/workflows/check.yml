@@ -9,6 +9,6 @@ jobs:
         with: { node-version: 24, cache: npm }
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with: { python-version: "3.12" }  # the Frame's Python
-      - run: python -m venv .venv && .venv/bin/pip install aiohttp==3.9.3 pytest
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
       - run: npm ci
       - run: npm run check
