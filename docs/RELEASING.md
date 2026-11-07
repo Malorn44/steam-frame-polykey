@@ -132,7 +132,8 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    - downloads `latest.json` again and requires the one `release:verify` checked;
    - checks that the tag still points at the commit that was built;
    - signs it with `RELEASE_SIGNING_KEY`, written to a temporary file (mode 600) and removed after;
-   - checks the signature against the tag's `contrib/allowed_signers`;
+   - checks the signature against the commit's `contrib/allowed_signers`, and against the latest
+     published release's, which Frames check it with (the first release has none);
    - attaches `latest.json.sig` and publishes the draft as the latest release.
 
    From then on `curl … | sh` installs it, and installed releases update to it within the hour.
@@ -177,10 +178,17 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   2. Merge that and release it. The secret still holds the old key, so the old key signs it.
   3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY`, drop the old line,
      and release again.
+
+  `release:sign` also checks each signature against the latest published release's
+  `allowed_signers`, so a new key stored before step 2's release is published is refused there, not
+  by every Frame. It can't tell whether Frames have updated, so still wait for that.
 - **If the key is lost** (the secret replaced or deleted, and no backup), installed releases cannot
   verify anything newer. Make a new key (`--init`), replace the old line in `allowed_signers` with
-  it, store it in `RELEASE_SIGNING_KEY`, and release. Each Frame then reinstalls with the one-line
-  installer, whose install.sh carries the new key.
+  it, and store it in `RELEASE_SIGNING_KEY`. `release:sign` then refuses to publish, because the
+  latest published release doesn't trust the new key. So for that one release, a PR has to take the
+  check against the latest published release out of its "check the signature" step, and the next
+  PR puts it back. Each Frame then reinstalls with the one-line installer, whose install.sh carries
+  the new key.
 
 ## Trying a release from this PC
 

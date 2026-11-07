@@ -497,8 +497,8 @@ jobs:
   # Waits for your approval in the release environment, the only place RELEASE_SIGNING_KEY is kept,
   # while you smoke-test the draft. Then, while the tag still points at the commit release checked, it
   # signs the latest.json release:verify checked, checks the signature against the commit's
-  # allowed_signers, attaches it and publishes the draft. Nothing from npm runs here: the runner's own
-  # node reads the API's JSON.
+  # allowed_signers and the latest published release's, attaches it and publishes the draft. Nothing
+  # from npm runs here: the runner's own node reads the API's JSON.
   release-sign:
     name: release:sign
     needs: [release, release-verify]
@@ -519,6 +519,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          fetch-depth: 0 # and every tag, for the latest published release's allowed_signers
           persist-credentials: false
       # Without a required reviewer this job waited for no one, and on this plan a private repo ignores
       # the rule even when it is set: then it signs nothing.
@@ -583,12 +584,35 @@ jobs:
           trap 'rm -f "$key"' EXIT
           printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key" # a secret may have lost its last newline
           ssh-keygen -q -Y sign -f "$key" -n polykey-release "$RUNNER_TEMP/sign/latest.json" < /dev/null
+      # Frames check the signature with the allowed_signers of the release they run, the latest
+      # published one. So a key put in RELEASE_SIGNING_KEY before a release that trusts it has reached
+      # them fails here, not on every Frame.
       - name: check the signature
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ! ssh-keygen -q -Y verify -f contrib/allowed_signers -I polykey-release -n polykey-release \
-            -s "$RUNNER_TEMP/sign/latest.json.sig" < "$RUNNER_TEMP/sign/latest.json" > /dev/null; then
-            echo "::error::The signature does not check out against contrib/allowed_signers: is RELEASE_SIGNING_KEY the key named there?"
-            exit 1
+          fail() { echo "::error::$*"; exit 1; }
+          s=$RUNNER_TEMP/sign
+          verify() {  # verify ALLOWED_SIGNERS
+            ssh-keygen -q -Y verify -f "$1" -I polykey-release -n polykey-release -s "$s/latest.json.sig" < "$s/latest.json" > /dev/null
+          }
+          verify contrib/allowed_signers \
+            || fail "The signature does not check out against contrib/allowed_signers: is RELEASE_SIGNING_KEY the key named there?"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/latest" > "$RUNNER_TEMP/published.json" 2> "$RUNNER_TEMP/published.err"; then
+            prev=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).tag_name ?? "")' \
+              "$RUNNER_TEMP/published.json")
+            git rev-parse -q --verify "refs/tags/$prev^{commit}" > /dev/null \
+              || fail "The latest published release's tag, ${prev:-none}, isn't in this repo, so its allowed_signers can't be checked; not publishing"
+            git show "refs/tags/$prev:contrib/allowed_signers" > "$RUNNER_TEMP/published_signers" \
+              || fail "$prev has no contrib/allowed_signers to check the signature against; not publishing"
+            verify "$RUNNER_TEMP/published_signers" \
+              || fail "The signature does not check out against $prev's allowed_signers, which Frames running $prev check it with. Put a new key in RELEASE_SIGNING_KEY only once a release that trusts it has reached them (docs/RELEASING.md#the-key)."
+            echo "The signature checks out against the allowed_signers of $TAG and of $prev, the latest published release"
+          elif grep -q '(HTTP 404)' "$RUNNER_TEMP/published.err"; then
+            echo "No release is published yet, so $TAG is the first: its signature is checked against its own allowed_signers only"
+          else
+            cat "$RUNNER_TEMP/published.err" >&2
+            fail "Could not read the latest published release, so not publishing"
           fi
       - name: attach the signature and publish
         env:
