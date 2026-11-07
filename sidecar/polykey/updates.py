@@ -136,6 +136,18 @@ async def fetch(
     raise VersionError("network")
 
 
+def error_code(error: Exception) -> str:
+    """The code a failed check, install or rollback reports."""
+    if isinstance(error, VersionError):  # by class: aiohttp's ClientResponseError has a .code too
+        return error.code
+    # Before OSError, which aiohttp's connection errors and TimeoutError also are.
+    if isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError, ValueError)):
+        return "network"  # ValueError: a malformed URL or redirect
+    if isinstance(error, OSError):
+        return "disk"
+    return f"failed-{type(error).__name__}"[:32]
+
+
 async def restart_service() -> bool:
     """Ask systemd to restart the service (it stops us, which removes polykey from Steam, then starts the
     new current). False when not running under systemd: the new release waits for the next start."""
@@ -296,14 +308,8 @@ class Updater:
                 signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
             self.latest = parse_manifest(manifest)
-        except VersionError as error:
-            self._fail(error.code)
-            return
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError):
-            self._fail("network")  # ValueError: a malformed URL or redirect
-            return
         except Exception as error:  # never leave the line saying "checking"
-            self._fail(f"failed-{type(error).__name__}"[:32])
+            self._fail(error_code(error))
             return
         latest = self.latest["version"]
         if self.dev or not newer(latest, self.version):
@@ -356,17 +362,10 @@ class Updater:
                 activate = functools.partial(self.versions.activate, version, running=self.version)
                 await loop.run_in_executor(None, activate)
             self._update_unit(version)
-        except VersionError as error:
-            self._note(f"install of {version} failed: {error.code}")
-            self._set("idle", error.code)
-            return
-        except OSError:
-            self._note(f"install of {version} failed: disk")
-            self._set("idle", "disk")
-            return
         except Exception as error:  # never leave the line saying "downloading"
-            self._note(f"install of {version} failed: {type(error).__name__}")
-            self._set("idle", f"failed-{type(error).__name__}"[:32])
+            code = error_code(error)
+            self._note(f"install of {version} failed: {code}")
+            self._set("idle", code)
             return
         finally:
             self._download = None
@@ -430,10 +429,8 @@ class Updater:
             return {"ok": False, "error": "busy"}
         try:
             before, after = await asyncio.get_running_loop().run_in_executor(None, self.versions.rollback)
-        except VersionError as error:
-            return {"ok": False, "error": error.code}
-        except OSError:
-            return {"ok": False, "error": "disk"}
+        except (VersionError, OSError) as error:
+            return {"ok": False, "error": error_code(error)}
         self._note(
             f"rolled back from {before} to {after}"
             + ("" if before == DEV else f"; {before} is skipped until a newer release")

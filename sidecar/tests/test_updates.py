@@ -8,12 +8,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import aiohttp
 import pytest
 from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, error_code, parse_manifest
 from polykey.versions import VersionError, Versions
 from test_versions import hold_lock, install, make_tarball
 
@@ -546,6 +547,22 @@ def test_manifest_fields_are_checked():
     ):
         with pytest.raises(VersionError):
             parse_manifest(json.dumps({**good, **change}).encode())
+
+
+@pytest.mark.parametrize(
+    "error, code",
+    [
+        (VersionError("bad-archive"), "bad-archive"),
+        (aiohttp.ClientResponseError(None, (), status=500), "network"),  # its own .code is a number
+        (aiohttp.ClientOSError(), "network"),  # an OSError too
+        (asyncio.TimeoutError(), "network"),
+        (ValueError(), "network"),
+        (PermissionError(), "disk"),
+        (KeyError(), "failed-KeyError"),
+    ],
+)
+def test_a_failure_reports_one_code_for_its_kind(error, code):
+    assert error_code(error) == code
 
 
 def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_path):
