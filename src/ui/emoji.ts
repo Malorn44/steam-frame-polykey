@@ -69,6 +69,8 @@ export interface EmojiPickerInput {
   steam: { item: SteamItem; image: string | null }[];
   /** False when Steam's item store could not be read. */
   steamAvailable?: boolean;
+  /** True while Steam is still fetching the items. */
+  steamLoading?: boolean;
   tones: ReadonlyMap<string, readonly string[]>;
 }
 
@@ -78,6 +80,8 @@ export interface EmojiView {
   /** The laser over the picker; true when a skin tone pick moved (a haptic tick). */
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
+  /** Show the Steam items again (they arrived, or stopped loading); keeps the scroll position. */
+  setSteam(steam: EmojiPickerInput['steam'], loading: boolean): void;
   destroy(): void;
 }
 
@@ -90,6 +94,7 @@ const GROUP_TABS: Record<string, string> = {
 };
 export const RECENT_NOTE = 'Recently used emoji appear here.';
 export const FAVORITES_NOTE = 'Drag and drop from Recent to add a favorite, drop outside to remove.';
+export const STEAM_LOADING_NOTE = 'Loading your Steam items…';
 
 export const createEmojiView = (
   doc: Document,
@@ -232,7 +237,7 @@ export const createEmojiView = (
       firstSteam = false;
       const columns = items.length ? Math.ceil(items.length / rows) : 3;
       section(`steam-${kind}`, icon, columns, (sx) => {
-        if (!items.length) note(sx, columns, input.steamAvailable === false ? 'Steam items unavailable' : empty);
+        if (!items.length) note(sx, columns, input.steamAvailable === false ? 'Steam items unavailable' : input.steamLoading ? STEAM_LOADING_NOTE : empty);
         items.forEach(({ item, image }, i) => addCell(`steam-${kind}`, sx, i, { base: steamKey(item), steam: item, image }));
       });
     }
@@ -415,6 +420,12 @@ export const createEmojiView = (
   let last = { x: 0, y: 0 };
   let lastTouchAt = 0;
   let built = false;
+  /** Steam items came in during a gesture: redrawn when it ends, so a press in progress is not lost. */
+  let stale = false;
+  const redrawIfStale = (): void => {
+    if (stale) build();
+    stale = false;
+  };
   // A gesture that started here is followed across the whole shadow root (a fast drag or tone pick can
   // leave the picker, e.g. into the key row), so its release is never lost and nothing is left hanging.
   const onMove = (p: TouchPoint | null): boolean => {
@@ -454,6 +465,7 @@ export const createEmojiView = (
     } else if (was === 'scroll') startGlide();
     if (was !== 'drag') clearOverlays();
     pressed = undefined;
+    redrawIfStale();
   };
   const onCancel = (): void => {
     if (mode === 'idle') return;
@@ -461,6 +473,7 @@ export const createEmojiView = (
     clearOverlays();
     mode = 'idle';
     pressed = undefined;
+    redrawIfStale();
   };
   listenTouch(root, { start: onStart, click: (e) => onClick(e) }, { guard });
   // Followed across the whole shadow root (shared with the key row): removed again in destroy.
@@ -551,6 +564,11 @@ export const createEmojiView = (
       cellSize = nextSize;
       built = true;
       build();
+    },
+    setSteam: (steam, loading) => {
+      input = { ...input, steam, steamLoading: loading };
+      if (mode === 'idle') build();
+      else stale = true;
     },
     destroy: () => {
       clearHold();

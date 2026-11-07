@@ -1,4 +1,5 @@
 // A fake of the Steam objects polykey reads, for tests. Records every HandleVirtualKeyDown call.
+import { vi } from 'vitest';
 import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { KEYBOARD_OVERLAY_KEY } from '../src/host/steam/globals.js';
 
@@ -67,6 +68,8 @@ export interface FakeSteamOptions {
   status?: VRKeyboardStatus | null;
   /** Provide SteamClient.Input.ControllerKeyboardSetKeyState, recording [code, down] events. */
   keyState?: boolean;
+  /** Steam's chat item store (see fakeItemStore). */
+  itemStore?: object;
 }
 
 /** The global object as polykey sees it inside Steam. */
@@ -89,7 +92,37 @@ export const fakeSteam = (options: FakeSteamOptions = {}) => {
     };
   }
   if (state.status) g['webpackChunksteamui'] = fakeWebpack(() => state.status as VRKeyboardStatus);
+  if (options.itemStore) g['g_FriendsUIApp'] = { ChatStore: { EmoticonStore: options.itemStore } };
   return { g, state };
+};
+
+type Named = { name: string }[];
+/**
+ * Steam's chat item store as a fresh Steam has it: empty and not loaded. Its loader (a spy) has the
+ * items arrive `fillMs` after the first ask, as Steam's server reply does; null: they never arrive.
+ */
+export const fakeItemStore = (fillMs: number | null = 800) => {
+  let asked = false;
+  const store = {
+    m_bInitialized: false,
+    m_rgEmoticons: [] as Named,
+    m_rgStickers: [] as Named,
+    m_rgEffects: [] as Named,
+    get is_initialized() {
+      return store.m_bInitialized;
+    },
+    UpdateEmoticonList: vi.fn(() => {
+      if (asked || store.m_bInitialized || fillMs === null) return;
+      asked = true;
+      setTimeout(() => {
+        store.m_rgEmoticons = [{ name: 'steamhappy' }];
+        store.m_rgStickers = [{ name: 'Intense Gaming' }];
+        store.m_rgEffects = [{ name: 'confetti' }];
+        store.m_bInitialized = true;
+      }, fillMs);
+    }),
+  };
+  return store;
 };
 
 export const MINIMAL: VRKeyboardStatus = {

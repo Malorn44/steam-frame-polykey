@@ -19,7 +19,7 @@ import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
-import { steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
+import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
 import { modeLetters, pageLayout } from './core/pages.js';
@@ -56,6 +56,9 @@ const NON_ASCII = /[^\x20-\x7e]/;
 const EMOJI_ROW = 'internal/emoji-row';
 const EMOJI_ROW_PX = 44;
 const EMOJI_SAVE_DELAY_MS = 1500;
+/** Steam fetches the user's items on first ask: the open picker looks again this often, for so long. */
+const STEAM_ITEMS_POLL_MS = 500;
+export const STEAM_ITEMS_WAIT_MS = 15_000;
 /** A swipe's words come back in tens of ms; keys pressed meanwhile wait for them, at most this long. */
 const SWIPE_TIMEOUT_MS = 1500;
 
@@ -119,6 +122,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let emoji: EmojiState = boot?.emojiState ?? NO_EMOJI_STATE;
   const tones = toneTable(boot?.emoji ?? { groups: [] });
   let emojiSave: ReturnType<typeof setTimeout> | null = null;
+  /** While the picker is open and Steam is still fetching its items. */
+  let steamWait: ReturnType<typeof setInterval> | null = null;
   let guard: ReturnType<typeof createStockGuard> | null = null;
   let returnButton: HTMLElement | null = null;
   let stopCursor: (() => void) | null = null;
@@ -687,6 +692,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     panel = null;
     picker?.destroy();
     picker = null;
+    if (steamWait !== null) clearInterval(steamWait);
+    steamWait = null;
     returnButton?.remove();
     returnButton = null;
   };
@@ -743,12 +750,24 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     guard?.setActive(true);
     const win = surface.win;
     if (page === 'emoji' && boot.emoji) {
+      const owned = () => steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) }));
+      const steamLoading = loadSteamItems(g);
       picker = createEmojiView(surface.doc, surface.shadow, theme, {
         data: boot.emoji,
-        steam: steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) })),
+        steam: owned(),
         steamAvailable: steamItemsAvailable(g),
+        steamLoading,
         tones,
       }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent });
+      if (steamLoading) {
+        const until = Date.now() + STEAM_ITEMS_WAIT_MS;
+        steamWait = setInterval(() => {
+          if (loadSteamItems(g) && Date.now() < until) return;
+          if (steamWait !== null) clearInterval(steamWait);
+          steamWait = null;
+          picker?.setSteam(owned(), false);
+        }, STEAM_ITEMS_POLL_MS);
+      }
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
         // Its back key reads the current mode's letters (あいう, ABC).
