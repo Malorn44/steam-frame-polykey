@@ -5,11 +5,12 @@
 #   bash tests/install/test-install.sh     (npm run test:install; CI runs it on every push)
 #
 # Covers --check, a first install, running it again, an update, --rollback, a manifest not signed by
-# the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, the
-# layout from before releases, --uninstall and --uninstall --purge; what release.sh makes: the same
-# tarball from the same commit, what the tarball carries, and latest.json; and sign-release.sh, which
-# signs every release here (with the throwaway key, never ~/.ssh/polykey-release), makes a key with
-# --init (in the throwaway folder), and compares tarballs.
+# the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, waiting
+# for the updater's lock, the layout from before releases, --uninstall and --uninstall --purge; what
+# release.sh makes: the same tarball from the same commit, what the tarball carries, and latest.json;
+# and sign-release.sh, which signs every release here (with the throwaway key, never
+# ~/.ssh/polykey-release), makes keys with --init and --init --add (in the throwaway folder), and
+# compares tarballs.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -84,9 +85,20 @@ expect "--init makes a key with no passphrase in a private folder, and adds its 
   'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && ssh-keygen -y -P "" -f "$T/init/key" >/dev/null && [ "$(stat -c %a "$T/init")" = 700 ] && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init/key.pub")" ] && cmp -s <(head -n -1 "$T/init-signers") contrib/allowed_signers'
 expect "and says how to store it as the release environment's secret, without printing the key" \
   'grep -qF "gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < $T/init/key" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init/key")" "$T/out"'
+expect "and says to back up a copy with a passphrase, then delete the plain key" \
+  'grep -qxF "       cp $T/init/key $T/init/key.backup" "$T/out" && grep -qxF "       ssh-keygen -p -f $T/init/key.backup" "$T/out" && grep -qxF "       rm $T/init/key" "$T/out" && ! grep -q "if you like" "$T/out"'
 cp -R "$T/serve/r1" "$T/init-release"
 expect "--local signs with that key, asking for nothing" \
   'POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --local "$T/init-release" > /dev/null < /dev/null && ssh-keygen -Y verify -f "$T/init-signers" -I polykey-release -n polykey-release -s "$T/init-release/latest.json.sig" < "$T/init-release/latest.json" >/dev/null 2>&1'
+cp "$T/init-signers" "$T/init-signers-before"
+expect "a second --init, with no key file at its path, refuses while allowed_signers holds a key, and changes nothing" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && grep -q "already holds a release key" "$T/out" && grep -qF "To change keys" "$T/out" && grep -qF -- "--init --add" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
+expect "--init takes nothing after it but --add" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --addd > "$T/out" 2>&1 < /dev/null && grep -q "usage: scripts/sign-release.sh --init \[--add\]" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
+expect "--init --add still will not replace a key" \
+  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && grep -q "already exists" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before"'
+expect "--init --add makes a second key, appends exactly its line, and says the old key signs the next release" \
+  'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && cmp -s <(head -n -1 "$T/init-signers") "$T/init-signers-before" && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init2/key.pub")" ] && grep -q "Once Frames have that release" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init2/key")" "$T/out"'
 mkdir "$T/repack"
 tar -xzf "$T/serve/r1/polykey-0.1.0.tar.gz" -C "$T/repack"
 tar -C "$T/repack" -cf - polykey-0.1.0 | gzip -1 > "$T/repacked.tar.gz"
@@ -168,6 +180,13 @@ for n in 60 120 180 240; do
 done
 expect "an install.sh cut off part way does nothing" '[ "$cut_ok" = 1 ]'
 expect "--tarball installs a file, and un-skips it" 'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ "$(current)" = versions/0.2.0 ] && ! state | grep -q skip'
+# The service's updater at work: the installer waits for it, rather than unpack beside it.
+flock "$DATA/updates/lock" sh -c 'touch "$1/held"; sleep 3; touch "$1/released"' sh "$T" &
+holder=$!
+for _ in $(seq 50); do [ -e "$T/held" ] && break; sleep 0.1; done
+expect "waits while another install or update holds the lock" \
+  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions/0.2.0" -nt "$T/released" ]'
+wait "$holder"
 expect "keeps the current release and the one before" '[ "$(ls "$DATA/versions")" = "$(printf "0.1.0\n0.2.0")" ]'
 INSTALL=scripts/install.sh
 expect "an install.sh without a key will not download" '! run && grep -q "has no release key" "$T/out"'

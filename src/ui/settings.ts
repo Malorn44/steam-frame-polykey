@@ -15,6 +15,7 @@ import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
+import { INFO_CSS, infoTips } from './info.js';
 import type { SpeechStatus } from '../core/dictation.js';
 import { updateSummary, type UpdateAction, type UpdateStatus } from '../updates.js';
 
@@ -95,6 +96,8 @@ const CSS = `
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
+/* ⓘ right after a row's name (ui/info.ts). */
+.row .name:has(> .ic.i) { display: flex; align-items: center; gap: 6px; }
 .about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--error); }
 .about .ver { display: flex; align-items: center; gap: 8px; min-height: 24px; }
@@ -121,7 +124,7 @@ export const createSettingsView = (
   { onTab, onChange, onOption, onStock, onClose, onUpdate, onLanguage, onKeyboards, ...speech }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS;
+  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS + INFO_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   root.style.cssText = themeVars(theme) + sizeVars('normal');
@@ -167,6 +170,12 @@ export const createSettingsView = (
     el.classList.add('sw');
     return el;
   };
+  const tips = infoTips(doc, root, actions); // General's ⓘ; the Dictation tab has its own
+  /** A row with ⓘ after its name, showing `title` and `text` as the Dictation tab's ⓘ do. */
+  const explained = (el: HTMLElement, title: string, text: string): HTMLElement => {
+    el.querySelector('.name')?.append(tips.icon(title, () => [['', text]]));
+    return el;
+  };
 
   const about = doc.createElement('div');
   about.className = 'about';
@@ -207,7 +216,7 @@ export const createSettingsView = (
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
     ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
-    onOff('Update automatically', 'autoUpdate'));
+    explained(onOff('Update automatically', 'autoUpdate'), 'Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.'));
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length
       ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
@@ -239,7 +248,8 @@ export const createSettingsView = (
     hovered?.classList.remove('hover');
     hovered = el;
     el?.classList.add('hover');
-    dictationPage?.hover(el); // its ⓘ show their details while hovered
+    dictationPage?.hover(el); // an ⓘ shows its details while hovered
+    tips.hover(el);
     return true;
   };
   /** The list a press drags: the innermost .scroll that overflows, else the innermost (nothing to move). */

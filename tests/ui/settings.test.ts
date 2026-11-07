@@ -56,6 +56,27 @@ describe('settings: updates', () => {
     expect(changes).toEqual([{ autoUpdate: false }]);
   });
 
+  it('ⓘ after the switch\'s name says when updates happen, as the Dictation tab\'s ⓘ do, and leaves the switch alone', () => {
+    const { shadow, changes } = setup();
+    const row = [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Update automatically')!;
+    const info = row.querySelector<HTMLElement>('.name > .ic.i')!;
+    const pop = () => shadow.querySelector('.info-pop');
+    const over = (el: Element) => el.dispatchEvent(new Event('mouseover', { bubbles: true }));
+    expect(pop()).toBeNull(); // hidden at first
+    over(info); // the laser over it
+    expect([...pop()!.children].map((c) => c.textContent))
+      .toEqual(['Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.']);
+    over(row.querySelector('.name')!);
+    expect(pop()).toBeNull();
+    tap(info); // a tap keeps it open
+    over(row.querySelector('.name')!);
+    expect(pop()).not.toBeNull();
+    expect(changes).toEqual([]); // the switch is untouched
+    expect(row.querySelector('.switch.on')).not.toBeNull();
+    tap(shadow.querySelector('.sect')!); // a tap elsewhere closes it
+    expect(pop()).toBeNull();
+  });
+
   it('the version line says what the updater found, and its buttons ask for it', () => {
     const { shadow, view, asked } = setup(0, { ...STATUS, latest: '0.2.0', available: true, previous: '0.0.9' });
     const line = () => shadow.querySelector<HTMLElement>('.about .ver')!;

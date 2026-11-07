@@ -1,6 +1,7 @@
 // The update line at the foot of the Settings tab: what the sidecar's updater says (sidecar
-// updates.py), and its Check, Install and Back buttons. Followed only while the settings page shows
-// it, and long-polled while a check, download or restart is under way.
+// updates.py), and its Check, Install, Restart now and Back buttons. Followed only while the settings
+// page shows it, and long-polled while a check, download or restart is under way, or while an installed
+// release waits for the keyboard to close.
 
 import type { BridgeReply } from './bridge/client.js';
 
@@ -11,8 +12,9 @@ export interface UpdateStatus {
   readonly version: string;
   readonly dev: boolean;
   readonly auto: boolean;
-  readonly state: 'idle' | 'checking' | 'downloading' | 'installing' | 'restarting';
-  /** The newest release the last check found, signed. */
+  /** installed: an automatic update is current, and restarts into it once the keyboard is hidden. */
+  readonly state: 'idle' | 'checking' | 'downloading' | 'installing' | 'installed' | 'restarting';
+  /** The newest release the last check found, signed (while installed, the one waiting). */
   readonly latest: string | null;
   /** latest is newer than this one (never on a dev build). */
   readonly available: boolean;
@@ -27,7 +29,7 @@ export interface UpdateStatus {
 
 export type UpdateAction = 'check' | 'install' | 'rollback';
 
-const STATES = new Set(['idle', 'checking', 'downloading', 'installing', 'restarting']);
+const STATES = new Set(['idle', 'checking', 'downloading', 'installing', 'installed', 'restarting']);
 const WAIT_MS = 15_000;
 
 export const parseUpdate = (reply: BridgeReply): UpdateStatus | null => {
@@ -63,6 +65,7 @@ const ERRORS: Record<string, string> = {
   'no-space': 'Not enough space for the update',
   disk: 'The update couldn\'t be written',
   'restart-needed': 'Installed; it starts with polykey\'s next restart',
+  busy: 'Another install or update of polykey is under way; try again in a minute',
   'no-previous': 'There is no earlier release to go back to',
 };
 
@@ -78,6 +81,13 @@ export const updateSummary = (s: UpdateStatus | null): { text: string; actions: 
   }
   if (s.state === 'installing') return { text: `Installing ${s.latest ?? 'the update'}…`, actions: [] };
   if (s.state === 'restarting') return { text: 'Restarting polykey…', actions: [] };
+  // Restart now asks for the waiting release by name, which the sidecar takes as "restart at once".
+  if (s.state === 'installed') {
+    return {
+      text: `${s.latest ?? 'The update'} is installed; it starts when the keyboard closes`,
+      actions: [...(s.latest ? [{ action: 'install' as const, label: 'Restart now' }] : []), ...back],
+    };
+  }
   if (s.error) return { text: ERRORS[s.error] ?? `Update failed (${s.error})`, actions: [check, ...back] };
   if (s.dev) return { text: `Dev build: no updates${s.latest ? ` · latest release ${s.latest}` : ''}`, actions: [check, ...back] };
   if (s.available && s.latest) {
