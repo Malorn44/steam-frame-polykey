@@ -246,10 +246,14 @@ jobs:
   # A tag can be moved, so the jobs after this one never use it by name. They check out the commit
   # release-please tagged, and only once this job has found it on main: the commit that passed ci ok,
   # or one before it.
+  #
+  # Each release job checks its needs' results itself: an `if:` with no status function gets an
+  # implicit success(), which any skipped job upstream makes false, and pr:title is skipped on every
+  # push. So a skipped pr:title doesn't stop a release, and a red or cancelled ci ok still stops it.
   release:
     name: release
     needs: ci-ok # after every check, so a red main never releases
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ !cancelled() && needs.ci-ok.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     environment: release-please # holds RELEASE_PLEASE_TOKEN; deployment branches: main only, no reviewer
     permissions:
@@ -316,7 +320,7 @@ jobs:
   release-build:
     name: release:build
     needs: release
-    if: needs.release.outputs.created == 'true'
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.created == 'true' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -346,6 +350,7 @@ jobs:
   release-assets:
     name: release:assets
     needs: [release, release-build]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release-build.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write # attach files to the draft
@@ -370,6 +375,7 @@ jobs:
   release-rebuild:
     name: release:rebuild
     needs: [release, release-build]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release-build.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -400,6 +406,7 @@ jobs:
   release-verify:
     name: release:verify
     needs: [release, release-assets, release-rebuild]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release-assets.result == 'success' && needs.release-rebuild.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write # only write access sees a draft
@@ -474,6 +481,7 @@ jobs:
   release-sign:
     name: release:sign
     needs: [release, release-verify]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release-verify.result == 'success' }}
     runs-on: ubuntu-24.04
     environment: release
     permissions:
