@@ -2,7 +2,7 @@
 
 Speak instead of typing. Dictation is opt-in, and runs on the Frame's own CPU.
 
-<!-- screenshot: ![The Dictation tab in settings, with models for English and Japanese](images/dictation.png) -->
+![The Dictation tab, with its model states staged for the picture: English and 日本語 on the left, the English models with their accuracy grade, speed and size, one in use and one downloading, and the Dictation and Continuous dictation switches on the right](images/dictation.png)
 
 Speech is recognized on the Frame, on its CPU, by [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp); no audio leaves it. Dictation is off until you turn it on in settings → **Dictation**: nothing is downloaded or run before that, and the toolbar has no mic. Audio and transcripts stay in memory: they are never logged or written to disk. The journal gets status codes, model ids and durations only.
 

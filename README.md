@@ -34,6 +34,8 @@ It installs the latest release into `~/.local/share/polykey/` and starts polykey
 
 **Updates:** from then on polykey updates itself. An hour apart it looks for a newer release, and installs one only when its signature checks out against the release key; the new release starts when the keyboard closes. In settings, **Update automatically** (under General) turns this off, so polykey only reports new releases (it sets `"autoUpdate": false` in `~/.config/polykey/settings.json`). The line by the version, at the foot of the Settings tab, shows what the updater found, with buttons to check, install or go back. Running the script again also updates.
 
+![The Settings tab: General on the left, with the theme, haptics, suggestions and Update automatically turned on, the 12-key's own options on the right, and the version at the foot](docs/images/settings.png)
+
 **Check, roll back or uninstall** with an option after `sh -s --`:
 
 ```sh
