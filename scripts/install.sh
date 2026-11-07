@@ -132,10 +132,6 @@ EOF
 # Download latest.json and its signature, check the signature, then the tarball against the sizes
 # and hash latest.json gives. Sets $tarball and $version.
 download() {
-  case "$ALLOWED_SIGNERS" in
-    *ssh-ed25519*) ;;
-    *) die "this install.sh has no release key, so it cannot check a download; use --tarball" ;;
-  esac
   command -v curl >/dev/null 2>&1 || die "curl is needed to download polykey"
   command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen is needed to check the download"
   say "→ reading $BASE/latest.json"

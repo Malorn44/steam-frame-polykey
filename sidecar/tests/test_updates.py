@@ -191,7 +191,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
     [
         ("other-key", "bad-signature"),
         ("edited", "bad-signature"),
-        ("no-key", "no-key"),
+        ("no-key", "bad-signature"),
     ],
 )
 def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path, problem, code):

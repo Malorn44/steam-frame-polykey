@@ -55,7 +55,6 @@ const ERRORS: Record<string, string> = {
   'bad-signature': 'The latest release isn\'t signed with polykey\'s key, so it wasn\'t installed',
   'bad-manifest': 'The release information isn\'t valid',
   'bad-host': 'The release points somewhere it shouldn\'t',
-  'no-key': 'This build has no release key, so it can\'t update',
   'no-verifier': 'ssh-keygen is missing, so releases can\'t be checked',
   'bad-hash': 'The download was damaged; try again',
   'bad-size': 'The download was damaged; try again',

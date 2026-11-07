@@ -67,20 +67,8 @@ class UpdateError(Exception):
         self.code = code
 
 
-def has_key(signers: Path) -> bool:
-    try:
-        return any(
-            line.startswith(f"{NAMESPACE} ") and "ssh-ed25519 " in line
-            for line in signers.read_text(encoding="utf-8").splitlines()
-        )
-    except OSError:
-        return False
-
-
 async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -> None:
     """Raise UpdateError unless the release key signed the manifest."""
-    if not has_key(signers):
-        raise UpdateError("no-key")
     exe = shutil.which("ssh-keygen")
     if exe is None:
         raise UpdateError("no-verifier")

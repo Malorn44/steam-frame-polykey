@@ -133,7 +133,8 @@ expect "waits while another install or update holds the lock" \
 wait "$holder"
 expect "keeps the current release and the one before" '[ "$(ls "$DATA/versions")" = "$(printf "0.1.0\n0.2.0")" ]'
 INSTALL=scripts/install.sh
-expect "an install.sh without a key will not download" '! run && grep -q "has no release key" "$T/out"'
+expect "an install.sh without a release key installs nothing" \
+  '! run --base "http://127.0.0.1:$port/r2" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 INSTALL="$T/serve/r2/install.sh"
 expect "--uninstall removes polykey, keeps settings and models" \
   'run --uninstall && [ ! -e "$DATA/versions" ] && [ ! -e "$DATA/current" ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
