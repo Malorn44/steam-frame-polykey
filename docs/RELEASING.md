@@ -183,6 +183,10 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   `sh ~/.local/share/polykey/current/install.sh --rollback`) returns a Frame to the release
   before. Either way, automatic updates then skip the release left until a newer one is
   published. Fix forward with a new release.
+- **If `install.sh --rollback` fails:** the current release's own code can't run, so it can't roll
+  itself back. Download an earlier release's `polykey-X.Y.Z.tar.gz` from
+  https://github.com/Malorn44/steam-frame-polykey/releases and run
+  `sh install.sh --tarball polykey-X.Y.Z.tar.gz`. That release's own run.py does the switch.
 
 ## The key
 
