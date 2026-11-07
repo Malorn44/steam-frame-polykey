@@ -93,6 +93,7 @@ mkdir -p "$HOME" "$T/bin"
 cat > "$T/bin/systemctl" <<'EOF'
 #!/bin/sh
 echo "$*" >> "$HOME/systemctl.log"
+[ "$1" = --user ] && echo "${XDG_RUNTIME_DIR:-} ${DBUS_SESSION_BUS_ADDRESS:-}" >> "$HOME/systemctl.env"
 case "$*" in
   *is-active*frame-jp-keyboard*) exit 3 ;;
   *is-active*steam-web-debug-portforward*) [ "${PORTFORWARD:-active}" = active ] || exit 3 ;;
@@ -184,6 +185,18 @@ expect "a tcp6 listener on [::]:8081 warns; with SteamOS's unit not running, as 
   'PORTFORWARD=inactive both && said "^! Something on port 8081 is open to your network" 2 && said "^  sudo systemctl mask --now steam-web-debug-portforward.service$" 2'
 listen tcp
 listen tcp6
+
+echo "Desktop Mode's nested session"
+# On the Frame, Desktop Mode's Konsole has XDG_RUNTIME_DIR=/run/user/<uid>/nested_plasma, with no user
+# manager in it; the user's own one is in /run/user/<uid>. A socket file stands in for each manager.
+mkdir -p "$T/nested" "$T/userrun/systemd" "$T/own/systemd"
+for d in userrun own; do "$PYTHON" -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' "$T/$d/systemd/private"; done
+expect "from a session whose runtime dir has no user manager, systemctl --user goes to the user's own" \
+  ': > "$HOME/systemctl.env" && XDG_RUNTIME_DIR="$T/nested" POLYKEY_USER_RUNTIME="$T/userrun" run --check && grep -q "^✓ systemd user session" "$T/out" && grep -qx "$T/userrun unix:path=$T/userrun/bus" "$HOME/systemctl.env" && ! grep -q "$T/nested" "$HOME/systemctl.env"'
+expect "and installs through it" \
+  ': > "$HOME/systemctl.env" && XDG_RUNTIME_DIR="$T/nested" POLYKEY_USER_RUNTIME="$T/userrun" run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ "$(grep -c "^$T/userrun " "$HOME/systemctl.env")" = "$(wc -l < "$HOME/systemctl.env")" ]'
+expect "with a user manager in its own runtime dir, systemctl --user is left as it is" \
+  ': > "$HOME/systemctl.env" && XDG_RUNTIME_DIR="$T/own" POLYKEY_USER_RUNTIME="$T/userrun" run --check && grep -q "^$T/own " "$HOME/systemctl.env" && ! grep -q "$T/userrun" "$HOME/systemctl.env"'
 
 expect "--uninstall removes polykey, keeps settings and models" \
   'run --uninstall && [ "$(ls -A "$DATA")" = speech ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'

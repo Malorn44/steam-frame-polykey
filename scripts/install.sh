@@ -30,8 +30,21 @@ PY="${POLYKEY_PYTHON:-/usr/bin/python3}"  # the unit's interpreter (the variable
 DEBUGGER="http://127.0.0.1:8080/json/version"
 PROC_NET="${POLYKEY_PROC_NET:-/proc/net}"  # where the tcp and tcp6 socket tables are (for tests)
 PORTFORWARD=steam-web-debug-portforward.service  # SteamOS's: it forwards 0.0.0.0:8081 to the debugger
+USER_RUNTIME="${POLYKEY_USER_RUNTIME:-/run/user/$(id -u)}"  # the user's own systemd runtime dir (for tests)
 
 say() { printf '%s\n' "$*"; }
+
+# systemctl --user, against the user's own systemd. Desktop Mode on the Frame is a nested Plasma
+# session: its XDG_RUNTIME_DIR (/run/user/<uid>/nested_plasma) and session bus aren't the user
+# manager's, so a plain `systemctl --user` in its Konsole finds no manager. When the runtime dir we
+# were given has no user manager and the user's own one has, talk to that one.
+userctl() {
+  if [ ! -S "${XDG_RUNTIME_DIR:-/nonexistent}/systemd/private" ] && [ -S "$USER_RUNTIME/systemd/private" ]; then
+    XDG_RUNTIME_DIR="$USER_RUNTIME" DBUS_SESSION_BUS_ADDRESS="unix:path=$USER_RUNTIME/bus" systemctl --user "$@"
+  else
+    systemctl --user "$@"
+  fi
+}
 die() { say "✗ $*" >&2; exit 1; }
 
 # Nothing runs until the last line calls main, so a download cut short (curl … | sh) does nothing.
@@ -67,7 +80,7 @@ check() {
   else
     say "✗ python3 3.10.12 or newer with aiohttp at $PY: missing. SteamOS ships both."; ok=0
   fi
-  if systemctl --user show-environment >/dev/null 2>&1; then
+  if userctl show-environment >/dev/null 2>&1; then
     say "✓ systemd user session"
   else
     say "✗ systemd user session: not reachable. Run this from your desktop session (Konsole)."; ok=0
@@ -118,7 +131,7 @@ sys.exit(1)' "$PROC_NET" 2>/dev/null; then
     say "  sudo systemctl mask --now $PORTFORWARD"
     say "  (to undo that: sudo systemctl unmask --now $PORTFORWARD)"
   fi
-  if systemctl --user is-active --quiet frame-jp-keyboard 2>/dev/null; then
+  if userctl is-active --quiet frame-jp-keyboard 2>/dev/null; then
     say "! frame-jp-keyboard is running: polykey stays out of the way while it is. To switch, stop it with"
     say "  systemctl --user disable --now frame-jp-keyboard"
   fi
@@ -163,10 +176,10 @@ EOF
 }
 
 restart() {
-  systemctl --user daemon-reload
-  systemctl --user restart "$APP"
+  userctl daemon-reload
+  userctl restart "$APP"
   sleep 2
-  if systemctl --user is-active --quiet "$APP"; then
+  if userctl is-active --quiet "$APP"; then
     say "✓ polykey is running; it starts with your session from now on"
   else
     say "! the service did not stay up; see: journalctl --user -u $APP -n 30"
@@ -185,9 +198,9 @@ rollback() {
 
 uninstall() {
   say "→ stopping polykey (Steam's own keyboard comes back)"
-  systemctl --user disable --now "$APP" >/dev/null 2>&1 || true
+  userctl disable --now "$APP" >/dev/null 2>&1 || true
   rm -f "${UNIT_DIR:?}/${APP:?}.service"
-  systemctl --user daemon-reload 2>/dev/null || true
+  userctl daemon-reload 2>/dev/null || true
   if [ "$purge" = 1 ]; then
     rm -rf "${DATA:?}" "${CONFIG:?}"
     say "✓ removed polykey, its settings and dictation models"
@@ -220,8 +233,8 @@ install() {
   version=$("$PY" -I -B "$1" unpack "$tarball" --root "$DATA" ${version:+--version "$version"}) || die "could not install polykey"
   mkdir -p "$UNIT_DIR"
   cp "$DATA/versions/$version/polykey.service" "$UNIT_DIR/$APP.service"
-  systemctl --user daemon-reload
-  systemctl --user enable "$APP" >/dev/null 2>&1 || say "! could not enable $APP at login"
+  userctl daemon-reload
+  userctl enable "$APP" >/dev/null 2>&1 || say "! could not enable $APP at login"
   say "✓ polykey $version installed in $DATA/versions/$version"
   restart
   say "  Open any text field: the keyboard is polykey's. Settings: the ⚙ key on its toolbar."
