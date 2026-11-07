@@ -59,11 +59,23 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    GitHub: Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate
    new token, with access to only `Malorn44/steam-frame-polykey` and the repository permissions
    **Contents: read and write** and **Pull requests: read and write** (Metadata: read comes with
-   them). Add it to the repo as the Actions secret `RELEASE_PLEASE_TOKEN` (Settings → Secrets and
-   variables → Actions). Only the `release` job sees it, and that job runs nothing but
-   release-please. Until the secret is set, that job skips with a notice saying so, and no release PR
-   opens. Once the token expires, the job fails on every push to main until you put a new token in
-   the secret.
+   them). Keep it in an environment only main can use, not as a repository secret: a workflow run
+   from any branch of this repo, a PR's included, can read a repository secret.
+   - **The `release-please` environment** (Settings → Environments → New environment). First set
+     **Deployment branches and tags:** selected branches, `main` only, and add no reviewer: the
+     `release` job uses it on every push to main, and each shows as a deployment. If a run on main
+     already created the environment, it has no branch rule yet, so set one before the secret.
+   - **Its environment secret `RELEASE_PLEASE_TOKEN`:** the token, pasted when asked:
+
+     ```sh
+     gh secret set RELEASE_PLEASE_TOKEN --env release-please --repo Malorn44/steam-frame-polykey
+     ```
+
+   On this plan, both need the repo public (step 2). Only the `release` job names the environment,
+   and it runs nothing but release-please and checks with gh and git. A workflow on another branch
+   that names the environment is refused it, so it never gets the token. Until the secret is set,
+   `release` skips with a notice saying so, and no release PR opens. Once the token expires, the job
+   fails on every push to main until you put a new token in the secret.
 
 ## Each release
 
