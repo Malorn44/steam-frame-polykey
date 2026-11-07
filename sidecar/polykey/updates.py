@@ -371,14 +371,16 @@ class Updater:
                     raise UpdateError(download.error or "network")
                 self._set("installing")
                 try:
-                    await loop.run_in_executor(None, self.versions.unpack, download.path, version)
+                    install = functools.partial(self.versions.install, download.path, version, running=self.version)
+                    await loop.run_in_executor(None, install)
                 finally:
                     with contextlib.suppress(OSError):
                         download.path.unlink()
             else:
                 self._set("installing")
+                activate = functools.partial(self.versions.activate, version, running=self.version)
+                await loop.run_in_executor(None, activate)
             self._update_unit(version)
-            await loop.run_in_executor(None, functools.partial(self.versions.activate, version, running=self.version))
         except (UpdateError, VersionError) as error:
             self._note(f"install of {version} failed: {error.code}")
             self._set("idle", error.code)

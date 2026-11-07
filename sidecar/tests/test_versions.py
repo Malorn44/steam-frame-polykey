@@ -84,24 +84,24 @@ def add_member(tarball: Path, member: tarfile.TarInfo) -> None:
         tar.addfile(member)
 
 
-def test_unpack_installs_a_release_into_its_own_folder(versions, tmp_path):
+def test_install_unpacks_a_release_into_its_own_folder_and_makes_it_current(versions, tmp_path):
     tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
     odd = tarfile.TarInfo("polykey-0.1.0/odd")
     odd.mode = 0o6777
     add_member(tarball, odd)
-    folder = versions.unpack(tarball, "0.1.0")
-    assert folder == versions.versions / "0.1.0"
+    assert versions.install(tarball) == "0.1.0"
+    folder = versions.versions / "0.1.0"
     assert (folder / "VERSION").read_text() == "0.1.0\n"
     assert os.access(folder / "install.sh", os.X_OK) and not os.access(folder / "bundle.js", os.X_OK)
     assert (folder / "odd").stat().st_mode & 0o7777 == 0o755  # the data filter's modes
-    assert versions.installed() == ["0.1.0"]
-    assert not (versions.versions / "0.1.0.new").exists()
+    assert versions.current() == "0.1.0" and os.listdir(versions.versions) == ["0.1.0"]
 
 
 @pytest.mark.parametrize(
-    "bad", ["link", "dotdot", "absolute", "top", "two-tops", "version", "no-sidecar", "not-gzip", "too-much"]
+    "bad",
+    ["link", "dotdot", "absolute", "top", "not-a-release", "two-tops", "version", "no-sidecar", "not-gzip", "too-much"],
 )
-def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
+def test_install_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
     tarball = tmp_path / "bad.tar.gz"
     if bad == "link":
         link = tarfile.TarInfo("polykey-0.1.0/evil")
@@ -113,6 +113,8 @@ def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versio
         make_tarball(tarball, "0.1.0", top="/tmp/polykey-0.1.0")
     elif bad == "top":
         make_tarball(tarball, "0.1.0", top="something-else")
+    elif bad == "not-a-release":  # its folder name is no version: it would land outside versions/
+        make_tarball(tarball, "..")
     elif bad == "two-tops":
         add_member(make_tarball(tarball, "0.1.0"), tarfile.TarInfo("polykey-0.2.0/VERSION"))
     elif bad == "version":
@@ -128,34 +130,28 @@ def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versio
     else:
         tarball.write_bytes(b"not a tarball")
     with pytest.raises(VersionError) as error:
-        versions.unpack(tarball, "0.1.0")
+        versions.install(tarball)
     assert error.value.code == "bad-archive"
-    assert versions.installed() == []
-    assert not (versions.versions / "0.1.0.new").exists()
+    assert versions.current() is None and os.listdir(versions.versions) == []
     assert not (tmp_path / "escape").exists()
 
 
-def test_unpack_refuses_a_version_that_is_not_a_release(versions, tmp_path):
+def test_install_refuses_a_tarball_of_another_release_than_asked_for(versions, tmp_path):
     with pytest.raises(VersionError) as error:
-        versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "../0.1.0")
-    assert error.value.code == "bad-version"
+        versions.install(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.2.0")
+    assert error.value.code == "bad-archive"
+    assert versions.current() is None and os.listdir(versions.versions) == []
 
 
-def test_unpacking_the_running_release_again_leaves_it_alone(versions, tmp_path):
-    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
-    versions.activate("0.1.0")
-    marker = versions.versions / "0.1.0" / "speech-in-use"
-    marker.write_text("x")
-    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
-    assert marker.exists() and not (versions.versions / "0.1.0.new").exists()
-
-
-def test_unpacking_a_release_that_is_not_current_replaces_it(versions, tmp_path):
-    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+def test_installing_a_release_again_repairs_it(versions, tmp_path):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    versions.install(tarball)
     (versions.versions / "0.1.0" / "left-over").write_text("x")
-    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
+    (versions.versions / "0.1.0" / "bundle.js").unlink()
+    versions.install(tarball)
+    assert (versions.versions / "0.1.0" / "bundle.js").exists()
     assert not (versions.versions / "0.1.0" / "left-over").exists()
-    assert versions.installed() == ["0.1.0"]
+    assert versions.current() == "0.1.0" and versions.previous() is None
 
 
 def test_activate_points_current_at_the_release_and_remembers_the_one_before(versions):
@@ -267,7 +263,7 @@ def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, 
         writes = (
             lambda: versions.activate("0.1.0"),
             versions.rollback,
-            lambda: versions.unpack(tarball, "0.3.0"),
+            lambda: versions.install(tarball),
         )
         for write in writes:
             with pytest.raises(VersionError) as error:
@@ -398,9 +394,7 @@ def test_the_service_falls_back_from_a_release_that_cannot_start(tmp_path, broke
     }
     versions = Versions(tmp_path / "polykey")
     for v, main in (("0.1.0", "def main():\n    pass\n"), ("0.2.0", broken)):
-        tarball = make_tarball(tmp_path / f"{v}.tar.gz", v, {**real, "sidecar/polykey/__main__.py": main})
-        versions.unpack(tarball, v)
-        versions.activate(v)
+        versions.install(make_tarball(tmp_path / f"{v}.tar.gz", v, {**real, "sidecar/polykey/__main__.py": main}))
     run_py = versions.link / "sidecar" / "run.py"
     result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True)
     assert result.returncode != 0 and "went back to 0.1.0" in result.stderr
