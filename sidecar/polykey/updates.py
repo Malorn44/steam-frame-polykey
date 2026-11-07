@@ -50,8 +50,7 @@ GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirec
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
 INTERVAL = 3600.0
-MAX_MANIFEST = 64 << 10
-MAX_SIGNATURE = 16 << 10
+MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
 MAX_REDIRECTS = 5
 MAX_WAIT = 30.0
@@ -337,8 +336,8 @@ class Updater:
         timeout = aiohttp.ClientTimeout(total=60, connect=15)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as http:
-                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_MANIFEST)
-                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SIGNATURE)
+                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_SMALL)
+                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
             self.latest = parse_manifest(manifest, hosts, schemes)
         except UpdateError as error:
