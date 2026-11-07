@@ -4,13 +4,7 @@
 #
 #   bash tests/install/test-install.sh     (npm run test:install; CI runs it on every push)
 #
-# Covers --check, a first install, running it again, an update, --rollback, a manifest not signed by
-# the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, waiting
-# for the updater's lock, the layout from before releases, --uninstall and --uninstall --purge; what
-# release.sh makes: the same tarball from the same commit, what the tarball carries, and latest.json;
-# and sign-release.sh, which signs every release here (with the throwaway key, never
-# ~/.ssh/polykey-release), makes keys with --init and --init --add (in the throwaway folder), and
-# compares tarballs.
+# sign-release.sh uses throwaway keys (and --init a throwaway HOME), never ~/.ssh/polykey-release.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
