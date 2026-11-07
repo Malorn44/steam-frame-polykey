@@ -15,6 +15,7 @@ import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
 import { KEYBOARDS_CSS, buildKeyboardsPage, inlineIcon, pageColumn, type KeyboardsHandlers, type KeyboardsInfo } from './keyboards-page.js';
 import { DICTATION_CSS, buildDictationPage, type DictationHandlers, type DictationInfo, type DictationPage } from './dictation-page.js';
+import { INFO_CSS } from './info.js';
 import type { SpeechStatus } from '../core/dictation.js';
 import { updateSummary, type UpdateAction, type UpdateStatus } from '../updates.js';
 
@@ -128,7 +129,7 @@ export const createSettingsView = (
   { onTab, onChange, onOption, onStock, onClose, onUpdate, onLanguage, onKeyboards, ...speech }: SettingsHandlers,
 ): SettingsView => {
   const style = doc.createElement('style');
-  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS;
+  style.textContent = CSS + KEYBOARDS_CSS + THEME_PICKER_CSS + DICTATION_CSS + INFO_CSS;
   const root = doc.createElement('div');
   root.className = 'panel';
   root.style.cssText = themeVars(theme) + sizeVars('normal');
