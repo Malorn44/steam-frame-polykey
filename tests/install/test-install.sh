@@ -4,7 +4,6 @@
 #
 #   bash tests/install/test-install.sh     (npm run test:install; CI runs it on every push)
 #
-# sign-release.sh uses throwaway keys (and --init a throwaway HOME), never ~/.ssh/polykey-release.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -36,8 +35,9 @@ release() {  # release VERSION DIR: build, sign and serve a release under /DIR
   cp -R dist/release "$T/serve/$2"
   sign "$T/serve/$2"
 }
-sign() {  # sign DIR: DIR/latest.json.sig, through sign-release.sh with the throwaway key
-  POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --local "$1" >/dev/null
+sign() {  # sign DIR: DIR/latest.json.sig, with the throwaway key
+  rm -f "$1/latest.json.sig"
+  ssh-keygen -q -Y sign -f "$T/key" -n polykey-release "$1/latest.json"
 }
 echo "building releases"
 release 0.1.0 r1
@@ -63,55 +63,6 @@ tarball_sha=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
 expect "latest.json names the release, its URL, size and sha256, and the sha256 of install.sh" \
   '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"version\": \"0.1.0\", \"url\": sys.argv[2], \"size\": int(sys.argv[3]), \"sha256\": sys.argv[4], \"installer\": sys.argv[5]})" "$T/serve/r1/latest.json" "http://127.0.0.1:$port/r1/polykey-0.1.0.tar.gz" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha" "$installer_sha"'
 
-echo "sign-release.sh"
-verify() { ssh-keygen -Y verify -f "$T/allowed_signers" -I polykey-release -n polykey-release -s "$1.sig" < "$1" >/dev/null 2>&1; }
-expect "--local signs latest.json with the key allowed_signers names" 'verify "$T/serve/r1/latest.json"'
-ssh-keygen -q -t ed25519 -N '' -C polykey-test -f "$T/other-key"
-cp -R "$T/serve/r1" "$T/other"
-expect "--local refuses a key allowed_signers does not name, and leaves no signature" \
-  '! POLYKEY_RELEASE_KEY="$T/other-key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --local "$T/other" > "$T/out" 2>&1 && grep -q "does not check out" "$T/out" && [ ! -e "$T/other/latest.json.sig" ]'
-cp "$T/allowed_signers" "$T/signers-before"
-expect "--init will not replace a key, and leaves allowed_signers as it was" \
-  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" scripts/sign-release.sh --init > "$T/out" 2>&1 && grep -q "already exists" "$T/out" && cmp -s "$T/allowed_signers" "$T/signers-before"'
-cp contrib/allowed_signers "$T/init-signers"
-expect "--init makes a key with no passphrase in a private folder, and adds its public half to allowed_signers" \
-  'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && ssh-keygen -y -P "" -f "$T/init/key" >/dev/null && [ "$(stat -c %a "$T/init")" = 700 ] && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init/key.pub")" ] && cmp -s <(head -n -1 "$T/init-signers") contrib/allowed_signers'
-expect "and says how to store it as the release environment's secret, without printing the key" \
-  'grep -qF "gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < $T/init/key" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init/key")" "$T/out"'
-expect "and says to back up a copy with a passphrase, then delete the plain key" \
-  'grep -qxF "       cp $T/init/key $T/init/key.backup" "$T/out" && grep -qxF "       ssh-keygen -p -f $T/init/key.backup" "$T/out" && grep -qxF "       rm $T/init/key" "$T/out" && ! grep -q "if you like" "$T/out"'
-cp -R "$T/serve/r1" "$T/init-release"
-expect "--local signs with that key, asking for nothing" \
-  'POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --local "$T/init-release" > /dev/null < /dev/null && ssh-keygen -Y verify -f "$T/init-signers" -I polykey-release -n polykey-release -s "$T/init-release/latest.json.sig" < "$T/init-release/latest.json" >/dev/null 2>&1'
-cp "$T/init-signers" "$T/init-signers-before"
-expect "a second --init, with no key file at its path, refuses while allowed_signers holds a key, and changes nothing" \
-  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && grep -q "already holds a release key" "$T/out" && grep -qF "To change keys" "$T/out" && grep -qF -- "--init --add" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
-expect "--init takes nothing after it but --add" \
-  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --addd > "$T/out" 2>&1 < /dev/null && grep -q "usage: scripts/sign-release.sh --init \[--add\]" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before" && [ ! -e "$T/init2" ]'
-expect "--init --add still will not replace a key" \
-  '! HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && grep -q "already exists" "$T/out" && cmp -s "$T/init-signers" "$T/init-signers-before"'
-expect "--init --add makes a second key, appends exactly its line, and says the old key signs the next release" \
-  'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init2/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init --add > "$T/out" 2>&1 < /dev/null && cmp -s <(head -n -1 "$T/init-signers") "$T/init-signers-before" && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init2/key.pub")" ] && grep -q "Once Frames have that release" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init2/key")" "$T/out"'
-mkdir "$T/repack"
-tar -xzf "$T/serve/r1/polykey-0.1.0.tar.gz" -C "$T/repack"
-tar -C "$T/repack" -cf - polykey-0.1.0 | gzip -1 > "$T/repacked.tar.gz"
-expect "--compare: the same files compressed differently are the same release" \
-  'scripts/sign-release.sh --compare "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/repacked.tar.gz" >/dev/null'
-expect "--compare: another release differs" \
-  '! scripts/sign-release.sh --compare "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/serve/r2/polykey-0.2.0.tar.gz" >/dev/null 2>&1'
-cp -R "$T/repack" "$T/modes"
-chmod go+w "$T/modes/polykey-0.1.0/LICENSE"
-tar -C "$T/modes" -cf - polykey-0.1.0 | gzip > "$T/modes.tar.gz"
-expect "--compare: the same files with a mode changed differ" \
-  '! scripts/sign-release.sh --compare "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/modes.tar.gz" > "$T/out" 2>&1 && grep -q "LICENSE f 666" "$T/out"'
-cp -R "$T/repack" "$T/linked"
-ln -s LICENSE "$T/linked/polykey-0.1.0/LICENCE"
-tar -C "$T/linked" -cf - polykey-0.1.0 | gzip > "$T/linked.tar.gz"
-expect "--compare refuses a tarball holding a link, before unpacking it" \
-  '! scripts/sign-release.sh --compare "$T/repacked.tar.gz" "$T/linked.tar.gz" > "$T/out" 2>&1 && grep -q "not a tarball of directories and files only" "$T/out"'
-expect "--compare and --local take paths from where they are run" \
-  '(cd "$T" && "$REPO/scripts/sign-release.sh" --compare serve/r1/polykey-0.1.0.tar.gz repacked.tar.gz >/dev/null && POLYKEY_RELEASE_KEY="$T/key" POLYKEY_ALLOWED_SIGNERS="$T/allowed_signers" "$REPO/scripts/sign-release.sh" --local other >/dev/null) && verify "$T/other/latest.json"'
-expect "a release tag is refused: CI signs drafts" '! scripts/sign-release.sh v0.1.0 > "$T/out" 2>&1 && grep -q "unknown: v0.1.0" "$T/out"'
 (cd "$T/serve" && exec "$PYTHON" -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
 server=$!
 for _ in $(seq 50); do curl -fs "http://127.0.0.1:$port/" >/dev/null 2>&1 && break; sleep 0.1; done

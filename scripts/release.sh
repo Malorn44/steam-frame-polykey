@@ -13,7 +13,8 @@
 #
 # The version comes from the release tag (release-please picks it from the commits). latest.json.sig,
 # the signature the updater and install.sh check, is made afterwards: by CI once you approve the
-# release, or by scripts/sign-release.sh --local for a release served from this PC.
+# release, or for a release served from this PC by
+#   ssh-keygen -Y sign -f <key> -n polykey-release dist/release/latest.json
 # POLYKEY_ALLOWED_SIGNERS names another key file than contrib/allowed_signers (the installer tests
 # use a throwaway key).
 set -euo pipefail
@@ -28,7 +29,7 @@ base=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a URL}"; base="${base%/}"; shift 2 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) version="$1"; shift ;;
   esac
@@ -38,7 +39,7 @@ if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-
   exit 2
 fi
 if ! grep -q '^polykey-release .*ssh-ed25519 ' "$SIGNERS"; then
-  echo "✗ no release key in $SIGNERS: run scripts/sign-release.sh --init first" >&2
+  echo "✗ no release key in $SIGNERS (contrib/allowed_signers says how to add one)" >&2
   exit 1
 fi
 
