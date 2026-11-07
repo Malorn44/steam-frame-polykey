@@ -6,20 +6,6 @@ An on-screen keyboard for the Valve Steam Frame, with English and Japanese keybo
 
 ![polykey's English keyboard, with its toolbar, number row, Fn keys and arrows, above the Japanese 12-key flick keyboard with flick hints and its candidate panel on the left, both in the Steam theme](docs/images/keyboards.png)
 
-## Features
-
-- **[English and Japanese keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows, and Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy.
-- **[Word suggestions](docs/KEYBOARDS.md#english)** as you type, with spelling corrections (teh → the).
-- **[Swipe typing](docs/KEYBOARDS.md#swipe-typing):** hold the trigger and trace a word. Turn it on per keyboard in settings.
-- **[Offline dictation](docs/DICTATION.md):** speech is recognized on the Frame's own CPU, and no audio leaves it. Off until you turn it on.
-- **[Emoji and Steam emoticons](docs/KEYBOARDS.md#emoji):** recent, favorites and skin tones, and your Steam emoticons, stickers and room effects.
-- **[A toolbar](docs/KEYBOARDS.md#toolbar)** with copy, cut, paste, the context menu, emoji, dictation and settings.
-- **Themes:** 17 of them: Steam's own colours, and 16 from editor colour schemes such as Catppuccin, Solarized, Nord and Dracula.
-- **[Your own layouts, keyboards and themes](docs/PACKS.md)** as JSON packs.
-- **Signed updates that install themselves:** polykey installs a new release only when it is signed with the release key.
-
-![The English keyboard in six of polykey's themes: Catppuccin Mocha, Dracula and gruvbox light on top, and Nord, Rosé Pine Dawn and Tokyo Night below](docs/images/themes.png)
-
 ## Install
 
 In Desktop Mode, open Konsole and run:
@@ -56,6 +42,20 @@ curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/downl
 ```
 
 If a rollback can't run, go back by hand: download an earlier release's `polykey-X.Y.Z.tar.gz` from [Releases](https://github.com/Malorn44/steam-frame-polykey/releases) and install it with `--tarball polykey-X.Y.Z.tar.gz`. `--tarball` trusts the file you give it, so take it from there.
+
+## Features
+
+- **[English and Japanese keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows, and Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy.
+- **[Word suggestions](docs/KEYBOARDS.md#english)** as you type, with spelling corrections (teh → the).
+- **[Swipe typing](docs/KEYBOARDS.md#swipe-typing):** hold the trigger and trace a word. Turn it on per keyboard in settings.
+- **[Offline dictation](docs/DICTATION.md):** speech is recognized on the Frame's own CPU, and no audio leaves it. Off until you turn it on.
+- **[Emoji and Steam emoticons](docs/KEYBOARDS.md#emoji):** recent, favorites and skin tones, and your Steam emoticons, stickers and room effects.
+- **[A toolbar](docs/KEYBOARDS.md#toolbar)** with copy, cut, paste, the context menu, emoji, dictation and settings.
+- **Themes:** 17 of them: Steam's own colours, and 16 from editor colour schemes such as Catppuccin, Solarized, Nord and Dracula.
+- **[Your own layouts, keyboards and themes](docs/PACKS.md)** as JSON packs.
+- **Signed updates that install themselves:** polykey installs a new release only when it is signed with the release key.
+
+![The English keyboard in six of polykey's themes: Catppuccin Mocha, Dracula and gruvbox light on top, and Nord, Rosé Pine Dawn and Tokyo Night below](docs/images/themes.png)
 
 ## More
 
