@@ -14,7 +14,7 @@ Only replies reach the sidecar: native code that prints gets /dev/null on file d
 go to a copy of it), and stderr is /dev/null too. No audio or text is ever written anywhere else.
 
     python3 -I worker.py ENGINE_DIR MODEL THREADS --check FILE.wav
-prints the text of a 16 kHz mono 16-bit WAV and how long it took (README, Dictation).
+prints the text of a 16 kHz mono 16-bit WAV and how long it took (docs/DICTATION.md, "Check the engine").
 """
 
 import array

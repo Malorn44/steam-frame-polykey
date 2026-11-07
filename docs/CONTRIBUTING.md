@@ -4,12 +4,12 @@ Thanks for helping. Bug reports, packs (layouts, keyboards, themes) and fixes ar
 
 ## Set up and check
 
-You need Node 24 and Python 3.12 (the Frame's Python). Set up as the README's
-[Develop](../README.md#develop-wsl) section shows. `npm run check` runs lint (ESLint, ruff, shellcheck,
-actionlint), typecheck, vitest, pytest and the build.
+You need Node 24 and Python 3.12 (the Frame's Python). Set up as [DEVELOP.md](DEVELOP.md#set-up-wsl)
+shows. `npm run check` runs lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest and
+the build.
 
 `npm run check` must pass before you open a PR; CI runs the same check. To try a change on a Frame,
-see the README's [Deploy to the Frame](../README.md#deploy-to-the-frame).
+see [Deploy to the Frame](DEVELOP.md#deploy-to-the-frame) in DEVELOP.md.
 
 ## Pull requests
 
@@ -32,7 +32,7 @@ A keyboard sees everything its user types, so a PR that breaks one of these won'
 - **Dictation never logs text or audio**, and never writes either to disk.
 - **The debugger stays localhost only**: the sidecar talks to Steam's debugger on 127.0.0.1 and refuses
   any other host, and nothing exposes it to the network. Reach it from another machine through an SSH
-  tunnel, as the [README](../README.md#deploy-to-the-frame) shows.
+  tunnel, as [DEVELOP.md](DEVELOP.md#debug) shows.
 
 ## Licence
 
