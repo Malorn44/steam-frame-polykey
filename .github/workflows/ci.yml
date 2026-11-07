@@ -140,7 +140,7 @@ jobs:
         env:
           PYTHONPATH: sidecar
         run: |
-          python3 -m polykey.packs packs schema/pack.schema.json > "$RUNNER_TEMP/boot.json"
+          python3 -m polykey.packs packs packs/pack.schema.json > "$RUNNER_TEMP/boot.json"
           ids=$(python3 -c 'import json, sys; print(json.dumps(sorted(json.load(sys.stdin)["catalog"]["layouts"])))' < "$RUNNER_TEMP/boot.json")
           echo "layouts: $ids"
           echo "ids=$ids" >> "$GITHUB_OUTPUT"

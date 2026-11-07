@@ -1,7 +1,7 @@
 """Load and validate packs (layouts, keyboards, themes) and the user's settings.
 
 Bundled packs come first; a user pack in ~/.config/polykey/packs/ replaces the bundled item with the
-same id. Files are validated against schema/pack.schema.json with a small stdlib validator for the
+same id. Files are validated against packs/pack.schema.json with a small stdlib validator for the
 subset of JSON Schema that file uses. Bad files are skipped and reported, never fatal.
 """
 

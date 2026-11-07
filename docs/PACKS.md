@@ -20,7 +20,7 @@ A file with a mistake is skipped, never fatal. Its error shows at the foot of th
 
 ## Kinds
 
-Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`schema/pack.schema.json`](../schema/pack.schema.json) describes every field.
+Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema.json`](../packs/pack.schema.json) describes every field.
 
 - **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme.
 - **layout:** the keys, row by row, and the toolbar above them. A layout can `extends` another and replace only some of its rows.

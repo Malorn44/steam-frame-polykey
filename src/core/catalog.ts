@@ -1,5 +1,5 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
-// schema/pack.schema.json, which the sidecar has already validated.
+// packs/pack.schema.json, which the sidecar has already validated.
 
 import type { EmojiData, EmojiState } from './emoji.js';
 import type { NamedKey } from './keycodes.js';

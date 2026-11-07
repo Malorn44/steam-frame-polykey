@@ -16,7 +16,7 @@ import pytest
 from polykey import packs
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMA = REPO / "schema" / "pack.schema.json"
+SCHEMA = REPO / "packs" / "pack.schema.json"
 BUNDLED = REPO / "packs"
 # A full keyboard (one with Ctrl) is as wide as en/qwerty, in key units.
 FULL_KEYBOARD_UNITS = 15

@@ -8,7 +8,7 @@ from polykey import packs
 from polykey.injector import Config, Log, boot_script
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMA = REPO / "schema" / "pack.schema.json"
+SCHEMA = REPO / "packs" / "pack.schema.json"
 BUNDLED = REPO / "packs"
 
 

@@ -47,7 +47,7 @@ src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
                 dictation.ts, updates.ts: the page side of dictation and of the updater
 src/ui/         the keyboard as DOM
-packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
+packs/          bundled layouts, keyboards, themes; pack.schema.json, their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
