@@ -31,10 +31,19 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
    git push -u origin HEAD && gh pr create --fill
    ```
 
-   Keep an offline backup of `~/.ssh/polykey-release` somewhere safe: it has no passphrase, and
-   GitHub never gives a secret back. Installed releases trust only the keys they shipped with; lose
-   every copy and they can no longer update (see [The key](#the-key)). Merge this before the first
-   release PR: a tag without the key gets a draft with no files, and CI only says why.
+   Then back the key up, encrypted. The key itself has to stay without a passphrase for the secret,
+   so copy it and give only the copy one. Move that copy offline, and keep its passphrase in your
+   password manager:
+
+   ```sh
+   cp ~/.ssh/polykey-release ~/.ssh/polykey-release.backup
+   ssh-keygen -p -f ~/.ssh/polykey-release.backup
+   ```
+
+   Don't skip the backup. GitHub never gives a secret back, and installed releases trust only the
+   keys they shipped with, so without it a lost key means every user reinstalls by hand (see
+   [The key](#the-key)). Merge the PR before the first release PR: a tag without the key gets a
+   draft with no files, and CI only says why.
 
 2. **Make the repo public**, before the first release PR is merged. On this plan, an environment
    can require an approval (step 3) only in a public repo. GitHub also serves a private repo's
@@ -51,8 +60,9 @@ Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
      ```
 
    `release:sign` checks that the repo is public and the environment requires a reviewer, and signs
-   nothing otherwise. Once the key is backed up and stored here, you can delete it from this PC;
-   `--local` (below) then needs a throwaway key.
+   nothing otherwise. Once the secret is set, delete the plain key from this PC
+   (`rm ~/.ssh/polykey-release`), so only the secret and your encrypted backup hold it. `--local`
+   (below) then needs a throwaway key.
 
 4. **The token.** release-please acts with a fine-grained personal access token, so CI runs on its
    release PR (whatever the Actions token does starts no workflow, and `ci ok` is required). On
@@ -169,12 +179,13 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
 
 ## The key
 
-- `RELEASE_SIGNING_KEY` (ed25519, no passphrase; your offline backup is the only other copy) signs
-  `latest.json`. Installers and updaters check it with `ssh-keygen -Y verify` against the
-  `allowed_signers` they shipped with.
+- `RELEASE_SIGNING_KEY` (ed25519, no passphrase; your encrypted offline backup is the only other
+  copy) signs `latest.json`. Installers and updaters check it with `ssh-keygen -Y verify` against
+  the `allowed_signers` they shipped with.
 - **To change keys:**
   1. Make the new one with `POLYKEY_RELEASE_KEY=~/.ssh/polykey-release-2 scripts/sign-release.sh --init`,
-     which adds its line to `contrib/allowed_signers` beside the old one.
+     which adds its line to `contrib/allowed_signers` beside the old one, and back it up encrypted
+     as in [Once](#once), step 1.
   2. Merge that and release it. The secret still holds the old key, so the old key signs it.
   3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY`, drop the old line,
      and release again.
@@ -182,6 +193,18 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   `release:sign` also checks each signature against the latest published release's
   `allowed_signers`, so a new key stored before step 2's release is published is refused there, not
   by every Frame. It can't tell whether Frames have updated, so still wait for that.
+- **If the secret is lost** (replaced or deleted), restore it from your backup. Work on a copy, so
+  the backup keeps its passphrase. `ssh-keygen -p -N ''` asks for that passphrase and leaves the
+  copy without one, as the secret needs:
+
+  ```sh
+  cp /path/to/polykey-release.backup ~/.ssh/polykey-release
+  ssh-keygen -p -N '' -f ~/.ssh/polykey-release
+  gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < ~/.ssh/polykey-release
+  rm ~/.ssh/polykey-release
+  ```
+
+  It is the same key, so installed releases notice nothing.
 - **If the key is lost** (the secret replaced or deleted, and no backup), installed releases cannot
   verify anything newer. Make a new key (`--init`), replace the old line in `allowed_signers` with
   it, and store it in `RELEASE_SIGNING_KEY`. `release:sign` then refuses to publish, because the
@@ -193,9 +216,9 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
 ## Trying a release from this PC
 
 To walk an install, update and rollback on the Frame without GitHub, serve a release over the LAN.
-`sign-release.sh --local` signs with `~/.ssh/polykey-release`. If you deleted it from this PC, use a
-throwaway key instead: a Frame installed this way then trusts only that key, so reinstall it with
-the one-line installer afterwards.
+`sign-release.sh --local` signs with `~/.ssh/polykey-release`. Once you have deleted that from this
+PC ([Once](#once), step 3), use a throwaway key instead: a Frame installed this way then trusts only
+that key, so reinstall it with the one-line installer afterwards.
 
 ```sh
 # only without the release key here: a throwaway key, and the allowed_signers that trusts it
