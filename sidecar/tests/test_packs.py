@@ -32,6 +32,25 @@ def test_bundled_packs_are_valid(tmp_path):
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
 
+def test_a_key_twice_in_one_object_is_refused(tmp_path):
+    user = tmp_path / "config"
+    (user / "packs" / "mine").mkdir(parents=True)
+    (user / "packs" / "mine" / "t.json").write_text(
+        '{"kind": "theme", "id": "mine/t", "name": "T", "name": "U", "colors": {}}', encoding="utf-8")
+    boot = packs.load(BUNDLED, SCHEMA, user)
+    assert boot["errors"] == ['mine/t.json: "name" appears twice in one object']
+    assert "mine/t" not in boot["catalog"]["themes"]
+
+
+def test_every_json_file_in_the_repo_parses_with_no_key_twice():
+    root = REPO
+    skip = {"node_modules", "dist", ".venv", "reference", "local", ".git"}
+    files = [p for p in root.rglob("*.json") if not skip & set(p.relative_to(root).parts)]
+    assert len(files) > 30
+    for path in files:
+        packs.read_json(path.read_text(encoding="utf-8"))  # raises on bad JSON or a key twice
+
+
 def test_every_bundled_layout_row_is_15_units(tmp_path):
     layout = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["en/qwerty"]
     widths = [sum(k.get("w", 1) if isinstance(k, dict) else 1 for k in row) for row in layout["rows"]]
