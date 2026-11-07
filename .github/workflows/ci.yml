@@ -576,7 +576,7 @@ jobs:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
           if [ -z "$RELEASE_SIGNING_KEY" ]; then
-            echo "::error::No RELEASE_SIGNING_KEY secret in the release environment (scripts/sign-release.sh --init)"
+            echo "::error::No RELEASE_SIGNING_KEY secret in the release environment: store the release key there, or restore it from your backup (docs/RELEASING.md#the-key)"
             exit 1
           fi
           umask 077
