@@ -82,10 +82,14 @@ export const updateSummary = (s: UpdateStatus | null): { text: string; actions: 
   if (s.state === 'installing') return { text: `Installing ${s.latest ?? 'the update'}…`, actions: [] };
   if (s.state === 'restarting') return { text: 'Restarting polykey…', actions: [] };
   // Restart now asks for the waiting release by name, which the sidecar takes as "restart at once".
+  // Going back here goes to the release still running: it stays, and the wait ends without a restart.
   if (s.state === 'installed') {
     return {
       text: `${s.latest ?? 'The update'} is installed; it starts when the keyboard closes`,
-      actions: [...(s.latest ? [{ action: 'install' as const, label: 'Restart now' }] : []), ...back],
+      actions: [
+        ...(s.latest ? [{ action: 'install' as const, label: 'Restart now' }] : []),
+        ...(s.previous ? [{ action: 'rollback' as const, label: `Stay on ${s.previous}` }] : []),
+      ],
     };
   }
   if (s.error) return { text: ERRORS[s.error] ?? `Update failed (${s.error})`, actions: [check, ...back] };
