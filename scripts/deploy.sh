@@ -12,7 +12,7 @@
 # The build goes to ~/.local/share/polykey/dev/ with a DEV marker, and `current` is pointed at it.
 # The DEV marker makes it a dev build: the page's console lines go to the journal.
 # Installed releases in versions/ stay as they are; to go back to the newest one:
-#   python3 -I -B ~/.local/share/polykey/current/sidecar/run.py rollback
+#   sh ~/.local/share/polykey/current/install.sh --rollback
 # Only touches ~/.local/share/polykey/ and ~/.config/systemd/user/polykey.service; the unit is
 # started but not enabled at login. Host: $POLYKEY_HOST (default steamos@frame), key login needed.
 set -euo pipefail

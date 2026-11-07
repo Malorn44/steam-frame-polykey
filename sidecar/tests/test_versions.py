@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
 
 from polykey import __main__ as cli
+from polykey import versions as versions_module
 from polykey.versions import VersionError, Versions, is_release, newer, parse
 
 SIDECAR = Path(__file__).resolve().parents[1]
@@ -45,6 +48,108 @@ def test_installed_lists_only_complete_releases(versions):
     (versions.versions / "0.3.0").mkdir()  # no sidecar: not a release yet
     (versions.versions / "notes").mkdir()
     assert versions.installed() == ["0.1.0", "0.2.0"]
+
+
+def make_tarball(path: Path, version: str, extra=None, top=None) -> Path:
+    """A release tarball as release.sh makes it: polykey-<version>/ with VERSION and the sidecar."""
+    top = top or f"polykey-{version}"
+    files = {
+        "VERSION": f"{version}\n",
+        "sidecar/run.py": "print('hi')\n",
+        "bundle.js": "/* b */",
+        "install.sh": "#!/bin/sh\n",
+    }
+    files.update(extra or {})
+    with tarfile.open(path, "w:gz") as tar:
+        for name, text in files.items():
+            data = text.encode()
+            info = tarfile.TarInfo(f"{top}/{name}")
+            info.size = len(data)
+            info.mode = 0o755 if name.endswith(".sh") else 0o644
+            tar.addfile(info, io.BytesIO(data))
+    return path
+
+
+def add_member(tarball: Path, member: tarfile.TarInfo) -> None:
+    """Rewrite a tarball with one more (empty) member at the end."""
+    with tarfile.open(tarball, "r:gz") as old:
+        members = [(m, old.extractfile(m).read()) for m in old]
+    with tarfile.open(tarball, "w:gz") as tar:
+        for info, data in members:
+            tar.addfile(info, io.BytesIO(data))
+        tar.addfile(member)
+
+
+def test_unpack_installs_a_release_into_its_own_folder(versions, tmp_path):
+    folder = versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+    assert folder == versions.versions / "0.1.0"
+    assert (folder / "VERSION").read_text() == "0.1.0\n"
+    assert os.access(folder / "install.sh", os.X_OK) and not os.access(folder / "bundle.js", os.X_OK)
+    assert versions.installed() == ["0.1.0"]
+    assert not (versions.versions / "0.1.0.new").exists()
+
+
+@pytest.mark.parametrize(
+    "bad", ["link", "dotdot", "absolute", "top", "two-tops", "version", "no-sidecar", "not-gzip", "big", "too-much"]
+)
+def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
+    tarball = tmp_path / "bad.tar.gz"
+    if bad == "link":
+        link = tarfile.TarInfo("polykey-0.1.0/evil")
+        link.type, link.linkname = tarfile.SYMTYPE, "/etc/passwd"
+        add_member(make_tarball(tarball, "0.1.0"), link)
+    elif bad == "dotdot":
+        make_tarball(tarball, "0.1.0", {"../escape": "x"})
+    elif bad == "absolute":
+        make_tarball(tarball, "0.1.0", top="/tmp/polykey-0.1.0")
+    elif bad == "top":
+        make_tarball(tarball, "0.1.0", top="something-else")
+    elif bad == "two-tops":
+        add_member(make_tarball(tarball, "0.1.0"), tarfile.TarInfo("polykey-0.2.0/VERSION"))
+    elif bad == "version":
+        make_tarball(tarball, "0.1.0", {"VERSION": "0.2.0\n"})
+    elif bad == "no-sidecar":
+        with tarfile.open(tarball, "w:gz") as tar:
+            info = tarfile.TarInfo("polykey-0.1.0/VERSION")
+            info.size = 6
+            tar.addfile(info, io.BytesIO(b"0.1.0\n"))
+    elif bad == "big":  # one file over the cap
+        monkeypatch.setattr(versions_module, "MAX_MEMBER", 100)
+        make_tarball(tarball, "0.1.0", {"bundle.js": "x" * 101})
+    elif bad == "too-much":  # files each under the cap, together over it
+        monkeypatch.setattr(versions_module, "MAX_TOTAL", 100)
+        make_tarball(tarball, "0.1.0", {"a.js": "x" * 60, "b.js": "x" * 60})
+    else:
+        tarball.write_bytes(b"not a tarball")
+    with pytest.raises(VersionError) as error:
+        versions.unpack(tarball, "0.1.0")
+    assert error.value.code == "bad-archive"
+    assert versions.installed() == []
+    assert not (versions.versions / "0.1.0.new").exists()
+    assert not (tmp_path / "escape").exists()
+
+
+def test_unpack_refuses_a_version_that_is_not_a_release(versions, tmp_path):
+    with pytest.raises(VersionError) as error:
+        versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "../0.1.0")
+    assert error.value.code == "bad-version"
+
+
+def test_unpacking_the_running_release_again_leaves_it_alone(versions, tmp_path):
+    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+    versions.activate("0.1.0")
+    marker = versions.versions / "0.1.0" / "speech-in-use"
+    marker.write_text("x")
+    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
+    assert marker.exists() and not (versions.versions / "0.1.0.new").exists()
+
+
+def test_unpacking_a_release_that_is_not_current_replaces_it(versions, tmp_path):
+    versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+    (versions.versions / "0.1.0" / "left-over").write_text("x")
+    versions.unpack(make_tarball(tmp_path / "again.tar.gz", "0.1.0"), "0.1.0")
+    assert not (versions.versions / "0.1.0" / "left-over").exists()
+    assert versions.installed() == ["0.1.0"]
 
 
 def test_activate_points_current_at_the_release_and_remembers_the_one_before(versions):
@@ -173,3 +278,24 @@ def test_run_py_imports_from_the_release_current_points_at(tmp_path):
         check=True,
     ).stdout
     assert Path(out.strip()) == (release / "polykey" / "__init__.py").resolve()
+
+
+def test_an_installed_release_finds_its_folder_from_where_it_is(tmp_path):
+    """`run.py activate` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
+    says, so install.sh (which unpacks to ~/.local/share/polykey) and the service always agree."""
+    root = tmp_path / "polykey"
+    release = root / "versions" / "0.1.0"
+    shutil.copytree(SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
+    (release / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    env = {**os.environ, "XDG_DATA_HOME": str(tmp_path / "elsewhere")}
+    out = subprocess.run(
+        [sys.executable, "-I", "-B", str(release / "sidecar" / "run.py"), "activate"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    ).stdout
+    assert "current: 0.1.0" in out
+    assert os.readlink(root / "current") == "versions/0.1.0"
+    assert not (tmp_path / "elsewhere" / "polykey").exists()

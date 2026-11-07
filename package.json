@@ -12,11 +12,12 @@
     "lint:eslint": "tools/eslint/node_modules/.bin/eslint -c tools/eslint/eslint.config.js .",
     "lint:ruff": ".venv/bin/ruff check sidecar scripts",
     "lint:ruff-format": ".venv/bin/ruff format --check sidecar scripts",
-    "lint:shellcheck": ".venv/bin/shellcheck scripts/*.sh",
+    "lint:shellcheck": ".venv/bin/shellcheck scripts/*.sh tests/install/*.sh",
     "lint:actionlint": ".venv/bin/actionlint -shellcheck .venv/bin/shellcheck",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:py": ".venv/bin/python -m pytest sidecar/tests -q",
+    "test:install": "bash tests/install/test-install.sh",
     "test:layout": "scripts/test-layout.sh",
     "check": "npm run lint && npm run typecheck && npm test && npm run test:py && npm run build"
   },

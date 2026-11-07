@@ -21,6 +21,22 @@ Layouts, keyboards and themes are JSON packs (`packs/`, `schema/pack.schema.json
 
 > Unofficial; not affiliated with Valve. It relies on private Steam internals. When a required Steam object is missing, it does nothing and leaves the stock keyboard alone.
 
+## Install
+
+In Desktop Mode, open Konsole and run:
+
+```sh
+curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh
+```
+
+It checks what polykey needs (Python 3.10+ with aiohttp, both in SteamOS; Steam's debugger on 127.0.0.1:8080), installs the latest release into `~/.local/share/polykey/`, and starts it now and at every login. No sudo. Run it again to update. The same script, run with an option after `sh -s --`, also does:
+
+```sh
+… | sh -s -- --check       # report what's missing; change nothing
+… | sh -s -- --rollback    # back to the release before this one
+… | sh -s -- --uninstall   # remove polykey (settings and dictation models stay; add --purge to remove them)
+```
+
 ## Develop (WSL)
 
 ```sh
@@ -28,11 +44,12 @@ npm install
 npm ci --prefix tools/eslint   # ESLint on its own TypeScript 6; the project builds with TypeScript 7
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
 npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
+npm run test:install # install.sh end to end: throwaway signed releases, served from localhost
 ```
 
 ## Deploy to the Frame
 
-This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `python3 -I -B ~/.local/share/polykey/current/sidecar/run.py rollback` goes back to the newest one.
+This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `sh ~/.local/share/polykey/current/install.sh --rollback` goes back to the newest one.
 
 ```sh
 scripts/deploy.sh            # build, copy, restart the service, follow the log
@@ -103,7 +120,7 @@ src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
-scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh
+scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh, release.sh, install.sh
 contrib/        polykey.service
 ```
 

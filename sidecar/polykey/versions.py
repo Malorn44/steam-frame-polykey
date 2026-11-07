@@ -6,10 +6,10 @@
   updates/state.json   {"previous": the release that ran before this one, "skip": a release rolled
                         back from, which automatic updates leave alone until a newer one}
 
-An installer puts a release in versions/<version>/ and runs `run.py activate <version>` from it;
-`run.py rollback` goes back to the release before. The running sidecar imports from its own
-versions/<version> (run.py resolves the link), so swapping `current` never mixes two versions in one
-process: the switch takes effect when the service restarts.
+install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
+`run.py rollback`; unpack() does the same unpacking in Python, for the service. The running sidecar
+imports from its own versions/<version> (run.py resolves the link), so swapping `current` never
+mixes two versions in one process: the switch takes effect when the service restarts.
 """
 
 from __future__ import annotations
@@ -18,11 +18,15 @@ import json
 import os
 import re
 import shutil
+import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$")
 DEV = "dev"
+MAX_MEMBER = 32 << 20  # unpack(): the largest file a release may hold, and all of them together
+MAX_TOTAL = 128 << 20
+PART = re.compile(r"^[A-Za-z0-9_.+@-]+$")  # unpack(): what a path part in a release may be
 
 
 class VersionError(Exception):
@@ -34,6 +38,13 @@ class VersionError(Exception):
 
 
 def app_dir() -> Path:
+    """The folder this code is installed in (from versions/<version>/ or dev/), so the installer and the
+    service always agree; for a checkout, ~/.local/share/polykey."""
+    code = Path(__file__).resolve().parents[2]
+    if code.parent.name == "versions" and is_release(code.name):
+        return code.parent.parent
+    if code.name == DEV and (code / "DEV").exists():
+        return code.parent
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "polykey"
 
@@ -169,3 +180,56 @@ class Versions:
         for entry in self.versions.iterdir():
             if entry.name not in keep and (entry.name.endswith(".new") or is_release(entry.name)):
                 shutil.rmtree(entry, ignore_errors=True)
+
+    def unpack(self, tarball: Path, version: str) -> Path:
+        """Unpack a verified release tarball (polykey-<version>/… inside) into versions/<version>/.
+        Only directories and regular files with plain names, under that one top folder; nothing can
+        land anywhere else. Assembled beside its place and renamed in (blocking: run it off the loop).
+        The current release is left as it is: a process may be running from it."""
+        if not is_release(version):
+            raise VersionError("bad-version")
+        top = f"polykey-{version}"
+        work = self.versions / f"{version}.new"
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True)
+        total = 0
+        try:
+            with tarfile.open(tarball, "r:gz") as tar:
+                for member in tar:
+                    parts = PurePosixPath(member.name).parts
+                    if not parts or parts[0] != top or not all(PART.match(p) and p not in (".", "..") for p in parts):
+                        raise VersionError("bad-archive")
+                    dest = work.joinpath(*parts[1:])
+                    if member.isdir():
+                        dest.mkdir(parents=True, exist_ok=True)
+                        continue
+                    if not member.isfile() or member.size > MAX_MEMBER or len(parts) < 2:
+                        raise VersionError("bad-archive")
+                    total += member.size
+                    if total > MAX_TOTAL:
+                        raise VersionError("bad-archive")
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    source = tar.extractfile(member)
+                    if source is None:
+                        raise VersionError("bad-archive")
+                    with source, open(dest, "wb") as out:
+                        shutil.copyfileobj(source, out)
+                    os.chmod(dest, 0o755 if member.mode & 0o100 else 0o644)
+            if (work / "VERSION").read_text(encoding="utf-8").strip() != version or not (
+                work / "sidecar" / "run.py"
+            ).is_file():
+                raise VersionError("bad-archive")
+        except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
+            shutil.rmtree(work, ignore_errors=True)
+            raise VersionError("bad-archive") from None
+        except VersionError:
+            shutil.rmtree(work, ignore_errors=True)
+            raise
+        final = self.versions / version
+        if final.exists():
+            if self.current() == version:
+                shutil.rmtree(work, ignore_errors=True)  # already running it: leave it be
+                return final
+            shutil.rmtree(final)
+        os.replace(work, final)
+        return final
