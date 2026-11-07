@@ -46,8 +46,8 @@ first=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
 release 0.1.0 r1
 expect "release.sh makes the same tarball twice" '[ "$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d" " -f1)" = "$first" ]'
 printf '# no key yet\n' > "$T/no_signers"
-expect "release.sh refuses to run without a release key" \
-  '! POLYKEY_ALLOWED_SIGNERS="$T/no_signers" scripts/release.sh 0.1.0 > "$T/out" 2>&1 && grep -q "no release key" "$T/out"'
+expect "a release build refuses an allowed_signers without a release key, and leaves dist/ alone" \
+  '! POLYKEY_ALLOWED_SIGNERS="$T/no_signers" scripts/release.sh 0.3.0 > "$T/out" 2>&1 && grep -q "no release key" "$T/out" && [ "$(cat dist/stage/VERSION)" = 0.1.0 ] && [ -f dist/release/polykey-0.1.0.tar.gz ]'
 tar -tzvf "$T/serve/r1/polykey-0.1.0.tar.gz" > "$T/listing"
 expect "the tarball holds polykey-0.1.0/ only, owned by 0/0, modes 644, 755 or dirs 755" \
   'awk "\$2 != \"0/0\" || \$6 !~ /^polykey-0\\.1\\.0\\// || \$1 !~ /^(-rw-r--r--|-rwxr-xr-x|drwxr-xr-x)\$/ { bad = 1 } END { exit bad }" "$T/listing"'

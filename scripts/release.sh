@@ -21,7 +21,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 REPO=Malorn44/steam-frame-polykey
-SIGNERS="${POLYKEY_ALLOWED_SIGNERS:-contrib/allowed_signers}"
 OUT=dist/release
 
 version=""
@@ -38,15 +37,11 @@ if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-
   echo "usage: scripts/release.sh <version like 1.2.3> [--base URL]" >&2
   exit 2
 fi
-if ! grep -q '^polykey-release .*ssh-ed25519 ' "$SIGNERS"; then
-  echo "✗ no release key in $SIGNERS (contrib/allowed_signers says how to add one)" >&2
-  exit 1
-fi
 
 top="polykey-$version"
 url="${base:-https://github.com/$REPO/releases/download/v$version}/$top.tar.gz"
 
-POLYKEY_ALLOWED_SIGNERS="$SIGNERS" node scripts/build.mjs --version "$version"
+node scripts/build.mjs --version "$version"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
