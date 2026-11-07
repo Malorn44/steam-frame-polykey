@@ -50,7 +50,7 @@ class Release:
         self.requests: list[str] = []
         self.base = ""
 
-    def publish(self, version: str, *, signed_by: Path | None = None, tamper=None, extra=None) -> None:
+    def publish(self, version: str, *, signed_by: Path | None = None, extra=None) -> None:
         tarball = make_tarball(self.tmp / f"src-{version}.tar.gz", version, extra).read_bytes()
         manifest = {
             "format": 1,
@@ -59,8 +59,6 @@ class Release:
             "size": len(tarball),
             "sha256": hashlib.sha256(tarball).hexdigest(),
         }
-        if tamper:
-            tamper(manifest)
         data = json.dumps(manifest).encode()
         self.files = {
             "latest.json": data,
@@ -194,8 +192,6 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
         ("other-key", "bad-signature"),
         ("edited", "bad-signature"),
         ("no-key", "no-key"),
-        ("evil-host", "bad-manifest"),
-        ("old-format", "bad-manifest"),
     ],
 )
 def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path, problem, code):
@@ -210,10 +206,6 @@ def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path
         signers = None
         if problem == "other-key":
             source.publish("0.2.0", signed_by=other)
-        elif problem == "evil-host":
-            source.publish("0.2.0", tamper=lambda m: m.update(url="https://evil.example/polykey-0.2.0.tar.gz"))
-        elif problem == "old-format":
-            source.publish("0.2.0", tamper=lambda m: m.update(format=0))
         else:
             source.publish("0.2.0")
         if problem == "edited":
@@ -556,6 +548,7 @@ def test_manifest_fields_are_checked():
     hosts = ("github.com", "githubusercontent.com")
     assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"
     for change in (
+        {"format": 0},
         {"version": "v1.2.3"},
         {"version": "1.2.3+dev"},
         {"size": True},
