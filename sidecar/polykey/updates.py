@@ -43,6 +43,7 @@ from urllib.parse import urljoin, urlsplit
 import aiohttp
 
 from .changes import Changes
+from .packs import read_settings
 from .speech.download import Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
@@ -205,20 +206,13 @@ class Updater:
 
     # --- settings ---------------------------------------------------------------------------------
 
-    def _settings(self) -> dict:
-        try:
-            data = json.loads(self._settings_path.read_text(encoding="utf-8")) if self._settings_path else {}
-        except (OSError, ValueError):
-            return {}
-        return data if isinstance(data, dict) else {}
-
     def auto(self) -> bool:
-        return self._settings().get("autoUpdate") is not False
+        return read_settings(self._settings_path).get("autoUpdate") is not False
 
     def source(self) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
         """(base URL, allowed hosts, allowed schemes): GitHub, or settings.json "updateUrl" when it is a
         usable http(s) URL."""
-        url = self._settings().get("updateUrl")
+        url = read_settings(self._settings_path).get("updateUrl")
         try:
             parts = urlsplit(url) if isinstance(url, str) else None
             host = parts.hostname if parts else None

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import signal
 import sys
 from pathlib import Path
@@ -34,12 +33,7 @@ def forward_console(choice: Optional[bool]) -> bool:
 
     if choice is not None:
         return choice
-    if injector.is_dev():
-        return True
-    try:
-        return json.loads((packs.user_dir() / "settings.json").read_text(encoding="utf-8")).get("console") is True
-    except (OSError, ValueError, AttributeError):
-        return False
+    return injector.is_dev() or packs.read_settings(packs.user_dir() / "settings.json").get("console") is True
 
 
 def _versions(argv: list[str]) -> int:
