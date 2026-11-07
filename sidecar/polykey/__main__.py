@@ -57,16 +57,16 @@ def _versions(argv: list[str]) -> int:
             before, after = versions.rollback()
             skip = f"; updates skip {before} until a newer release" if before and before != "dev" else ""
             print(f"rolled back from {before} to {after}{skip}", flush=True)
-    except VersionError as error:  # a refusal (exit 3), told apart from a crash (exit 1)
+    except VersionError as error:
         reasons = {
             "no-previous": "no earlier release to go back to",
             "not-installed": f"{version} is not installed",
             "busy": "another install or update of polykey is under way; try again in a minute",
         }
-        print(reasons.get(error.code, error.code), flush=True)
-        return 3
+        print(reasons.get(error.code, error.code), file=sys.stderr, flush=True)
+        return 1
     except OSError as error:
-        print(f"{args.command} failed: {error.strerror or type(error).__name__}", flush=True)
+        print(f"{args.command} failed: {error.strerror or type(error).__name__}", file=sys.stderr, flush=True)
         return 1
     return 0
 

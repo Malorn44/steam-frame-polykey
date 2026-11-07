@@ -273,7 +273,7 @@ def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, 
             assert error.value.code == "busy"
         with pytest.raises(SystemExit) as code:
             cli.main(["rollback"])
-        assert code.value.code == 3 and "under way" in capsys.readouterr().out
+        assert code.value.code == 1 and "under way" in capsys.readouterr().err
     finally:
         holder.join()
     assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
@@ -327,16 +327,16 @@ def test_run_py_activate_and_rollback(tmp_path, monkeypatch, capsys):
     assert "current: 0.2.0" in out and "rolled back from 0.2.0 to 0.1.0; updates skip 0.2.0" in out
     with pytest.raises(SystemExit) as code:
         cli.main(["rollback"])
-    assert code.value.code == 3
-    assert "no earlier release" in capsys.readouterr().out
+    assert code.value.code == 1
+    assert "no earlier release" in capsys.readouterr().err
     with pytest.raises(SystemExit) as code:
         cli.main(["activate", "0.9.0"])
-    assert code.value.code == 3
-    assert "0.9.0 is not installed" in capsys.readouterr().out
+    assert code.value.code == 1
+    assert "0.9.0 is not installed" in capsys.readouterr().err
     with pytest.raises(SystemExit) as code:
         cli.main(["activate"])  # this checkout is no installed release
-    assert code.value.code == 3
-    assert f"{SIDECAR.parent.name} is not installed" in capsys.readouterr().out
+    assert code.value.code == 1
+    assert f"{SIDECAR.parent.name} is not installed" in capsys.readouterr().err
 
 
 def test_run_py_imports_from_the_release_current_points_at(tmp_path):
