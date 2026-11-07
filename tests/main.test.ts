@@ -2,9 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
-import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
+import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
+import { STEAM_LOADING_NOTE } from '../src/ui/emoji.js';
 import { bundledBoot } from './boot.js';
-import { MINIMAL, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
+import { MINIMAL, fakeItemStore, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
 /** A request the page sent the fake sidecar, with the fields these tests look at. */
 type SentRequest = {
@@ -582,6 +583,83 @@ describe('emoji', () => {
     await tap(popup, 'abc');
     expect(shadowOf(popup)!.querySelector('.emoji')).toBeNull();
     expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5);
+  });
+});
+
+describe('Steam items in the emoji picker', () => {
+  /** polykey with emoji data and, optionally, Steam's chat item store (as a fresh Steam has it). */
+  const setupEmoji = (itemStore?: object) => {
+    const boot = bundledBoot();
+    boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀'] }] };
+    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true, ...(itemStore ? { itemStore } : {}) });
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    return popup;
+  };
+  const notes = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll('.note')].map((n) => n.textContent);
+  const pictures = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll('.cell img')].map((i) => i.getAttribute('src'));
+
+  it('opening the picker asks Steam once; the items show as soon as they arrive', async () => {
+    const store = fakeItemStore(800);
+    const popup = setupEmoji(store);
+    await tap(popup, 'h');
+    expect(store.UpdateEmoticonList).not.toHaveBeenCalled(); // typing does not ask
+    await tap(popup, 'emoji');
+    expect(store.UpdateEmoticonList).toHaveBeenCalledTimes(1);
+    expect(notes(popup)).toEqual(expect.arrayContaining([STEAM_LOADING_NOTE]));
+    expect(pictures(popup)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(800);
+    expect(notes(popup)).not.toContain(STEAM_LOADING_NOTE);
+    expect(pictures(popup)).toEqual([expect.stringMatching(/emoticonlarge\/steamhappy$/), expect.stringMatching(/sticker\/Intense%20Gaming$/)]);
+    expect([...shadowOf(popup)!.querySelectorAll('.cell.effect')].map((c) => c.textContent)).toEqual(['confetti']);
+    const asked = store.UpdateEmoticonList.mock.calls.length;
+    await tap(popup, 'Backspace');
+    await vi.advanceTimersByTimeAsync(STEAM_ITEMS_WAIT_MS);
+    expect(store.UpdateEmoticonList).toHaveBeenCalledTimes(asked); // in: no more looking, keys do not ask
+  });
+
+  it('stops looking when the picker closes', async () => {
+    const store = fakeItemStore(null);
+    const popup = setupEmoji(store);
+    await tap(popup, 'emoji');
+    await vi.advanceTimersByTimeAsync(1000);
+    await tap(popup, 'abc');
+    const asked = store.UpdateEmoticonList.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(STEAM_ITEMS_WAIT_MS);
+    expect(store.UpdateEmoticonList).toHaveBeenCalledTimes(asked);
+  });
+
+  it('gives up after a while, showing the empty sections as before', async () => {
+    const store = fakeItemStore(null);
+    const popup = setupEmoji(store);
+    await tap(popup, 'emoji');
+    await vi.advanceTimersByTimeAsync(STEAM_ITEMS_WAIT_MS - 1000);
+    expect(notes(popup)).toContain(STEAM_LOADING_NOTE);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(notes(popup)).not.toContain(STEAM_LOADING_NOTE);
+    expect(notes(popup)).toContain('No Steam emoticons yet');
+    const asked = store.UpdateEmoticonList.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(STEAM_ITEMS_WAIT_MS);
+    expect(store.UpdateEmoticonList).toHaveBeenCalledTimes(asked);
+  });
+
+  it('without Steam\'s store, shows Steam items unavailable, as before', async () => {
+    const popup = setupEmoji();
+    await tap(popup, 'emoji');
+    expect(notes(popup)).toContain('Steam items unavailable');
+    expect(notes(popup)).not.toContain(STEAM_LOADING_NOTE);
+  });
+
+  it('with a store but no loader, shows what the store has and does not wait', async () => {
+    const store = { m_bInitialized: false, m_rgEmoticons: [{ name: 'steamhappy' }] };
+    const popup = setupEmoji(store);
+    await tap(popup, 'emoji');
+    expect(pictures(popup)).toEqual([expect.stringMatching(/emoticonlarge\/steamhappy$/)]);
+    expect(notes(popup)).not.toContain(STEAM_LOADING_NOTE);
+    expect(notes(popup)).toContain('No Steam stickers yet');
+    expect(store).toEqual({ m_bInitialized: false, m_rgEmoticons: [{ name: 'steamhappy' }] });
   });
 });
 

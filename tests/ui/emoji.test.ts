@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState } from '../../src/core/emoji.js';
 import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
-import { createEmojiView } from '../../src/ui/emoji.js';
+import { STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
 import { bundledBoot } from '../boot.js';
 
 const data: EmojiData = { groups: [
@@ -13,13 +13,14 @@ const data: EmojiData = { groups: [
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-const setup = (state: EmojiState = NO_EMOJI_STATE) => {
+const steamhappy: EmojiPickerInput['steam'] = [{ item: { kind: 'emoticon', name: 'steamhappy' }, image: 'https://cdn/e/steamhappy' }];
+const setup = (state: EmojiState = NO_EMOJI_STATE, steam: Partial<EmojiPickerInput> = {}) => {
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
   const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0 };
   const view = createEmojiView(document, shadow, bundledBoot().catalog.themes['themes/steam']!, {
-    data, tones: toneTable(data), steam: [{ item: { kind: 'emoticon', name: 'steamhappy' }, image: 'https://cdn/e/steamhappy' }],
+    data, tones: toneTable(data), steam: steamhappy, ...steam,
   }, state, {
     onEmoji: (b, r) => calls.emoji.push([b, r]),
     onTone: (t) => calls.tone.push(t),
@@ -210,5 +211,32 @@ describe('emoji picker', () => {
     vi.advanceTimersByTime(HOLD_MS);
     touch(fav, 'touchend');
     expect(calls.favorites).toEqual([['🎉']]);
+  });
+
+  it('Steam items still loading say so, then arrive in place, the scroll kept', () => {
+    const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: ['steam:emoticon:steamhappy'] }, { steam: [], steamLoading: true });
+    const notes = () => [...shadow.querySelectorAll('.note')].map((n) => n.textContent);
+    expect(notes().filter((n) => n === STEAM_LOADING_NOTE)).toHaveLength(3); // emoticons, stickers, effects
+    shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, cancelable: true }));
+    const strip = shadow.querySelector<HTMLElement>('.strip')!;
+    const scrolled = strip.style.transform;
+    view.setSteam(steamhappy, false);
+    expect(notes()).not.toContain(STEAM_LOADING_NOTE);
+    expect(notes()).toContain('No Steam stickers yet');
+    expect([...shadow.querySelectorAll('.cell img')].map((i) => i.getAttribute('src'))).toEqual(['https://cdn/e/steamhappy', 'https://cdn/e/steamhappy']); // Recent's too
+    expect(strip.style.transform).toBe(scrolled);
+  });
+
+  it('Steam items arriving during a press wait for it to end, so a hold still offers skin tones', () => {
+    const { cell, calls, shadow, view } = setup(NO_EMOJI_STATE, { steam: [], steamLoading: true });
+    const wave = cell('👋');
+    touch(wave, 'touchstart');
+    view.setSteam(steamhappy, false);
+    expect(shadow.querySelector('.cell img')).toBeNull();
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(shadow.querySelectorAll('.alts .key')).toHaveLength(6);
+    touch(wave, 'touchend');
+    expect(calls.tone).toEqual(['']);
+    expect(shadow.querySelector('.cell img')).not.toBeNull();
   });
 });

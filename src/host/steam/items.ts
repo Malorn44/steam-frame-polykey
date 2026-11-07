@@ -41,6 +41,22 @@ const itemStore = (g: SteamGlobals): Record<string, unknown> | undefined => {
 
 export const steamItemsAvailable = (g: SteamGlobals): boolean => !!itemStore(g);
 
+/**
+ * Ask Steam for the user's items as its own keyboard's picker does: Steam fetches them once a session,
+ * lazily, and ignores the ask once they are in or while its request is out. True while they are on
+ * their way (false when they are in, or Steam's store or its loader is missing).
+ */
+export const loadSteamItems = (g: SteamGlobals): boolean => {
+  try {
+    const store = itemStore(g);
+    if (typeof store?.['UpdateEmoticonList'] !== 'function') return false;
+    (store['UpdateEmoticonList'] as () => void)(); // on the store: Steam's loader uses `this`
+    return (store['is_initialized'] ?? store['m_bInitialized']) === false;
+  } catch {
+    return false;
+  }
+};
+
 export const steamItems = (g: SteamGlobals): SteamItem[] => {
   try {
     const store = itemStore(g);
