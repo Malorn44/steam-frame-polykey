@@ -154,6 +154,27 @@ def test_installing_a_release_again_repairs_it(versions, tmp_path):
     assert versions.current() == "0.1.0" and versions.previous() is None
 
 
+def test_a_repair_never_deletes_the_release_in_use_before_its_new_copy_is_in(versions, tmp_path, monkeypatch):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    versions.install(tarball)
+    live, rmtree = versions.versions / "0.1.0", shutil.rmtree
+
+    def careful_rmtree(path, *args, **kwargs):
+        assert Path(path) != live, "deleted the release current points at"
+        rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", careful_rmtree)
+    versions.install(tarball)
+    assert (live / "bundle.js").exists() and sorted(os.listdir(versions.versions)) == ["0.1.0"]
+
+
+def test_a_copy_left_aside_by_an_interrupted_repair_is_pruned(versions, tmp_path):
+    install(versions, "0.1.0")
+    (versions.versions / "0.1.0.old").mkdir()
+    versions.activate("0.1.0")
+    assert sorted(os.listdir(versions.versions)) == ["0.1.0"]
+
+
 def test_activate_points_current_at_the_release_and_remembers_the_one_before(versions):
     install(versions, "0.1.0", "0.2.0")
     versions.activate("0.1.0")

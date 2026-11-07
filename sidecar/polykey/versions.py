@@ -239,7 +239,7 @@ class Versions:
         if not self.versions.is_dir():
             return
         for entry in self.versions.iterdir():
-            if entry.name not in keep and (entry.name.endswith(".new") or is_release(entry.name)):
+            if entry.name not in keep and (entry.name.endswith((".new", ".old")) or is_release(entry.name)):
                 shutil.rmtree(entry, ignore_errors=True)
 
     def _unpack(self, tarball: Path, version: Optional[str]) -> str:
@@ -272,10 +272,14 @@ class Versions:
                     raise VersionError("bad-archive")
             except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
                 raise VersionError("bad-archive") from None
-            final = self.versions / version
+            # A release already there (a repair) is renamed aside, not deleted, until the new one is in:
+            # `current` never points at a half-deleted folder.
+            final, old = self.versions / version, self.versions / f"{version}.old"
             if final.exists():
-                shutil.rmtree(final)
+                shutil.rmtree(old, ignore_errors=True)
+                os.replace(final, old)
             os.replace(work / top, final)
+            shutil.rmtree(old, ignore_errors=True)
             return version
         finally:
             shutil.rmtree(work, ignore_errors=True)
