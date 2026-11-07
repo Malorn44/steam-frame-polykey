@@ -1,6 +1,6 @@
 # Developing polykey
 
-How to build and check polykey, try it on a Frame, and find your way around the source.
+How to build and check polykey, try it on a Frame, release it, and find your way around the source.
 
 ## Set up (WSL)
 
@@ -33,6 +33,10 @@ Debug from the CDP console (`ssh -L 8080:127.0.0.1:8080 steamos@frame`, then `lo
 __polykey.debug.status()
 __polykey.debug.use('steam/stock')   // or 'en/english'
 ```
+
+## Releasing
+
+Each merge to main updates release-please's release PR, which holds the next version and its changelog. Merging that PR has CI tag the release, build a draft and check it against a second build. Once you have smoke-tested the draft on a Frame and approved it in GitHub, CI signs and publishes it, and installed copies pick it up at their next hourly check. [RELEASING.md](RELEASING.md) has the details.
 
 ## Source layout
 
