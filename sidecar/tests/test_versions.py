@@ -85,16 +85,21 @@ def add_member(tarball: Path, member: tarfile.TarInfo) -> None:
 
 
 def test_unpack_installs_a_release_into_its_own_folder(versions, tmp_path):
-    folder = versions.unpack(make_tarball(tmp_path / "r.tar.gz", "0.1.0"), "0.1.0")
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    odd = tarfile.TarInfo("polykey-0.1.0/odd")
+    odd.mode = 0o6777
+    add_member(tarball, odd)
+    folder = versions.unpack(tarball, "0.1.0")
     assert folder == versions.versions / "0.1.0"
     assert (folder / "VERSION").read_text() == "0.1.0\n"
     assert os.access(folder / "install.sh", os.X_OK) and not os.access(folder / "bundle.js", os.X_OK)
+    assert (folder / "odd").stat().st_mode & 0o7777 == 0o755  # the data filter's modes
     assert versions.installed() == ["0.1.0"]
     assert not (versions.versions / "0.1.0.new").exists()
 
 
 @pytest.mark.parametrize(
-    "bad", ["link", "dotdot", "absolute", "top", "two-tops", "version", "no-sidecar", "not-gzip", "big", "too-much"]
+    "bad", ["link", "dotdot", "absolute", "top", "two-tops", "version", "no-sidecar", "not-gzip", "too-much"]
 )
 def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versions, tmp_path, monkeypatch, bad):
     tarball = tmp_path / "bad.tar.gz"
@@ -117,10 +122,7 @@ def test_unpack_refuses_anything_but_plain_files_under_the_release_folder(versio
             info = tarfile.TarInfo("polykey-0.1.0/VERSION")
             info.size = 6
             tar.addfile(info, io.BytesIO(b"0.1.0\n"))
-    elif bad == "big":  # one file over the cap
-        monkeypatch.setattr(versions_module, "MAX_MEMBER", 100)
-        make_tarball(tarball, "0.1.0", {"bundle.js": "x" * 101})
-    elif bad == "too-much":  # files each under the cap, together over it
+    elif bad == "too-much":
         monkeypatch.setattr(versions_module, "MAX_TOTAL", 100)
         make_tarball(tarball, "0.1.0", {"a.js": "x" * 60, "b.js": "x" * 60})
     else:

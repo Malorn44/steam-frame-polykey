@@ -34,9 +34,7 @@ from typing import Iterator, Optional
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$")
 DEV = "dev"
 STARTED = ".started"  # in versions/<version>: that release has reached Steam
-MAX_MEMBER = 32 << 20  # unpack(): the largest file a release may hold, and all of them together
-MAX_TOTAL = 128 << 20
-PART = re.compile(r"^[A-Za-z0-9_.+@-]+$")  # unpack(): what a path part in a release may be
+MAX_TOTAL = 128 << 20  # unpack(): what all the files in a release may hold together
 LOCK_WAIT = 60.0  # how long a writer waits for another one to finish (install.sh waits as long)
 
 
@@ -244,9 +242,9 @@ class Versions:
 
     def unpack(self, tarball: Path, version: str) -> Path:
         """Unpack a verified release tarball (polykey-<version>/… inside) into versions/<version>/.
-        Only directories and regular files with plain names, under that one top folder; nothing can
-        land anywhere else. Assembled beside its place and renamed in, under the lock (blocking: run it
-        off the loop).
+        Only directories and regular files, under that one top folder and MAX_TOTAL bytes in all;
+        tarfile's data filter keeps them inside it. Assembled beside its place and renamed in, under
+        the lock (blocking: run it off the loop).
         The current release is left as it is: a process may be running from it."""
         with self._locked():
             return self._unpack(tarball, version)
@@ -258,44 +256,28 @@ class Versions:
         work = self.versions / f"{version}.new"
         shutil.rmtree(work, ignore_errors=True)
         work.mkdir(parents=True)
-        total = 0
         try:
-            with tarfile.open(tarball, "r:gz") as tar:
-                for member in tar:
-                    parts = PurePosixPath(member.name).parts
-                    if not parts or parts[0] != top or not all(PART.match(p) and p not in (".", "..") for p in parts):
+            try:
+                with tarfile.open(tarball, "r:gz") as tar:
+                    members = tar.getmembers()
+                    if sum(m.size for m in members) > MAX_TOTAL or not all(
+                        (m.isfile() or m.isdir()) and m.name.split("/")[0] == top and ".." not in m.name.split("/")
+                        for m in members
+                    ):
                         raise VersionError("bad-archive")
-                    dest = work.joinpath(*parts[1:])
-                    if member.isdir():
-                        dest.mkdir(parents=True, exist_ok=True)
-                        continue
-                    if not member.isfile() or member.size > MAX_MEMBER or len(parts) < 2:
-                        raise VersionError("bad-archive")
-                    total += member.size
-                    if total > MAX_TOTAL:
-                        raise VersionError("bad-archive")
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    source = tar.extractfile(member)
-                    if source is None:
-                        raise VersionError("bad-archive")
-                    with source, open(dest, "wb") as out:
-                        shutil.copyfileobj(source, out)
-                    os.chmod(dest, 0o755 if member.mode & 0o100 else 0o644)
-            if (work / "VERSION").read_text(encoding="utf-8").strip() != version or not (
-                work / "sidecar" / "run.py"
-            ).is_file():
-                raise VersionError("bad-archive")
-        except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
+                    tar.extractall(work, filter="data")
+                if (work / top / "VERSION").read_text(encoding="utf-8").strip() != version or not (
+                    work / top / "sidecar" / "run.py"
+                ).is_file():
+                    raise VersionError("bad-archive")
+            except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
+                raise VersionError("bad-archive") from None
+            final = self.versions / version
+            if final.exists():
+                if self.current() == version:
+                    return final  # already running it: leave it be
+                shutil.rmtree(final)
+            os.replace(work / top, final)
+            return final
+        finally:
             shutil.rmtree(work, ignore_errors=True)
-            raise VersionError("bad-archive") from None
-        except VersionError:
-            shutil.rmtree(work, ignore_errors=True)
-            raise
-        final = self.versions / version
-        if final.exists():
-            if self.current() == version:
-                shutil.rmtree(work, ignore_errors=True)  # already running it: leave it be
-                return final
-            shutil.rmtree(final)
-        os.replace(work, final)
-        return final

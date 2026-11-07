@@ -59,10 +59,10 @@ parse() {
 # Hard requirements fail the install; the rest are warnings. Prints a line for each.
 check() {
   ok=1
-  if found=$("$PY" -I -c 'import platform, sys, aiohttp; sys.version_info >= (3, 10) or sys.exit(1); print("python3", platform.python_version(), "with aiohttp", aiohttp.__version__)' 2>/dev/null); then
+  if found=$("$PY" -I -c 'import platform, sys, tarfile, aiohttp; sys.version_info >= (3, 10) and hasattr(tarfile, "data_filter") or sys.exit(1); print("python3", platform.python_version(), "with aiohttp", aiohttp.__version__)' 2>/dev/null); then
     say "✓ $found"
   else
-    say "✗ python3 3.10 or newer with aiohttp at $PY: missing. SteamOS ships both."; ok=0
+    say "✗ python3 3.10.12 or newer with aiohttp at $PY: missing. SteamOS ships both."; ok=0
   fi
   if systemctl --user show-environment >/dev/null 2>&1; then
     say "✓ systemd user session"
