@@ -2,6 +2,8 @@
 
 What polykey's English and Japanese keyboards do, and the toolbar and emoji they share.
 
+![The English keyboard, with its toolbar, number row, Fn keys and arrows, above the Japanese 12-key flick keyboard with flick hints and its candidate panel on the left](images/keyboards.png)
+
 ## English
 
 - **Keys:** the number row with an Fn layer (Esc, F1–F12), sticky Ctrl, Alt, Frame (Super) and Fn, and full arrows. Hold a key for its alternates.
@@ -13,16 +15,33 @@ Hold the trigger and trace a word across the letters. The best word is typed, wi
 
 ## Japanese
 
-<!-- screenshot: ![The Japanese 12-key keyboard converting a reading, with candidates on the left](images/japanese-12key.png) -->
+Four keyboards type into a reading buffer, converted with Anthy (SteamOS's libanthy), which learns from what you send.
 
-Four keyboards type into a reading buffer, converted with Anthy (SteamOS's libanthy), which learns from what you send:
+### 12-key
 
-- **12-key:** flick input. Options, worded as in Gboard: 英字入力はQWERTY (ABC mode as QWERTY or flick letters), フリックのみ (off: tapping a key again steps to its next kana), フリックガイドを表示 (flick hints), 候補を左に表示 (candidates on the left, the default).
-- **五十音:** the 50-sound table as keys, read right to left like Gboard's 五十音 layout; tap a kana, ゛゜小 changes the one before. Shares the 12-key's letter and symbol pages.
-- **Romaji:** the English layout with 英数 and かな beside Space; in かな, letters become kana as you type (ka → か), and `, . - [ ]` become 、。ー「」.
-- **Kana (JIS):** the JIS layout, Mac style. Each key has its Latin and kana legends: 英数 types the Latin ones, かな the kana (Shift: the upper legend). ゛ and ゜ join the kana before them. Option: ローマ字入力, where the keys type their Latin legends as romaji. かな while typing shows the reading as カタカナ, then ﾊﾝｶｸ (on the romaji keyboard too).
+Flick input, shown at the top of this page. Options, worded as in Gboard: 英字入力はQWERTY (ABC mode as QWERTY or flick letters), フリックのみ (off: tapping a key again steps to its next kana), フリックガイドを表示 (flick hints), 候補を左に表示 (candidates on the left, the default).
 
-**English on the Japanese keyboards:** in 英数 (ABC) mode the word waits in the bar like a kana reading, with up to eight suggestions where the candidates go. Space or punctuation sends it, 確定 sends it alone, and a picked suggestion replaces it.
+### 五十音
+
+![The 五十音 keyboard: the kana table as keys, from あ on the right to わ on the left, with the conversion hint in the bar](images/japanese-gojuon.png)
+
+The 50-sound table as keys, read right to left like Gboard's 五十音 layout; tap a kana, ゛゜小 changes the one before. Shares the 12-key's letter and symbol pages.
+
+### Romaji
+
+![The romaji keyboard: the English layout with 英数 and かな beside Space, in かな mode](images/japanese-romaji.png)
+
+The English layout with 英数 and かな beside Space; in かな, letters become kana as you type (ka → か), and `, . - [ ]` become 、。ー「」.
+
+### Kana (JIS)
+
+![The kana (JIS) keyboard: each key with its Latin and kana legends, and 英数 and かな beside Space, in かな mode](images/japanese-kana-jis.png)
+
+The JIS layout, Mac style. Each key has its Latin and kana legends: 英数 types the Latin ones, かな the kana (Shift: the upper legend). ゛ and ゜ join the kana before them. Option: ローマ字入力, where the keys type their Latin legends as romaji. かな while typing shows the reading as カタカナ, then ﾊﾝｶｸ (on the romaji keyboard too).
+
+### English on the Japanese keyboards
+
+In 英数 (ABC) mode the word waits in the bar like a kana reading, with up to eight suggestions where the candidates go. Space or punctuation sends it, 確定 sends it alone, and a picked suggestion replaces it.
 
 ## Toolbar
 

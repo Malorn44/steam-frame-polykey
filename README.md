@@ -4,7 +4,7 @@ An on-screen keyboard for the Valve Steam Frame, with English and Japanese keybo
 
 > **Unofficial; not affiliated with Valve.** It relies on private Steam internals. When a required Steam object is missing, it does nothing and leaves the stock keyboard alone.
 
-<!-- screenshot: ![polykey's English keyboard in Steam's keyboard popup, with word suggestions in the bar](docs/images/polykey.png) -->
+![polykey's English keyboard, with its toolbar, number row, Fn keys and arrows, above the Japanese 12-key flick keyboard with flick hints and its candidate panel on the left, both in the Steam theme](docs/images/keyboards.png)
 
 ## Features
 
@@ -17,6 +17,8 @@ An on-screen keyboard for the Valve Steam Frame, with English and Japanese keybo
 - **Themes:** 17 of them: Steam's own colours, and 16 from editor colour schemes such as Catppuccin, Solarized, Nord and Dracula.
 - **[Your own layouts, keyboards and themes](docs/PACKS.md)** as JSON packs.
 - **Signed updates that install themselves:** polykey installs a new release only when it is signed with the release key.
+
+![The English keyboard in six of polykey's themes: Catppuccin Mocha, Dracula and gruvbox light on top, and Nord, Rosé Pine Dawn and Tokyo Night below](docs/images/themes.png)
 
 ## Install
 
