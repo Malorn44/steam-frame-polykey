@@ -66,13 +66,17 @@ expect "latest.json names the release and the tarball's size and sha256" \
 server=$!
 for _ in $(seq 50); do curl -fs "http://127.0.0.1:$port/" >/dev/null 2>&1 && break; sleep 0.1; done
 
-# A manifest edited after it was signed, and a tarball swapped under a signed manifest.
+# A manifest edited after it was signed, a tarball swapped under a signed manifest, and a signed
+# version that would leave versions/.
 cp -R "$T/serve/r2" "$T/serve/tampered"
 sed -i 's/"size": [0-9]*/"size": 1/' "$T/serve/tampered/latest.json"
 cp -R "$T/serve/r2" "$T/serve/swapped"
 cp "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/serve/swapped/polykey-0.2.0.tar.gz"
 sed -i "s/\"size\": [0-9]*/\"size\": $(stat -c %s "$T/serve/swapped/polykey-0.2.0.tar.gz")/" "$T/serve/swapped/latest.json"
 sign "$T/serve/swapped"
+cp -R "$T/serve/r2" "$T/serve/climbs"
+sed -i 's,"version": "0.2.0","version": "0.2.0/../..",' "$T/serve/climbs/latest.json"
+sign "$T/serve/climbs"
 
 # --- a Frame-like home ---------------------------------------------------------------------------
 
@@ -112,6 +116,7 @@ expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.j
 expect "updates to a newer release" 'run --base "http://127.0.0.1:$port/r2" && [ "$(current)" = versions/0.2.0 ] && state | grep -q "\"previous\": \"0.1.0\""'
 expect "refuses a manifest changed after signing" '! run --base "http://127.0.0.1:$port/tampered" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a tarball that does not match its hash" '! run --base "http://127.0.0.1:$port/swapped" && grep -q "does not match its sha256" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
+expect "refuses a signed version that is not a folder name" '! run --base "http://127.0.0.1:$port/climbs" && grep -q "not a polykey release manifest" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/__main__.py"
 expect "--rollback leaves even a release that cannot start, and skips it" 'run --rollback && [ "$(current)" = versions/0.1.0 ] && state | grep -q "\"skip\": \"0.2.0\""'
 expect "--rollback with nowhere to go fails" '! run --rollback && grep -q "no earlier release" "$T/out"'

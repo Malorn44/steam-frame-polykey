@@ -141,23 +141,18 @@ download() {
   ssh-keygen -Y verify -f "$work/allowed_signers" -I "$NAMESPACE" -n "$NAMESPACE" \
     -s "$work/latest.json.sig" < "$work/latest.json" >/dev/null 2>&1 \
     || die "latest.json is not signed by the polykey release key; nothing was installed"
-  fields=$("$PY" -I - "$work/latest.json" <<'EOF'
-import json, re, sys
-m = json.load(open(sys.argv[1], encoding="utf-8"))
-ok = (m.get("format") == 1 and re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?", str(m.get("version")))
-      and isinstance(m.get("size"), int) and re.fullmatch(r"[0-9a-f]{64}", str(m.get("sha256"))))
-print(m["version"], m["size"], m["sha256"]) if ok else sys.exit(1)
+  # The release key signed it: read the fields, and keep the version to what a URL and a path can hold.
+  fields=$("$PY" -I -c 'import json, sys; m = json.load(open(sys.argv[1])); print(m["version"], m["size"], m["sha256"])' \
+    "$work/latest.json" 2>/dev/null) || die "latest.json is not a polykey release manifest"
+  read -r version size sha256 <<EOF
+$fields
 EOF
-  ) || die "latest.json is not a polykey release manifest"
-  # Three fields with no spaces in them (checked): split on purpose.
-  # shellcheck disable=SC2086
-  set -- $fields
-  version=$1
+  case "$version" in "" | [!0-9]* | *[!0-9A-Za-z.-]*) die "latest.json is not a polykey release manifest" ;; esac
   say "→ downloading polykey $version"
   tarball="$work/polykey-$version.tar.gz"
   fetch "$BASE/polykey-$version.tar.gz" "$tarball"
-  [ "$(wc -c < "$tarball" | tr -d ' ')" = "$2" ] || die "the download is the wrong size; nothing was installed"
-  [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$3" ] || die "the download does not match its sha256; nothing was installed"
+  [ "$(wc -c < "$tarball" | tr -d ' ')" = "$size" ] || die "the download is the wrong size; nothing was installed"
+  [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$sha256" ] || die "the download does not match its sha256; nothing was installed"
 }
 
 current() { readlink "$DATA/current" 2>/dev/null || true; }
