@@ -27,7 +27,7 @@ from .desktop import DesktopPaste
 from .lexicon import Lexicons
 from .speech.session import Dictation
 from .updates import Updater
-from .versions import mark_started
+from .versions import is_release, mark_started
 
 TARGET_TITLE = "SharedJSContext"
 LOG_PREFIX = "[polykey]"
@@ -189,7 +189,8 @@ async def ensure_injected(session: CdpSession, cfg: Config, log: Log) -> bool:
         if wanted is None or running == wanted:
             return True
         # Another version is in the page (an update whose old sidecar could not remove it): replace it.
-        log.info(f"Steam runs polykey {running}; injecting {wanted}")
+        # Any script in the page can set __polykey.version: only a release number reaches the journal.
+        log.info(f"Steam runs polykey {running if is_release(running) else '?'}; injecting {wanted}")
     return await inject(session, cfg, log)
 
 
