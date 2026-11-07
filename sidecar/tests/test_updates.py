@@ -359,6 +359,8 @@ def test_asking_for_the_install_restarts_at_once_keyboard_or_not(home, key, tmp_
             await up.handle("update.install", {"version": "0.2.0"})  # Install: now
             await finish(up)
             assert restarts == ["0.2.0"]
+            # Restarting: Back would go to the release still running, so it is not offered.
+            assert up.state == "restarting" and "previous" not in up.status()
         finally:
             await source.stop()
 
@@ -381,7 +383,7 @@ def test_asking_for_the_install_restarts_at_once_keyboard_or_not(home, key, tmp_
     run(main())
 
 
-def test_going_back_while_an_install_waits_for_the_keyboard_needs_no_restart(home, key, tmp_path):
+def test_an_install_waiting_for_the_keyboard_offers_back_which_needs_no_restart(home, key, tmp_path):
     versions, settings = home
 
     async def main():
@@ -396,11 +398,15 @@ def test_going_back_while_an_install_waits_for_the_keyboard_needs_no_restart(hom
                 if up.state == "installed":
                     break
                 await asyncio.sleep(0.01)
+            # 0.2.0 is current, 0.1.0 still runs: Back goes to the running release, and is offered.
+            waiting, current = await up.handle("update.status", {}), versions.current()
             reply = await up.handle("update.rollback", {})
         finally:
             await source.stop()
+        assert waiting["state"] == "installed" and current == "0.2.0"
+        assert waiting["version"] == waiting["previous"] == "0.1.0"
         # 0.1.0 still runs: it is current again, 0.2.0 is skipped, and nothing restarts.
-        assert reply["ok"] and reply["state"] == "idle" and reply["skipped"]
+        assert reply["ok"] and reply["state"] == "idle" and reply["skipped"] and "previous" not in reply
         assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0" and restarts == []
 
     run(main())
