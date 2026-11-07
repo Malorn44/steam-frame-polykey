@@ -9,9 +9,7 @@ type Call = (op: string, args?: Record<string, unknown>, timeoutMs?: number) => 
 
 export interface UpdateStatus {
   readonly rev: number;
-  readonly version: string;
   readonly dev: boolean;
-  readonly auto: boolean;
   /** installed: an automatic update is current, and restarts into it once the keyboard is hidden. */
   readonly state: 'idle' | 'checking' | 'downloading' | 'installing' | 'installed' | 'restarting';
   /** The newest release the last check found, signed (while installed, the one waiting). */
@@ -34,7 +32,7 @@ const WAIT_MS = 15_000;
 
 export const parseUpdate = (reply: BridgeReply): UpdateStatus | null => {
   const r = reply as Record<string, unknown>;
-  if (!reply.ok || typeof r.rev !== 'number' || typeof r.version !== 'string' || typeof r.state !== 'string' || !STATES.has(r.state)) return null;
+  if (!reply.ok || typeof r.rev !== 'number' || typeof r.state !== 'string' || !STATES.has(r.state)) return null;
   const text = (v: unknown): string | undefined => (typeof v === 'string' && v.length <= 64 ? v : undefined);
   const count = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
   const previous = text(r.previous);
@@ -42,7 +40,7 @@ export const parseUpdate = (reply: BridgeReply): UpdateStatus | null => {
   const done = count(r.done);
   const total = count(r.total);
   return {
-    rev: r.rev, version: r.version, dev: r.dev === true, auto: r.auto !== false, state: r.state as UpdateStatus['state'],
+    rev: r.rev, dev: r.dev === true, state: r.state as UpdateStatus['state'],
     latest: text(r.latest) ?? null, available: r.available === true, skipped: r.skipped === true,
     ...(previous ? { previous } : {}), ...(error ? { error } : {}),
     ...(done !== undefined ? { done } : {}), ...(total !== undefined ? { total } : {}),
@@ -66,7 +64,6 @@ const ERRORS: Record<string, string> = {
   disk: 'The update couldn\'t be written',
   'restart-needed': 'Installed; it starts with polykey\'s next restart',
   busy: 'Another install or update of polykey is under way; try again in a minute',
-  'no-previous': 'There is no earlier release to go back to',
 };
 
 /** The line's text and its buttons, from the updater's status (null: not known yet). */

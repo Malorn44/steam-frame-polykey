@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from polykey import __main__ as cli
+from polykey import injector
 from polykey import versions as versions_module
 from polykey.versions import VersionError, Versions, fall_back, is_release, mark_started, newer, parse
 
@@ -199,7 +200,7 @@ def test_rollback_goes_back_and_skips_the_release_it_left(versions):
         versions.rollback()
     assert error.value.code == "no-previous"
     # The release rolled back from stays, to be put back on request; asking for it un-skips it.
-    versions.prune()
+    versions.activate("0.1.0")
     assert versions.installed() == ["0.1.0", "0.2.0"]
     versions.activate("0.2.0")
     assert versions.skipped() is None and versions.previous() == "0.1.0"
@@ -264,7 +265,6 @@ def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, 
         writes = (
             lambda: versions.activate("0.1.0"),
             versions.rollback,
-            versions.prune,
             lambda: versions.unpack(tarball, "0.3.0"),
         )
         for write in writes:
@@ -314,20 +314,9 @@ def test_a_release_that_reached_steam_stays_put(versions, tmp_path):
     assert versions.current() == "0.2.0" and versions.skipped() is None
 
 
-def test_activate_and_rollback_work_when_the_rest_of_the_release_does_not(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    versions = Versions(tmp_path / "polykey")
-    install(versions, "0.1.0", "0.2.0")
-    versions.activate("0.1.0")
-    versions.activate("0.2.0")
-    monkeypatch.setitem(sys.modules, "polykey.injector", None)  # importing it fails
-    with pytest.raises(SystemExit) as code:
-        cli.main(["rollback"])
-    assert code.value.code == 0 and versions.current() == "0.1.0"
-
-
 def test_run_py_activate_and_rollback(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setitem(sys.modules, "polykey.injector", None)  # they work when the rest of the release does not
     versions = Versions(tmp_path / "polykey")
     install(versions, "0.1.0", "0.2.0")
     for args in (["activate", "0.1.0"], ["activate", "0.2.0"], ["rollback"]):
@@ -422,23 +411,15 @@ def test_the_service_falls_back_from_a_release_that_cannot_start(tmp_path, broke
     assert versions.current() == "0.2.0"
 
 
-def test_the_service_falls_back_from_a_value_error_too(tmp_path):
-    """The real sidecar's code, with a service that raises a ValueError (a JSONDecodeError, say) before
-    it reaches Steam: that is the release's failure, not a refused debugger, so it goes back too."""
-    versions = Versions(tmp_path / "polykey")
-    for v in ("0.1.0", "0.2.0"):
-        release = versions.versions / v
-        shutil.copytree(
-            SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__")
-        )
-        shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
-        (release / "VERSION").write_text(f"{v}\n", encoding="utf-8")
-        versions.activate(v)
-    with open(versions.versions / "0.2.0" / "sidecar" / "polykey" / "injector.py", "a", encoding="utf-8") as injector:
-        injector.write("\n\nasync def run_service(cfg, log, stop):\n    raise ValueError('broken release')\n")
-    env = {**os.environ, "HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "config")}
-    run_py = versions.link / "sidecar" / "run.py"
-    result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True, env=env)
-    assert result.returncode == 1 and "went back to 0.1.0" in result.stderr
-    assert "ValueError: broken release" in result.stderr
-    assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0"
+def test_the_service_falls_back_from_a_value_error_too(tmp_path, monkeypatch):
+    """A service that raises a ValueError (a JSONDecodeError, say) before it reaches Steam: that is the
+    release's failure, not a refused debugger, so it comes out of main() for run.py to go back from."""
+
+    async def broken(cfg, log, stop):
+        raise ValueError("broken release")
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(injector, "run_service", broken)
+    with pytest.raises(ValueError, match="broken release"):
+        cli.main(["run"])

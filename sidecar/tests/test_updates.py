@@ -50,18 +50,15 @@ class Release:
         self.requests: list[str] = []
         self.base = ""
 
-    def publish(self, version: str, *, signed_by: Path | None = None, tamper=None, extra=None) -> None:
+    def publish(self, version: str, *, signed_by: Path | None = None, extra=None) -> None:
         tarball = make_tarball(self.tmp / f"src-{version}.tar.gz", version, extra).read_bytes()
         manifest = {
             "format": 1,
-            "name": "polykey",
             "version": version,
             "url": f"{self.base}/polykey-{version}.tar.gz",
             "size": len(tarball),
             "sha256": hashlib.sha256(tarball).hexdigest(),
         }
-        if tamper:
-            tamper(manifest)
         data = json.dumps(manifest).encode()
         self.files = {
             "latest.json": data,
@@ -177,7 +174,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
         try:
             await up.handle("update.check", {})
             status = await finish(up)
-            assert status["available"] and status["latest"] == "0.2.0" and not status["auto"]
+            assert status["available"] and status["latest"] == "0.2.0"
             assert versions.current() == "0.1.0"
             assert (await up.handle("update.install", {"version": "0.9.9"}))["error"] == "not-offered"
             await up.handle("update.install", {"version": "0.2.0"})
@@ -195,8 +192,6 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
         ("other-key", "bad-signature"),
         ("edited", "bad-signature"),
         ("no-key", "no-key"),
-        ("evil-host", "bad-manifest"),
-        ("old-format", "bad-manifest"),
     ],
 )
 def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path, problem, code):
@@ -211,10 +206,6 @@ def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path
         signers = None
         if problem == "other-key":
             source.publish("0.2.0", signed_by=other)
-        elif problem == "evil-host":
-            source.publish("0.2.0", tamper=lambda m: m.update(url="https://evil.example/polykey-0.2.0.tar.gz"))
-        elif problem == "old-format":
-            source.publish("0.2.0", tamper=lambda m: m.update(format=0))
         else:
             source.publish("0.2.0")
         if problem == "edited":
@@ -553,11 +544,11 @@ def test_manifest_fields_are_checked():
         "url": "https://github.com/a/b/releases/download/v1.2.3/p.tar.gz",
         "size": 10,
         "sha256": "a" * 64,
-        "notes": "https://github.com/a/b/releases/tag/v1.2.3",
     }
     hosts = ("github.com", "githubusercontent.com")
     assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"
     for change in (
+        {"format": 0},
         {"version": "v1.2.3"},
         {"version": "1.2.3+dev"},
         {"size": True},
@@ -576,10 +567,9 @@ def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_
     async def main():
         bridge = Bridge(Log(io.StringIO()), settings_path=settings, updates=updater(versions, settings, key))
         reply = await bridge.handle(json.dumps({"id": 3, "op": "update.status"}))
-        assert reply["id"] == 3 and reply["version"] == "0.1.0" and reply["auto"]
+        assert reply["id"] == 3 and reply["version"] == "0.1.0"
         saved = await bridge.handle(json.dumps({"id": 4, "op": "settings.save", "settings": {"autoUpdate": False}}))
         assert saved["ok"] and json.loads(settings.read_text())["autoUpdate"] is False
-        assert not (await bridge.handle(json.dumps({"id": 5, "op": "update.status"})))["auto"]
         assert (await Bridge(Log(io.StringIO())).handle(json.dumps({"id": 6, "op": "update.check"})))[
             "error"
         ] == "unavailable"

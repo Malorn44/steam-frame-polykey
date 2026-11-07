@@ -15,7 +15,7 @@ A release rolled back from (versions.py) is left alone by automatic installs unt
 comes; Install puts it back on request.
 
 The page asks over the bridge:
-  update.status {since?, timeoutMs?}  {version, dev, auto, state, latest?, available, skipped,
+  update.status {since?, timeoutMs?}  {version, dev, state, latest?, available, skipped,
                                        previous?, error?, done?, total?, rev}; with `since`, it
                                        answers once `rev` is not that any more, or on timeout
   update.check                        check now (and install, with auto-update on)
@@ -35,7 +35,6 @@ import os
 import re
 import shutil
 import tempfile
-import time
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
 from urllib.parse import urljoin, urlsplit
@@ -51,8 +50,7 @@ GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirec
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
 INTERVAL = 3600.0
-MAX_MANIFEST = 64 << 10
-MAX_SIGNATURE = 16 << 10
+MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
 MAX_REDIRECTS = 5
 MAX_WAIT = 30.0
@@ -130,14 +128,7 @@ def parse_manifest(data: bytes, hosts: tuple[str, ...], schemes: tuple[str, ...]
         raise UpdateError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
         raise UpdateError("bad-manifest")
-    notes = manifest.get("notes")
-    return {
-        "version": manifest["version"],
-        "url": url,
-        "size": size,
-        "sha256": sha,
-        "notes": notes if isinstance(notes, str) and host_allowed(notes, hosts, ("https",)) else None,
-    }
+    return {"version": manifest["version"], "url": url, "size": size, "sha256": sha}
 
 
 async def fetch(
@@ -216,7 +207,6 @@ class Updater:
         self.state = "idle"  # idle | checking | downloading | installing | installed | restarting
         self.error: Optional[str] = None
         self.latest: Optional[dict] = None
-        self.checked: Optional[float] = None
         self._download: Optional[Download] = None
         self._task: Optional[asyncio.Task] = None
         self._logged: Optional[str] = None
@@ -270,7 +260,6 @@ class Updater:
             "rev": self.rev,
             "version": self.version,
             "dev": self.dev,
-            "auto": self.auto(),
             "state": self.state,
             "latest": latest,
             "available": bool(latest and not self.dev and newer(latest, self.version)),
@@ -340,8 +329,8 @@ class Updater:
         timeout = aiohttp.ClientTimeout(total=60, connect=15)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as http:
-                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_MANIFEST)
-                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SIGNATURE)
+                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_SMALL)
+                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
             self.latest = parse_manifest(manifest, hosts, schemes)
         except UpdateError as error:
@@ -353,7 +342,6 @@ class Updater:
         except Exception as error:  # never leave the line saying "checking"
             self._fail(f"failed-{type(error).__name__}"[:32])
             return
-        self.checked = time.time()
         latest = self.latest["version"]
         if self.dev or not newer(latest, self.version):
             self._note(
@@ -502,14 +490,8 @@ class Updater:
             if stop.is_set():
                 break
             delay = self._interval
-            if self._task is not None and not self._task.done():
-                continue
-            self._task = asyncio.ensure_future(self.check())
-            stopped = asyncio.ensure_future(stop.wait())
-            try:
-                await asyncio.wait([self._task, stopped], return_when=asyncio.FIRST_COMPLETED)
-            finally:
-                stopped.cancel()
+            if self._task is None or self._task.done():
+                self._task = asyncio.ensure_future(self.check())
 
     async def close(self) -> None:
         if self._task is not None and not self._task.done():
