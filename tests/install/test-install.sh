@@ -5,9 +5,10 @@
 #   bash tests/install/test-install.sh     (npm run test:install; CI runs it on every push)
 #
 # Covers --check, a first install, running it again, an update, --rollback, a manifest not signed by
-# the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, the
-# layout from before releases, --uninstall and --uninstall --purge; and what release.sh makes: the
-# same tarball from the same commit, what the tarball carries, and latest.json.
+# the key, a tarball that does not match its hash, an install.sh cut off part way, --tarball, waiting
+# for the updater's lock, the layout from before releases, --uninstall and --uninstall --purge; and
+# what release.sh makes: the same tarball from the same commit, what the tarball carries, and
+# latest.json.
 # The checks are strings that expect() evaluates later, so they stay in single quotes.
 # shellcheck disable=SC2016,SC2034
 set -euo pipefail
@@ -128,6 +129,13 @@ for n in 60 120 180 240; do
 done
 expect "an install.sh cut off part way does nothing" '[ "$cut_ok" = 1 ]'
 expect "--tarball installs a file, and un-skips it" 'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ "$(current)" = versions/0.2.0 ] && ! state | grep -q skip'
+# The service's updater at work: the installer waits for it, rather than unpack beside it.
+flock "$DATA/updates/lock" sh -c 'touch "$1/held"; sleep 3; touch "$1/released"' sh "$T" &
+holder=$!
+for _ in $(seq 50); do [ -e "$T/held" ] && break; sleep 0.1; done
+expect "waits while another install or update holds the lock" \
+  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions/0.2.0" -nt "$T/released" ]'
+wait "$holder"
 expect "keeps the current release and the one before" '[ "$(ls "$DATA/versions")" = "$(printf "0.1.0\n0.2.0")" ]'
 INSTALL=scripts/install.sh
 expect "an install.sh without a key will not download" '! run && grep -q "has no release key" "$T/out"'

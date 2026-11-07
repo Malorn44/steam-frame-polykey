@@ -19,7 +19,9 @@ const git = (cwd, ...args) => {
 /** <last tag>+dev.<commits since>.g<sha>[.dirty].<UTC stamp>; from 0.0.0 and the first commit before any tag. */
 export const devVersion = (cwd = '.', now = new Date()) => {
   const stamp = now.toISOString().replace(/[-:]/g, '').slice(0, 15);
-  const described = git(cwd, 'describe', '--tags', '--match', 'v[0-9]*', '--long', '--abbrev=7', '--dirty');
+  // Only tags shaped like vX.Y.Z[-pre], so a stray v1.2 cannot hide the release tag before it.
+  const match = 'v[0-9]*.[0-9]*.[0-9]*';
+  const described = git(cwd, 'describe', '--tags', '--match', match, '--long', '--abbrev=7', '--dirty');
   const tagged = /^v(.+)-(\d+)-g([0-9a-f]+)(-dirty)?$/.exec(described);
   if (tagged && SEMVER.test(tagged[1])) {
     const [, tag, since, sha, dirty] = tagged;

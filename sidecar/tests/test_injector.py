@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
+import aiohttp
 import pytest
 
 from fake_cdp import FakeSteam, until
 from polykey import injector
-from polykey.cdp import check_loopback
+from polykey.cdp import check_loopback, find_target, list_targets
 from polykey.injector import Config, Log
 
 
@@ -201,6 +205,25 @@ def test_another_version_left_in_steam_is_replaced(tmp_path):
     run(main())
 
 
+def test_a_version_in_the_page_that_is_not_a_release_is_not_logged(tmp_path):
+    async def main():
+        fake = await FakeSteam().start()
+        fake.injected, fake.page_version, fake.injects_version = True, "x" * 500 + "\nforged line", "0.2.0"
+        out = io.StringIO()
+        cfg = fast_config(fake, tmp_path)
+        (cfg.bundle.parent / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+        stop, task = await start_service(cfg, Log(out))
+        try:
+            await until(lambda: fake.inject_count == 1)
+            assert "Steam runs polykey ?; injecting 0.2.0" in out.getvalue()
+            assert "forged" not in out.getvalue() and "xxx" not in out.getvalue()
+        finally:
+            await stop_service(stop, task)
+            await fake.stop()
+
+    run(main())
+
+
 def test_a_release_marks_itself_started_once_it_reaches_steam(tmp_path, monkeypatch):
     code = tmp_path / "versions" / "0.1.0"
     code.mkdir(parents=True)
@@ -221,6 +244,60 @@ def test_a_release_marks_itself_started_once_it_reaches_steam(tmp_path, monkeypa
             await fake.stop()
 
     run(main())
+
+
+def test_the_page_tells_the_updater_whether_the_keyboard_is_on_screen(tmp_path):
+    async def main():
+        fake = await FakeSteam().start()
+        page = injector.Page()
+        assert await page.keyboard_hidden()  # no Steam page: no keyboard to interrupt
+        stop = asyncio.Event()
+        async with aiohttp.ClientSession() as http:
+            target = find_target(await list_targets(http, fake.devtools), injector.TARGET_TITLE)
+            cfg, log = fast_config(fake, tmp_path), Log(io.StringIO())
+            task = asyncio.ensure_future(injector.watch_target(http, target, cfg, log, stop, page=page))
+            try:
+                await until(lambda: page.session is not None)
+                fake.keyboard = "open"
+                assert not await page.keyboard_hidden()
+                fake.keyboard = "unknown"
+                assert not await page.keyboard_hidden()
+                fake.keyboard = "hidden"
+                assert await page.keyboard_hidden()
+            finally:
+                stop.set()
+                await asyncio.wait_for(task, 3)
+        assert page.session is None
+        await fake.stop()
+
+    run(main())
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+def test_the_keyboard_expression_reads_only_the_open_flag_from_the_page():
+    line = "running keyboard=en/english open={} mode=buffered target=steam-ui overlay=- app=- popup=800x300"
+    cases = [
+        (None, "hidden"),  # no polykey in the page
+        ({"state": "waiting", "status": line.format("true")}, "hidden"),  # not drawn yet
+        ({"state": "blocked", "status": line.format("true")}, "hidden"),
+        ({"state": "running", "status": line.format("true")}, "open"),
+        ({"state": "running", "status": line.format("false")}, "hidden"),
+        ({"state": "running", "status": "running keyboard=en/english status=unavailable popup=-"}, "unknown"),
+        ({"state": "running", "status": None}, "unknown"),  # debug.status() throws
+    ]
+    script = """
+const { expression, cases } = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+console.log(JSON.stringify(cases.map((c) => {
+  globalThis.__polykey = c && { state: c.state, debug: { status: () => {
+    if (c.status === null) throw new Error('no status');
+    return c.status;
+  } } };
+  return (0, eval)(expression);
+})));
+"""
+    payload = json.dumps({"expression": injector.KEYBOARD_EXPRESSION, "cases": [c for c, _ in cases]})
+    result = subprocess.run(["node", "-e", script], input=payload, capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == [want for _, want in cases]
 
 
 def test_missing_bundle_is_reported_and_nothing_is_injected(tmp_path):
