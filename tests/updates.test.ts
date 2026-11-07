@@ -23,12 +23,14 @@ describe('updates: the line under the version', () => {
     expect(updateSummary({ ...S, state: 'restarting' }).text).toBe('Restarting polykey…');
   });
 
-  it('an installed release waits for the keyboard to close, or restarts now; Back stays if offered', () => {
+  it('an installed release waits for the keyboard to close, or restarts now, or stays on the running one', () => {
     const installed: UpdateStatus = { ...S, state: 'installed', latest: '0.2.0', available: true };
     expect(updateSummary(installed)).toEqual({
       text: '0.2.0 is installed; it starts when the keyboard closes', actions: [{ action: 'install', label: 'Restart now' }],
     });
-    expect(labels({ ...installed, previous: '0.0.9' })).toEqual(['Restart now', 'Back to 0.0.9']);
+    // previous is then the release still running (0.1.0): going back keeps it, so the button says so.
+    expect(updateSummary({ ...installed, previous: '0.1.0' }).actions).toEqual([
+      { action: 'install', label: 'Restart now' }, { action: 'rollback', label: 'Stay on 0.1.0' }]);
   });
 
   it('explains a failure in words, and a dev build', () => {

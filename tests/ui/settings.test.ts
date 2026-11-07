@@ -94,6 +94,16 @@ describe('settings: updates', () => {
     expect(asked).toEqual(['install', 'rollback', 'check']);
   });
 
+  it('an installed update waiting for the keyboard offers Restart now and Stay on the running release', () => {
+    const { shadow, asked } = setup(0, { ...STATUS, state: 'installed', latest: '0.2.0', available: true, previous: '0.1.0' });
+    const line = shadow.querySelector<HTMLElement>('.about .ver')!;
+    expect(line.querySelector('span')!.textContent).toBe('polykey test · 0.2.0 is installed; it starts when the keyboard closes');
+    expect([...line.querySelectorAll('.opt')].map((b) => b.textContent)).toEqual(['Restart now', 'Stay on 0.1.0']);
+    tap(line.querySelectorAll('.opt')[0]!);
+    tap(line.querySelectorAll('.opt')[1]!);
+    expect(asked).toEqual(['install', 'rollback']);
+  });
+
   it('before the sidecar answers there is only the version', () => {
     const { shadow } = setup();
     expect(shadow.querySelector('.about .ver')!.textContent).toBe('polykey test');
