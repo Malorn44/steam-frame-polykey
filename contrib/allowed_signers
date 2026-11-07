@@ -1,7 +1,6 @@
 # The public key that signs polykey releases: the updater and install.sh check latest.json.sig with
 # `ssh-keygen -Y verify -f allowed_signers -I polykey-release -n polykey-release`.
-# The private key is never in the repo: CI signs with it, from the release environment's secret
-# RELEASE_SIGNING_KEY. Make it once, by hand, and add its line here:
-#   ssh-keygen -q -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release
-#   printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release.pub)" >> contrib/allowed_signers
+# The private key is never in the repo. It lives only in the release environment's secret
+# RELEASE_SIGNING_KEY, which CI signs with, and in an encrypted offline backup; docs/RELEASING.md,
+# "The key", says how to restore it or change keys.
 polykey-release namespaces="polykey-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMKghPcBF8I8aajFT1j6LqgmVbM/xuUFmolgP5cn8Eh
