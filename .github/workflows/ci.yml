@@ -310,8 +310,9 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "$TAG is $SHA, on main"
 
-  # The release's commit built by scripts/release.sh, which makes the same files from the same commit.
-  # The build runs its packages' code, so this job can only read; release:assets attaches its files.
+  # The release's commit built by scripts/release.sh, which makes the same bytes from the same commit
+  # (and refuses to build a release when contrib/allowed_signers holds no release key). The build runs
+  # its packages' code, so this job can only read; release:assets attaches its files.
   release-build:
     name: release:build
     needs: release
@@ -320,33 +321,20 @@ jobs:
     permissions:
       contents: read
     outputs:
-      built: ${{ steps.key.outputs.present }}
       artifact: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
           persist-credentials: false
-      - name: release key
-        id: key
-        run: |
-          if grep -q '^polykey-release .*ssh-ed25519 ' contrib/allowed_signers; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::No release key in contrib/allowed_signers at this tag (scripts/sign-release.sh --init), so nothing is built or signed"
-          fi
-      - if: steps.key.outputs.present == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
       # No package's install scripts run (the build needs none).
-      - if: steps.key.outputs.present == 'true'
-        run: npm ci --ignore-scripts
-      - if: steps.key.outputs.present == 'true'
-        env:
+      - run: npm ci --ignore-scripts
+      - env:
           VERSION: ${{ needs.release.outputs.version }}
         run: scripts/release.sh "$VERSION"
-      - if: steps.key.outputs.present == 'true'
-        id: upload
+      - id: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-build
@@ -358,7 +346,6 @@ jobs:
   release-assets:
     name: release:assets
     needs: [release, release-build]
-    if: needs.release-build.outputs.built == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write # attach files to the draft
@@ -382,7 +369,6 @@ jobs:
   release-rebuild:
     name: release:rebuild
     needs: [release, release-build]
-    if: needs.release-build.outputs.built == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
