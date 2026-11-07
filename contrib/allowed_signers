@@ -3,3 +3,4 @@
 # `scripts/sign-release.sh --init` makes the key (never in the repo: CI signs with it, from the release
 # environment's secret RELEASE_SIGNING_KEY) and adds its line here, as:
 # polykey-release namespaces="polykey-release" ssh-ed25519 AAAA…
+polykey-release namespaces="polykey-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMKghPcBF8I8aajFT1j6LqgmVbM/xuUFmolgP5cn8Eh
