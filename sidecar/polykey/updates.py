@@ -128,14 +128,7 @@ def parse_manifest(data: bytes, hosts: tuple[str, ...], schemes: tuple[str, ...]
         raise UpdateError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
         raise UpdateError("bad-manifest")
-    notes = manifest.get("notes")
-    return {
-        "version": manifest["version"],
-        "url": url,
-        "size": size,
-        "sha256": sha,
-        "notes": notes if isinstance(notes, str) and host_allowed(notes, hosts, ("https",)) else None,
-    }
+    return {"version": manifest["version"], "url": url, "size": size, "sha256": sha}
 
 
 async def fetch(

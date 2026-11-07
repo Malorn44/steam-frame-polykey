@@ -54,7 +54,6 @@ class Release:
         tarball = make_tarball(self.tmp / f"src-{version}.tar.gz", version, extra).read_bytes()
         manifest = {
             "format": 1,
-            "name": "polykey",
             "version": version,
             "url": f"{self.base}/polykey-{version}.tar.gz",
             "size": len(tarball),
@@ -553,7 +552,6 @@ def test_manifest_fields_are_checked():
         "url": "https://github.com/a/b/releases/download/v1.2.3/p.tar.gz",
         "size": 10,
         "sha256": "a" * 64,
-        "notes": "https://github.com/a/b/releases/tag/v1.2.3",
     }
     hosts = ("github.com", "githubusercontent.com")
     assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"

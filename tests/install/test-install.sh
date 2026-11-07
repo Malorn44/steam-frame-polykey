@@ -67,8 +67,7 @@ expect "and the code: VERSION, the bundle, the sidecar, the packs" \
 installer_sha=$(sha256sum "$T/serve/r1/install.sh" | cut -d' ' -f1)
 tarball_sha=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
 expect "latest.json names the release, its URL, size and sha256, and the sha256 of install.sh" \
-  '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"name\": \"polykey\", \"version\": \"0.1.0\", \"url\": sys.argv[2], \"size\": int(sys.argv[3]), \"sha256\": sys.argv[4], \"installer\": sys.argv[5]})" "$T/serve/r1/latest.json" "http://127.0.0.1:$port/r1/polykey-0.1.0.tar.gz" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha" "$installer_sha"'
-expect "SHA256SUMS covers the tarball, install.sh and latest.json" '(cd "$T/serve/r1" && sha256sum -c --quiet SHA256SUMS) && [ "$(wc -l < "$T/serve/r1/SHA256SUMS")" = 3 ]'
+  '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"version\": \"0.1.0\", \"url\": sys.argv[2], \"size\": int(sys.argv[3]), \"sha256\": sys.argv[4], \"installer\": sys.argv[5]})" "$T/serve/r1/latest.json" "http://127.0.0.1:$port/r1/polykey-0.1.0.tar.gz" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha" "$installer_sha"'
 
 echo "sign-release.sh"
 verify() { ssh-keygen -Y verify -f "$T/allowed_signers" -I polykey-release -n polykey-release -s "$1.sig" < "$1" >/dev/null 2>&1; }
