@@ -1,0 +1,264 @@
+# Releasing polykey
+
+```
+merge a PR to main ──► CI ──► release-please updates the release PR (next version, CHANGELOG.md)
+                                              │ merge it
+                                              ▼
+       CI: tag vX.Y.Z, draft the release, attach the tag's build, check it against a second build
+                                              │
+                    you: smoke-test the draft on the Frame, then approve in GitHub
+                                              │
+                                              ▼
+       CI: sign latest.json, publish ──► every installed polykey updates within the hour
+```
+
+CI gates every commit. A release reaches Frames only after you smoke-test its draft and approve it.
+`release:sign` waits for your approval in the `release` environment, the only place the signing key
+is kept. It signs only the `latest.json` that `release:verify` found to be what the tagged commit
+builds to, rebuilt on a fresh runner, and only while the tag still points at that commit, which
+`release` found on main. No build runs in a job that can write to the repo or holds the key.
+Installers and updaters refuse a `latest.json` the key didn't sign. A dev deploy
+(`scripts/deploy.sh`, in `~/.local/share/polykey/dev/`) is never replaced by an update.
+
+## Once
+
+1. **Make the release key** and commit its public half, through a PR like any change. This is done:
+   `contrib/allowed_signers` on main holds the key. For the record:
+
+   ```sh
+   # ed25519, no passphrase: CI signs with it
+   ssh-keygen -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release
+   printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release.pub)" \
+     >> contrib/allowed_signers
+   git switch -c chore/release-key
+   git add contrib/allowed_signers && git commit -m "chore(release): the release key"
+   git push -u origin HEAD && gh pr create --fill
+   ```
+
+   Then back the key up, encrypted. The key itself has to stay without a passphrase for the secret,
+   so copy it and give only the copy one. Move that copy offline, and keep its passphrase in your
+   password manager:
+
+   ```sh
+   cp ~/.ssh/polykey-release ~/.ssh/polykey-release.backup
+   ssh-keygen -p -f ~/.ssh/polykey-release.backup
+   ```
+
+   Don't skip the backup. GitHub never gives a secret back, and installed releases trust only the
+   keys they shipped with, so without it a lost key means every user reinstalls by hand (see
+   [The key](#the-key)). Merge the PR before the first release PR: a release build refuses an
+   `allowed_signers` without the key, so `release:build` fails and the draft gets no files.
+
+2. **Make the repo public**, before the first release PR is merged. On this plan, an environment
+   can require an approval (step 3) only in a public repo. GitHub also serves a private repo's
+   releases only to people signed in, so neither `curl … | sh` nor the updater could reach them.
+
+3. **The `release` environment** (Settings → Environments → New environment, named `release`):
+   - **Required reviewers:** you. Leave "Prevent self-review" off: you merge the release PR and
+     approve it too.
+   - **Deployment branches and tags:** selected branches, `main` only.
+   - **Environment secret `RELEASE_SIGNING_KEY`:** the release key:
+
+     ```sh
+     gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < ~/.ssh/polykey-release
+     ```
+
+   `release:sign` checks that the repo is public and the environment requires a reviewer, and signs
+   nothing otherwise. Once the secret is set, delete the plain key from this PC
+   (`rm ~/.ssh/polykey-release`), so only the secret and your encrypted backup hold it.
+   [Trying a release from this PC](#trying-a-release-from-this-pc) then signs with a throwaway key.
+
+4. **The token.** release-please acts with a fine-grained personal access token, so CI runs on its
+   release PR (whatever the Actions token does starts no workflow, and `ci ok` is required). On
+   GitHub: Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate
+   new token, with access to only `Malorn44/steam-frame-polykey` and the repository permissions
+   **Contents: read and write** and **Pull requests: read and write** (Metadata: read comes with
+   them). Keep it in an environment only main can use, not as a repository secret: a workflow run
+   from any branch of this repo, a PR's included, can read a repository secret.
+   - **The `release-please` environment** (Settings → Environments → New environment). First set
+     **Deployment branches and tags:** selected branches, `main` only, and add no reviewer: the
+     `release` job uses it on every push to main, and each shows as a deployment. If a run on main
+     already created the environment, it has no branch rule yet, so set one before the secret.
+   - **Its environment secret `RELEASE_PLEASE_TOKEN`:** the token, pasted when asked:
+
+     ```sh
+     gh secret set RELEASE_PLEASE_TOKEN --env release-please --repo Malorn44/steam-frame-polykey
+     ```
+
+   On this plan, both need the repo public (step 2). Only the `release` job names the environment,
+   and it runs nothing but release-please and checks with gh and git. A workflow on another branch
+   that names the environment is refused it, so it never gets the token. Until the secret is set,
+   `release` skips with a notice saying so, and no release PR opens. Once the token expires, the job
+   fails on every push to main until you put a new token in the secret.
+
+## Each release
+
+1. **The release PR.** After a push to main passes CI, release-please opens or updates a PR titled
+   `chore(main): release X.Y.Z`. It sets `.release-please-manifest.json` to the next version and adds
+   that version's notes to CHANGELOG.md. Pull requests are squash-merged, so their titles are the
+   conventional commits it reads:
+   - `feat` bumps the minor version, and `fix` and `perf` bump the patch.
+   - While polykey is 0.x, a breaking change (`feat!:` or `BREAKING CHANGE:`) bumps the minor too.
+   - `docs`, `chore`, `test`, `refactor`, `build`, `ci` and `style` don't show in the notes. On
+     their own (a Dependabot bump, say) they open no release PR.
+
+   CI checks the release PR like any other. Leave it open until you want to release; each merge to
+   main updates it.
+
+2. **Merge the release PR.** CI tags vX.Y.Z on the merge commit and creates a draft release with
+   the PR's notes. `release` checks that the tagged commit is on main, and the jobs after it build
+   and check that commit, never the tag by name. Then:
+   - `release:build` checks out the commit and runs `npm ci --ignore-scripts` and
+     `scripts/release.sh X.Y.Z`. `release:assets` attaches what it built, `polykey-X.Y.Z.tar.gz`,
+     `install.sh` and `latest.json`, to the draft.
+   - `release:rebuild` builds the same commit again, on another runner.
+   - `release:verify` downloads the draft and checks its files against each other: `latest.json`'s
+     version, and the tarball's size and sha256. It then requires each of the three files to be
+     byte for byte the one the rebuild made (`cmp`).
+   - `release:sign` then waits for your approval.
+
+   The two builds can only read the repo, and the jobs that write to it run nothing from npm. So a
+   package's code can't change the draft or forge the check, though one that changed both builds
+   alike would still pass it.
+
+   If a job fails on something passing, such as the network, use Re-run failed jobs on that run.
+   `release:assets` replaces any files already attached. `release.sh` makes the same bytes from the
+   same commit, but if GitHub updated the runner image between the two builds (each job's "Set up
+   job" step names its image), they can differ, and `release:verify` refuses the draft. Then re-run
+   `release:build` (the job, from the run's page): that builds both again and runs every job after
+   it.
+
+3. **Smoke test the draft on the Frame:**
+
+   ```sh
+   gh release download vX.Y.Z -p 'polykey-*.tar.gz' -p install.sh -D /tmp/polykey-vX.Y.Z
+   scp /tmp/polykey-vX.Y.Z/* steamos@frame:/tmp/
+   ssh steamos@frame 'sh /tmp/install.sh --tarball /tmp/polykey-X.Y.Z.tar.gz'
+   ```
+
+   Then go through the [checklist](#smoke-test).
+
+4. **For 0.1.0, write the notes by hand, before you approve.** Its generated notes list every PR
+   since releases began. Replace them on GitHub (the draft → Edit → Save draft). The notes aren't
+   signed: `latest.json` holds only the version and the tarball's size and sha256, so editing them
+   doesn't change what gets signed. Don't touch the draft's files: if `latest.json` changes after
+   `release:verify` checked it, `release:sign` refuses. CHANGELOG.md keeps the generated list.
+
+5. **Approve.** In the workflow run (Actions → the run of the release PR's merge → Review
+   deployments), approve `release`. `release:sign` then:
+   - downloads `latest.json` again and requires the one `release:verify` checked;
+   - checks that the tag still points at the commit that was built;
+   - signs it with `RELEASE_SIGNING_KEY`, written to a temporary file (mode 600) and removed after;
+   - checks the signature against the commit's `contrib/allowed_signers`, and against the latest
+     published release's, which Frames check it with (the first release has none);
+   - attaches `latest.json.sig` and publishes the draft as the latest release.
+
+   From then on `curl … | sh` installs it, and installed releases update to it within the hour.
+
+### Smoke test
+
+CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
+
+- [ ] Settings shows `polykey X.Y.Z`
+- [ ] the keyboard opens in a game and in the Steam dashboard, and types there
+- [ ] English: letters, Shift, the number row, Fn, a word suggestion (and a swipe, if swipe typing is on)
+- [ ] Japanese: 12-key flick, then convert with Anthy (かな → 漢字) and send
+- [ ] 🌐 goes through your keyboards; with one keyboard in the list it is hidden
+- [ ] dictation with one model types a phrase
+- [ ] a change in Settings survives `systemctl --user restart polykey`
+- [ ] once the release is published: Settings → Check for updates says "Up to date"
+
+## When it goes wrong
+
+- **Before you approve:** if the smoke test fails, reject the deployment (Review deployments →
+  Reject) and delete the draft on GitHub. If `release:verify` refused the draft, nothing waits for
+  an approval: delete the draft and find out why. Either way, leave the tag (the next release PR's
+  notes start from it) and fix forward with a new release.
+- **If `release` refused the tag,** nothing was built: the tagged commit isn't on main as that run
+  saw it. Unless main moved on while release-please ran, find out why first. To draft the release
+  again, delete the draft and the tag, swap the merged release PR's `autorelease: tagged` label back
+  to `autorelease: pending`, and re-run `release` in main's latest run.
+- **After it's published:** a release that fails before it ever reaches Steam goes back by itself
+  to the one before it. Otherwise Settings → Back to X (or
+  `sh ~/.local/share/polykey/current/install.sh --rollback`) returns a Frame to the release
+  before. Either way, automatic updates then skip the release left until a newer one is
+  published. Fix forward with a new release.
+- **If `install.sh --rollback` fails:** the current release's own code can't run, so it can't roll
+  itself back. Download an earlier release's `polykey-X.Y.Z.tar.gz` from
+  https://github.com/Malorn44/steam-frame-polykey/releases and run
+  `sh install.sh --tarball polykey-X.Y.Z.tar.gz`. That release's own run.py does the switch.
+
+## The key
+
+- `RELEASE_SIGNING_KEY` (ed25519, no passphrase; your encrypted offline backup is the only other
+  copy) signs `latest.json`. Installers and updaters check it with `ssh-keygen -Y verify` against
+  the `allowed_signers` they shipped with.
+- **To change keys:**
+  1. Make a second key, and add its line to `contrib/allowed_signers` by hand, beside the old one:
+
+     ```sh
+     ssh-keygen -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release-2
+     printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release-2.pub)" \
+       >> contrib/allowed_signers
+     ```
+
+     Back it up encrypted, as in [Once](#once), step 1.
+  2. Merge that and release it. The secret still holds the old key, so the old key signs it.
+  3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY` (and delete it from
+     this PC, as in [Once](#once), step 3), drop the old line, and release again.
+
+  `release:sign` also checks each signature against the latest published release's
+  `allowed_signers`, so a new key stored before step 2's release is published is refused there, not
+  by every Frame. It can't tell whether Frames have updated, so still wait for that.
+- **If the secret is lost** (replaced or deleted), restore it from your backup. Work on a copy, so
+  the backup keeps its passphrase. `ssh-keygen -p -N ''` asks for that passphrase and leaves the
+  copy without one, as the secret needs:
+
+  ```sh
+  cp /path/to/polykey-release.backup ~/.ssh/polykey-release
+  ssh-keygen -p -N '' -f ~/.ssh/polykey-release
+  gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < ~/.ssh/polykey-release
+  rm ~/.ssh/polykey-release
+  ```
+
+  It is the same key, so installed releases notice nothing.
+- **If the key is lost** (the secret replaced or deleted, and no backup), installed releases cannot
+  verify anything newer. Make a new key as in step 1 of changing keys, back it up as in
+  [Once](#once), step 1, replace the lost key's line in `allowed_signers` with the new one's, and
+  store the new key in `RELEASE_SIGNING_KEY`.
+  `release:sign` then refuses to publish, because the latest published release doesn't trust the
+  new key. So that one release takes two PRs: one before it that takes the check against the latest
+  published release out of the "check the signature" step, and one after it is published that puts
+  the check back. Each Frame then reinstalls with the one-line installer, whose install.sh carries
+  the new key.
+
+## Trying a release from this PC
+
+To walk an install, update and rollback on the Frame without GitHub, serve a release over the LAN.
+The release key isn't on this PC ([Once](#once), step 3), so build and sign with a throwaway key: a
+Frame installed this way then trusts only that key, so reinstall it with the one-line installer
+afterwards.
+
+```sh
+# a throwaway key, and the allowed_signers that trusts it, which the build puts in the release
+ssh-keygen -q -t ed25519 -N '' -C polykey-rehearsal -f /tmp/rehearsal-key
+printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 /tmp/rehearsal-key.pub)" \
+  > /tmp/rehearsal-signers
+export POLYKEY_ALLOWED_SIGNERS=/tmp/rehearsal-signers
+
+scripts/release.sh 0.1.0-rc.1
+ssh-keygen -Y sign -f /tmp/rehearsal-key -n polykey-release dist/release/latest.json
+python3 -m http.server -d dist/release 8000
+```
+
+On the Frame:
+
+```sh
+curl -fsSL http://<PC>:8000/install.sh | sh -s -- --base http://<PC>:8000
+```
+
+To have the updater follow this server instead of GitHub, put `"updateUrl": "http://<PC>:8000/"` in
+`~/.config/polykey/settings.json`. Build the next version (`0.1.0-rc.2`) the same way, and Settings →
+Check for updates finds it. Pre-releases sort before their release (0.1.0-rc.2 < 0.1.0). From WSL,
+the Frame reaches the PC only with WSL's mirrored networking or a Windows port proxy, and a firewall
+rule for the port.
