@@ -65,6 +65,7 @@ def _versions(argv: list[str]) -> int:
         release = f"polykey {args.version}" if args.version else "polykey"
         reasons = {
             "no-previous": "no earlier release to go back to",
+            "busy": "another polykey install or update holds the lock; try again in a minute",
             "bad-archive": f"{args.tarball} is not a {release} release tarball",
         }
         print(reasons.get(error.code, error.code), file=sys.stderr, flush=True)

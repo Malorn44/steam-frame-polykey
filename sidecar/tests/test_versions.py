@@ -275,6 +275,27 @@ def test_a_second_writer_waits_for_the_first(versions, tmp_path):
     assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
 
 
+def test_a_writer_gives_up_with_busy_rather_than_wait_for_ever(versions, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(versions_module, "LOCK_WAIT", 0.1)
+    install(versions, "0.1.0", "0.2.0")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.3.0")
+    holder = hold_lock(versions, 1.0)
+    try:
+        for write in (lambda: versions.activate("0.1.0"), versions.rollback, lambda: versions.install(tarball)):
+            with pytest.raises(VersionError) as error:
+                write()
+            assert error.value.code == "busy"
+        with pytest.raises(SystemExit) as code:
+            cli.main(["rollback", "--root", str(versions.root)])
+        assert code.value.code == 1 and "holds the lock" in capsys.readouterr().err
+    finally:
+        holder.join()
+    assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
+    assert sorted(p.name for p in versions.versions.iterdir()) == ["0.1.0", "0.2.0"]
+
+
 def test_only_an_installed_release_is_marked_started(versions, tmp_path):
     install(versions, "0.1.0")
     mark_started(versions.versions / "0.1.0")
