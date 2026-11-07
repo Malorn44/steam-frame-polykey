@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import os
 import re
@@ -374,6 +375,7 @@ class Updater:
         if self.dev or not self.latest or self.latest["version"] != version:
             return
         _, hosts, schemes = self.source()
+        loop = asyncio.get_running_loop()  # versions/ changes off the loop: they may wait for install.sh
         try:
             if version not in self.versions.installed():
                 work = self.versions.root / "updates"
@@ -389,7 +391,6 @@ class Updater:
                 if not await download.run():
                     raise UpdateError(download.error or "network")
                 self._set("installing")
-                loop = asyncio.get_running_loop()
                 try:
                     await loop.run_in_executor(None, self.versions.unpack, download.path, version)
                 finally:
@@ -398,7 +399,7 @@ class Updater:
             else:
                 self._set("installing")
             self._update_unit(version)
-            self.versions.activate(version, running=self.version)
+            await loop.run_in_executor(None, functools.partial(self.versions.activate, version, running=self.version))
         except (UpdateError, VersionError) as error:
             self._note(f"install of {version} failed: {error.code}")
             self._set("idle", error.code)
@@ -472,7 +473,7 @@ class Updater:
         elif self._task is not None and not self._task.done():
             return {"ok": False, "error": "busy"}
         try:
-            before, after = self.versions.rollback()
+            before, after = await asyncio.get_running_loop().run_in_executor(None, self.versions.rollback)
         except VersionError as error:
             return {"ok": False, "error": error.code}
         except OSError:

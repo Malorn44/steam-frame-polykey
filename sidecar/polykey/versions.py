@@ -5,6 +5,8 @@
   current              the link the service runs: versions/<version> or dev
   updates/state.json   {"previous": the release that ran before this one, "skip": a release rolled
                         back from, which automatic updates leave alone until a newer one}
+  updates/lock         one writer at a time: unpack, activate, rollback and prune here, and
+                        install.sh's own unpacking, each hold an exclusive flock on it
 
 install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
 `run.py rollback`; the updater (updates.py) does the same in the service, with unpack(). A release
@@ -15,13 +17,16 @@ mixes two versions in one process: the switch takes effect when the service rest
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import re
 import shutil
 import tarfile
+import time
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Iterator, Optional
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$")
 DEV = "dev"
@@ -29,6 +34,7 @@ STARTED = ".started"  # in versions/<version>: that release has reached Steam
 MAX_MEMBER = 32 << 20  # unpack(): the largest file a release may hold, and all of them together
 MAX_TOTAL = 128 << 20
 PART = re.compile(r"^[A-Za-z0-9_.+@-]+$")  # unpack(): what a path part in a release may be
+LOCK_WAIT = 60.0  # how long a writer waits for another one to finish (install.sh waits as long)
 
 
 class VersionError(Exception):
@@ -88,6 +94,7 @@ class Versions:
         self.dev = self.root / DEV
         self.link = self.root / "current"
         self.state_file = self.root / "updates" / "state.json"
+        self.lock_file = self.root / "updates" / "lock"
 
     # --- reading -----------------------------------------------------------------------------------
 
@@ -136,6 +143,27 @@ class Versions:
 
     # --- changing ----------------------------------------------------------------------------------
 
+    @contextlib.contextmanager
+    def _locked(self) -> Iterator[None]:
+        """Hold the lock every writer of versions/, `current` and state.json takes: the service's
+        updater, `run.py activate|rollback` and install.sh. Waits up to LOCK_WAIT for another writer,
+        then gives up with "busy". Blocking: in the service, run it off the loop."""
+        self.lock_file.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        try:
+            deadline = time.monotonic() + LOCK_WAIT
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise VersionError("busy") from None
+                    time.sleep(0.05)
+            yield
+        finally:
+            os.close(fd)  # closing it lets the lock go
+
     def _save_state(self, state: dict) -> None:
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.state_file.with_name("state.json.tmp")
@@ -154,33 +182,39 @@ class Versions:
         """Make an installed release the current one (an install or an update). The release it replaces
         becomes the one a rollback goes to; one asked for by name is no longer skipped. `running`, the
         release a process still runs from until it restarts, is kept too."""
-        if not is_release(version) or version not in self.installed():
-            raise VersionError("not-installed")
-        before, state = self.current(), self.state()
-        self._point(version)
-        if is_release(before) and before != version:
-            state["previous"] = before
-        if state.get("skip") == version:
-            state.pop("skip")
-        self._save_state(state)
-        self.prune(running)
+        with self._locked():
+            if not is_release(version) or version not in self.installed():
+                raise VersionError("not-installed")
+            before, state = self.current(), self.state()
+            self._point(version)
+            if is_release(before) and before != version:
+                state["previous"] = before
+            if state.get("skip") == version:
+                state.pop("skip")
+            self._save_state(state)
+            self._prune(running)
 
     def rollback(self) -> tuple[Optional[str], str]:
         """Go back to previous(); the release left is skipped by automatic updates. -> (from, to)."""
-        before, target = self.current(), self.previous()
-        if target is None:
-            raise VersionError("no-previous")
-        state = self.state()
-        self._point(target)
-        state["previous"] = None
-        if is_release(before):
-            state["skip"] = before
-        self._save_state(state)
-        return before, target
+        with self._locked():
+            before, target = self.current(), self.previous()
+            if target is None:
+                raise VersionError("no-previous")
+            state = self.state()
+            self._point(target)
+            state["previous"] = None
+            if is_release(before):
+                state["skip"] = before
+            self._save_state(state)
+            return before, target
 
     def prune(self, running: Optional[str] = None) -> None:
         """Keep the current release, the one before it, the one still running, and anything newer than
         current (a release rolled back from); remove the rest and leftovers of interrupted unpacks."""
+        with self._locked():
+            self._prune(running)
+
+    def _prune(self, running: Optional[str]) -> None:
         current, state = self.current(), self.state()
         keep = {current, state.get("previous"), running}
         for version in self.installed():
@@ -195,8 +229,13 @@ class Versions:
     def unpack(self, tarball: Path, version: str) -> Path:
         """Unpack a verified release tarball (polykey-<version>/… inside) into versions/<version>/.
         Only directories and regular files with plain names, under that one top folder; nothing can
-        land anywhere else. Assembled beside its place and renamed in (blocking: run it off the loop).
+        land anywhere else. Assembled beside its place and renamed in, under the lock (blocking: run it
+        off the loop).
         The current release is left as it is: a process may be running from it."""
+        with self._locked():
+            return self._unpack(tarball, version)
+
+    def _unpack(self, tarball: Path, version: str) -> Path:
         if not is_release(version):
             raise VersionError("bad-version")
         top = f"polykey-{version}"

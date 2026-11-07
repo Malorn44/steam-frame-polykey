@@ -15,7 +15,7 @@ from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
 from polykey.versions import Versions
-from test_versions import make_tarball
+from test_versions import hold_lock, make_tarball
 
 pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="needs ssh-keygen")
 
@@ -402,6 +402,32 @@ def test_going_back_while_an_install_waits_for_the_keyboard_needs_no_restart(hom
         # 0.1.0 still runs: it is current again, 0.2.0 is skipped, and nothing restarts.
         assert reply["ok"] and reply["state"] == "idle" and reply["skipped"]
         assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0" and restarts == []
+
+    run(main())
+
+
+def test_an_update_waits_for_another_writer_without_stopping_the_service(home, key, tmp_path):
+    versions, settings = home
+    versions.unpack(make_tarball(tmp_path / "second.tar.gz", "0.2.0"), "0.2.0")  # no download: straight to activate
+
+    async def main():
+        source = await Release(key, tmp_path).start()
+        source.publish("0.2.0")
+        settings_for(settings, source.base)
+        restarts = []
+        up = updater(versions, settings, key, restarts=restarts)
+        holder = hold_lock(versions, 0.5)  # install.sh is unpacking
+        try:
+            await up.handle("update.check", {})
+            ticks = 0
+            while not up._task.done():
+                await asyncio.sleep(0.01)
+                ticks += 1
+        finally:
+            holder.join()
+            await source.stop()
+        assert ticks >= 20  # the loop (the bridge, injection) kept running while activate waited
+        assert restarts == ["0.2.0"] and versions.current() == "0.2.0"
 
     run(main())
 
