@@ -3,7 +3,7 @@
 Event-driven: re-checks on new execution contexts (debounced), with a slow safety check; reconnects
 with backoff when Steam restarts. On stop it calls __polykey.uninstall(). Forwards "[polykey]"
 console lines to the journal when asked (Config.forward_console: a dev build, by default).
-The service also runs the updater (updates.py).
+The service also runs the updater (updates.py), and tells it whether the keyboard is on screen.
 A polykey of another version found in the page is replaced with ours.
 """
 
@@ -39,6 +39,15 @@ CHECK_EXPRESSION = (
     " return typeof p === 'object' && p !== null && p.state !== 'uninstalled' && String(p.version); })()"
 )
 STATUS_EXPRESSION = "(() => { const p = globalThis.__polykey; return p ? `${p.version} (${p.state})` : 'missing'; })()"
+# Whether polykey's keyboard is on screen: "open", "hidden" or "unknown", and nothing else leaves the
+# page. A polykey that is not running draws no keyboard; a running one has the VR keyboard's open flag
+# in its status line (debug.status(): "running keyboard=… open=true mode=…").
+KEYBOARD_EXPRESSION = (
+    "(() => { const p = globalThis.__polykey;"
+    " if (typeof p !== 'object' || p === null || p.state !== 'running') return 'hidden';"
+    " try { const m = / open=(true|false) /.exec(String(p.debug.status()));"
+    " return m ? (m[1] === 'true' ? 'open' : 'hidden') : 'unknown'; } catch (e) { return 'unknown'; } })()"
+)
 UNINSTALL_EXPRESSION = (
     "(() => { const p = globalThis.__polykey;"
     " if (p && typeof p.uninstall === 'function') { p.uninstall(); return true; } return false; })()"
@@ -192,6 +201,25 @@ async def uninstall_in_page(session: CdpSession, log: Log, timeout: float) -> No
         log.info(f"could not remove from Steam ({type(error).__name__}); restarting Steam restores the stock keyboard")
 
 
+class Page:
+    """The SharedJSContext connection while there is one, so the updater can ask whether the keyboard is
+    on screen before it restarts the service."""
+
+    def __init__(self) -> None:
+        self.session: Optional[CdpSession] = None
+
+    async def keyboard_hidden(self) -> bool:
+        """True when a restart cannot interrupt typing: polykey's keyboard is not on screen, or there is
+        no Steam page to show it. False while it is open, or when the page cannot tell."""
+        session = self.session
+        if session is None or session.closed:
+            return True
+        try:
+            return await session.evaluate(KEYBOARD_EXPRESSION) == "hidden"
+        except (CdpError, asyncio.TimeoutError):
+            return False
+
+
 class Watch:
     """CDP events for one connection: reload detection, console forwarding, bridge calls."""
 
@@ -262,12 +290,15 @@ async def watch_target(
     log: Log,
     stop: asyncio.Event,
     bridge: Optional[Bridge] = None,
+    page: Optional[Page] = None,
 ) -> None:
     """Keep the bundle injected into one target until its websocket closes or we are stopped."""
     ws = await http.ws_connect(target["webSocketDebuggerUrl"], max_msg_size=0)
     watch = Watch(cfg, log, bridge)
     session = CdpSession(ws, on_event=watch.on_event, call_timeout=cfg.call_timeout)
     watch.session = session
+    if page is not None:
+        page.session = session
     log.clear_state()
     log.info(f"connected to {TARGET_TITLE}")
     try:
@@ -286,6 +317,8 @@ async def watch_target(
     except (CdpError, asyncio.TimeoutError) as error:
         log.info(f"connection problem ({type(error).__name__}); reconnecting")
     finally:
+        if page is not None and page.session is session:
+            page.session = None
         watch.cancel_tasks()
         await session.close()
     if not stop.is_set():
@@ -298,7 +331,15 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
     settings = cfg.user_dir / "settings.json"
     dictation = Dictation(log, settings)  # nothing is recorded or loaded until dictation is used
     dictation.startup()
-    updates = Updater(log, settings, installed_version(), is_dev(), INSTALL_DIR / "allowed_signers")
+    page = Page()
+    updates = Updater(
+        log,
+        settings,
+        installed_version(),
+        is_dev(),
+        INSTALL_DIR / "allowed_signers",
+        keyboard_hidden=page.keyboard_hidden,
+    )
     checks = asyncio.ensure_future(updates.run(stop))
     bridge = Bridge(
         log,
@@ -310,7 +351,7 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         updates=updates,
     )
     try:
-        await _serve_forever(cfg, log, stop, bridge)
+        await _serve_forever(cfg, log, stop, bridge, page)
     finally:
         checks.cancel()
         await updates.close()
@@ -320,7 +361,9 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
             desktop.clipboard.close()
 
 
-async def _serve_forever(cfg: Config, log: Log, stop: asyncio.Event, bridge: Bridge) -> None:
+async def _serve_forever(
+    cfg: Config, log: Log, stop: asyncio.Event, bridge: Bridge, page: Optional[Page] = None
+) -> None:
     backoff = cfg.backoff_start
     timeout = aiohttp.ClientTimeout(total=None, connect=5, sock_read=None)
     async with aiohttp.ClientSession(timeout=timeout) as http:
@@ -330,7 +373,7 @@ async def _serve_forever(cfg: Config, log: Log, stop: asyncio.Event, bridge: Bri
                 if target is not None:
                     backoff = cfg.backoff_start
                     started = asyncio.get_running_loop().time()
-                    await watch_target(http, target, cfg, log, stop, bridge)
+                    await watch_target(http, target, cfg, log, stop, bridge, page)
                     if asyncio.get_running_loop().time() - started < 1.0:
                         await sleep_unless(stop, cfg.backoff_start)  # never spin on a flapping target
                     continue
