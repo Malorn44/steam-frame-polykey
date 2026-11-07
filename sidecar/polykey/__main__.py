@@ -84,6 +84,7 @@ def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] and argv[0] in VERSION_COMMANDS:
         sys.exit(_versions(argv))
+    from .cdp import NotLoopback
     from .injector import Config, Log, run_once, run_probe, run_uninstall
 
     parser = argparse.ArgumentParser(prog="run.py", description="polykey sidecar for the Steam Frame")
@@ -121,7 +122,7 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(0)
         runner = {"once": run_once, "probe": run_probe, "uninstall": run_uninstall}[args.command]
         sys.exit(asyncio.run(runner(cfg, log)))
-    except ValueError as error:  # e.g. a non-loopback endpoint
+    except NotLoopback as error:  # only this: any other failure is the release's, and run.py falls back
         log.info(str(error))
         sys.exit(2)
     except KeyboardInterrupt:

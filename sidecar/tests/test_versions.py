@@ -363,3 +363,25 @@ def test_the_service_falls_back_from_a_release_that_cannot_start(tmp_path, broke
     result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "probe"], capture_output=True, text=True)
     assert result.returncode != 0 and "went back" not in result.stderr
     assert versions.current() == "0.2.0"
+
+
+def test_the_service_falls_back_from_a_value_error_too(tmp_path):
+    """The real sidecar's code, with a service that raises a ValueError (a JSONDecodeError, say) before
+    it reaches Steam: that is the release's failure, not a refused debugger, so it goes back too."""
+    versions = Versions(tmp_path / "polykey")
+    for v in ("0.1.0", "0.2.0"):
+        release = versions.versions / v
+        shutil.copytree(
+            SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__")
+        )
+        shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
+        (release / "VERSION").write_text(f"{v}\n", encoding="utf-8")
+        versions.activate(v)
+    with open(versions.versions / "0.2.0" / "sidecar" / "polykey" / "injector.py", "a", encoding="utf-8") as injector:
+        injector.write("\n\nasync def run_service(cfg, log, stop):\n    raise ValueError('broken release')\n")
+    env = {**os.environ, "HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "config")}
+    run_py = versions.link / "sidecar" / "run.py"
+    result = subprocess.run([sys.executable, "-I", "-B", str(run_py), "run"], capture_output=True, text=True, env=env)
+    assert result.returncode == 1 and "went back to 0.1.0" in result.stderr
+    assert "ValueError: broken release" in result.stderr
+    assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0"

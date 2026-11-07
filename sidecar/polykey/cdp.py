@@ -22,6 +22,11 @@ class CdpError(Exception):
     """A CDP call failed, or the websocket closed while it was pending."""
 
 
+class NotLoopback(Exception):
+    """A debugger endpoint that is not on this machine, refused. Its own class, so that only this
+    refusal ends the sidecar with exit 2, and no handler for other errors can swallow it."""
+
+
 def check_loopback(devtools: str) -> None:
     """Refuse any debugger endpoint that is not on this machine.
 
@@ -29,7 +34,7 @@ def check_loopback(devtools: str) -> None:
     """
     host = urlsplit(devtools).hostname or ""
     if host not in LOOPBACK_HOSTS:
-        raise ValueError(f"refusing non-loopback debugger endpoint {host!r}; use 127.0.0.1")
+        raise NotLoopback(f"refusing non-loopback debugger endpoint {host!r}; use 127.0.0.1")
 
 
 async def list_targets(http: aiohttp.ClientSession, devtools: str) -> list:
