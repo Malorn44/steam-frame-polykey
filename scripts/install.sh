@@ -59,16 +59,10 @@ parse() {
 # Hard requirements fail the install; the rest are warnings. Prints a line for each.
 check() {
   ok=1
-  if "$PY" -I -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
-    say "✓ $("$PY" -I -c 'import platform; print("python3", platform.python_version())')"
+  if found=$("$PY" -I -c 'import platform, sys, aiohttp; sys.version_info >= (3, 10) or sys.exit(1); print("python3", platform.python_version(), "with aiohttp", aiohttp.__version__)' 2>/dev/null); then
+    say "✓ $found"
   else
-    say "✗ python3 3.10 or newer at $PY: missing. SteamOS ships it."; ok=0
-  fi
-  if "$PY" -I -c 'import aiohttp' 2>/dev/null; then
-    say "✓ aiohttp $("$PY" -I -c 'import aiohttp; print(aiohttp.__version__)')"
-  else
-    say "✗ aiohttp for $PY: missing. SteamOS ships it; elsewhere install your distribution's python3-aiohttp"
-    say "  (polykey runs on the system Python, not pip)."; ok=0
+    say "✗ python3 3.10 or newer with aiohttp at $PY: missing. SteamOS ships both."; ok=0
   fi
   if systemctl --user show-environment >/dev/null 2>&1; then
     say "✓ systemd user session"

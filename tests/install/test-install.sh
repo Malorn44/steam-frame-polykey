@@ -100,7 +100,7 @@ current() { readlink "$DATA/current" 2>/dev/null || echo none; }
 state() { cat "$DATA/updates/state.json" 2>/dev/null || echo '{}'; }
 
 echo "installer"
-expect "--check passes and reports python and aiohttp" 'run --check && grep -q "✓ python3" "$T/out" && grep -q "✓ aiohttp" "$T/out"'
+expect "--check passes and reports python and aiohttp" 'run --check && grep -q "^✓ python3 3\.[0-9.]* with aiohttp [0-9]" "$T/out"'
 expect "--check changes nothing" '[ ! -e "$DATA" ]'
 
 # The layout dev deploys used before releases.
