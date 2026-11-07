@@ -17,15 +17,14 @@
 # polykeys trust only the keys in the allowed_signers they shipped with.
 #
 # The key: $POLYKEY_RELEASE_KEY (default ~/.ssh/polykey-release); the keys releases trust:
-# $POLYKEY_ALLOWED_SIGNERS (default contrib/allowed_signers). POLYKEY_REPO (default
-# Malorn44/steam-frame-polykey) names the GitHub repo. Needs ssh-keygen; --local needs node.
+# $POLYKEY_ALLOWED_SIGNERS (default contrib/allowed_signers). Needs ssh-keygen; --local needs node.
 set -euo pipefail
 here=$PWD
 cd "$(dirname "$0")/.."
 
 KEY="${POLYKEY_RELEASE_KEY:-$HOME/.ssh/polykey-release}"
 SIGNERS="${POLYKEY_ALLOWED_SIGNERS:-contrib/allowed_signers}"
-REPO="${POLYKEY_REPO:-Malorn44/steam-frame-polykey}"
+REPO=Malorn44/steam-frame-polykey
 NAMESPACE=polykey-release
 
 die() { echo "✗ $*" >&2; exit 1; }
