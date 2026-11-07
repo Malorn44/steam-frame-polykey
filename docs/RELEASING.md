@@ -183,9 +183,14 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   copy) signs `latest.json`. Installers and updaters check it with `ssh-keygen -Y verify` against
   the `allowed_signers` they shipped with.
 - **To change keys:**
-  1. Make the new one with `POLYKEY_RELEASE_KEY=~/.ssh/polykey-release-2 scripts/sign-release.sh --init`,
-     which adds its line to `contrib/allowed_signers` beside the old one, and back it up encrypted
-     as in [Once](#once), step 1.
+  1. Make the new one with `--add`, which puts its line in `contrib/allowed_signers` beside the old
+     one (plain `--init` refuses while that file holds a release key):
+
+     ```sh
+     POLYKEY_RELEASE_KEY=~/.ssh/polykey-release-2 scripts/sign-release.sh --init --add
+     ```
+
+     Back it up encrypted, as in [Once](#once), step 1.
   2. Merge that and release it. The secret still holds the old key, so the old key signs it.
   3. Once Frames have that release, put the new key in `RELEASE_SIGNING_KEY`, drop the old line,
      and release again.
@@ -206,11 +211,13 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
 
   It is the same key, so installed releases notice nothing.
 - **If the key is lost** (the secret replaced or deleted, and no backup), installed releases cannot
-  verify anything newer. Make a new key (`--init`), replace the old line in `allowed_signers` with
-  it, and store it in `RELEASE_SIGNING_KEY`. `release:sign` then refuses to publish, because the
-  latest published release doesn't trust the new key. So for that one release, a PR has to take the
-  check against the latest published release out of its "check the signature" step, and the next
-  PR puts it back. Each Frame then reinstalls with the one-line installer, whose install.sh carries
+  verify anything newer. Make a new key with `scripts/sign-release.sh --init --add`
+  (`allowed_signers` still holds the lost one), back it up as in [Once](#once), step 1, delete the
+  lost key's line from `allowed_signers`, and store the new key in `RELEASE_SIGNING_KEY`.
+  `release:sign` then refuses to publish, because the latest published release doesn't trust the
+  new key. So that one release takes two PRs: one before it that takes the check against the latest
+  published release out of the "check the signature" step, and one after it is published that puts
+  the check back. Each Frame then reinstalls with the one-line installer, whose install.sh carries
   the new key.
 
 ## Trying a release from this PC
