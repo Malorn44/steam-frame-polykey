@@ -57,7 +57,7 @@ R="$T/unpacked/polykey-0.1.0"
 expect "it carries the licences, the unit, the release key and the installer with the key in it" \
   'cmp -s LICENSE "$R/LICENSE" && cmp -s docs/THIRD-PARTY-NOTICES.md "$R/docs/THIRD-PARTY-NOTICES.md" && cmp -s contrib/polykey.service "$R/polykey.service" && cmp -s "$T/allowed_signers" "$R/allowed_signers" && grep -qF "$(cut -d" " -f3,4 "$T/allowed_signers")" "$R/install.sh" && [ -x "$R/install.sh" ] && cmp -s "$R/install.sh" "$T/serve/r1/install.sh"'
 expect "and the code: VERSION, the bundle, the sidecar, the packs" \
-  '[ "$(cat "$R/VERSION")" = 0.1.0 ] && [ -s "$R/bundle.js" ] && [ -f "$R/sidecar/run.py" ] && [ -d "$R/packs" ] && [ -d "$R/schema" ] && ! find "$R" -name __pycache__ | grep -q .'
+  '[ "$(cat "$R/VERSION")" = 0.1.0 ] && [ -s "$R/bundle.js" ] && [ -f "$R/sidecar/run.py" ] && [ -d "$R/packs" ] && [ -f "$R/packs/pack.schema.json" ] && ! find "$R" -name __pycache__ | grep -q .'
 tarball_sha=$(sha256sum "$T/serve/r1/polykey-0.1.0.tar.gz" | cut -d' ' -f1)
 expect "latest.json names the release and the tarball's size and sha256" \
   '"$PYTHON" -I -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m != {\"format\": 1, \"version\": \"0.1.0\", \"size\": int(sys.argv[2]), \"sha256\": sys.argv[3]})" "$T/serve/r1/latest.json" "$(stat -c %s "$T/serve/r1/polykey-0.1.0.tar.gz")" "$tarball_sha"'

@@ -1,9 +1,27 @@
+# The Python side's dev tools and lint settings. polykey isn't a Python package: nothing here is built
+# or installed, and the sidecar runs on the Frame's system Python.
+
+# The tools' versions (pip 25.1 or later): python3 -m venv --upgrade-deps .venv && .venv/bin/pip install --group dev
+# CI installs one group per job.
+[dependency-groups]
+ruff = ["ruff==0.17.4"]                     # lint and format ([tool.ruff] below)
+shellcheck = ["shellcheck-py==0.11.0.1"]    # shellcheck for scripts/*.sh
+actionlint = ["actionlint-py==1.7.12.25"]   # actionlint for .github/workflows
+dev = [
+  "aiohttp==3.9.3",  # the Frame's (SteamOS ships it; the sidecar uses the system Python)
+  "pytest==9.2.0",
+  { include-group = "ruff" },
+  { include-group = "shellcheck" },
+  { include-group = "actionlint" },
+]
+
 # Lint, and `ruff format` with its defaults (`npm run lint` checks both).
+[tool.ruff]
 target-version = "py310"  # the PC test venv; the Frame runs 3.12
 line-length = 120
 extend-exclude = ["reference", "local"]
 
-[lint]
+[tool.ruff.lint]
 # pyflakes, pycodestyle, bugbear, asyncio pitfalls and ruff's own checks; imports keep their hand order.
 select = ["E", "F", "W", "B", "ASYNC", "RUF"]
 ignore = [

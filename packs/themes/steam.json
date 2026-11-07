@@ -1,5 +1,5 @@
 {
- "$schema": "../../schema/pack.schema.json",
+ "$schema": "../pack.schema.json",
  "schemaVersion": 1,
  "kind": "theme",
  "id": "themes/steam",

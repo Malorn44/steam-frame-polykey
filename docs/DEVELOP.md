@@ -7,7 +7,7 @@ How to build and check polykey, try it on a Frame, release it, and find your way
 ```sh
 npm install
 npm ci --prefix tools/eslint   # ESLint on its own TypeScript 6; the project builds with TypeScript 7
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # aiohttp matches the Frame
+python3 -m venv --upgrade-deps .venv && .venv/bin/pip install --group dev   # pip 25.1+; aiohttp matches the Frame
 npm run check        # lint (ESLint, ruff, shellcheck, actionlint), typecheck, vitest, pytest, build
 npm run test:install # install.sh end to end: throwaway signed releases, served from localhost
 ```
@@ -47,7 +47,7 @@ src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
                 dictation.ts, updates.ts: the page side of dictation and of the updater
 src/ui/         the keyboard as DOM
-packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
+packs/          bundled layouts, keyboards, themes; pack.schema.json, their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,

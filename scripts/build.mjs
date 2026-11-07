@@ -56,7 +56,6 @@ const installer = readFileSync('scripts/install.sh', 'utf8').replace('@ALLOWED_S
 writeFileSync(`${stage}/install.sh`, installer, { mode: 0o755 });
 cpSync('sidecar/run.py', `${stage}/sidecar/run.py`);
 cpSync('packs', `${stage}/packs`, { recursive: true });
-cpSync('schema', `${stage}/schema`, { recursive: true });
 cpSync('sidecar/polykey', `${stage}/sidecar/polykey`, {
   recursive: true,
   filter: (src) => !src.includes('__pycache__') && !src.endsWith('.pyc'),

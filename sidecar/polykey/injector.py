@@ -82,7 +82,7 @@ class Config:
     bundle: Path = field(default_factory=lambda: _default("bundle.js"))
     probe: Path = field(default_factory=lambda: _default("probe.js"))
     packs: Path = field(default_factory=lambda: _default("packs"))
-    schema: Path = field(default_factory=lambda: _default("schema/pack.schema.json"))
+    schema: Path = field(default_factory=lambda: _default("packs/pack.schema.json"))
     user_dir: Path = field(default_factory=pack_loader.user_dir)
     forward_console: bool = False
     debounce: float = 1.0
