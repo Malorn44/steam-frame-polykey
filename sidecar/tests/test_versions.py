@@ -199,7 +199,7 @@ def test_rollback_goes_back_and_skips_the_release_it_left(versions):
         versions.rollback()
     assert error.value.code == "no-previous"
     # The release rolled back from stays, to be put back on request; asking for it un-skips it.
-    versions.prune()
+    versions.activate("0.1.0")
     assert versions.installed() == ["0.1.0", "0.2.0"]
     versions.activate("0.2.0")
     assert versions.skipped() is None and versions.previous() == "0.1.0"
@@ -264,7 +264,6 @@ def test_a_writer_gives_up_with_busy_rather_than_write_beside_another(versions, 
         writes = (
             lambda: versions.activate("0.1.0"),
             versions.rollback,
-            versions.prune,
             lambda: versions.unpack(tarball, "0.3.0"),
         )
         for write in writes:
