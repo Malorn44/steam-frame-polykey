@@ -77,6 +77,13 @@ sign "$T/serve/swapped"
 cp -R "$T/serve/r2" "$T/serve/climbs"
 sed -i 's,"version": "0.2.0","version": "0.2.0/../..",' "$T/serve/climbs/latest.json"
 sign "$T/serve/climbs"
+# A signed manifest whose tarball (size and sha256 right) holds another release than it names.
+cp -R "$T/serve/r2" "$T/serve/mislabeled"
+cp "$T/serve/r1/polykey-0.1.0.tar.gz" "$T/serve/mislabeled/polykey-0.2.0.tar.gz"
+sed -i -e "s/\"size\": [0-9]*/\"size\": $(stat -c %s "$T/serve/mislabeled/polykey-0.2.0.tar.gz")/" \
+  -e "s/\"sha256\": \"[0-9a-f]*\"/\"sha256\": \"$(sha256sum "$T/serve/mislabeled/polykey-0.2.0.tar.gz" | cut -d' ' -f1)\"/" \
+  "$T/serve/mislabeled/latest.json"
+sign "$T/serve/mislabeled"
 
 # --- a Frame-like home ---------------------------------------------------------------------------
 
@@ -100,28 +107,28 @@ current() { readlink "$DATA/current" 2>/dev/null || echo none; }
 state() { cat "$DATA/updates/state.json" 2>/dev/null || echo '{}'; }
 
 echo "installer"
-expect "--check passes and reports python and aiohttp" 'run --check && grep -q "✓ python3" "$T/out" && grep -q "✓ aiohttp" "$T/out"'
+expect "--check passes and reports python and aiohttp" 'run --check && grep -q "^✓ python3 3\.[0-9.]* with aiohttp [0-9]" "$T/out"'
 expect "--check changes nothing" '[ ! -e "$DATA" ]'
 
-# The layout dev deploys used before releases.
-mkdir -p "$DATA/sidecar" "$DATA/speech/models" "$HOME/.config/polykey"
-touch "$DATA/bundle.js" "$DATA/speech/models/m.gguf"
+# A dictation model and the settings: only --purge removes them.
+mkdir -p "$DATA/speech/models" "$HOME/.config/polykey"
+touch "$DATA/speech/models/m.gguf"
 echo '{"theme": "themes/nord"}' > "$HOME/.config/polykey/settings.json"
 
 expect "installs the latest release" 'run --base "http://127.0.0.1:$port/r1" && [ "$(current)" = versions/0.1.0 ]'
 expect "the unit runs current/ and is enabled and restarted" \
   'grep -q "polykey/current/sidecar/run.py" "$HOME/.config/systemd/user/polykey.service" && grep -q "enable polykey" "$HOME/systemctl.log" && grep -q "restart polykey" "$HOME/systemctl.log"'
-expect "files from before releases are gone, dictation models stay" '[ ! -e "$DATA/sidecar" ] && [ ! -e "$DATA/bundle.js" ] && [ -e "$DATA/speech/models/m.gguf" ]'
-expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.js" && run --base "http://127.0.0.1:$port/r1" && grep -q "reinstalling it" "$T/out" && [ -f "$DATA/versions/0.1.0/bundle.js" ]'
+expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.js" && run --base "http://127.0.0.1:$port/r1" && [ -f "$DATA/versions/0.1.0/bundle.js" ]'
 expect "updates to a newer release" 'run --base "http://127.0.0.1:$port/r2" && [ "$(current)" = versions/0.2.0 ] && state | grep -q "\"previous\": \"0.1.0\""'
 expect "refuses a manifest changed after signing" '! run --base "http://127.0.0.1:$port/tampered" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a tarball that does not match its hash" '! run --base "http://127.0.0.1:$port/swapped" && grep -q "does not match its sha256" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
+expect "refuses a signed tarball that holds another release than latest.json names" '! run --base "http://127.0.0.1:$port/mislabeled" && grep -q "not a polykey 0.2.0 release tarball" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a signed version that is not a folder name" '! run --base "http://127.0.0.1:$port/climbs" && grep -q "not a polykey release manifest" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
-echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/__main__.py"
+echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/injector.py"
 expect "--rollback leaves even a release that cannot start, and skips it" 'run --rollback && [ "$(current)" = versions/0.1.0 ] && state | grep -q "\"skip\": \"0.2.0\""'
-expect "--rollback with nowhere to go fails" '! run --rollback && grep -q "no earlier release" "$T/out"'
+expect "--rollback with nowhere to go fails, and says how to go back by hand" '! run --rollback && grep -q "no earlier release" "$T/out" && grep -q -- "sh install.sh --tarball polykey-X.Y.Z.tar.gz" "$T/out"'
 cut_ok=1
-for n in 60 120 180 240; do
+for n in $(seq 20 40 $(($(wc -l < "$INSTALL") - 1))); do
   head -n "$n" "$INSTALL" > "$T/cut.sh"
   sh "$T/cut.sh" --base "http://127.0.0.1:$port/r2" > "$T/out" 2>&1 || true
   if [ "$(current)" != versions/0.1.0 ] || grep -q "polykey installer" "$T/out"; then cut_ok=0; fi
@@ -133,7 +140,7 @@ flock "$DATA/updates/lock" sh -c 'touch "$1/held"; sleep 3; touch "$1/released"'
 holder=$!
 for _ in $(seq 50); do [ -e "$T/held" ] && break; sleep 0.1; done
 expect "waits while another install or update holds the lock" \
-  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions/0.2.0" -nt "$T/released" ]'
+  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions" -nt "$T/released" ]'
 wait "$holder"
 expect "keeps the current release and the one before" '[ "$(ls "$DATA/versions")" = "$(printf "0.1.0\n0.2.0")" ]'
 INSTALL=scripts/install.sh
@@ -141,7 +148,7 @@ expect "an install.sh without a release key installs nothing" \
   '! run --base "http://127.0.0.1:$port/r2" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 INSTALL="$T/serve/r2/install.sh"
 expect "--uninstall removes polykey, keeps settings and models" \
-  'run --uninstall && [ ! -e "$DATA/versions" ] && [ ! -e "$DATA/current" ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
+  'run --uninstall && [ "$(ls -A "$DATA")" = speech ] && [ ! -e "$HOME/.config/systemd/user/polykey.service" ] && [ -e "$DATA/speech/models/m.gguf" ] && [ -e "$HOME/.config/polykey/settings.json" ]'
 expect "--uninstall --purge removes the rest" 'run --uninstall --purge && [ ! -e "$DATA" ] && [ ! -e "$HOME/.config/polykey" ]'
 
 echo "$passed passed, $failed failed"

@@ -67,12 +67,10 @@ remote 'printf "  frame-jp-keyboard service: %s\n" "$(systemctl --user is-active
         if pgrep -f "/bin/framekeyboard( |$)" >/dev/null; then echo "  TaiKeid Full Keyboard: running"; else echo "  TaiKeid Full Keyboard: not running"; fi'
 
 echo "→ copying to $HOST:~/$DEST/dev/"
-# Before releases, a deploy filled ~/.local/share/polykey/ itself: those files go (never speech/, the
-# engine and models dictation downloaded, or versions/).
-remote "mkdir -p ~/$DEST/dev ~/$UNIT_DIR && cd ~/$DEST && if [ -d sidecar ] && [ ! -L sidecar ]; then rm -rf bundle.js probe.js VERSION sidecar packs schema; fi"
+remote "mkdir -p ~/$DEST/dev ~/$UNIT_DIR"
 rsync -a --delete --exclude __pycache__ -e "ssh ${SSH_OPTS[*]}" dist/stage/ "$HOST:$DEST/dev/"
 rsync -a -e "ssh ${SSH_OPTS[*]}" contrib/polykey.service "$HOST:$UNIT_DIR/$APP.service"
-# `current` is swapped in one rename, as run.py activate does: it never goes missing.
+# `current` is swapped in one rename, as versions.py does: it never goes missing.
 remote "touch ~/$DEST/dev/DEV && ln -sfn dev ~/$DEST/.current.new && mv -fT ~/$DEST/.current.new ~/$DEST/current && systemctl --user daemon-reload"
 
 if [ "$mode" = fg ]; then

@@ -15,7 +15,7 @@ from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, UpdateError, parse_manifest, tarball_url
 from polykey.versions import Versions
-from test_versions import hold_lock, make_tarball
+from test_versions import hold_lock, install, make_tarball
 
 pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="needs ssh-keygen")
 
@@ -88,8 +88,7 @@ class Release:
 def home(tmp_path):
     """versions/0.1.0 installed and current, settings pointing at the local source."""
     versions = Versions(tmp_path / "polykey")
-    versions.unpack(make_tarball(tmp_path / "first.tar.gz", "0.1.0"), "0.1.0")
-    versions.activate("0.1.0")
+    versions.install(make_tarball(tmp_path / "first.tar.gz", "0.1.0"))
     return versions, tmp_path / "settings.json"
 
 
@@ -272,8 +271,7 @@ def test_a_dev_build_reports_but_never_installs(home, key, tmp_path):
 
 def test_automatic_checks_skip_a_release_rolled_back_from_until_asked(home, key, tmp_path):
     versions, settings = home
-    versions.unpack(make_tarball(tmp_path / "second.tar.gz", "0.2.0"), "0.2.0")
-    versions.activate("0.2.0")
+    versions.install(make_tarball(tmp_path / "second.tar.gz", "0.2.0"))
     versions.rollback()
 
     async def main():
@@ -404,7 +402,7 @@ def test_an_install_waiting_for_the_keyboard_offers_back_which_needs_no_restart(
 
 def test_an_update_waits_for_another_writer_without_stopping_the_service(home, key, tmp_path):
     versions, settings = home
-    versions.unpack(make_tarball(tmp_path / "second.tar.gz", "0.2.0"), "0.2.0")  # no download: straight to activate
+    install(versions, "0.2.0")  # no download: straight to activate
 
     async def main():
         source = await Release(key, tmp_path).start()
@@ -430,8 +428,7 @@ def test_an_update_waits_for_another_writer_without_stopping_the_service(home, k
 
 def test_rollback_from_settings_goes_back_and_restarts(home, key, tmp_path):
     versions, settings = home
-    versions.unpack(make_tarball(tmp_path / "second.tar.gz", "0.2.0"), "0.2.0")
-    versions.activate("0.2.0")
+    versions.install(make_tarball(tmp_path / "second.tar.gz", "0.2.0"))
 
     async def main():
         restarts = []
