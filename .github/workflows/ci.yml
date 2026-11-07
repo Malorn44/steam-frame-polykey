@@ -237,18 +237,24 @@ jobs:
 
   # release-please (release-please-config.json) acts with RELEASE_PLEASE_TOKEN, a fine-grained token
   # (this repo; contents and pull requests read/write), so CI runs on the release PR: what the Actions
-  # token does starts no workflow. Nothing but release-please (and a check that the secret is set)
-  # runs in this job, so the token never meets the build's packages.
+  # token does starts no workflow. Nothing but release-please and checks with gh and git runs in this
+  # job, so the token never meets the build's packages.
+  #
+  # A tag can be moved, so the jobs after this one never use it by name. They check out the commit
+  # release-please tagged, and only once this job has found it on main: the commit that passed ci ok,
+  # or one before it.
   release:
     name: release
     needs: ci-ok # after every check, so a red main never releases
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    permissions: {} # release-please uses its own token
+    permissions:
+      contents: read # see whether main has moved on, and check out its history (release-please uses its own token)
     outputs:
       created: ${{ steps.release-please.outputs.release_created }}
       tag: ${{ steps.release-please.outputs.tag_name }}
       version: ${{ steps.release-please.outputs.version }}
+      sha: ${{ steps.on-main.outputs.sha }}
     steps:
       # A secret can't be read in `if:`, so a step says whether it is set. Until it is, this job (and
       # every release job after it) skips rather than turn main red.
@@ -262,14 +268,46 @@ jobs:
           else
             echo "::notice::No RELEASE_PLEASE_TOKEN secret, so release-please did not run. Set it to a fine-grained token for this repo with Contents and Pull requests read and write (docs/RELEASING.md)."
           fi
-      - id: release-please
+      # release-please reads main as it is now, not this run's commit. Once main has moved on, it runs
+      # in the newer commit's run instead (queued behind this one), so what it tags is on main here.
+      - name: main is still at this commit
+        id: head
         if: steps.token.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has moved on to $head, so release-please runs in that commit's run, not this one"
+          fi
+      - id: release-please
+        if: steps.head.outputs.current == 'true'
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      - if: steps.release-please.outputs.release_created == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # main's history, for the check below
+          persist-credentials: false
+      - name: the release is on main
+        id: on-main
+        if: steps.release-please.outputs.release_created == 'true'
+        env:
+          SHA: ${{ steps.release-please.outputs.sha }}
+          TAG: ${{ steps.release-please.outputs.tag_name }}
+        run: |
+          if [[ ! $SHA =~ ^[0-9a-f]{40}$ ]] || ! git merge-base --is-ancestor "$SHA" "$GITHUB_SHA"; then
+            echo "::error::release-please tagged $TAG at ${SHA:-no commit}, which is not on main at $GITHUB_SHA, so nothing is built or signed (docs/RELEASING.md#when-it-goes-wrong)"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "$TAG is $SHA, on main"
 
-  # The new draft's files: its tag built by scripts/release.sh, which makes the same files from the
-  # same commit. Re-running this job replaces files already attached.
+  # The new draft's files: the tagged commit built by scripts/release.sh, which makes the same files
+  # from the same commit. Re-running this job replaces files already attached.
   release-assets:
     name: release:assets
     needs: release
@@ -282,7 +320,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
           persist-credentials: false
       - name: release key
         id: key
@@ -334,7 +372,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
@@ -401,9 +439,10 @@ jobs:
           echo "the draft holds what $TAG builds to; release:sign waits for an approval"
 
   # Waits for your approval in the release environment, the only place RELEASE_SIGNING_KEY is kept,
-  # while you smoke-test the draft. Then it signs the latest.json release:verify checked, checks the
-  # signature against the tag's allowed_signers, attaches it and publishes the draft. Nothing from npm
-  # runs here: the runner's own node reads the API's JSON.
+  # while you smoke-test the draft. Then, while the tag still points at the commit release checked, it
+  # signs the latest.json release:verify checked, checks the signature against the commit's
+  # allowed_signers, attaches it and publishes the draft. Nothing from npm runs here: the runner's own
+  # node reads the API's JSON.
   release-sign:
     name: release:sign
     needs: [release, release-verify]
@@ -414,6 +453,7 @@ jobs:
       actions: read # read the release environment's protection rules
     env:
       TAG: ${{ needs.release.outputs.tag }}
+      SHA: ${{ needs.release.outputs.sha }}
       ID: ${{ needs.release-verify.outputs.id }}
       CHECKED: ${{ needs.release-verify.outputs.latest }}
     defaults:
@@ -422,7 +462,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
           persist-credentials: false
       # Without a required reviewer this job waited for no one, and on this plan a private repo ignores
       # the rule even when it is set: then it signs nothing.
@@ -461,6 +501,19 @@ jobs:
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/sign" --pattern latest.json
           [ "$(sha256sum "$RUNNER_TEMP/sign/latest.json" | cut -d' ' -f1)" = "$CHECKED" ] \
             || fail "the draft's latest.json changed after release:verify checked it"
+      # The release gives its tag as its source, so the tag must still be the commit that was built.
+      - name: check the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! at=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha'); then
+            echo "::error::Could not read the tag $TAG, so not signing"
+            exit 1
+          fi
+          if [ "$at" != "commit $SHA" ]; then
+            echo "::error::$TAG now points at $at, not commit $SHA, which release checked and release:verify built; not signing"
+            exit 1
+          fi
       - name: sign
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}

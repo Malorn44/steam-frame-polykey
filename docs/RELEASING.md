@@ -14,8 +14,9 @@ merge a PR to main ──► CI ──► release-please updates the release PR 
 
 CI gates every commit. A release reaches Frames only after you smoke-test its draft and approve it.
 `release:sign` waits for your approval in the `release` environment, the only place the signing key
-is kept. It signs only the `latest.json` that `release:verify` found to be what the tag builds to,
-rebuilt on a fresh runner. No build runs in the job that holds the key. Installers and updaters
+is kept. It signs only the `latest.json` that `release:verify` found to be what the tagged commit
+builds to, rebuilt on a fresh runner, and only while the tag still points at that commit, which
+`release` found on main. No build runs in the job that holds the key. Installers and updaters
 refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, in
 `~/.local/share/polykey/dev/`) is never replaced by an update.
 
@@ -79,14 +80,15 @@ refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, i
    main updates it.
 
 2. **Merge the release PR.** CI tags vX.Y.Z on the merge commit and creates a draft release with
-   the PR's notes. Then:
-   - `release:assets` checks out the tag, runs `npm ci --ignore-scripts` and
+   the PR's notes. `release` checks that the tagged commit is on main, and the jobs after it build
+   and check that commit, never the tag by name. Then:
+   - `release:assets` checks out the commit, runs `npm ci --ignore-scripts` and
      `scripts/release.sh X.Y.Z`, and attaches `polykey-X.Y.Z.tar.gz`, `install.sh`, `latest.json`
      and `SHA256SUMS` to the draft.
    - `release:verify`, on a fresh runner, downloads the draft and checks its files against each
-     other: version, URL, sha256, size, the installer's hash and SHA256SUMS. It then builds the tag
-     again and requires the same release (`sign-release.sh --compare`), the same `install.sh`, and
-     exactly the `latest.json` that build writes for the draft's tarball.
+     other: version, URL, sha256, size, the installer's hash and SHA256SUMS. It then builds the
+     commit again and requires the same release (`sign-release.sh --compare`), the same
+     `install.sh`, and exactly the `latest.json` that build writes for the draft's tarball.
    - `release:sign` then waits for your approval.
 
    If a job fails on something passing, such as the network, use Re-run failed jobs on that run.
@@ -111,6 +113,7 @@ refuse a `latest.json` the key didn't sign. A dev deploy (`scripts/deploy.sh`, i
 5. **Approve.** In the workflow run (Actions → the run of the release PR's merge → Review
    deployments), approve `release`. `release:sign` then:
    - downloads `latest.json` again and requires the one `release:verify` checked;
+   - checks that the tag still points at the commit that was built;
    - signs it with `RELEASE_SIGNING_KEY`, written to a temporary file (mode 600) and removed after;
    - checks the signature against the tag's `contrib/allowed_signers`;
    - attaches `latest.json.sig` and publishes the draft as the latest release.
@@ -136,6 +139,10 @@ CI can't run Steam, so this is by hand, on the Frame, with the draft installed:
   Reject) and delete the draft on GitHub. If `release:verify` refused the draft, nothing waits for
   an approval: delete the draft and find out why. Either way, leave the tag (the next release PR's
   notes start from it) and fix forward with a new release.
+- **If `release` refused the tag,** nothing was built: the tagged commit isn't on main as that run
+  saw it. Unless main moved on while release-please ran, find out why first. To draft the release
+  again, delete the draft and the tag, swap the merged release PR's `autorelease: tagged` label back
+  to `autorelease: pending`, and re-run `release` in main's latest run.
 - **After it's published:** a release that fails before it ever reaches Steam goes back by itself
   to the one before it. Otherwise Settings → Back to X (or
   `sh ~/.local/share/polykey/current/install.sh --rollback`) returns a Frame to the release
