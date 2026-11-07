@@ -1,4 +1,4 @@
-// Emoji picker logic. Pure. Data comes from packs/emoji/emoji.data (Unicode 15.0): an item is an emoji,
+// Emoji picker logic. Pure. Data comes from packs/emoji/emoji.data (Unicode Emoji 15.1): an item is an emoji,
 // or [base, light, medium-light, medium, medium-dark, dark] when it takes a skin tone.
 
 import type { Effect } from './keyboard.js';

@@ -2,7 +2,7 @@
 """Build packs/emoji/emoji.data (JSON) from Unicode's emoji-test.txt (Unicode License v3).
 
 Usage: python3 scripts/make-emoji.py emoji-test.txt > packs/emoji/emoji.data
-Source: https://unicode.org/Public/emoji/15.0/emoji-test.txt (15.0 matches Noto Color Emoji on the Frame).
+Source: https://unicode.org/Public/emoji/15.1/emoji-test.txt (15.1 matches Noto Color Emoji 2.042 on the Frame).
 Keeps fully-qualified emoji in Unicode's groups and order; an emoji with skin tones becomes
 [base, light, medium-light, medium, medium-dark, dark] (multi-person: the same tone for each person).
 """
@@ -57,8 +57,8 @@ for group in groups:
 print(
     json.dumps(
         {
-            "version": "15.0",
-            "notice": "Derived from Unicode emoji-test.txt 15.0; Unicode License v3, see LICENSE.unicode",
+            "version": "15.1",
+            "notice": "Derived from Unicode emoji-test.txt 15.1; Unicode License v3, see LICENSE.unicode",
             "groups": groups,
         },
         ensure_ascii=False,
