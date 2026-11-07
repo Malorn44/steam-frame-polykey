@@ -497,14 +497,8 @@ class Updater:
             if stop.is_set():
                 break
             delay = self._interval
-            if self._task is not None and not self._task.done():
-                continue
-            self._task = asyncio.ensure_future(self.check())
-            stopped = asyncio.ensure_future(stop.wait())
-            try:
-                await asyncio.wait([self._task, stopped], return_when=asyncio.FIRST_COMPLETED)
-            finally:
-                stopped.cancel()
+            if self._task is None or self._task.done():
+                self._task = asyncio.ensure_future(self.check())
 
     async def close(self) -> None:
         if self._task is not None and not self._task.done():
