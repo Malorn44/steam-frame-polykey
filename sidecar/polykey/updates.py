@@ -44,19 +44,17 @@ import aiohttp
 
 from .changes import Changes
 from .packs import read_settings
-from .speech.download import Download, Remote, host_allowed
+from .speech.download import GITHUB_HOSTS, MAX_REDIRECTS, Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
 OPS = ("update.status", "update.check", "update.install", "update.rollback")
 # GitHub redirects latest/download/<file> to the latest release's <file>.
 DEFAULT_SOURCE = "https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/"
-GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirect to *.githubusercontent.com
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
 INTERVAL = 3600.0
 MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
-MAX_REDIRECTS = 5
 VERIFY_TIMEOUT = 15.0
 KEYBOARD_POLL = 5.0  # an automatic install restarts once the keyboard is hidden at two readings in a row
 HIDDEN_READINGS = 2
