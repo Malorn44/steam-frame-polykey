@@ -5,11 +5,11 @@
   current              the link the service runs: versions/<version> or dev
   updates/state.json   {"previous": the release that ran before this one, "skip": a release rolled
                         back from, which automatic updates leave alone until a newer one}
-  updates/lock         one writer at a time: install, activate and rollback here, and
-                        install.sh's own unpacking, each hold an exclusive flock on it
+  updates/lock         one writer at a time: install, activate and rollback each hold an exclusive
+                        flock on it
 
-install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
-`run.py rollback`; the updater (updates.py) does the same in the service, with install(). A release
+install.sh runs `run.py unpack <tarball>` from the release it installs, and `run.py rollback` from the
+current one; the updater (updates.py) does the same in the service, with install(). A release
 marks itself started (versions/<version>/.started) the first time it reaches Steam; one that fails
 before that while it is current goes back to the release before it by itself (run.py, fall_back), and
 is skipped. The running sidecar imports from its own versions/<version> (run.py resolves the link), so
@@ -35,7 +35,7 @@ SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]
 DEV = "dev"
 STARTED = ".started"  # in versions/<version>: that release has reached Steam
 MAX_TOTAL = 128 << 20  # install(): what all the files in a release may hold together
-LOCK_WAIT = 60.0  # how long a writer waits for another one to finish (install.sh waits as long)
+LOCK_WAIT = 60.0  # how long a writer waits for another one to finish
 
 
 class VersionError(Exception):
@@ -165,7 +165,7 @@ class Versions:
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:
         """Hold the lock every writer of versions/, `current` and state.json takes: the service's
-        updater, `run.py activate|rollback` and install.sh. Waits up to LOCK_WAIT for another writer,
+        updater, and `run.py unpack|rollback` for install.sh. Waits up to LOCK_WAIT for another writer,
         then gives up with "busy". Blocking: in the service, run it off the loop."""
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)

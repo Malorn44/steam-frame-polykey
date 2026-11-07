@@ -112,7 +112,7 @@ expect "installs the latest release" 'run --base "http://127.0.0.1:$port/r1" && 
 expect "the unit runs current/ and is enabled and restarted" \
   'grep -q "polykey/current/sidecar/run.py" "$HOME/.config/systemd/user/polykey.service" && grep -q "enable polykey" "$HOME/systemctl.log" && grep -q "restart polykey" "$HOME/systemctl.log"'
 expect "files from before releases are gone, dictation models stay" '[ ! -e "$DATA/sidecar" ] && [ ! -e "$DATA/bundle.js" ] && [ -e "$DATA/speech/models/m.gguf" ]'
-expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.js" && run --base "http://127.0.0.1:$port/r1" && grep -q "reinstalling it" "$T/out" && [ -f "$DATA/versions/0.1.0/bundle.js" ]'
+expect "running it again repairs the release" 'rm "$DATA/versions/0.1.0/bundle.js" && run --base "http://127.0.0.1:$port/r1" && [ -f "$DATA/versions/0.1.0/bundle.js" ]'
 expect "updates to a newer release" 'run --base "http://127.0.0.1:$port/r2" && [ "$(current)" = versions/0.2.0 ] && state | grep -q "\"previous\": \"0.1.0\""'
 expect "refuses a manifest changed after signing" '! run --base "http://127.0.0.1:$port/tampered" && grep -q "not signed by the polykey release key" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
 expect "refuses a tarball that does not match its hash" '! run --base "http://127.0.0.1:$port/swapped" && grep -q "does not match its sha256" "$T/out" && [ "$(current)" = versions/0.2.0 ]'
@@ -121,7 +121,7 @@ echo "this release is broken" > "$DATA/versions/0.2.0/sidecar/polykey/injector.p
 expect "--rollback leaves even a release that cannot start, and skips it" 'run --rollback && [ "$(current)" = versions/0.1.0 ] && state | grep -q "\"skip\": \"0.2.0\""'
 expect "--rollback with nowhere to go fails" '! run --rollback && grep -q "no earlier release" "$T/out"'
 cut_ok=1
-for n in 60 120 180 240; do
+for n in $(seq 20 40 $(($(wc -l < "$INSTALL") - 1))); do
   head -n "$n" "$INSTALL" > "$T/cut.sh"
   sh "$T/cut.sh" --base "http://127.0.0.1:$port/r2" > "$T/out" 2>&1 || true
   if [ "$(current)" != versions/0.1.0 ] || grep -q "polykey installer" "$T/out"; then cut_ok=0; fi
@@ -133,7 +133,7 @@ flock "$DATA/updates/lock" sh -c 'touch "$1/held"; sleep 3; touch "$1/released"'
 holder=$!
 for _ in $(seq 50); do [ -e "$T/held" ] && break; sleep 0.1; done
 expect "waits while another install or update holds the lock" \
-  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions/0.2.0" -nt "$T/released" ]'
+  'run --tarball "$T/serve/r2/polykey-0.2.0.tar.gz" && [ -e "$T/released" ] && [ "$DATA/versions" -nt "$T/released" ]'
 wait "$holder"
 expect "keeps the current release and the one before" '[ "$(ls "$DATA/versions")" = "$(printf "0.1.0\n0.2.0")" ]'
 INSTALL=scripts/install.sh

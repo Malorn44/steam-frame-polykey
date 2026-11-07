@@ -72,7 +72,7 @@ echo "→ copying to $HOST:~/$DEST/dev/"
 remote "mkdir -p ~/$DEST/dev ~/$UNIT_DIR && cd ~/$DEST && if [ -d sidecar ] && [ ! -L sidecar ]; then rm -rf bundle.js probe.js VERSION sidecar packs schema; fi"
 rsync -a --delete --exclude __pycache__ -e "ssh ${SSH_OPTS[*]}" dist/stage/ "$HOST:$DEST/dev/"
 rsync -a -e "ssh ${SSH_OPTS[*]}" contrib/polykey.service "$HOST:$UNIT_DIR/$APP.service"
-# `current` is swapped in one rename, as run.py activate does: it never goes missing.
+# `current` is swapped in one rename, as versions.py does: it never goes missing.
 remote "touch ~/$DEST/dev/DEV && ln -sfn dev ~/$DEST/.current.new && mv -fT ~/$DEST/.current.new ~/$DEST/current && systemctl --user daemon-reload"
 
 if [ "$mode" = fg ]; then

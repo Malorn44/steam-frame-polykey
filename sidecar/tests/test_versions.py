@@ -312,29 +312,30 @@ def test_a_release_that_reached_steam_stays_put(versions, tmp_path):
     assert versions.current() == "0.2.0" and versions.skipped() is None
 
 
-def test_run_py_activate_and_rollback(tmp_path, monkeypatch, capsys):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+def test_run_py_unpack_and_rollback(tmp_path, monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "polykey.injector", None)  # they work when the rest of the release does not
-    versions = Versions(tmp_path / "polykey")
-    install(versions, "0.1.0", "0.2.0")
-    for args in (["activate", "0.1.0"], ["activate", "0.2.0"], ["rollback"]):
+    root = str(tmp_path / "polykey")
+    for v in ("0.1.0", "0.2.0"):
         with pytest.raises(SystemExit) as code:
-            cli.main(args)
-        assert code.value.code == 0
-    out = capsys.readouterr().out
-    assert "current: 0.2.0" in out and "rolled back from 0.2.0 to 0.1.0; updates skip 0.2.0" in out
+            cli.main(["unpack", str(make_tarball(tmp_path / f"{v}.tar.gz", v)), "--root", root])
+        assert code.value.code == 0 and capsys.readouterr().out == f"{v}\n"  # the version, and nothing else
     with pytest.raises(SystemExit) as code:
-        cli.main(["rollback"])
+        cli.main(["rollback", "--root", root])
+    assert code.value.code == 0
+    assert "rolled back from 0.2.0 to 0.1.0; updates skip 0.2.0" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as code:
+        cli.main(["rollback", "--root", root])
     assert code.value.code == 1
     assert "no earlier release" in capsys.readouterr().err
+    (tmp_path / "bad.tar.gz").write_bytes(b"not a tarball")
     with pytest.raises(SystemExit) as code:
-        cli.main(["activate", "0.9.0"])
-    assert code.value.code == 1
-    assert "0.9.0 is not installed" in capsys.readouterr().err
+        cli.main(["unpack", str(tmp_path / "bad.tar.gz"), "--root", root])
+    out, err = capsys.readouterr()
+    assert code.value.code == 1 and out == "" and "bad.tar.gz is not a polykey release tarball" in err
     with pytest.raises(SystemExit) as code:
-        cli.main(["activate"])  # this checkout is no installed release
-    assert code.value.code == 1
-    assert f"{SIDECAR.parent.name} is not installed" in capsys.readouterr().err
+        cli.main(["unpack", "--root", root])
+    assert code.value.code == 2 and "needs a release tarball" in capsys.readouterr().err
+    assert Versions(Path(root)).current() == "0.1.0"
 
 
 def test_run_py_imports_from_the_release_current_points_at(tmp_path):
@@ -359,23 +360,25 @@ def test_run_py_imports_from_the_release_current_points_at(tmp_path):
 
 
 def test_an_installed_release_finds_its_folder_from_where_it_is(tmp_path):
-    """`run.py activate` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
-    says, so install.sh (which unpacks to ~/.local/share/polykey) and the service always agree."""
-    root = tmp_path / "polykey"
-    release = root / "versions" / "0.1.0"
+    """`run.py rollback` from versions/<version>/ works on the folder it is in, whatever XDG_DATA_HOME
+    says, so install.sh (which runs it through ~/.local/share/polykey/current) and the service agree."""
+    versions = Versions(tmp_path / "polykey")
+    install(versions, "0.1.0")
+    release = versions.versions / "0.2.0"
     shutil.copytree(SIDECAR / "polykey", release / "sidecar" / "polykey", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copy(SIDECAR / "run.py", release / "sidecar" / "run.py")
-    (release / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    (release / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
     env = {**os.environ, "XDG_DATA_HOME": str(tmp_path / "elsewhere")}
     out = subprocess.run(
-        [sys.executable, "-I", "-B", str(release / "sidecar" / "run.py"), "activate"],
+        [sys.executable, "-I", "-B", str(versions.link / "sidecar" / "run.py"), "rollback"],
         capture_output=True,
         text=True,
         check=True,
         env=env,
     ).stdout
-    assert "current: 0.1.0" in out
-    assert os.readlink(root / "current") == "versions/0.1.0"
+    assert "rolled back from 0.2.0 to 0.1.0" in out and versions.current() == "0.1.0"
     assert not (tmp_path / "elsewhere" / "polykey").exists()
 
 
