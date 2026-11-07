@@ -45,7 +45,7 @@ const setup = (extra = 0, update: UpdateStatus | null = null) => {
   return { view, shadow, picker, control, list, item, haptics, isOpen, at, changes, asked };
 };
 
-const STATUS: UpdateStatus = { rev: 1, version: 'test', dev: false, auto: true, state: 'idle', latest: null, available: false, skipped: false };
+const STATUS: UpdateStatus = { rev: 1, dev: false, state: 'idle', latest: null, available: false, skipped: false };
 
 describe('settings: updates', () => {
   it('a switch turns automatic updates off', () => {

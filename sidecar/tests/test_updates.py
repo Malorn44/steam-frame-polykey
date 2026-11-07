@@ -177,7 +177,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
         try:
             await up.handle("update.check", {})
             status = await finish(up)
-            assert status["available"] and status["latest"] == "0.2.0" and not status["auto"]
+            assert status["available"] and status["latest"] == "0.2.0"
             assert versions.current() == "0.1.0"
             assert (await up.handle("update.install", {"version": "0.9.9"}))["error"] == "not-offered"
             await up.handle("update.install", {"version": "0.2.0"})
@@ -576,10 +576,9 @@ def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_
     async def main():
         bridge = Bridge(Log(io.StringIO()), settings_path=settings, updates=updater(versions, settings, key))
         reply = await bridge.handle(json.dumps({"id": 3, "op": "update.status"}))
-        assert reply["id"] == 3 and reply["version"] == "0.1.0" and reply["auto"]
+        assert reply["id"] == 3 and reply["version"] == "0.1.0"
         saved = await bridge.handle(json.dumps({"id": 4, "op": "settings.save", "settings": {"autoUpdate": False}}))
         assert saved["ok"] and json.loads(settings.read_text())["autoUpdate"] is False
-        assert not (await bridge.handle(json.dumps({"id": 5, "op": "update.status"})))["auto"]
         assert (await Bridge(Log(io.StringIO())).handle(json.dumps({"id": 6, "op": "update.check"})))[
             "error"
         ] == "unavailable"

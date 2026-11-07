@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BridgeReply } from '../src/bridge/client.js';
 import { createUpdates, parseUpdate, updateSummary, type UpdateStatus } from '../src/updates.js';
 
-const S: UpdateStatus = { rev: 1, version: '0.1.0', dev: false, auto: true, state: 'idle', latest: null, available: false, skipped: false };
+const S: UpdateStatus = { rev: 1, dev: false, state: 'idle', latest: null, available: false, skipped: false };
 const labels = (s: UpdateStatus | null) => updateSummary(s).actions.map((a) => a.label);
 
 describe('updates: the line under the version', () => {
@@ -38,7 +38,7 @@ describe('updates: the line under the version', () => {
     expect(updateSummary({ ...S, error: 'weird' }).text).toBe('Update failed (weird)');
     expect(labels({ ...S, error: 'network' })).toEqual(['Check for updates']);
     expect(updateSummary({ ...S, error: 'busy' }).text).toBe('Another install or update of polykey is under way; try again in a minute');
-    const dev = { ...S, version: '0.1.0+dev.2.gabc', dev: true, latest: '0.2.0', previous: '0.2.0' };
+    const dev = { ...S, dev: true, latest: '0.2.0', previous: '0.2.0' };
     expect(updateSummary(dev).text).toBe('Dev build: no updates · latest release 0.2.0');
     expect(labels(dev)).toEqual(['Check for updates', 'Use release 0.2.0']);
   });

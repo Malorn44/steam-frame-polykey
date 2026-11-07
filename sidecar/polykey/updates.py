@@ -15,7 +15,7 @@ A release rolled back from (versions.py) is left alone by automatic installs unt
 comes; Install puts it back on request.
 
 The page asks over the bridge:
-  update.status {since?, timeoutMs?}  {version, dev, auto, state, latest?, available, skipped,
+  update.status {since?, timeoutMs?}  {version, dev, state, latest?, available, skipped,
                                        previous?, error?, done?, total?, rev}; with `since`, it
                                        answers once `rev` is not that any more, or on timeout
   update.check                        check now (and install, with auto-update on)
@@ -35,7 +35,6 @@ import os
 import re
 import shutil
 import tempfile
-import time
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
 from urllib.parse import urljoin, urlsplit
@@ -216,7 +215,6 @@ class Updater:
         self.state = "idle"  # idle | checking | downloading | installing | installed | restarting
         self.error: Optional[str] = None
         self.latest: Optional[dict] = None
-        self.checked: Optional[float] = None
         self._download: Optional[Download] = None
         self._task: Optional[asyncio.Task] = None
         self._logged: Optional[str] = None
@@ -270,7 +268,6 @@ class Updater:
             "rev": self.rev,
             "version": self.version,
             "dev": self.dev,
-            "auto": self.auto(),
             "state": self.state,
             "latest": latest,
             "available": bool(latest and not self.dev and newer(latest, self.version)),
@@ -353,7 +350,6 @@ class Updater:
         except Exception as error:  # never leave the line saying "checking"
             self._fail(f"failed-{type(error).__name__}"[:32])
             return
-        self.checked = time.time()
         latest = self.latest["version"]
         if self.dev or not newer(latest, self.version):
             self._note(
