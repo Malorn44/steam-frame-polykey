@@ -14,7 +14,8 @@ Each of these is under the MIT License, whose text follows the list, with its ow
   icons. Copyright (c) 2026 TaiKeid and contributors
 - **Phosphor Icons** (https://github.com/phosphor-icons/core): the "translate" icon (文A).
   Copyright (c) 2023 Phosphor Icons
-- **Handy** (https://github.com/cjpais/Handy): the dictation model catalogue's seed data, the speed
+- **Handy** (https://github.com/cjpais/Handy): the dictation model catalogue's seed data (its files,
+  revisions, sizes and SHA-256, from Handy's `catalog.json`, checked against Hugging Face), the speed
   bars and the letter grades. Copyright (c) 2025 CJ Pais
 - **The bundled themes' colour schemes**: Catppuccin, Solarized, gruvbox, Nord, Tokyo Night,
   Rosé Pine, GitHub Primer, Dracula and Night Owl, each with its copyright line in
@@ -50,9 +51,18 @@ Each with its licence text next to it, in `packs/`:
 - The romaji table, Mozc's `romanji-hiragana.tsv`: BSD-3-Clause, `packs/ja/LICENSE.mozc`.
 - Emoji data, Unicode's `emoji-test.txt`: Unicode License v3, `packs/emoji/LICENSE.unicode`.
 
+## Followed, not copied
+
+polykey's own code does these, following others' work:
+
+- **Swipe typing** follows Steam Frame Full Keyboard's behaviour and thresholds; no code is copied.
+  Its decoder is SHARK2-style template matching (Kristensson and Zhai, 2004).
+- **Dictation** follows Steam Frame Full Keyboard's findings (the raw microphone, the phrase detection
+  thresholds, CPU only) and the design of its mic key.
+
 ## Downloaded on request, not included
 
 Dictation's engine, transcribe.cpp (MIT, with ggml and miniz), and its speech models are downloaded
 only when dictation is turned on. Their licences are installed with them
 (`~/.local/share/polykey/speech/engine/<version>/licenses/`), and each model's licence and
-attribution is shown in Settings → Dictation.
+attribution is shown in Settings → Dictation and listed in [DICTATION.md](DICTATION.md#models).
