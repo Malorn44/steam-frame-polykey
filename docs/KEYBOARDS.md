@@ -26,7 +26,7 @@ Four keyboards type into a reading buffer, converted with Anthy (SteamOS's liban
 
 ## Toolbar
 
-Settings (theme, haptics, suggestions; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste and menu.
+Settings (theme, haptics, suggestions, updates and the keyboard's own options; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste, menu (the context menu, as Shift+F10) and ✕, which closes the keyboard.
 
 ## Emoji
 
@@ -34,7 +34,7 @@ Recent, Favorites (drag and drop), skin tones, and your Steam emoticons, sticker
 
 ## Switching keyboards
 
-🌐 switches between polykey's keyboards; settings hands over to Steam's own keyboard.
+🌐 switches between polykey's keyboards; hold it to jump to one. Settings → Keyboards picks them and their order. **Steam keyboard** in settings hands over to Steam's own keyboard.
 
 ## Desktop Mode
 

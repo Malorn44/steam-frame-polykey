@@ -14,7 +14,7 @@ npm run test:install # install.sh end to end: throwaway signed releases, served 
 
 ## Deploy to the Frame
 
-This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `sh ~/.local/share/polykey/current/install.sh --rollback` goes back to the newest one.
+This needs key login (`ssh-copy-id steamos@frame`). It only touches `~/.local/share/polykey/` and `~/.config/systemd/user/polykey.service`. The service is started but not enabled at login. A deploy goes to `~/.local/share/polykey/dev/`, marked as a dev build by a `DEV` file, and points `current` (the link the service runs) at it. A dev build sends the page's console lines to the journal; a release keeps them out unless `"console": true` is in `~/.config/polykey/settings.json`. Releases installed beside it stay in `versions/<version>/`; `sh ~/.local/share/polykey/current/install.sh --rollback` goes back to the newest one. <!-- revisit after #22/#17 -->
 
 ```sh
 scripts/deploy.sh            # build, copy, restart the service, follow the log
@@ -41,10 +41,12 @@ src/core/       pure logic: catalog types, key handling, key codes, output plann
 src/host/steam/ the only Steam-facing TypeScript
 src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
+                dictation.ts, updates.ts: the page side of dictation and of the updater
 src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
-scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh, release.sh, install.sh
-contrib/        polykey.service
+scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
+                release.sh, test-layout.sh; make-*.py rebuild the word list, blocklist and emoji data
+contrib/        polykey.service; allowed_signers, the release key
 ```
