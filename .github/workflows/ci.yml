@@ -4,6 +4,13 @@
 # (test:layout lists them); build; test:installer; pr:title. The ruleset requires only `ci ok`, which
 # fails when any job failed or was cancelled.
 #
+# On a push to main, once `ci ok` passes: release (release-please keeps the release PR up to date, and
+# when one is merged, tags vX.Y.Z on main and drafts its GitHub release), release:build and
+# release:rebuild (build the tagged commit on two runners, in jobs that can only read),
+# release:assets (attaches the first build to the draft), release:verify (checks the draft against
+# the second), then release:sign, which waits for your approval in the release environment while you
+# smoke-test the draft, and then signs and publishes it (docs/RELEASING.md).
+#
 # Actions are pinned to commits (Dependabot proposes bumps); the version is in the comment. Python is
 # 3.12, the Frame's; the Python tools' versions come from requirements-dev.txt.
 name: ci
@@ -228,3 +235,362 @@ jobs:
           # Skipped is fine (pr:title, off pull requests); failed or cancelled is not.
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
           jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null
+
+  # release-please (release-please-config.json) acts with RELEASE_PLEASE_TOKEN, a fine-grained token
+  # (this repo; contents and pull requests read/write), so CI runs on the release PR: what the Actions
+  # token does starts no workflow. The token is a secret of the release-please environment, which only
+  # main may use, so a branch's own workflow can't read it as it could a repository secret. Nothing but
+  # release-please and checks with gh and git runs in this job, so the token never meets the build's
+  # packages.
+  #
+  # A tag can be moved, so the jobs after this one never use it by name. They check out the commit
+  # release-please tagged, and only once this job has found it on main: the commit that passed ci ok,
+  # or one before it.
+  release:
+    name: release
+    needs: ci-ok # after every check, so a red main never releases
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: release-please # holds RELEASE_PLEASE_TOKEN; deployment branches: main only, no reviewer
+    permissions:
+      contents: read # see whether main has moved on, and check out its history (release-please uses its own token)
+    outputs:
+      created: ${{ steps.release-please.outputs.release_created }}
+      tag: ${{ steps.release-please.outputs.tag_name }}
+      version: ${{ steps.release-please.outputs.version }}
+      sha: ${{ steps.on-main.outputs.sha }}
+    steps:
+      # A secret can't be read in `if:`, so a step says whether it is set. Until it is, this job (and
+      # every release job after it) skips rather than turn main red.
+      - name: release-please token
+        id: token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -n "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No RELEASE_PLEASE_TOKEN secret in the release-please environment, so release-please did not run. Set it there to a fine-grained token for this repo with Contents and Pull requests read and write (docs/RELEASING.md)."
+          fi
+      # release-please reads main as it is now, not this run's commit. Once main has moved on, it runs
+      # in the newer commit's run instead (queued behind this one), so what it tags is on main here.
+      - name: main is still at this commit
+        id: head
+        if: steps.token.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has moved on to $head, so release-please runs in that commit's run, not this one"
+          fi
+      - id: release-please
+        if: steps.head.outputs.current == 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      - if: steps.release-please.outputs.release_created == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # main's history, for the check below
+          persist-credentials: false
+      - name: the release is on main
+        id: on-main
+        if: steps.release-please.outputs.release_created == 'true'
+        env:
+          SHA: ${{ steps.release-please.outputs.sha }}
+          TAG: ${{ steps.release-please.outputs.tag_name }}
+        run: |
+          if [[ ! $SHA =~ ^[0-9a-f]{40}$ ]] || ! git merge-base --is-ancestor "$SHA" "$GITHUB_SHA"; then
+            echo "::error::release-please tagged $TAG at ${SHA:-no commit}, which is not on main at $GITHUB_SHA, so nothing is built or signed (docs/RELEASING.md#when-it-goes-wrong)"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "$TAG is $SHA, on main"
+
+  # The release's commit built by scripts/release.sh, which makes the same bytes from the same commit
+  # (and refuses to build a release when contrib/allowed_signers holds no release key). The build runs
+  # its packages' code, so this job can only read; release:assets attaches its files.
+  release-build:
+    name: release:build
+    needs: release
+    if: needs.release.outputs.created == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      # No package's install scripts run (the build needs none).
+      - run: npm ci --ignore-scripts
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: scripts/release.sh "$VERSION"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-build
+          path: dist/release/
+          if-no-files-found: error
+
+  # Attaches release:build's files to the draft. Nothing from the repo or npm runs here. Re-running
+  # this job replaces files already attached.
+  release-assets:
+    name: release:assets
+    needs: [release, release-build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach files to the draft
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.release-build.outputs.artifact }} # the one release:build uploaded
+          path: ${{ runner.temp }}/build
+      - name: attach the files to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          cd "$RUNNER_TEMP/build"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "polykey-$VERSION.tar.gz" install.sh latest.json
+
+  # The release's commit built again, on another runner, for release:verify to compare the draft with.
+  # Like release:build, it can only read. It runs after release:build, so re-running that job builds
+  # both again.
+  release-rebuild:
+    name: release:rebuild
+    needs: [release, release-build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      - run: npm ci --ignore-scripts # as in release:build
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: scripts/release.sh "$VERSION"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-rebuild
+          path: dist/release/
+          if-no-files-found: error
+
+  # The draft as it is now: its files agree with each other and are byte for byte release:rebuild's
+  # build of the same commit. Nothing from the repo or npm runs here (the runner's own node reads the
+  # JSON), so no build can forge this check. No secret is in this job either; release:sign signs only
+  # the latest.json checked here.
+  release-verify:
+    name: release:verify
+    needs: [release, release-assets, release-rebuild]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # only write access sees a draft
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+      latest: ${{ steps.compare.outputs.latest }}
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      VERSION: ${{ needs.release.outputs.version }}
+    defaults:
+      run:
+        shell: bash # -eo pipefail
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.release-rebuild.outputs.artifact }} # the one release:rebuild uploaded
+          path: ${{ runner.temp }}/rebuild
+      - name: download the draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          d=$RUNNER_TEMP/draft
+          # The newest 100 releases, newest first: a new draft is among them.
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          found=$(node -e '
+            for (const r of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")))
+              if (r.tag_name === process.env.TAG) console.log(r.id + " " + r.draft);
+          ' "$RUNNER_TEMP/releases.json")
+          [ -n "$found" ] || fail "no release is tagged $TAG"
+          [ "$(wc -l <<< "$found")" = 1 ] || fail "more than one release is tagged $TAG: delete the extra drafts"
+          [ "${found#* }" = true ] || fail "$TAG is already published"
+          echo "id=${found% *}" >> "$GITHUB_OUTPUT"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$d" \
+            --pattern "polykey-$VERSION.tar.gz" --pattern install.sh --pattern latest.json
+      - name: check the draft's files against each other
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          d=$RUNNER_TEMP/draft
+          field() {
+            node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[process.argv[2]] ?? "")' \
+              "$d/latest.json" "$1"
+          }
+          t=polykey-$VERSION.tar.gz
+          for f in "$t" install.sh latest.json; do
+            [ -f "$d/$f" ] || fail "the draft has no $f"
+          done
+          [ "$(field version)" = "$VERSION" ] || fail "latest.json is for $(field version)"
+          [ "$(field sha256)" = "$(sha256sum "$d/$t" | cut -d' ' -f1)" ] || fail "the tarball does not match latest.json"
+          [ "$(field size)" = "$(stat -c %s "$d/$t")" ] || fail "the tarball is not the size latest.json gives"
+      # release.sh makes the same bytes from the same commit, so every file must match the rebuild's
+      # exactly. If GitHub updated the runner image between the two builds, they can still differ:
+      # that fails here, which is safe, and re-running release:build builds both again.
+      - name: compare with the build
+        id: compare
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          d=$RUNNER_TEMP/draft b=$RUNNER_TEMP/rebuild
+          for f in "polykey-$VERSION.tar.gz" install.sh latest.json; do
+            cmp -s "$d/$f" "$b/$f" \
+              || fail "the draft's $f differs from release:rebuild's build of $TAG. If the two builds ran on different runner images (each job's \"Set up job\" names its image), re-run release:build, which builds both again. Otherwise don't sign it: delete the draft and find out why."
+          done
+          echo "latest=$(sha256sum "$d/latest.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "the draft holds what $TAG builds to; release:sign waits for an approval"
+
+  # Waits for your approval in the release environment, the only place RELEASE_SIGNING_KEY is kept,
+  # while you smoke-test the draft. Then, while the tag still points at the commit release checked, it
+  # signs the latest.json release:verify checked, checks the signature against the commit's
+  # allowed_signers and the latest published release's, attaches it and publishes the draft. Nothing
+  # from npm runs here: the runner's own node reads the API's JSON.
+  release-sign:
+    name: release:sign
+    needs: [release, release-verify]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write # read the draft, attach the signature, publish
+      actions: read # read the release environment's protection rules
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      SHA: ${{ needs.release.outputs.sha }}
+      ID: ${{ needs.release-verify.outputs.id }}
+      CHECKED: ${{ needs.release-verify.outputs.latest }}
+    defaults:
+      run:
+        shell: bash # -eo pipefail
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }} # the commit release found on main, not the tag
+          fetch-depth: 0 # and every tag, for the latest published release's allowed_signers
+          persist-credentials: false
+      # Without a required reviewer this job waited for no one, and on this plan a private repo ignores
+      # the rule even when it is set: then it signs nothing.
+      - name: check the approval rule
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api "repos/$GITHUB_REPOSITORY" > "$RUNNER_TEMP/repo.json" \
+            || ! gh api "repos/$GITHUB_REPOSITORY/environments/release" > "$RUNNER_TEMP/environment.json"; then
+            echo "::error::Could not read the repo's visibility or the release environment's rules, so not signing"
+            exit 1
+          fi
+          if ! node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).private === false ? 0 : 1)' \
+            "$RUNNER_TEMP/repo.json"; then
+            echo "::error::The repo is private, where the release environment can't require an approval on this plan; not signing. Make it public, then re-run this job."
+            exit 1
+          fi
+          reviewers=$(node -e '
+            const rules = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).protection_rules ?? [];
+            console.log(rules.filter((r) => r.type === "required_reviewers").reduce((n, r) => n + (r.reviewers ?? []).length, 0));
+          ' "$RUNNER_TEMP/environment.json")
+          if [ "$reviewers" -lt 1 ]; then
+            echo "::error::The release environment requires no reviewer, so nothing approved this; not signing. Add yourself as its required reviewer (the repo must be public), then re-run this job."
+            exit 1
+          fi
+      - name: download the checked latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/releases/$ID" > "$RUNNER_TEMP/release.json"
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            process.exit(r.draft === true && r.tag_name === process.env.TAG ? 0 : 1);
+          ' "$RUNNER_TEMP/release.json" || fail "release $ID is no longer the draft $TAG"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/sign" --pattern latest.json
+          [ "$(sha256sum "$RUNNER_TEMP/sign/latest.json" | cut -d' ' -f1)" = "$CHECKED" ] \
+            || fail "the draft's latest.json changed after release:verify checked it"
+      # The release gives its tag as its source, so the tag must still be the commit that was built.
+      - name: check the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! at=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha'); then
+            echo "::error::Could not read the tag $TAG, so not signing"
+            exit 1
+          fi
+          if [ "$at" != "commit $SHA" ]; then
+            echo "::error::$TAG now points at $at, not commit $SHA, which release checked and release:verify built; not signing"
+            exit 1
+          fi
+      - name: sign
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "::error::No RELEASE_SIGNING_KEY secret in the release environment: store the release key there, or restore it from your backup (docs/RELEASING.md#the-key)"
+            exit 1
+          fi
+          umask 077
+          key=$(mktemp "$RUNNER_TEMP/key.XXXXXX")
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key" # a secret may have lost its last newline
+          ssh-keygen -q -Y sign -f "$key" -n polykey-release "$RUNNER_TEMP/sign/latest.json" < /dev/null
+      # Frames check the signature with the allowed_signers of the release they run, the latest
+      # published one. So a key put in RELEASE_SIGNING_KEY before a release that trusts it has reached
+      # them fails here, not on every Frame.
+      - name: check the signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          s=$RUNNER_TEMP/sign
+          verify() {  # verify ALLOWED_SIGNERS
+            ssh-keygen -q -Y verify -f "$1" -I polykey-release -n polykey-release -s "$s/latest.json.sig" < "$s/latest.json" > /dev/null
+          }
+          verify contrib/allowed_signers \
+            || fail "The signature does not check out against contrib/allowed_signers: is RELEASE_SIGNING_KEY the key named there?"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/latest" > "$RUNNER_TEMP/published.json" 2> "$RUNNER_TEMP/published.err"; then
+            prev=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).tag_name ?? "")' \
+              "$RUNNER_TEMP/published.json")
+            git rev-parse -q --verify "refs/tags/$prev^{commit}" > /dev/null \
+              || fail "The latest published release's tag, ${prev:-none}, isn't in this repo, so its allowed_signers can't be checked; not publishing"
+            git show "refs/tags/$prev:contrib/allowed_signers" > "$RUNNER_TEMP/published_signers" \
+              || fail "$prev has no contrib/allowed_signers to check the signature against; not publishing"
+            verify "$RUNNER_TEMP/published_signers" \
+              || fail "The signature does not check out against $prev's allowed_signers, which Frames running $prev check it with. Put a new key in RELEASE_SIGNING_KEY only once a release that trusts it has reached them (docs/RELEASING.md#the-key)."
+            echo "The signature checks out against the allowed_signers of $TAG and of $prev, the latest published release"
+          elif grep -q '(HTTP 404)' "$RUNNER_TEMP/published.err"; then
+            echo "No release is published yet, so $TAG is the first: its signature is checked against its own allowed_signers only"
+          else
+            cat "$RUNNER_TEMP/published.err" >&2
+            fail "Could not read the latest published release, so not publishing"
+          fi
+      - name: attach the signature and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$RUNNER_TEMP/sign/latest.json.sig"
+          url=$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F draft=false -f make_latest=true --jq .html_url)
+          echo "published $TAG: $url"
+          echo "Published [$TAG]($url)." >> "$GITHUB_STEP_SUMMARY"
