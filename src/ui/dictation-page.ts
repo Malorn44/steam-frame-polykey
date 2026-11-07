@@ -108,7 +108,7 @@ const markText = (model: SpeechModel, state: FileState | undefined, inUse: boole
 const shape = (status: SpeechStatus | null): string =>
   JSON.stringify(status && [status.engine.state, Object.entries(status.models).map(([id, s]) => [id, s.state, 'error' in s ? s.error : '']), status.choices]);
 
-/** Licence ids as people know them; the full attribution, with links, is in catalog.json and the README. */
+/** Licence ids as people know them; the full attribution, with links, is in catalog.json and docs/DICTATION.md. */
 const LICENCES: Record<string, string> = { 'CC-BY-4.0': 'CC BY 4.0', 'FunASR-1.1': 'FunASR Model License 1.1' };
 const ram = (mb: number): string => (mb >= 1000 ? `~${(mb / 1000).toFixed(mb % 1000 ? 1 : 0)} GB RAM` : `~${mb} MB RAM`);
 
