@@ -41,21 +41,26 @@ def _versions(argv: list[str]) -> int:
     parser.add_argument("command", choices=VERSION_COMMANDS)
     parser.add_argument("tarball", nargs="?", type=Path, help="unpack: the release tarball")
     parser.add_argument("--root", type=Path, help="the polykey folder (default: the one this release is in)")
+    parser.add_argument(
+        "--version", help="unpack: the release the tarball must hold (install.sh passes the signed one)"
+    )
     args = parser.parse_args(argv)
     if args.command == "unpack" and args.tarball is None:
         parser.error("unpack needs a release tarball")
     versions = Versions(args.root)
     try:
         if args.command == "unpack":
-            print(versions.install(args.tarball), flush=True)  # only the version: install.sh reads it
+            print(versions.install(args.tarball, args.version), flush=True)  # only the version: install.sh reads it
         else:
             before, after = versions.rollback()
             skip = f"; updates skip {before} until a newer release" if before and before != "dev" else ""
             print(f"rolled back from {before} to {after}{skip}", flush=True)
     except VersionError as error:
+        release = f"polykey {args.version}" if args.version else "polykey"
         reasons = {
             "no-previous": "no earlier release to go back to",
-            "bad-archive": f"{args.tarball} is not a polykey release tarball",
+            "busy": "another polykey install or update holds the lock; try again in a minute",
+            "bad-archive": f"{args.tarball} is not a {release} release tarball",
         }
         print(reasons.get(error.code, error.code), file=sys.stderr, flush=True)
         return 1

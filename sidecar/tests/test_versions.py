@@ -154,6 +154,27 @@ def test_installing_a_release_again_repairs_it(versions, tmp_path):
     assert versions.current() == "0.1.0" and versions.previous() is None
 
 
+def test_a_repair_never_deletes_the_release_in_use_before_its_new_copy_is_in(versions, tmp_path, monkeypatch):
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.1.0")
+    versions.install(tarball)
+    live, rmtree = versions.versions / "0.1.0", shutil.rmtree
+
+    def careful_rmtree(path, *args, **kwargs):
+        assert Path(path) != live, "deleted the release current points at"
+        rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", careful_rmtree)
+    versions.install(tarball)
+    assert (live / "bundle.js").exists() and sorted(os.listdir(versions.versions)) == ["0.1.0"]
+
+
+def test_a_copy_left_aside_by_an_interrupted_repair_is_pruned(versions, tmp_path):
+    install(versions, "0.1.0")
+    (versions.versions / "0.1.0.old").mkdir()
+    versions.activate("0.1.0")
+    assert sorted(os.listdir(versions.versions)) == ["0.1.0"]
+
+
 def test_activate_points_current_at_the_release_and_remembers_the_one_before(versions):
     install(versions, "0.1.0", "0.2.0")
     versions.activate("0.1.0")
@@ -252,6 +273,27 @@ def test_a_second_writer_waits_for_the_first(versions, tmp_path):
         holder.join()
         assert waited >= 0.25
     assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
+
+
+def test_a_writer_gives_up_with_busy_rather_than_wait_for_ever(versions, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(versions_module, "LOCK_WAIT", 0.1)
+    install(versions, "0.1.0", "0.2.0")
+    versions.activate("0.1.0")
+    versions.activate("0.2.0")
+    tarball = make_tarball(tmp_path / "r.tar.gz", "0.3.0")
+    holder = hold_lock(versions, 1.0)
+    try:
+        for write in (lambda: versions.activate("0.1.0"), versions.rollback, lambda: versions.install(tarball)):
+            with pytest.raises(VersionError) as error:
+                write()
+            assert error.value.code == "busy"
+        with pytest.raises(SystemExit) as code:
+            cli.main(["rollback", "--root", str(versions.root)])
+        assert code.value.code == 1 and "holds the lock" in capsys.readouterr().err
+    finally:
+        holder.join()
+    assert versions.current() == "0.2.0" and versions.previous() == "0.1.0" and versions.skipped() is None
+    assert sorted(p.name for p in versions.versions.iterdir()) == ["0.1.0", "0.2.0"]
 
 
 def test_only_an_installed_release_is_marked_started(versions, tmp_path):

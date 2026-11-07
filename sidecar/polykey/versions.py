@@ -27,6 +27,7 @@ import re
 import shutil
 import sys
 import tarfile
+import time
 from pathlib import Path, PurePosixPath
 from typing import Iterator, Optional
 
@@ -34,6 +35,7 @@ SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]
 DEV = "dev"
 STARTED = ".started"  # in versions/<version>: that release has reached Steam
 MAX_TOTAL = 128 << 20  # install(): what all the files in a release may hold together
+LOCK_WAIT = 60.0  # how long a writer waits for another one to finish before it gives up with "busy"
 
 
 class VersionError(Exception):
@@ -163,12 +165,21 @@ class Versions:
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:
         """Hold the lock every writer of versions/, `current` and state.json takes: the service's
-        updater, and `run.py unpack|rollback` for install.sh. Waits for another writer to finish.
-        Blocking: in the service, run it off the loop."""
+        updater, and `run.py unpack|rollback` for install.sh. Waits up to LOCK_WAIT for another writer,
+        then gives up with "busy" (a stuck holder never hangs an install). Blocking: in the service, run
+        it off the loop."""
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.lock_file, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            deadline = time.monotonic() + LOCK_WAIT
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise VersionError("busy") from None
+                    time.sleep(0.05)
             yield
         finally:
             os.close(fd)  # closing it lets the lock go
@@ -239,7 +250,7 @@ class Versions:
         if not self.versions.is_dir():
             return
         for entry in self.versions.iterdir():
-            if entry.name not in keep and (entry.name.endswith(".new") or is_release(entry.name)):
+            if entry.name not in keep and (entry.name.endswith((".new", ".old")) or is_release(entry.name)):
                 shutil.rmtree(entry, ignore_errors=True)
 
     def _unpack(self, tarball: Path, version: Optional[str]) -> str:
@@ -272,10 +283,14 @@ class Versions:
                     raise VersionError("bad-archive")
             except (tarfile.TarError, OSError, EOFError, UnicodeDecodeError):
                 raise VersionError("bad-archive") from None
-            final = self.versions / version
+            # A release already there (a repair) is renamed aside, not deleted, until the new one is in:
+            # `current` never points at a half-deleted folder.
+            final, old = self.versions / version, self.versions / f"{version}.old"
             if final.exists():
-                shutil.rmtree(final)
+                shutil.rmtree(old, ignore_errors=True)
+                os.replace(final, old)
             os.replace(work / top, final)
+            shutil.rmtree(old, ignore_errors=True)
             return version
         finally:
             shutil.rmtree(work, ignore_errors=True)
