@@ -30,11 +30,11 @@ curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/downl
 
 It installs the latest release into `~/.local/share/polykey/` and starts polykey now and at every login. No sudo.
 
-**What it needs:** Python 3.10.12+ with aiohttp, both in SteamOS, and Steam's debugger, which polykey draws through. If the script says the debugger isn't answering, turn on Steam → Settings → Developer → Enable CEF remote debugging. polykey talks to it on 127.0.0.1 only. <!-- revisit after #22/#17 -->
+**What it needs:** Python 3.10.12+ with aiohttp, both in SteamOS, and Steam's debugger, which polykey draws through. If the script says the debugger isn't answering, turn on Steam → Settings → Developer → Enable CEF remote debugging. polykey talks to it on 127.0.0.1 only.
 
 **Updates:** from then on polykey updates itself. An hour apart it looks for a newer release, and installs one only when its signature checks out against the release key; the new release starts when the keyboard closes. In settings, **Update automatically** (under General) turns this off, so polykey only reports new releases (it sets `"autoUpdate": false` in `~/.config/polykey/settings.json`). The line by the version, at the foot of the Settings tab, shows what the updater found, with buttons to check, install or go back. Running the script again also updates.
 
-**Check, roll back or uninstall** with an option after `sh -s --`: <!-- revisit after #22/#17 -->
+**Check, roll back or uninstall** with an option after `sh -s --`:
 
 ```sh
 # report what's missing; change nothing
@@ -45,7 +45,7 @@ curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/downl
 curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --uninstall
 ```
 
-If a rollback can't run, go back by hand: download an earlier release's `polykey-X.Y.Z.tar.gz` from [Releases](https://github.com/Malorn44/steam-frame-polykey/releases) and install it with `--tarball polykey-X.Y.Z.tar.gz`. `--tarball` trusts the file you give it, so take it from there. <!-- revisit after #22/#17 -->
+If a rollback can't run, go back by hand: download an earlier release's `polykey-X.Y.Z.tar.gz` from [Releases](https://github.com/Malorn44/steam-frame-polykey/releases) and install it with `--tarball polykey-X.Y.Z.tar.gz`. `--tarball` trusts the file you give it, so take it from there.
 
 ## More
 
