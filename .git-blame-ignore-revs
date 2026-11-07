@@ -1,0 +1,8 @@
+# Commits that only reformat code, for `git blame` to skip so it shows the change that wrote each line.
+# GitHub's blame view reads this file by itself. Locally, once per clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: format the Python with ruff format (#6)
+291ba735e9c884da6b5f353a1851c1973f8f5cd9
+# style: ruff format the per-layout test (#6)
+b275ae264c82b89b7797645d5bc5892928c127ac
