@@ -3,6 +3,8 @@
 
 export const BINDING = 'polykeyBridge';
 export const DEFAULT_TIMEOUT_MS = 3000;
+/** How long a long-poll asks the sidecar to wait for news (under its MAX_WAIT). */
+export const WAIT_MS = 15_000;
 
 export interface BridgeReply {
   readonly id: number;
@@ -10,6 +12,8 @@ export interface BridgeReply {
   readonly error?: string;
   readonly [field: string]: unknown;
 }
+
+export type Call = (op: string, args?: Record<string, unknown>, timeoutMs?: number) => Promise<BridgeReply>;
 
 const isReply = (value: unknown): value is BridgeReply =>
   typeof value === 'object' && value !== null
@@ -63,5 +67,46 @@ export const createBridge = (g: Record<string, unknown>) => {
   };
 
   return { available, call, receive, close };
+};
+
+/**
+ * Follow a status the sidecar long-polls by its `rev` (sidecar changes.py): ask `op` once, and again
+ * for each change while `busy` says something is under way. Asked to follow while following, it asks
+ * once more from the start: something may have started since the last answer.
+ */
+export const createFollow = <S extends { readonly rev: number }>({ call, op, parse, busy, show, active, before }: {
+  call: Call;
+  op: string;
+  parse: (reply: BridgeReply) => S | null;
+  busy: (status: S) => boolean;
+  show: (status: S) => void;
+  /** Whether to ask at all. */
+  active: () => boolean;
+  /** A step before the first request. */
+  before?: () => Promise<void>;
+}): (() => void) => {
+  let following = false;
+  let again = false;
+  return () => {
+    if (!active()) return;
+    if (following) {
+      again = true;
+      return;
+    }
+    following = true;
+    void (async () => {
+      await before?.();
+      let since: number | undefined;
+      for (;;) {
+        const next = parse(await call(op, since === undefined ? {} : { since, timeoutMs: WAIT_MS }, WAIT_MS + 5000));
+        if (next) show(next);
+        const more = again;
+        again = false;
+        if (!active() || !next || (!busy(next) && !more)) break;
+        since = more ? undefined : next.rev;
+      }
+      following = false;
+    })();
+  };
 };
 

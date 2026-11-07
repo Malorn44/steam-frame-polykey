@@ -3,9 +3,7 @@
 // page shows it, and long-polled while a check, download or restart is under way, or while an installed
 // release waits for the keyboard to close.
 
-import type { BridgeReply } from './bridge/client.js';
-
-type Call = (op: string, args?: Record<string, unknown>, timeoutMs?: number) => Promise<BridgeReply>;
+import { createFollow, type BridgeReply, type Call } from './bridge/client.js';
 
 export interface UpdateStatus {
   readonly rev: number;
@@ -28,7 +26,6 @@ export interface UpdateStatus {
 export type UpdateAction = 'check' | 'install' | 'rollback';
 
 const STATES = new Set(['idle', 'checking', 'downloading', 'installing', 'installed', 'restarting']);
-const WAIT_MS = 15_000;
 
 export const parseUpdate = (reply: BridgeReply): UpdateStatus | null => {
   const r = reply as Record<string, unknown>;
@@ -46,8 +43,6 @@ export const parseUpdate = (reply: BridgeReply): UpdateStatus | null => {
     ...(done !== undefined ? { done } : {}), ...(total !== undefined ? { total } : {}),
   };
 };
-
-const busy = (s: UpdateStatus): boolean => s.state !== 'idle';
 
 const ERRORS: Record<string, string> = {
   network: 'Couldn\'t reach the release server',
@@ -114,34 +109,13 @@ export const createUpdates = ({ call, active, onStatus, warn }: {
   warn: (line: string) => void;
 }): Updates => {
   let status: UpdateStatus | null = null;
-  let following = false;
-  let again = false;
 
   const show = (next: UpdateStatus): void => {
     status = next;
     onStatus(next);
   };
 
-  const follow = (): void => {
-    if (!active()) return;
-    if (following) {
-      again = true;
-      return;
-    }
-    following = true;
-    void (async () => {
-      let since: number | undefined;
-      for (;;) {
-        const next = parseUpdate(await call('update.status', since === undefined ? {} : { since, timeoutMs: WAIT_MS }, WAIT_MS + 5000));
-        if (next) show(next);
-        const more = again;
-        again = false;
-        if (!active() || !next || (!busy(next) && !more)) break;
-        since = more ? undefined : next.rev;
-      }
-      following = false;
-    })();
-  };
+  const follow = createFollow({ call, op: 'update.status', parse: parseUpdate, busy: (s) => s.state !== 'idle', show, active });
 
   const run = (action: UpdateAction): void => {
     const op = action === 'check' ? 'update.check' : action === 'install' ? 'update.install' : 'update.rollback';

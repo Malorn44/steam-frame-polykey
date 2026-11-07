@@ -35,18 +35,19 @@ speech is heard (and until they are flat again), so silence costs nothing.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 from collections import deque
 from pathlib import Path
 from typing import Optional
 
+from ..changes import MAX_WAIT
+from ..packs import read_settings
 from . import SpeechError
 from .capture import Recorder, Tools
 from .catalog import ANY, Catalog, Model, load as load_catalog
 from .engine import Engine
-from .library import MAX_WAIT, Library
+from .library import Library
 from .vad import FRAMES_PER_SECOND, RATE, Segmenter
 
 OPS = (
@@ -144,18 +145,11 @@ class Dictation:
         self._phase, self._text, self._error = phase, text, error
         self._touch()
 
-    def _settings(self) -> dict:
-        try:
-            settings = json.loads(self._settings_path.read_text(encoding="utf-8")) if self._settings_path else {}
-        except (OSError, ValueError):
-            return {}
-        return settings if isinstance(settings, dict) else {}
-
     def enabled(self) -> bool:
-        return self._settings().get("dictation") is True
+        return read_settings(self._settings_path).get("dictation") is True
 
     def choices(self) -> dict:
-        choices = self._settings().get("dictationModels")
+        choices = read_settings(self._settings_path).get("dictationModels")
         return (
             {k: v for k, v in choices.items() if isinstance(k, str) and isinstance(v, str)}
             if isinstance(choices, dict)
@@ -166,7 +160,7 @@ class Dictation:
 
     async def handle(self, op: str, request: dict) -> dict:
         if op == "dictation.status":
-            await self.library.wait(request.get("since"), request.get("timeoutMs"))
+            await self.library.changes.wait(request.get("since"), request.get("timeoutMs"))
             return self.status()
         if op == "dictation.catalog":
             return self.library.page_catalog()

@@ -42,21 +42,20 @@ from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 
-from .speech.download import Download, Remote, host_allowed
+from .changes import Changes
+from .packs import read_settings
+from .speech.download import GITHUB_HOSTS, MAX_REDIRECTS, Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
 OPS = ("update.status", "update.check", "update.install", "update.rollback")
 # GitHub redirects latest/download/<file> to the latest release's <file>.
 RELEASES = "https://github.com/Malorn44/steam-frame-polykey/releases/"
 DEFAULT_SOURCE = f"{RELEASES}latest/download/"
-GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirect to *.githubusercontent.com
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
 INTERVAL = 3600.0
 MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
-MAX_REDIRECTS = 5
-MAX_WAIT = 30.0
 VERIFY_TIMEOUT = 15.0
 KEYBOARD_POLL = 5.0  # an automatic install restarts once the keyboard is hidden at two readings in a row
 HIDDEN_READINGS = 2
@@ -64,17 +63,11 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UNIT = "polykey.service"
 
 
-class UpdateError(Exception):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
 async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -> None:
-    """Raise UpdateError unless the release key signed the manifest."""
+    """Raise VersionError unless the release key signed the manifest."""
     exe = shutil.which("ssh-keygen")
     if exe is None:
-        raise UpdateError("no-verifier")
+        raise VersionError("no-verifier")
     work.mkdir(mode=0o700, parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=work, suffix=".sig") as sig:
         sig.write(signature)
@@ -100,23 +93,23 @@ async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
-            raise UpdateError("no-verifier") from None
+            raise VersionError("no-verifier") from None
     if proc.returncode != 0:
-        raise UpdateError("bad-signature")
+        raise VersionError("bad-signature")
 
 
 def parse_manifest(data: bytes) -> dict:
     try:
         manifest = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        raise UpdateError("bad-manifest") from None
+        raise VersionError("bad-manifest") from None
     if not isinstance(manifest, dict) or manifest.get("format") != 1 or not is_release(manifest.get("version")):
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     size, sha = manifest.get("size"), manifest.get("sha256")
     if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_TARBALL:
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     return {"version": manifest["version"], "size": size, "sha256": sha}
 
 
@@ -134,20 +127,32 @@ async def fetch(
     """GET a small file, following redirects only within the allowed hosts."""
     for _ in range(MAX_REDIRECTS + 1):
         if not host_allowed(url, hosts, schemes):
-            raise UpdateError("bad-host")
+            raise VersionError("bad-host")
         async with http.get(url, allow_redirects=False) as response:
             if response.status in (301, 302, 303, 307, 308):
                 url = urljoin(url, response.headers.get("Location", ""))
                 continue
             if response.status != 200:
-                raise UpdateError("network" if response.status >= 500 or response.status == 429 else "no-release")
+                raise VersionError("network" if response.status >= 500 or response.status == 429 else "no-release")
             body = bytearray()
             async for chunk in response.content.iter_chunked(8192):
                 body += chunk
                 if len(body) > limit:
-                    raise UpdateError("bad-manifest")
+                    raise VersionError("bad-manifest")
             return bytes(body)
-    raise UpdateError("network")
+    raise VersionError("network")
+
+
+def error_code(error: Exception) -> str:
+    """The code a failed check, install or rollback reports."""
+    if isinstance(error, VersionError):  # by class: aiohttp's ClientResponseError has a .code too
+        return error.code
+    # Before OSError, which aiohttp's connection errors and TimeoutError also are.
+    if isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError, ValueError)):
+        return "network"  # ValueError: a malformed URL or redirect
+    if isinstance(error, OSError):
+        return "disk"
+    return f"failed-{type(error).__name__}"[:32]
 
 
 async def restart_service() -> bool:
@@ -210,25 +215,17 @@ class Updater:
         self._unit_changed = False
         self._pending: Optional[str] = None  # installed, waiting for the keyboard to be hidden
         self._restart_now = asyncio.Event()
-        self.rev = 0
-        self._changed = asyncio.Event()
+        self.changes = Changes()
 
     # --- settings ---------------------------------------------------------------------------------
 
-    def _settings(self) -> dict:
-        try:
-            data = json.loads(self._settings_path.read_text(encoding="utf-8")) if self._settings_path else {}
-        except (OSError, ValueError):
-            return {}
-        return data if isinstance(data, dict) else {}
-
     def auto(self) -> bool:
-        return self._settings().get("autoUpdate") is not False
+        return read_settings(self._settings_path).get("autoUpdate") is not False
 
     def source(self) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
         """(base URL, allowed hosts, allowed schemes): GitHub, or settings.json "updateUrl" when it is a
         usable http(s) URL."""
-        url = self._settings().get("updateUrl")
+        url = read_settings(self._settings_path).get("updateUrl")
         try:
             parts = urlsplit(url) if isinstance(url, str) else None
             host = parts.hostname if parts else None
@@ -245,16 +242,11 @@ class Updater:
 
     # --- status -----------------------------------------------------------------------------------
 
-    def _bump(self) -> None:
-        self.rev += 1
-        self._changed.set()
-        self._changed = asyncio.Event()
-
     def status(self) -> dict:
         latest = self.latest["version"] if self.latest else None
         out = {
             "ok": True,
-            "rev": self.rev,
+            "rev": self.changes.rev,
             "version": self.version,
             "dev": self.dev,
             "state": self.state,
@@ -273,16 +265,9 @@ class Updater:
             out["done"], out["total"] = self._download.done, self._download.total
         return out
 
-    async def wait(self, since: object, timeout_ms: object) -> None:
-        if not isinstance(since, int) or since != self.rev:
-            return
-        seconds = min(max(timeout_ms / 1000, 0), MAX_WAIT) if isinstance(timeout_ms, (int, float)) else 10.0
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(self._changed.wait(), seconds)
-
     def _set(self, state: str, error: Optional[str] = None) -> None:
         self.state, self.error = state, error
-        self._bump()
+        self.changes.bump()
 
     def _note(self, message: str) -> None:
         """A line for the journal, once per distinct message in a row (an hourly failure logs once)."""
@@ -294,7 +279,7 @@ class Updater:
 
     async def handle(self, op: str, request: dict) -> dict:
         if op == "update.status":
-            await self.wait(request.get("since"), request.get("timeoutMs"))
+            await self.changes.wait(request.get("since"), request.get("timeoutMs"))
             return self.status()
         if op == "update.rollback":
             return await self.rollback()
@@ -330,14 +315,8 @@ class Updater:
                 signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
             self.latest = parse_manifest(manifest)
-        except UpdateError as error:
-            self._fail(error.code)
-            return
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError):
-            self._fail("network")  # ValueError: a malformed URL or redirect
-            return
         except Exception as error:  # never leave the line saying "checking"
-            self._fail(f"failed-{type(error).__name__}"[:32])
+            self._fail(error_code(error))
             return
         latest = self.latest["version"]
         if self.dev or not newer(latest, self.version):
@@ -370,13 +349,13 @@ class Updater:
                     Remote(tarball_url(base, version), self.latest["size"], self.latest["sha256"], hosts),
                     work / f"polykey-{version}.tar.gz",
                     schemes=schemes,
-                    on_progress=self._bump,
+                    on_progress=self.changes.bump,
                 )
                 self._download = download
                 self._note(f"downloading {version}")
                 self._set("downloading")
                 if not await download.run():
-                    raise UpdateError(download.error or "network")
+                    raise VersionError(download.error or "network")
                 self._set("installing")
                 try:
                     install = functools.partial(self.versions.install, download.path, version, running=self.version)
@@ -389,17 +368,10 @@ class Updater:
                 activate = functools.partial(self.versions.activate, version, running=self.version)
                 await loop.run_in_executor(None, activate)
             self._update_unit(version)
-        except (UpdateError, VersionError) as error:
-            self._note(f"install of {version} failed: {error.code}")
-            self._set("idle", error.code)
-            return
-        except OSError:
-            self._note(f"install of {version} failed: disk")
-            self._set("idle", "disk")
-            return
         except Exception as error:  # never leave the line saying "downloading"
-            self._note(f"install of {version} failed: {type(error).__name__}")
-            self._set("idle", f"failed-{type(error).__name__}"[:32])
+            code = error_code(error)
+            self._note(f"install of {version} failed: {code}")
+            self._set("idle", code)
             return
         finally:
             self._download = None
@@ -463,10 +435,8 @@ class Updater:
             return {"ok": False, "error": "busy"}
         try:
             before, after = await asyncio.get_running_loop().run_in_executor(None, self.versions.rollback)
-        except VersionError as error:
-            return {"ok": False, "error": error.code}
-        except OSError:
-            return {"ok": False, "error": "disk"}
+        except (VersionError, OSError) as error:
+            return {"ok": False, "error": error_code(error)}
         self._note(
             f"rolled back from {before} to {after}"
             + ("" if before == DEV else f"; {before} is skipped until a newer release")

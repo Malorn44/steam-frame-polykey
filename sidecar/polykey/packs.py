@@ -294,16 +294,18 @@ def write_json(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
+def read_settings(path: Optional[Path]) -> dict:
+    """settings.json as it is, or {} when it is missing, unreadable or not an object."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path else {}
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def save_settings(path: Path, changes: dict) -> None:
     """Merge changes into settings.json, keeping other fields; written atomically."""
-    try:
-        current = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(current, dict):
-            current = {}
-    except (OSError, ValueError):
-        current = {}
-    current.update(changes)
-    write_json(path, current)
+    write_json(path, {**read_settings(path), **changes})
 
 
 MAX_EXTENDS = 4  # how deep "extends" may chain
