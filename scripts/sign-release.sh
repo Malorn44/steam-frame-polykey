@@ -88,10 +88,16 @@ Next:
   2. Store the key as the secret RELEASE_SIGNING_KEY of the environment release (create the
      environment first, in Settings → Environments, with main as its only deployment branch):
        gh secret set RELEASE_SIGNING_KEY --env release --repo $REPO < $(printf %q "$KEY")
-  3. Keep an offline backup of $KEY somewhere safe (it has no passphrase). GitHub never gives a
-     secret back: lose every copy and installed releases can no longer update.
-  4. Then, if you like, delete it here: rm $(printf %q "$KEY"). --local signs with it; without it,
-     rehearse with a throwaway key (POLYKEY_RELEASE_KEY and POLYKEY_ALLOWED_SIGNERS).
+  3. Back it up, encrypted. Copy it and give only the copy a passphrase (the secret has to stay
+     without one), then move the copy offline and keep the passphrase in your password manager:
+       cp $(printf %q "$KEY") $(printf %q "$KEY.backup")
+       ssh-keygen -p -f $(printf %q "$KEY.backup")
+     Don't skip this: GitHub never gives a secret back, and installed polykeys trust only this
+     key, so without a backup, a lost key means every user reinstalls by hand.
+  4. Once the secret is set, delete the plain key here:
+       rm $(printf %q "$KEY")
+     --local signs with it; after that, rehearse with a throwaway key (POLYKEY_RELEASE_KEY and
+     POLYKEY_ALLOWED_SIGNERS).
 EOF
     ;;
   --local)

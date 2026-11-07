@@ -84,6 +84,8 @@ expect "--init makes a key with no passphrase in a private folder, and adds its 
   'HOME="$T/nohome" POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --init > "$T/out" 2>&1 < /dev/null && ssh-keygen -y -P "" -f "$T/init/key" >/dev/null && [ "$(stat -c %a "$T/init")" = 700 ] && [ "$(tail -n 1 "$T/init-signers")" = "polykey-release namespaces=\"polykey-release\" $(cut -d" " -f1,2 "$T/init/key.pub")" ] && cmp -s <(head -n -1 "$T/init-signers") contrib/allowed_signers'
 expect "and says how to store it as the release environment's secret, without printing the key" \
   'grep -qF "gh secret set RELEASE_SIGNING_KEY --env release --repo Malorn44/steam-frame-polykey < $T/init/key" "$T/out" && ! grep -q "PRIVATE KEY" "$T/out" && ! grep -qF "$(sed -n 2p "$T/init/key")" "$T/out"'
+expect "and says to back up a copy with a passphrase, then delete the plain key" \
+  'grep -qxF "       cp $T/init/key $T/init/key.backup" "$T/out" && grep -qxF "       ssh-keygen -p -f $T/init/key.backup" "$T/out" && grep -qxF "       rm $T/init/key" "$T/out" && ! grep -q "if you like" "$T/out"'
 cp -R "$T/serve/r1" "$T/init-release"
 expect "--local signs with that key, asking for nothing" \
   'POLYKEY_RELEASE_KEY="$T/init/key" POLYKEY_ALLOWED_SIGNERS="$T/init-signers" scripts/sign-release.sh --local "$T/init-release" > /dev/null < /dev/null && ssh-keygen -Y verify -f "$T/init-signers" -I polykey-release -n polykey-release -s "$T/init-release/latest.json.sig" < "$T/init-release/latest.json" >/dev/null 2>&1'
