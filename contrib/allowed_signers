@@ -4,3 +4,4 @@
 # RELEASE_SIGNING_KEY. Make it once, by hand, and add its line here:
 #   ssh-keygen -q -t ed25519 -N '' -C polykey-release -f ~/.ssh/polykey-release
 #   printf 'polykey-release namespaces="polykey-release" %s\n' "$(cut -d' ' -f1,2 ~/.ssh/polykey-release.pub)" >> contrib/allowed_signers
+polykey-release namespaces="polykey-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMKghPcBF8I8aajFT1j6LqgmVbM/xuUFmolgP5cn8Eh
