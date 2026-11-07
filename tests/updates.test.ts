@@ -23,10 +23,19 @@ describe('updates: the line under the version', () => {
     expect(updateSummary({ ...S, state: 'restarting' }).text).toBe('Restarting polykey…');
   });
 
+  it('an installed release waits for the keyboard to close, or restarts now; Back stays if offered', () => {
+    const installed: UpdateStatus = { ...S, state: 'installed', latest: '0.2.0', available: true };
+    expect(updateSummary(installed)).toEqual({
+      text: '0.2.0 is installed; it starts when the keyboard closes', actions: [{ action: 'install', label: 'Restart now' }],
+    });
+    expect(labels({ ...installed, previous: '0.0.9' })).toEqual(['Restart now', 'Back to 0.0.9']);
+  });
+
   it('explains a failure in words, and a dev build', () => {
     expect(updateSummary({ ...S, error: 'bad-signature' }).text).toBe('The latest release isn\'t signed with polykey\'s key, so it wasn\'t installed');
     expect(updateSummary({ ...S, error: 'weird' }).text).toBe('Update failed (weird)');
     expect(labels({ ...S, error: 'network' })).toEqual(['Check for updates']);
+    expect(updateSummary({ ...S, error: 'busy' }).text).toBe('Another install or update of polykey is under way; try again in a minute');
     const dev = { ...S, version: '0.1.0+dev.2.gabc', dev: true, latest: '0.2.0', previous: '0.2.0' };
     expect(updateSummary(dev).text).toBe('Dev build: no updates · latest release 0.2.0');
     expect(labels(dev)).toEqual(['Check for updates', 'Use release 0.2.0']);
@@ -36,6 +45,8 @@ describe('updates: the line under the version', () => {
     expect(parseUpdate({ id: 1, ok: true, rev: 2, version: '0.1.0', state: 'idle', latest: '0.2.0', available: true }))
       .toEqual({ ...S, rev: 2, latest: '0.2.0', available: true });
     expect(parseUpdate({ id: 1, ok: true, rev: 2, version: '0.1.0', state: 'exploding' })).toBeNull();
+    expect(parseUpdate({ id: 1, ok: true, rev: 3, version: '0.1.0', state: 'installed', latest: '0.2.0', available: true }))
+      .toEqual({ ...S, rev: 3, state: 'installed', latest: '0.2.0', available: true });
     expect(parseUpdate({ id: 1, ok: false, error: 'unavailable' })).toBeNull();
   });
 });
@@ -68,6 +79,21 @@ describe('updates: following the updater', () => {
     updates.run('install');
     await new Promise((r) => setTimeout(r, 0));
     expect(calls[1]).toEqual(['update.install', { version: '0.2.0' }]);
+  });
+
+  it('Restart now asks for the waiting release by name', async () => {
+    const calls: [string, Record<string, unknown> | undefined][] = [];
+    let shown = true;
+    const updates = createUpdates({
+      call: async (op, args) => { calls.push([op, args]); return reply({ state: 'installed', latest: '0.2.0', available: true }); },
+      active: () => shown, onStatus: () => { shown = false; }, warn: () => {}, // the page closes after the first answer
+    });
+    updates.follow();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(updateSummary(updates.status).actions).toEqual([{ action: 'install', label: 'Restart now' }]);
+    updates.run('install');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual([['update.status', {}], ['update.install', { version: '0.2.0' }]]);
   });
 
   it('asks nothing while the line is not on screen', () => {
