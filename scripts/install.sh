@@ -75,6 +75,11 @@ check() {
   else
     say "✗ systemd user session: not reachable. Run this from your desktop session (Konsole)."; ok=0
   fi
+  if command -v flock >/dev/null 2>&1; then
+    say "✓ flock (one install or update at a time)"
+  else
+    say "✗ flock: missing. It comes with util-linux, which SteamOS ships."; ok=0
+  fi
   if command -v ssh-keygen >/dev/null 2>&1; then
     say "✓ ssh-keygen (checks release signatures)"
   else
@@ -227,10 +232,16 @@ install() {
   unpacked="$work/unpacked/polykey-$version"
   [ "$(cat "$unpacked/VERSION" 2>/dev/null)" = "$version" ] && [ -f "$unpacked/sidecar/run.py" ] \
     || die "the tarball does not hold polykey $version"
+  # One writer at a time in versions/: the service's updater and run.py take the same lock
+  # (versions.py), and run.py activate below takes it itself, so it is let go first.
+  mkdir -p "$DATA/updates"
+  exec 9>>"$DATA/updates/lock"
+  flock -w 60 9 || die "another install or update of polykey is under way; try again in a minute"
   rm -rf "${target:?}.new"
   cp -R "$unpacked" "$target.new"
   rm -rf "${target:?}"
   mv "$target.new" "$target"
+  exec 9>&-
 
   # The switch first: if it fails, nothing else has changed.
   "$PY" -I -B "$target/sidecar/run.py" activate "$version" >/dev/null || die "could not switch to polykey $version"

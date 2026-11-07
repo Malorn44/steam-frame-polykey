@@ -61,6 +61,7 @@ def _versions(argv: list[str]) -> int:
         reasons = {
             "no-previous": "no earlier release to go back to",
             "not-installed": f"{version} is not installed",
+            "busy": "another install or update of polykey is under way; try again in a minute",
         }
         print(reasons.get(error.code, error.code), flush=True)
         return 3

@@ -15,7 +15,7 @@ from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
 from polykey.versions import Versions
-from test_versions import make_tarball
+from test_versions import hold_lock, make_tarball
 
 pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="needs ssh-keygen")
 
@@ -114,8 +114,20 @@ def updater(versions, settings, key, *, version="0.1.0", dev=False, restarts=Non
         first_check=0.01,
         interval=3600,
         unit=settings.parent / "polykey.service",
+        keyboard_poll=0.01,
         **kw,
     )
+
+
+class Keyboard:
+    """What injector.Page would say: whether polykey's keyboard is off screen, and how often it was asked."""
+
+    def __init__(self, hidden: bool) -> None:
+        self.hidden, self.asked = hidden, 0
+
+    async def __call__(self) -> bool:
+        self.asked += 1
+        return self.hidden
 
 
 def settings_for(settings: Path, base: str, **more) -> None:
@@ -297,6 +309,125 @@ def test_automatic_checks_skip_a_release_rolled_back_from_until_asked(home, key,
             stop.set()
             await checks
             await source.stop()
+
+    run(main())
+
+
+def test_an_automatic_install_restarts_only_once_the_keyboard_is_hidden(home, key, tmp_path):
+    versions, settings = home
+
+    async def main():
+        source = await Release(key, tmp_path).start()
+        source.publish("0.2.0")
+        settings_for(settings, source.base)
+        restarts, keyboard = [], Keyboard(hidden=False)
+        up = updater(versions, settings, key, restarts=restarts, keyboard_hidden=keyboard)
+        try:
+            await up.handle("update.check", {})
+            for _ in range(500):
+                if keyboard.asked >= 5:
+                    break
+                await asyncio.sleep(0.01)
+            # Installed and current (the next start runs it), but no restart while the keyboard is up.
+            assert up.status()["state"] == "installed" and up.status()["latest"] == "0.2.0"
+            assert versions.current() == "0.2.0" and restarts == []
+            keyboard.hidden = True
+            status = await finish(up)
+        finally:
+            await source.stop()
+        assert restarts == ["0.2.0"] and status["state"] == "restarting"
+
+    run(main())
+
+
+def test_asking_for_the_install_restarts_at_once_keyboard_or_not(home, key, tmp_path):
+    versions, settings = home
+
+    async def main():
+        source = await Release(key, tmp_path).start()
+        source.publish("0.2.0")
+        settings_for(settings, source.base)
+        restarts, keyboard = [], Keyboard(hidden=False)
+        up = updater(versions, settings, key, restarts=restarts, keyboard_hidden=keyboard)
+        try:
+            await up.handle("update.check", {})  # auto-update: installs, then waits for the keyboard
+            for _ in range(500):
+                if up.state == "installed":
+                    break
+                await asyncio.sleep(0.01)
+            assert restarts == []
+            await up.handle("update.install", {"version": "0.2.0"})  # Install: now
+            await finish(up)
+            assert restarts == ["0.2.0"]
+        finally:
+            await source.stop()
+
+        # With auto-update off, Install restarts at once too, without asking about the keyboard.
+        versions.rollback()
+        asked = keyboard.asked
+        source = await Release(key, tmp_path).start()
+        source.publish("0.3.0")
+        settings_for(settings, source.base, autoUpdate=False)
+        up = updater(versions, settings, key, restarts=restarts, keyboard_hidden=keyboard)
+        try:
+            await up.handle("update.check", {})
+            await finish(up)
+            await up.handle("update.install", {"version": "0.3.0"})
+            await finish(up)
+        finally:
+            await source.stop()
+        assert restarts == ["0.2.0", "0.3.0"] and keyboard.asked == asked
+
+    run(main())
+
+
+def test_going_back_while_an_install_waits_for_the_keyboard_needs_no_restart(home, key, tmp_path):
+    versions, settings = home
+
+    async def main():
+        source = await Release(key, tmp_path).start()
+        source.publish("0.2.0")
+        settings_for(settings, source.base)
+        restarts = []
+        up = updater(versions, settings, key, restarts=restarts, keyboard_hidden=Keyboard(hidden=False))
+        try:
+            await up.handle("update.check", {})
+            for _ in range(500):
+                if up.state == "installed":
+                    break
+                await asyncio.sleep(0.01)
+            reply = await up.handle("update.rollback", {})
+        finally:
+            await source.stop()
+        # 0.1.0 still runs: it is current again, 0.2.0 is skipped, and nothing restarts.
+        assert reply["ok"] and reply["state"] == "idle" and reply["skipped"]
+        assert versions.current() == "0.1.0" and versions.skipped() == "0.2.0" and restarts == []
+
+    run(main())
+
+
+def test_an_update_waits_for_another_writer_without_stopping_the_service(home, key, tmp_path):
+    versions, settings = home
+    versions.unpack(make_tarball(tmp_path / "second.tar.gz", "0.2.0"), "0.2.0")  # no download: straight to activate
+
+    async def main():
+        source = await Release(key, tmp_path).start()
+        source.publish("0.2.0")
+        settings_for(settings, source.base)
+        restarts = []
+        up = updater(versions, settings, key, restarts=restarts)
+        holder = hold_lock(versions, 0.5)  # install.sh is unpacking
+        try:
+            await up.handle("update.check", {})
+            ticks = 0
+            while not up._task.done():
+                await asyncio.sleep(0.01)
+                ticks += 1
+        finally:
+            holder.join()
+            await source.stop()
+        assert ticks >= 20  # the loop (the bridge, injection) kept running while activate waited
+        assert restarts == ["0.2.0"] and versions.current() == "0.2.0"
 
     run(main())
 
