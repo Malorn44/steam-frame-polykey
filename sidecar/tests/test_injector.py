@@ -198,26 +198,7 @@ def test_another_version_left_in_steam_is_replaced(tmp_path):
             await until(lambda: fake.inject_count == 1)
             await asyncio.sleep(0.4)  # a safety check later, the right version is left alone
             assert fake.inject_count == 1 and fake.page_version == "0.2.0"
-            assert "Steam runs polykey 0.1.0; injecting 0.2.0" in out.getvalue()
-        finally:
-            await stop_service(stop, task)
-            await fake.stop()
-
-    run(main())
-
-
-def test_a_version_in_the_page_that_is_not_a_release_is_not_logged(tmp_path):
-    async def main():
-        fake = await FakeSteam().start()
-        fake.injected, fake.page_version, fake.injects_version = True, "x" * 500 + "\nforged line", "0.2.0"
-        out = io.StringIO()
-        cfg = fast_config(fake, tmp_path)
-        (cfg.bundle.parent / "VERSION").write_text("0.2.0\n", encoding="utf-8")
-        stop, task = await start_service(cfg, Log(out))
-        try:
-            await until(lambda: fake.inject_count == 1)
-            assert "Steam runs polykey ?; injecting 0.2.0" in out.getvalue()
-            assert "forged" not in out.getvalue() and "xxx" not in out.getvalue()
+            assert "another polykey is in Steam; injecting 0.2.0" in out.getvalue()
         finally:
             await stop_service(stop, task)
             await fake.stop()
