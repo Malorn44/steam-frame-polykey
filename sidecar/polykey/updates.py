@@ -64,17 +64,11 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UNIT = "polykey.service"
 
 
-class UpdateError(Exception):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
 async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -> None:
-    """Raise UpdateError unless the release key signed the manifest."""
+    """Raise VersionError unless the release key signed the manifest."""
     exe = shutil.which("ssh-keygen")
     if exe is None:
-        raise UpdateError("no-verifier")
+        raise VersionError("no-verifier")
     work.mkdir(mode=0o700, parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=work, suffix=".sig") as sig:
         sig.write(signature)
@@ -100,23 +94,23 @@ async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
-            raise UpdateError("no-verifier") from None
+            raise VersionError("no-verifier") from None
     if proc.returncode != 0:
-        raise UpdateError("bad-signature")
+        raise VersionError("bad-signature")
 
 
 def parse_manifest(data: bytes) -> dict:
     try:
         manifest = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        raise UpdateError("bad-manifest") from None
+        raise VersionError("bad-manifest") from None
     if not isinstance(manifest, dict) or manifest.get("format") != 1 or not is_release(manifest.get("version")):
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     size, sha = manifest.get("size"), manifest.get("sha256")
     if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_TARBALL:
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
-        raise UpdateError("bad-manifest")
+        raise VersionError("bad-manifest")
     return {"version": manifest["version"], "size": size, "sha256": sha}
 
 
@@ -126,20 +120,20 @@ async def fetch(
     """GET a small file, following redirects only within the allowed hosts."""
     for _ in range(MAX_REDIRECTS + 1):
         if not host_allowed(url, hosts, schemes):
-            raise UpdateError("bad-host")
+            raise VersionError("bad-host")
         async with http.get(url, allow_redirects=False) as response:
             if response.status in (301, 302, 303, 307, 308):
                 url = urljoin(url, response.headers.get("Location", ""))
                 continue
             if response.status != 200:
-                raise UpdateError("network" if response.status >= 500 or response.status == 429 else "no-release")
+                raise VersionError("network" if response.status >= 500 or response.status == 429 else "no-release")
             body = bytearray()
             async for chunk in response.content.iter_chunked(8192):
                 body += chunk
                 if len(body) > limit:
-                    raise UpdateError("bad-manifest")
+                    raise VersionError("bad-manifest")
             return bytes(body)
-    raise UpdateError("network")
+    raise VersionError("network")
 
 
 async def restart_service() -> bool:
@@ -302,7 +296,7 @@ class Updater:
                 signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
             self.latest = parse_manifest(manifest)
-        except UpdateError as error:
+        except VersionError as error:
             self._fail(error.code)
             return
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError):
@@ -349,7 +343,7 @@ class Updater:
                 self._note(f"downloading {version}")
                 self._set("downloading")
                 if not await download.run():
-                    raise UpdateError(download.error or "network")
+                    raise VersionError(download.error or "network")
                 self._set("installing")
                 try:
                     install = functools.partial(self.versions.install, download.path, version, running=self.version)
@@ -362,7 +356,7 @@ class Updater:
                 activate = functools.partial(self.versions.activate, version, running=self.version)
                 await loop.run_in_executor(None, activate)
             self._update_unit(version)
-        except (UpdateError, VersionError) as error:
+        except VersionError as error:
             self._note(f"install of {version} failed: {error.code}")
             self._set("idle", error.code)
             return

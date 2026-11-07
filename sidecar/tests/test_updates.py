@@ -13,8 +13,8 @@ from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
-from polykey.versions import Versions
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest
+from polykey.versions import VersionError, Versions
 from test_versions import hold_lock, install, make_tarball
 
 pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="needs ssh-keygen")
@@ -544,7 +544,7 @@ def test_manifest_fields_are_checked():
         {"size": 1 << 40},
         {"sha256": "A" * 64},
     ):
-        with pytest.raises(UpdateError):
+        with pytest.raises(VersionError):
             parse_manifest(json.dumps({**good, **change}).encode())
 
 
