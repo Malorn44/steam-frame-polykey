@@ -6,6 +6,42 @@ An on-screen keyboard for the Valve Steam Frame, with English and Japanese keybo
 
 ![polykey's English keyboard, with its toolbar, number row, Fn keys and arrows, above the Japanese 12-key flick keyboard with flick hints and its candidate panel on the left, both in the Steam theme](docs/images/keyboards.png)
 
+## Install
+
+In Desktop Mode, open Konsole and run:
+
+```sh
+curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh
+```
+
+It installs into `~/.local/share/polykey/` and starts polykey now and at every login. No sudo.
+
+**What it needs:** Python 3.10.12+ with aiohttp (SteamOS has both) and Steam's debugger, which polykey draws through: Steam → Settings → Developer → Enable CEF remote debugging. polykey talks to it on 127.0.0.1 only.
+
+**Close port 8081:** on the Frame, that setting also opens Steam's debugger to your local network on port 8081, through a SteamOS service. Anyone on the same network (a café, dorm or guest Wi-Fi) could read what you type with any keyboard, or control Steam. polykey doesn't use 8081, and the script warns while it's open. To close it:
+
+```sh
+sudo systemctl mask --now steam-web-debug-portforward.service
+# to undo: sudo systemctl unmask --now steam-web-debug-portforward.service
+```
+
+**Updates:** every hour polykey looks for a new release and installs it only if it's signed with the release key; it starts when the keyboard closes. To only be told about new releases, turn off **Update automatically** in Settings → General (`"autoUpdate": false` in `~/.config/polykey/settings.json`). The foot of the Settings tab shows the version and what the updater found, with buttons to check, install or go back. Running the script again also updates.
+
+![The Settings tab: General on the left, with the theme, haptics, suggestions and Update automatically turned on, the 12-key's own options on the right, and the version at the foot](docs/images/settings.png)
+
+**Check, roll back or uninstall** with an option after `sh -s --`:
+
+```sh
+# report what's missing; change nothing
+curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --check
+# go back a release; updates skip the one you left
+curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --rollback
+# remove polykey but keep settings and dictation models (--purge removes those too)
+curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --uninstall
+```
+
+If a rollback can't run, install an earlier `polykey-X.Y.Z.tar.gz` from [Releases](https://github.com/Malorn44/steam-frame-polykey/releases) with `--tarball polykey-X.Y.Z.tar.gz`. `--tarball` doesn't check signatures, so take the file only from there.
+
 ## Features
 
 - **[English and Japanese keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows, and Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy.
@@ -19,35 +55,6 @@ An on-screen keyboard for the Valve Steam Frame, with English and Japanese keybo
 - **Signed updates that install themselves:** polykey installs a new release only when it is signed with the release key.
 
 ![The English keyboard in six of polykey's themes: Catppuccin Mocha, Dracula and gruvbox light on top, and Nord, Rosé Pine Dawn and Tokyo Night below](docs/images/themes.png)
-
-## Install
-
-In Desktop Mode, open Konsole and run:
-
-```sh
-curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh
-```
-
-It installs the latest release into `~/.local/share/polykey/` and starts polykey now and at every login. No sudo.
-
-**What it needs:** Python 3.10.12+ with aiohttp, both in SteamOS, and Steam's debugger, which polykey draws through. If the script says the debugger isn't answering, turn on Steam → Settings → Developer → Enable CEF remote debugging. polykey talks to it on 127.0.0.1 only.
-
-**Updates:** from then on polykey updates itself. An hour apart it looks for a newer release, and installs one only when its signature checks out against the release key; the new release starts when the keyboard closes. In settings, **Update automatically** (under General) turns this off, so polykey only reports new releases (it sets `"autoUpdate": false` in `~/.config/polykey/settings.json`). The line by the version, at the foot of the Settings tab, shows what the updater found, with buttons to check, install or go back. Running the script again also updates.
-
-![The Settings tab: General on the left, with the theme, haptics, suggestions and Update automatically turned on, the 12-key's own options on the right, and the version at the foot](docs/images/settings.png)
-
-**Check, roll back or uninstall** with an option after `sh -s --`:
-
-```sh
-# report what's missing; change nothing
-curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --check
-# back to the release before this one; updates skip the one you left until a newer release
-curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --rollback
-# remove polykey (settings and dictation models stay; add --purge to remove them)
-curl -fsSL https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/install.sh | sh -s -- --uninstall
-```
-
-If a rollback can't run, go back by hand: download an earlier release's `polykey-X.Y.Z.tar.gz` from [Releases](https://github.com/Malorn44/steam-frame-polykey/releases) and install it with `--tarball polykey-X.Y.Z.tar.gz`. `--tarball` trusts the file you give it, so take it from there.
 
 ## More
 

@@ -25,7 +25,10 @@ helps.
   (`contrib/polykey.service`) and the deploy script.
 
 Bugs in Steam, SteamOS or the projects polykey uses belong with those projects, unless polykey makes
-them exploitable.
+them exploitable. One is known: with CEF remote debugging on, SteamOS's
+`steam-web-debug-portforward.service` opens Steam's debugger to the network on port 8081. It's a
+SteamOS default, not polykey's bug (polykey uses only 127.0.0.1:8080), but the installer warns
+about it and the [README](../README.md#install) says how to close it.
 
 The latest release is supported, and so is `main`. Fixes go into a new release, not into older
 ones.
