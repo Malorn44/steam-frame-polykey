@@ -56,6 +56,29 @@ describe('settings: updates', () => {
     expect(changes).toEqual([{ autoUpdate: false }]);
   });
 
+  it('ⓘ by the switch shows or hides when updates happen, and leaves the switch alone', () => {
+    const { shadow, changes } = setup();
+    const row = [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Update automatically')!;
+    const info = row.querySelector<HTMLElement>('.name .ic.info')!;
+    const line = row.nextElementSibling as HTMLElement;
+    expect(line.textContent).toBe('Checks at start and hourly; installs when the keyboard closes.');
+    expect(line.hidden).toBe(true);
+    tap(info);
+    expect(line.hidden).toBe(false);
+    expect(info.classList.contains('open')).toBe(true);
+    tap(info);
+    expect(line.hidden).toBe(true);
+    expect(changes).toEqual([]);
+    expect(row.querySelector('.switch.on')).not.toBeNull();
+  });
+
+  it('the laser\'s click on ⓘ\'s drawing shows the line too', () => {
+    const { shadow, changes } = setup();
+    shadow.querySelector('.ic.info svg')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(shadow.querySelector<HTMLElement>('.info-line')!.hidden).toBe(false);
+    expect(changes).toEqual([]);
+  });
+
   it('the version line says what the updater found, and its buttons ask for it', () => {
     const { shadow, view, asked } = setup(0, { ...STATUS, latest: '0.2.0', available: true, previous: '0.0.9' });
     const line = () => shadow.querySelector<HTMLElement>('.about .ver')!;

@@ -9,7 +9,7 @@
 import type { Theme } from '../core/catalog.js';
 import { SLOP_PX, touchGuard } from '../core/interaction.js';
 import { dragScroll, listenTouch, type DragScroll } from './gesture.js';
-import { ICONS } from './icons.js';
+import { ICONS, INFO_ICON } from './icons.js';
 import { sizeVars } from './sizes.js';
 import { themeVars } from './theme.js';
 import { THEME_PICKER_CSS, buildThemePicker, type ThemeChoice } from './theme-picker.js';
@@ -95,6 +95,13 @@ const CSS = `
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 23px; background: var(--accent-text); }
 .switch.hover { box-shadow: 0 0 0 2px var(--ring); }
+/* ⓘ after a row's name, a laser-sized target: a tap shows or hides one line under the row. */
+.row .name:has(> .info) { display: flex; align-items: center; }
+.ic.info { align-items: center; justify-content: center; width: 32px; height: var(--row-height); margin-left: 4px;
+  border-radius: var(--radius); color: var(--legend); }
+.ic.info.hover { box-shadow: inset 0 0 0 2px var(--ring); }
+.ic.info.open { background: var(--accent); color: var(--accent-text); }
+.info-line { margin: -2px 0 2px; color: var(--legend); font-size: var(--ui-small); }
 .about { color: var(--legend); font-size: var(--ui-caption); border-top: 1px solid var(--divider); padding-top: 3px; }
 .about .err { color: var(--error); }
 .about .ver { display: flex; align-items: center; gap: 8px; min-height: 24px; }
@@ -167,6 +174,17 @@ export const createSettingsView = (
     el.classList.add('sw');
     return el;
   };
+  /** A row with ⓘ after its name: a tap shows or hides `text` on a line under it (the laser has no hover). */
+  const explained = (el: HTMLElement, text: string): HTMLElement[] => {
+    const line = Object.assign(doc.createElement('div'), { className: 'info-line', textContent: text, hidden: true });
+    const icon = Object.assign(doc.createElement('span'), { className: 'ic info', innerHTML: INFO_ICON });
+    actions.set(icon, () => {
+      line.hidden = !line.hidden;
+      icon.classList.toggle('open', !line.hidden);
+    });
+    el.querySelector('.name')?.append(icon);
+    return [el, line];
+  };
 
   const about = doc.createElement('div');
   about.className = 'about';
@@ -207,7 +225,7 @@ export const createSettingsView = (
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
     ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
-    onOff('Update automatically', 'autoUpdate'));
+    ...explained(onOff('Update automatically', 'autoUpdate'), 'Checks at start and hourly; installs when the keyboard closes.'));
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length
       ? info.options.map((o) => (o.toggle ? toggle(o) : row(o.name, option(o.off, !o.value, () => onOption(o.id, false)),
