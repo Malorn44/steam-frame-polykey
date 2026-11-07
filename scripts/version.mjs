@@ -28,7 +28,9 @@ export const devVersion = (cwd = '.', now = new Date()) => {
     return `${tag}+dev.${since}.g${sha}${dirty ? '.dirty' : ''}.${stamp}`;
   }
   // No tag at all (--exclude), so this is the commit's abbreviated sha whatever other tags there are.
-  const head = /^([0-9a-f]+)(-dirty)?$/.exec(git(cwd, 'describe', '--always', '--exclude', '*', '--abbrev=7', '--dirty'));
+  const head = /^([0-9a-f]+)(-dirty)?$/.exec(
+    git(cwd, 'describe', '--always', '--exclude', '*', '--abbrev=7', '--dirty'),
+  );
   if (!head) return `0.0.0+dev.${stamp}`; // not built from a git checkout
   return `0.0.0+dev.${git(cwd, 'rev-list', '--count', 'HEAD')}.g${head[1]}${head[2] ? '.dirty' : ''}.${stamp}`;
 };

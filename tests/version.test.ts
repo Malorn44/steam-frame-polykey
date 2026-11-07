@@ -40,7 +40,20 @@ describe('release versions', () => {
   it('are X.Y.Z with an optional pre-release of non-empty parts', () => {
     for (const ok of ['0.1.0', '1.2.3', '10.20.30', '1.2.3-rc.1', '1.2.3-alpha', '1.2.3-x-y.0.z-'])
       expect(ok).toMatch(SEMVER);
-    for (const bad of ['', '1.2', 'v1.2.3', '01.2.3', '1.02.3', '1.2.3-', '1.2.3-rc.', '1.2.3-.rc', '1.2.3-rc..1', '1.2.3-rc_1', '1.2.3+build', ' 1.2.3'])
+    for (const bad of [
+      '',
+      '1.2',
+      'v1.2.3',
+      '01.2.3',
+      '1.02.3',
+      '1.2.3-',
+      '1.2.3-rc.',
+      '1.2.3-.rc',
+      '1.2.3-rc..1',
+      '1.2.3-rc_1',
+      '1.2.3+build',
+      ' 1.2.3',
+    ])
       expect(bad).not.toMatch(SEMVER);
   });
 });
