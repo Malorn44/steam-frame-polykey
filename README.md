@@ -120,7 +120,7 @@ src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes; schema/ their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
-scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh, release.sh, sign-release.sh, install.sh
+scripts/        build.mjs (and css-minify.mjs, its CSS minification), deploy.sh, release.sh, install.sh
 contrib/        polykey.service
 ```
 

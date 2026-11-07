@@ -10,7 +10,7 @@
 #                                left until a newer release)
 #   sh install.sh --uninstall    remove polykey and restore Steam's keyboard; keeps your settings
 #                                and dictation models (add --purge to remove those too)
-#   --base URL                   read the release from URL/latest.json instead of GitHub
+#   --base URL                   read latest.json and the tarball beside it from URL, not GitHub
 #
 # Through a pipe, options go after `sh -s --`: curl -fsSL …/install.sh | sh -s -- --uninstall
 # It only touches ~/.local/share/polykey/, ~/.config/systemd/user/polykey.service and, with --purge,
@@ -129,13 +129,9 @@ print(match.group(1))
 EOF
 }
 
-# Download latest.json and its signature, check the signature, then the tarball against the sizes
-# and hash latest.json gives. Sets $tarball and $version.
+# Download latest.json and its signature, check the signature, then the tarball beside them against
+# the size and hash latest.json gives. Sets $tarball and $version.
 download() {
-  case "$ALLOWED_SIGNERS" in
-    *ssh-ed25519*) ;;
-    *) die "this install.sh has no release key, so it cannot check a download; use --tarball" ;;
-  esac
   command -v curl >/dev/null 2>&1 || die "curl is needed to download polykey"
   command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen is needed to check the download"
   say "→ reading $BASE/latest.json"
@@ -145,24 +141,18 @@ download() {
   ssh-keygen -Y verify -f "$work/allowed_signers" -I "$NAMESPACE" -n "$NAMESPACE" \
     -s "$work/latest.json.sig" < "$work/latest.json" >/dev/null 2>&1 \
     || die "latest.json is not signed by the polykey release key; nothing was installed"
-  fields=$("$PY" -I - "$work/latest.json" <<'EOF'
-import json, re, sys
-m = json.load(open(sys.argv[1], encoding="utf-8"))
-ok = (m.get("format") == 1 and re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?", str(m.get("version")))
-      and re.fullmatch(r"https?://[^\s]+", str(m.get("url"))) and isinstance(m.get("size"), int)
-      and re.fullmatch(r"[0-9a-f]{64}", str(m.get("sha256"))))
-print(m["version"], m["url"], m["size"], m["sha256"]) if ok else sys.exit(1)
+  # The release key signed it: read the fields, and keep the version to what a URL and a path can hold.
+  fields=$("$PY" -I -c 'import json, sys; m = json.load(open(sys.argv[1])); print(m["version"], m["size"], m["sha256"])' \
+    "$work/latest.json" 2>/dev/null) || die "latest.json is not a polykey release manifest"
+  read -r version size sha256 <<EOF
+$fields
 EOF
-  ) || die "latest.json is not a polykey release manifest"
-  # Four fields with no spaces in them (checked): split on purpose.
-  # shellcheck disable=SC2086
-  set -- $fields
-  version=$1
+  case "$version" in "" | [!0-9]* | *[!0-9A-Za-z.-]*) die "latest.json is not a polykey release manifest" ;; esac
   say "→ downloading polykey $version"
   tarball="$work/polykey-$version.tar.gz"
-  fetch "$2" "$tarball"
-  [ "$(wc -c < "$tarball" | tr -d ' ')" = "$3" ] || die "the download is the wrong size; nothing was installed"
-  [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$4" ] || die "the download does not match its sha256; nothing was installed"
+  fetch "$BASE/polykey-$version.tar.gz" "$tarball"
+  [ "$(wc -c < "$tarball" | tr -d ' ')" = "$size" ] || die "the download is the wrong size; nothing was installed"
+  [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$sha256" ] || die "the download does not match its sha256; nothing was installed"
 }
 
 current() { readlink "$DATA/current" 2>/dev/null || true; }

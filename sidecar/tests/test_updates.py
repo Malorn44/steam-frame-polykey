@@ -13,7 +13,7 @@ from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, UpdateError, parse_manifest, tarball_url
 from polykey.versions import Versions
 from test_versions import hold_lock, make_tarball
 
@@ -55,7 +55,6 @@ class Release:
         manifest = {
             "format": 1,
             "version": version,
-            "url": f"{self.base}/polykey-{version}.tar.gz",
             "size": len(tarball),
             "sha256": hashlib.sha256(tarball).hexdigest(),
         }
@@ -191,7 +190,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
     [
         ("other-key", "bad-signature"),
         ("edited", "bad-signature"),
-        ("no-key", "no-key"),
+        ("no-key", "bad-signature"),
     ],
 )
 def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path, problem, code):
@@ -456,6 +455,14 @@ def test_an_unusable_update_url_means_the_default_source(home, key):
     assert up.source() == ("http://192.168.1.5:8000/r/", ("192.168.1.5", *GITHUB_HOSTS), ("http", "https"))
 
 
+def test_the_tarball_comes_from_its_own_release_on_github():
+    # latest/download/ would follow a release published after the check, and 404.
+    assert tarball_url(DEFAULT_SOURCE, "0.2.0") == (
+        "https://github.com/Malorn44/steam-frame-polykey/releases/download/v0.2.0/polykey-0.2.0.tar.gz"
+    )
+    assert tarball_url("http://192.168.1.5:8000/r/", "0.2.0") == "http://192.168.1.5:8000/r/polykey-0.2.0.tar.gz"
+
+
 def test_a_malformed_redirect_ends_the_check_instead_of_hanging_it(home, key, tmp_path):
     versions, settings = home
 
@@ -538,15 +545,8 @@ def test_a_release_with_a_new_unit_replaces_the_installed_one(home, key, tmp_pat
 
 
 def test_manifest_fields_are_checked():
-    good = {
-        "format": 1,
-        "version": "1.2.3",
-        "url": "https://github.com/a/b/releases/download/v1.2.3/p.tar.gz",
-        "size": 10,
-        "sha256": "a" * 64,
-    }
-    hosts = ("github.com", "githubusercontent.com")
-    assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"
+    good = {"format": 1, "version": "1.2.3", "size": 10, "sha256": "a" * 64}
+    assert parse_manifest(json.dumps(good).encode()) == {"version": "1.2.3", "size": 10, "sha256": "a" * 64}
     for change in (
         {"format": 0},
         {"version": "v1.2.3"},
@@ -554,11 +554,9 @@ def test_manifest_fields_are_checked():
         {"size": True},
         {"size": 1 << 40},
         {"sha256": "A" * 64},
-        {"url": "http://github.com/x"},
-        {"url": "https://github.com.evil/x"},
     ):
         with pytest.raises(UpdateError):
-            parse_manifest(json.dumps({**good, **change}).encode(), hosts, ("https",))
+            parse_manifest(json.dumps({**good, **change}).encode())
 
 
 def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_path):

@@ -1,51 +1,31 @@
 #!/usr/bin/env bash
-# Build a release into dist/release/:
+# Build a release into dist/release/, the files a release serves side by side:
 #
 #   polykey-<version>.tar.gz   the build (dist/stage) under polykey-<version>/, byte-for-byte
 #                              reproducible from the same commit
 #   install.sh                 the installer, with the release key in it
-#   latest.json                what the updater and install.sh read: version, tarball URL, size, sha256
-#                              (and install.sh's sha256, so the signature covers the installer too)
+#   latest.json                what the updater and install.sh read: the version, and the size and
+#                              sha256 of the tarball, which they fetch from beside it
 #
-# Usage: scripts/release.sh <version> [--base URL]
-#   --base URL   where the tarball will be served (default: the GitHub release v<version>), e.g.
-#                http://192.168.1.20:8000 to try a release on the Frame from this PC
+# Usage: scripts/release.sh <version>
 #
 # The version comes from the release tag (release-please picks it from the commits). latest.json.sig,
 # the signature the updater and install.sh check, is made afterwards: by CI once you approve the
-# release, or by scripts/sign-release.sh --local for a release served from this PC.
+# release, or for a release served from this PC (dist/release/ over HTTP, with install.sh --base or
+# settings.json "updateUrl" pointing at it) by
+#   ssh-keygen -Y sign -f <key> -n polykey-release dist/release/latest.json
 # POLYKEY_ALLOWED_SIGNERS names another key file than contrib/allowed_signers (the installer tests
 # use a throwaway key).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REPO=Malorn44/steam-frame-polykey
-SIGNERS="${POLYKEY_ALLOWED_SIGNERS:-contrib/allowed_signers}"
+case "${1:-}" in -h | --help) sed -n '2,18p' "$0"; exit 0 ;; esac
+[ $# = 1 ] || { echo "usage: scripts/release.sh <version>" >&2; exit 2; }
+version=$1
+top="polykey-$version"
 OUT=dist/release
 
-version=""
-base=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --base) base="${2:?--base needs a URL}"; base="${base%/}"; shift 2 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
-    -*) echo "unknown option: $1" >&2; exit 2 ;;
-    *) version="$1"; shift ;;
-  esac
-done
-if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-  echo "usage: scripts/release.sh <version like 1.2.3> [--base URL]" >&2
-  exit 2
-fi
-if ! grep -q '^polykey-release .*ssh-ed25519 ' "$SIGNERS"; then
-  echo "✗ no release key in $SIGNERS: run scripts/sign-release.sh --init first" >&2
-  exit 1
-fi
-
-top="polykey-$version"
-url="${base:-https://github.com/$REPO/releases/download/v$version}/$top.tar.gz"
-
-POLYKEY_ALLOWED_SIGNERS="$SIGNERS" node scripts/build.mjs --version "$version"
+node scripts/build.mjs --version "$version"  # checks the version before it writes anything
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -57,13 +37,10 @@ cp dist/stage/install.sh "$OUT/install.sh"
 
 size=$(stat -c %s "$OUT/$top.tar.gz")
 sha=$(sha256sum "$OUT/$top.tar.gz" | cut -d' ' -f1)
-installer=$(sha256sum "$OUT/install.sh" | cut -d' ' -f1)
-VERSION="$version" URL="$url" SIZE="$size" SHA="$sha" INSTALLER="$installer" node -e '
+VERSION="$version" SIZE="$size" SHA="$sha" node -e '
   const e = process.env;
-  const manifest = { format: 1, version: e.VERSION, url: e.URL, size: Number(e.SIZE), sha256: e.SHA,
-    installer: e.INSTALLER };
+  const manifest = { format: 1, version: e.VERSION, size: Number(e.SIZE), sha256: e.SHA };
   process.stdout.write(JSON.stringify(manifest, null, 2) + "\n");
 ' > "$OUT/latest.json"
 
 echo "polykey $version: $OUT/$top.tar.gz ($((size / 1024)) KB), sha256 $sha"
-echo "  tarball URL: $url"
