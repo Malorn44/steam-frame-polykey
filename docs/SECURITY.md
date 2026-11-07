@@ -17,10 +17,15 @@ helps.
   helper.
 - **Its bridge to the page**: the CDP binding between the bundle in Steam's keyboard popup and the
   sidecar, and the connection to Steam's debugger.
+- **Releases and how they're installed**: the one-line installer (`scripts/install.sh`), the release
+  tarballs and the checks made before one is installed (the signature on `latest.json`, the
+  tarball's size and sha256, and how it's unpacked), and the service's self-updater (signature
+  checking, download and unpacking).
 - **Anything that runs on the Frame**: the injected bundle, the packs it loads, the systemd user unit
   (`contrib/polykey.service`) and the deploy script.
 
 Bugs in Steam, SteamOS or the projects polykey uses belong with those projects, unless polykey makes
 them exploitable.
 
-Only the latest version on `main` is supported.
+The latest release is supported, and so is `main`. Fixes go into a new release, not into older
+ones.
