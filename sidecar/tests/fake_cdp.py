@@ -22,6 +22,9 @@ class FakeSteam:
         self.target_id = f"T{next(self._ids)}"
         self.has_target = True
         self.injected = False
+        self.page_version = "test"  # __polykey.version of the bundle "in the page"
+        self.injects_version = "test"  # and of the one the sidecar injects
+        self.keyboard = "hidden"  # what KEYBOARD_EXPRESSION says: open, hidden or unknown
         self.inject_count = 0
         self.uninstall_count = 0
         self.connections = 0
@@ -100,7 +103,9 @@ class FakeSteam:
 
     def _evaluate(self, expression: str) -> object:
         if expression == injector.CHECK_EXPRESSION:
-            return self.injected
+            return self.page_version if self.injected else False
+        if expression == injector.KEYBOARD_EXPRESSION:
+            return self.keyboard
         if expression == injector.STATUS_EXPRESSION:
             return "test (running)" if self.injected else "missing"
         if expression == injector.UNINSTALL_EXPRESSION:
@@ -110,6 +115,7 @@ class FakeSteam:
             return was
         if f"//# sourceURL={injector.SOURCE_URL}" in expression:
             self.injected = True
+            self.page_version = self.injects_version
             self.inject_count += 1
             return None
         if "__polykeyProbe" in expression:
