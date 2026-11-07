@@ -3,9 +3,10 @@
 A minute after start and then every hour it reads latest.json and latest.json.sig from the release
 source (the latest GitHub release, or settings.json "updateUrl"), and believes the manifest only when
 `ssh-keygen -Y verify` says the release key in this release's allowed_signers signed it. A newer
-release is downloaded (pinned by the manifest's size and sha256, from the source's hosts only),
-unpacked into versions/<version>/ and made current; then the service restarts into it. With
-settings.json "autoUpdate": false (Settings → Update automatically) checks only report.
+release, polykey-<version>.tar.gz (beside them, or on GitHub in release v<version>), is downloaded
+(pinned by the manifest's size and sha256, from the source's hosts only), unpacked into
+versions/<version>/ and made current; then the service restarts into it. With settings.json
+"autoUpdate": false (Settings → Update automatically) checks only report.
 
 An automatic install waits for the keyboard to be hidden before it restarts (state "installed"), so
 polykey never leaves Steam's popup mid-word; an install asked for (update.install) restarts at once.
@@ -15,7 +16,7 @@ A release rolled back from (versions.py) is left alone by automatic installs unt
 comes; Install puts it back on request.
 
 The page asks over the bridge:
-  update.status {since?, timeoutMs?}  {version, dev, auto, state, latest?, available, skipped,
+  update.status {since?, timeoutMs?}  {version, dev, state, latest?, available, skipped,
                                        previous?, error?, done?, total?, rev}; with `since`, it
                                        answers once `rev` is not that any more, or on timeout
   update.check                        check now (and install, with auto-update on)
@@ -35,7 +36,6 @@ import os
 import re
 import shutil
 import tempfile
-import time
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
 from urllib.parse import urljoin, urlsplit
@@ -46,13 +46,14 @@ from .speech.download import Download, Remote, host_allowed
 from .versions import DEV, VersionError, Versions, is_release, newer
 
 OPS = ("update.status", "update.check", "update.install", "update.rollback")
-DEFAULT_SOURCE = "https://github.com/Malorn44/steam-frame-polykey/releases/latest/download/"
+# GitHub redirects latest/download/<file> to the latest release's <file>.
+RELEASES = "https://github.com/Malorn44/steam-frame-polykey/releases/"
+DEFAULT_SOURCE = f"{RELEASES}latest/download/"
 GITHUB_HOSTS = ("github.com", "githubusercontent.com")  # release assets redirect to *.githubusercontent.com
 NAMESPACE = "polykey-release"
 FIRST_CHECK = 60.0
 INTERVAL = 3600.0
-MAX_MANIFEST = 64 << 10
-MAX_SIGNATURE = 16 << 10
+MAX_SMALL = 64 << 10  # latest.json and its signature
 MAX_TARBALL = 64 << 20
 MAX_REDIRECTS = 5
 MAX_WAIT = 30.0
@@ -69,20 +70,8 @@ class UpdateError(Exception):
         self.code = code
 
 
-def has_key(signers: Path) -> bool:
-    try:
-        return any(
-            line.startswith(f"{NAMESPACE} ") and "ssh-ed25519 " in line
-            for line in signers.read_text(encoding="utf-8").splitlines()
-        )
-    except OSError:
-        return False
-
-
 async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -> None:
     """Raise UpdateError unless the release key signed the manifest."""
-    if not has_key(signers):
-        raise UpdateError("no-key")
     exe = shutil.which("ssh-keygen")
     if exe is None:
         raise UpdateError("no-verifier")
@@ -116,28 +105,27 @@ async def verify(manifest: bytes, signature: bytes, signers: Path, work: Path) -
         raise UpdateError("bad-signature")
 
 
-def parse_manifest(data: bytes, hosts: tuple[str, ...], schemes: tuple[str, ...]) -> dict:
+def parse_manifest(data: bytes) -> dict:
     try:
         manifest = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         raise UpdateError("bad-manifest") from None
     if not isinstance(manifest, dict) or manifest.get("format") != 1 or not is_release(manifest.get("version")):
         raise UpdateError("bad-manifest")
-    url, size, sha = manifest.get("url"), manifest.get("size"), manifest.get("sha256")
-    if not isinstance(url, str) or not host_allowed(url, hosts, schemes):
-        raise UpdateError("bad-manifest")
+    size, sha = manifest.get("size"), manifest.get("sha256")
     if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_TARBALL:
         raise UpdateError("bad-manifest")
     if not isinstance(sha, str) or not SHA256.match(sha):
         raise UpdateError("bad-manifest")
-    notes = manifest.get("notes")
-    return {
-        "version": manifest["version"],
-        "url": url,
-        "size": size,
-        "sha256": sha,
-        "notes": notes if isinstance(notes, str) and host_allowed(notes, hosts, ("https",)) else None,
-    }
+    return {"version": manifest["version"], "size": size, "sha256": sha}
+
+
+def tarball_url(base: str, version: str) -> str:
+    """Where polykey-<version>.tar.gz is: beside latest.json, except on GitHub, where latest/download/
+    may be a newer release by the time it is fetched, so it comes from release v<version> itself."""
+    if base == DEFAULT_SOURCE:
+        base = f"{RELEASES}download/v{version}/"
+    return urljoin(base, f"polykey-{version}.tar.gz")
 
 
 async def fetch(
@@ -216,7 +204,6 @@ class Updater:
         self.state = "idle"  # idle | checking | downloading | installing | installed | restarting
         self.error: Optional[str] = None
         self.latest: Optional[dict] = None
-        self.checked: Optional[float] = None
         self._download: Optional[Download] = None
         self._task: Optional[asyncio.Task] = None
         self._logged: Optional[str] = None
@@ -270,7 +257,6 @@ class Updater:
             "rev": self.rev,
             "version": self.version,
             "dev": self.dev,
-            "auto": self.auto(),
             "state": self.state,
             "latest": latest,
             "available": bool(latest and not self.dev and newer(latest, self.version)),
@@ -340,10 +326,10 @@ class Updater:
         timeout = aiohttp.ClientTimeout(total=60, connect=15)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as http:
-                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_MANIFEST)
-                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SIGNATURE)
+                manifest = await fetch(http, urljoin(base, "latest.json"), hosts, schemes, MAX_SMALL)
+                signature = await fetch(http, urljoin(base, "latest.json.sig"), hosts, schemes, MAX_SMALL)
             await verify(manifest, signature, self._signers, self.versions.root / "updates")
-            self.latest = parse_manifest(manifest, hosts, schemes)
+            self.latest = parse_manifest(manifest)
         except UpdateError as error:
             self._fail(error.code)
             return
@@ -353,7 +339,6 @@ class Updater:
         except Exception as error:  # never leave the line saying "checking"
             self._fail(f"failed-{type(error).__name__}"[:32])
             return
-        self.checked = time.time()
         latest = self.latest["version"]
         if self.dev or not newer(latest, self.version):
             self._note(
@@ -376,13 +361,13 @@ class Updater:
         for, else once the keyboard is hidden."""
         if self.dev or not self.latest or self.latest["version"] != version:
             return
-        _, hosts, schemes = self.source()
+        base, hosts, schemes = self.source()
         loop = asyncio.get_running_loop()  # versions/ changes off the loop: they may wait for install.sh
         try:
             if version not in self.versions.installed():
                 work = self.versions.root / "updates"
                 download = Download(
-                    Remote(self.latest["url"], self.latest["size"], self.latest["sha256"], hosts),
+                    Remote(tarball_url(base, version), self.latest["size"], self.latest["sha256"], hosts),
                     work / f"polykey-{version}.tar.gz",
                     schemes=schemes,
                     on_progress=self._bump,
@@ -502,14 +487,8 @@ class Updater:
             if stop.is_set():
                 break
             delay = self._interval
-            if self._task is not None and not self._task.done():
-                continue
-            self._task = asyncio.ensure_future(self.check())
-            stopped = asyncio.ensure_future(stop.wait())
-            try:
-                await asyncio.wait([self._task, stopped], return_when=asyncio.FIRST_COMPLETED)
-            finally:
-                stopped.cancel()
+            if self._task is None or self._task.done():
+                self._task = asyncio.ensure_future(self.check())
 
     async def close(self) -> None:
         if self._task is not None and not self._task.done():

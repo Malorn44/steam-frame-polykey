@@ -13,7 +13,7 @@ from aiohttp import web
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, parse_manifest, UpdateError
+from polykey.updates import DEFAULT_SOURCE, GITHUB_HOSTS, Updater, UpdateError, parse_manifest, tarball_url
 from polykey.versions import Versions
 from test_versions import hold_lock, make_tarball
 
@@ -50,18 +50,14 @@ class Release:
         self.requests: list[str] = []
         self.base = ""
 
-    def publish(self, version: str, *, signed_by: Path | None = None, tamper=None, extra=None) -> None:
+    def publish(self, version: str, *, signed_by: Path | None = None, extra=None) -> None:
         tarball = make_tarball(self.tmp / f"src-{version}.tar.gz", version, extra).read_bytes()
         manifest = {
             "format": 1,
-            "name": "polykey",
             "version": version,
-            "url": f"{self.base}/polykey-{version}.tar.gz",
             "size": len(tarball),
             "sha256": hashlib.sha256(tarball).hexdigest(),
         }
-        if tamper:
-            tamper(manifest)
         data = json.dumps(manifest).encode()
         self.files = {
             "latest.json": data,
@@ -177,7 +173,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
         try:
             await up.handle("update.check", {})
             status = await finish(up)
-            assert status["available"] and status["latest"] == "0.2.0" and not status["auto"]
+            assert status["available"] and status["latest"] == "0.2.0"
             assert versions.current() == "0.1.0"
             assert (await up.handle("update.install", {"version": "0.9.9"}))["error"] == "not-offered"
             await up.handle("update.install", {"version": "0.2.0"})
@@ -194,9 +190,7 @@ def test_with_auto_update_off_a_check_only_reports_and_install_is_asked_for(home
     [
         ("other-key", "bad-signature"),
         ("edited", "bad-signature"),
-        ("no-key", "no-key"),
-        ("evil-host", "bad-manifest"),
-        ("old-format", "bad-manifest"),
+        ("no-key", "bad-signature"),
     ],
 )
 def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path, problem, code):
@@ -211,10 +205,6 @@ def test_a_manifest_that_does_not_check_out_installs_nothing(home, key, tmp_path
         signers = None
         if problem == "other-key":
             source.publish("0.2.0", signed_by=other)
-        elif problem == "evil-host":
-            source.publish("0.2.0", tamper=lambda m: m.update(url="https://evil.example/polykey-0.2.0.tar.gz"))
-        elif problem == "old-format":
-            source.publish("0.2.0", tamper=lambda m: m.update(format=0))
         else:
             source.publish("0.2.0")
         if problem == "edited":
@@ -465,6 +455,14 @@ def test_an_unusable_update_url_means_the_default_source(home, key):
     assert up.source() == ("http://192.168.1.5:8000/r/", ("192.168.1.5", *GITHUB_HOSTS), ("http", "https"))
 
 
+def test_the_tarball_comes_from_its_own_release_on_github():
+    # latest/download/ would follow a release published after the check, and 404.
+    assert tarball_url(DEFAULT_SOURCE, "0.2.0") == (
+        "https://github.com/Malorn44/steam-frame-polykey/releases/download/v0.2.0/polykey-0.2.0.tar.gz"
+    )
+    assert tarball_url("http://192.168.1.5:8000/r/", "0.2.0") == "http://192.168.1.5:8000/r/polykey-0.2.0.tar.gz"
+
+
 def test_a_malformed_redirect_ends_the_check_instead_of_hanging_it(home, key, tmp_path):
     versions, settings = home
 
@@ -547,27 +545,18 @@ def test_a_release_with_a_new_unit_replaces_the_installed_one(home, key, tmp_pat
 
 
 def test_manifest_fields_are_checked():
-    good = {
-        "format": 1,
-        "version": "1.2.3",
-        "url": "https://github.com/a/b/releases/download/v1.2.3/p.tar.gz",
-        "size": 10,
-        "sha256": "a" * 64,
-        "notes": "https://github.com/a/b/releases/tag/v1.2.3",
-    }
-    hosts = ("github.com", "githubusercontent.com")
-    assert parse_manifest(json.dumps(good).encode(), hosts, ("https",))["version"] == "1.2.3"
+    good = {"format": 1, "version": "1.2.3", "size": 10, "sha256": "a" * 64}
+    assert parse_manifest(json.dumps(good).encode()) == {"version": "1.2.3", "size": 10, "sha256": "a" * 64}
     for change in (
+        {"format": 0},
         {"version": "v1.2.3"},
         {"version": "1.2.3+dev"},
         {"size": True},
         {"size": 1 << 40},
         {"sha256": "A" * 64},
-        {"url": "http://github.com/x"},
-        {"url": "https://github.com.evil/x"},
     ):
         with pytest.raises(UpdateError):
-            parse_manifest(json.dumps({**good, **change}).encode(), hosts, ("https",))
+            parse_manifest(json.dumps({**good, **change}).encode())
 
 
 def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_path):
@@ -576,10 +565,9 @@ def test_the_bridge_routes_update_requests_and_saves_auto_update(home, key, tmp_
     async def main():
         bridge = Bridge(Log(io.StringIO()), settings_path=settings, updates=updater(versions, settings, key))
         reply = await bridge.handle(json.dumps({"id": 3, "op": "update.status"}))
-        assert reply["id"] == 3 and reply["version"] == "0.1.0" and reply["auto"]
+        assert reply["id"] == 3 and reply["version"] == "0.1.0"
         saved = await bridge.handle(json.dumps({"id": 4, "op": "settings.save", "settings": {"autoUpdate": False}}))
         assert saved["ok"] and json.loads(settings.read_text())["autoUpdate"] is False
-        assert not (await bridge.handle(json.dumps({"id": 5, "op": "update.status"})))["auto"]
         assert (await Bridge(Log(io.StringIO())).handle(json.dumps({"id": 6, "op": "update.check"})))[
             "error"
         ] == "unavailable"

@@ -17,6 +17,16 @@ if (release !== null && !SEMVER.test(release)) {
   console.error(`build: --version needs a version like 1.2.3 or 1.2.3-rc.1, not "${release}"`);
   process.exit(2);
 }
+// The release key (POLYKEY_ALLOWED_SIGNERS names another key file, for the installer tests). A release
+// without one could not check its updates, so a release build stops here, before it touches dist/stage.
+const signersFile = process.env.POLYKEY_ALLOWED_SIGNERS || 'contrib/allowed_signers';
+const signers = readFileSync(signersFile, 'utf8');
+const keys = signers.split('\n').filter((line) => line.trim() && !line.startsWith('#'));
+if (keys.some((line) => line.includes("'"))) throw new Error('allowed_signers: a key line with a quote in it');
+if (release !== null && !keys.some((line) => /^polykey-release .*ssh-ed25519 /.test(line))) {
+  console.error(`build: no release key in ${signersFile} (the top of contrib/allowed_signers says how to add one)`);
+  process.exit(1);
+}
 const version = `${release ?? devVersion()}${debug ? (release ? '+debug' : '.debug') : ''}`;
 const stage = 'dist/stage';
 
@@ -38,13 +48,9 @@ await build({ ...common, entryPoints: ['src/probe.ts'], outfile: `${stage}/probe
 
 writeFileSync(`${stage}/VERSION`, `${version}\n`);
 // What a release carries besides the code: its licences (where they sit in the repo, so the notices'
-// ../LICENSE link holds), the unit, the installer, and the key releases are signed with
-// (POLYKEY_ALLOWED_SIGNERS names another key file, for the installer tests).
+// ../LICENSE link holds), the unit, the installer, and the release key.
 for (const file of ['LICENSE', 'docs/THIRD-PARTY-NOTICES.md']) cpSync(file, `${stage}/${file}`);
 cpSync('contrib/polykey.service', `${stage}/polykey.service`);
-const signers = readFileSync(process.env.POLYKEY_ALLOWED_SIGNERS || 'contrib/allowed_signers', 'utf8');
-const keys = signers.split('\n').filter((line) => line.trim() && !line.startsWith('#'));
-if (keys.some((line) => line.includes("'"))) throw new Error('allowed_signers: a key line with a quote in it');
 writeFileSync(`${stage}/allowed_signers`, signers);
 const installer = readFileSync('scripts/install.sh', 'utf8').replace('@ALLOWED_SIGNERS@', () => keys.join('\n'));
 writeFileSync(`${stage}/install.sh`, installer, { mode: 0o755 });

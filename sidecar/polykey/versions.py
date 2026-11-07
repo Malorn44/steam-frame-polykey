@@ -5,7 +5,7 @@
   current              the link the service runs: versions/<version> or dev
   updates/state.json   {"previous": the release that ran before this one, "skip": a release rolled
                         back from, which automatic updates leave alone until a newer one}
-  updates/lock         one writer at a time: unpack, activate, rollback and prune here, and
+  updates/lock         one writer at a time: unpack, activate and rollback here, and
                         install.sh's own unpacking, each hold an exclusive flock on it
 
 install.sh unpacks a release into versions/ and then runs `run.py activate <version>` from it, and
@@ -25,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 import time
 from pathlib import Path, PurePosixPath
@@ -58,14 +59,20 @@ def mark_started(code: Path) -> None:
 
 def fall_back(code: Path) -> Optional[str]:
     """The release in `code` (versions/<version>) failed to start. When it is the current release, has
-    never reached Steam, and a release ran before it, go back to that one (skipping this one) and
-    return its version. Anything else is left alone."""
+    never reached Steam, and a release ran before it, go back to that one (skipping this one), say so
+    on stderr and return its version. Anything else is left alone."""
     if code.parent.name != "versions" or not is_release(code.name) or (code / STARTED).exists():
         return None
     versions = Versions(code.parent.parent)
     if versions.current() != code.name or versions.previous() is None:
         return None
-    return versions.rollback()[1]
+    to = versions.rollback()[1]
+    print(
+        f"polykey: this release could not start; went back to {to} (updates skip it until a newer one)",
+        file=sys.stderr,
+        flush=True,
+    )
+    return to
 
 
 def app_dir() -> Path:
@@ -185,11 +192,10 @@ class Versions:
         os.replace(tmp, self.state_file)
 
     def _point(self, target: str) -> None:
-        """Swap `current` to versions/<target> (or dev) in one rename."""
-        relative = DEV if target == DEV else f"versions/{target}"
+        """Swap `current` to versions/<target> in one rename."""
         tmp = self.root / ".current.new"
         tmp.unlink(missing_ok=True)
-        os.symlink(relative, tmp)
+        os.symlink(f"versions/{target}", tmp)
         os.replace(tmp, self.link)
 
     def activate(self, version: str, running: Optional[str] = None) -> None:
@@ -222,13 +228,9 @@ class Versions:
             self._save_state(state)
             return before, target
 
-    def prune(self, running: Optional[str] = None) -> None:
+    def _prune(self, running: Optional[str]) -> None:
         """Keep the current release, the one before it, the one still running, and anything newer than
         current (a release rolled back from); remove the rest and leftovers of interrupted unpacks."""
-        with self._locked():
-            self._prune(running)
-
-    def _prune(self, running: Optional[str]) -> None:
         current, state = self.current(), self.state()
         keep = {current, state.get("previous"), running}
         for version in self.installed():
