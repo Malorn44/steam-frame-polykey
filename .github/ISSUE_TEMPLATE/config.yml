@@ -3,6 +3,6 @@ contact_links:
   - name: Report a security issue
     url: https://github.com/Malorn44/steam-frame-polykey/security/advisories/new
     about: Privately, never in a public issue (docs/SECURITY.md).
-  - name: Ask a question
-    url: https://github.com/Malorn44/steam-frame-polykey/discussions
-    about: Help with setup or use.
+  - name: Get help
+    url: https://github.com/Malorn44/steam-frame-polykey/discussions/categories/help
+    about: Help with installing, setting up or using polykey.
