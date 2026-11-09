@@ -1,0 +1,76 @@
+name: Bug report
+description: Something in polykey doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Never paste typed text, passwords or recordings** (audio or screen): describe what happened, with made-up text where an example helps. A security problem goes through the Security tab instead (see the link on the previous page).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the keyboard in …
+        2. Tap …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: polykey version
+      description: The version line in Settings → General.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: steamos
+    attributes:
+      label: SteamOS version and Steam client channel
+      description: Settings → System in Steam. Steam updates are the most common cause of breakage.
+      placeholder: "SteamOS 3.x, Steam client stable (or beta)"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it happened
+      multiple: true
+      options:
+        - In a game
+        - Steam's own UI (SteamVR, Big Picture)
+        - Desktop Mode
+        - The installer
+        - Updates
+        - Settings
+    validations:
+      required: true
+  - type: input
+    id: keyboard
+    attributes:
+      label: Keyboard in use
+      description: The keyboard and layout, if it matters (e.g. English QWERTY, Japanese 12-key flick, a pack of your own).
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        The output of `journalctl --user -u polykey -n 100` on the Frame. polykey never logs typed text, but look it over before pasting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: CEF remote debugging is on (Steam → Settings → Developer).
+          required: true
+        - label: I'm on the latest release, or the bug is in the release named above.
+          required: true
