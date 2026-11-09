@@ -22,10 +22,10 @@ body:
       label: Area
       options:
         - Keyboards and layouts
-        - Japanese input
+        - Language support
         - Suggestions and swipe
         - Dictation
-        - Emoji and Steam emoticons
+        - Emoji
         - Themes
         - Updates and install
         - Other
