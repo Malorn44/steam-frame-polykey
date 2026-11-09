@@ -61,10 +61,11 @@ const CSS = `
 .sugg.best { color: var(--accent); font-weight: 600; }
 .sugg.hover { background-color: var(--hover); }
 /* The reading buffer (12-key): underlined, with a caret; while converting, the focused segment is
-   marked. Then the candidates, the picked one in the accent colour. */
+   marked. Then the candidates, the picked one in the accent colour. A long reading scrolls (followReading);
+   positioned, so its pieces' offsets are within it. */
 .comp { flex: 1; display: none; align-items: center; min-width: 0; margin: 0 4px; gap: 8px; }
 .comp.on { display: flex; }
-.pre { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; font-size: var(--size-candidate);
+.pre { flex: none; position: relative; max-width: 45%; overflow: hidden; white-space: nowrap; font-size: var(--size-candidate);
   border-bottom: 1.5px solid var(--text); padding: 0 2px; }
 .pre:empty { display: none; } /* no reading: no underline (it showed as a dot) */
 .pre .seg { padding: 0 1px; }
@@ -85,7 +86,7 @@ const CSS = `
 .sidep { flex: 0 0 40%; display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius);
   background: var(--key); padding: 4px; box-sizing: border-box; }
 .kb.side .comp { flex: 1; flex-direction: column; align-items: stretch; margin: 0; gap: 4px; min-height: 0; }
-.kb.side .pre { max-width: none; align-self: flex-start; font-size: var(--size-side-reading); }
+.kb.side .pre { max-width: 100%; box-sizing: border-box; align-self: flex-start; font-size: var(--size-side-reading); }
 .kb.side .list { flex-wrap: wrap; align-content: flex-start; gap: 2px; }
 .kb.side .cand { height: 36px; font-size: var(--size-side-candidate); }
 .kb.side .cand + .cand { border-left: none; }
@@ -219,6 +220,15 @@ const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'
   return icon;
 };
 
+/** Room kept beside the caret or focused segment as the reading scrolls: about a kana. */
+const READING_PAD_PX = 16;
+/**
+ * Where a box `size` wide, scrolled to `scroll`, scrolls to show the span [start, end] with `pad` to
+ * spare on each side: no further than it must, and to its start when it cannot all fit.
+ */
+const scrollToShow = (scroll: number, size: number, start: number, end: number, pad: number): number =>
+  Math.max(0, Math.min(Math.max(scroll, end + pad - size), start - pad));
+
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
 const tallOf = (key: KeyDef): Tall | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
 
@@ -346,6 +356,19 @@ export const createView = (
   list.className = 'list';
   comp.append(pre, list);
   bar.append(comp);
+  // The reading scrolls to keep `follow` (the caret, or the focused segment) in view. It is measured at
+  // the next frame, when the browser lays out anyway, so typing forces no layout of its own.
+  const win = doc.defaultView;
+  let follow: HTMLElement | null = null;
+  let frame: number | null = null;
+  const followReading = (el: HTMLElement | null): void => {
+    follow = el;
+    if (!el || frame !== null || !win) return;
+    frame = win.requestAnimationFrame(() => {
+      frame = null;
+      if (follow) pre.scrollLeft = scrollToShow(pre.scrollLeft, pre.clientWidth, follow.offsetLeft, follow.offsetLeft + follow.offsetWidth, READING_PAD_PX);
+    });
+  };
   let candidates: { el: HTMLElement; text: string; index: number }[] = [];
   let labels: Readonly<Record<string, string>> = {};
   for (const key of toolbar.filter((k) => k.action === 'hide')) bar.append(makeKey(key)); // close sits at the right end
@@ -787,6 +810,7 @@ export const createView = (
       candidates = [];
       hoveredCand = undefined;
       if (!c) {
+        followReading(null);
         if (placeholder) list.append(Object.assign(doc.createElement('div'), { className: 'placeholder', textContent: placeholder }));
         return;
       }
@@ -799,6 +823,7 @@ export const createView = (
       pre.classList.toggle('converting', 'segments' in c);
       if ('segments' in c) c.segments.forEach((text, i) => pre.append(span(text, i === c.focus ? 'seg focus' : 'seg')));
       else pre.append(span(c.before, 'seg'), span('', 'caret'), span(c.after, 'seg'));
+      followReading(pre.querySelector<HTMLElement>('.focus, .caret'));
       c.candidates.forEach((text, index) => {
         const el = span(text, index === c.selected ? 'cand sel' : 'cand');
         list.append(el);
@@ -845,6 +870,10 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
-    destroy: () => { clearHold(); closePopup(); closeFlick(); endSwipe(false); style.remove(); root.remove(); },
+    destroy: () => {
+      clearHold(); closePopup(); closeFlick(); endSwipe(false);
+      if (frame !== null) win?.cancelAnimationFrame(frame);
+      style.remove(); root.remove();
+    },
   };
 };
