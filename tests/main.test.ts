@@ -187,6 +187,8 @@ describe('suggestions', () => {
     expect(calls.slice(0, 4)).toEqual(['h', 'e', 'Backspace', 'Backspace']);
     expect(calls.slice(4).join('')).toBe('hello '); // ASCII goes one character per call in minimal mode
     expect(slots(popup)).toEqual(['', '', '']);
+    await tap(popup, '.'); // punctuation closes up to the picked word
+    expect(manager.calls.map(([k]) => k).slice(-2)).toEqual(['Backspace', '.']);
   });
 
   it('no lexicon or no sidecar: no suggestions, typing unaffected', async () => {
@@ -241,6 +243,38 @@ describe('settings', () => {
     expect(shadowOf(popup)!.querySelectorAll('.row')).toHaveLength(5); // the keys are back
     await tap(popup, 'q');
     expect(haptics.length).toBe(before); // no tick with haptics off
+  });
+
+  it('a tap keeps every list where it was scrolled, though the page is drawn again; reopened, settings starts at the top', async () => {
+    const { popup } = setup();
+    const panel = () => shadowOf(popup)!.querySelector<HTMLElement>('.panel')!;
+    const list = (col: string) => panel().querySelector<HTMLElement>(`.col.${col} > .list`)!;
+    const tab = (name: string) => [...panel().querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === name)!;
+    const press = async (el: HTMLElement) => {
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(50);
+    };
+    await tap(popup, 'settings');
+    const general = list('general');
+    general.scrollTop = 40;
+    list('options').scrollTop = 25;
+    await press([...general.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Haptics')!.querySelector<HTMLElement>('.switch')!);
+    expect(list('general')).not.toBe(general); // drawn again...
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([40, 25]); // ...scrolled as it was
+    await press(tab('Keyboards'));
+    expect(list('langs').scrollTop).toBe(0); // another tab's lists start at the top
+    list('langs').scrollTop = 30;
+    list('lays').scrollTop = 20;
+    list('mine').scrollTop = 15;
+    await press([...list('langs').querySelectorAll<HTMLElement>('.item')].find((i) => i.textContent?.startsWith('日本語'))!);
+    expect(list('lays').textContent).toContain('12キー');
+    expect([list('langs').scrollTop, list('lays').scrollTop, list('mine').scrollTop]).toEqual([30, 0, 15]); // Japanese layouts: from the top
+    await press(tab('Settings'));
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([40, 25]); // a tab comes back as it was left
+    await press(panel().querySelector<HTMLElement>('.opt.close')!);
+    await tap(popup, 'settings');
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([0, 0]);
   });
 
   it('12-key ABC: suggestions show where the candidates go; picking one replaces the word', async () => {
@@ -331,6 +365,12 @@ describe('swipe typing', () => {
   };
   const typed = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
   const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+  const pick = async (popup: FakePopupWindow, word: string) => {
+    const slot = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].find((el) => el.textContent === word)!;
+    slot.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    slot.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+  };
 
   it('types the best word, a space before the next, and offers the others; a pick replaces the word', async () => {
     const { popup, manager, requests } = setupSwipe([['hello', 'hell', 'help'], ['world', 'would']]);
@@ -349,8 +389,35 @@ describe('swipe typing', () => {
     would.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     would.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
-    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would');
-    expect(slots(popup)).toEqual(['would', 'world', '']); // still offered: another pick replaces it again
+    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would ');
+    expect(slots(popup)).toEqual(['', '', '']); // picked: the alternatives go
+  });
+
+  it('a pick after a swipe adds a space and clears the bar; the next swipe adds no second space', async () => {
+    const { popup, manager } = setupSwipe([['hello', 'hell', 'help'], ['world']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    await pick(popup, 'hello'); // the swiped word itself: kept, with a space
+    expect(typed(manager)).toBe('hello ');
+    expect(slots(popup)).toEqual(['', '', '']);
+    await swipe(popup, 'w', 'd');
+    expect(typed(manager)).toBe('hello world');
+  });
+
+  it('punctuation typed right after a pick takes the place of its space; after anything else it does not', async () => {
+    const { popup, manager } = setupSwipe([['hello', 'help'], ['there', 'three']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    await pick(popup, 'help');
+    await tap(popup, ',');
+    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫,');
+    await tap(popup, ' ');
+    await swipe(popup, 't', 'e');
+    await pick(popup, 'there');
+    await tap(popup, 'a');
+    await tap(popup, ' ');
+    await tap(popup, '.');
+    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫, there a .');
   });
 
   it('the word list is loaded when the keyboard first shows, once', async () => {

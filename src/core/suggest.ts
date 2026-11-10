@@ -75,3 +75,11 @@ export const replaceWord = (typed: string, suggestion: string): Effect[] => [
   ...graphemes(typed).map((): Effect => ({ kind: 'key', key: 'Backspace' })),
   { kind: 'text', text: `${matchCase(suggestion, typed)} ` },
 ];
+
+const CLOSES_UP = /^[.,!?;:]$/;
+
+/** Punctuation typed right after a pick's space takes the space's place ("word." not "word ."), as on phones. */
+export const closeUp = (effects: readonly Effect[]): readonly Effect[] => {
+  const only = effects.length === 1 ? effects[0] : undefined;
+  return only?.kind === 'text' && CLOSES_UP.test(only.text) ? [{ kind: 'key', key: 'Backspace' }, only] : effects;
+};

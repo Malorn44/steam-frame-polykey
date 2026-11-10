@@ -417,6 +417,47 @@ describe('hold to repeat', () => {
     expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
+
+  it('a reading longer than the bar scrolls to keep the caret, or the focused segment, in view', async () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {});
+    view.update(NO_MODS);
+    const pre = shadow.querySelector<HTMLElement>('.pre')!;
+    // jsdom lays nothing out: the reading 100px wide, its kana 16px each, the caret 2px.
+    Object.defineProperty(pre, 'clientWidth', { value: 100 });
+    const place = (selector: string, left: number, width: number) => {
+      const el = pre.querySelector(selector)!;
+      Object.defineProperties(el, { offsetLeft: { value: left }, offsetWidth: { value: width } });
+    };
+    const frame = () => new Promise((done) => requestAnimationFrame(done));
+    // Typing on past the end: the caret stays in view at the right.
+    view.setComposition({ before: 'あ'.repeat(30), after: 'い', candidates: ['亜'], selected: -1 });
+    place('.caret', 480, 2);
+    await frame();
+    expect(pre.scrollLeft).toBe(480 + 2 + 16 - 100);
+    // ← back within view: no scroll; on past the left edge: the caret in view, a kana to spare.
+    view.setComposition({ before: 'あ'.repeat(26), after: 'あ'.repeat(4) + 'い', candidates: [], selected: -1 });
+    place('.caret', 416, 2);
+    await frame();
+    expect(pre.scrollLeft).toBe(398);
+    view.setComposition({ before: 'あ'.repeat(24), after: 'あ'.repeat(6) + 'い', candidates: [], selected: -1 });
+    place('.caret', 384, 2);
+    await frame();
+    expect(pre.scrollLeft).toBe(384 - 16);
+    // Converting: the focused segment is shown (its start, when it is wider than the bar).
+    view.setComposition({ segments: ['ああああ', 'あああああああああ', 'い'], focus: 0, candidates: ['ああああ'], selected: 0 });
+    place('.focus', 2, 64);
+    await frame();
+    expect(pre.scrollLeft).toBe(0);
+    view.setComposition({ segments: ['ああああ', 'あああああああああ', 'い'], focus: 1, candidates: ['ああああ'], selected: 0 });
+    place('.focus', 66, 144);
+    await frame();
+    expect(pre.scrollLeft).toBe(66 - 16);
+    view.destroy();
+  });
 });
 
 

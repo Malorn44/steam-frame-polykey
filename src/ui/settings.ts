@@ -105,9 +105,16 @@ const CSS = `
 .about .opt.small { flex: none; min-height: 22px; padding: 1px 10px; font-size: var(--ui-caption); color: var(--text); }
 `;
 
+/** How far each list is scrolled, by tab and column (general:options, keyboards:lays): kept across redraws. */
+export type SettingsScroll = Record<string, number>;
+
 export interface SettingsView {
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
+  /** Where the lists are scrolled to now, for the page drawn after a change. */
+  scroll(): SettingsScroll;
+  /** Scroll the lists back to `at` (once sized: before setBounds nothing overflows, so nothing would move). */
+  setScroll(at: SettingsScroll): void;
   /** Show a new dictation.status (download progress) in place; false when the page must be drawn again. */
   setDictation(status: SpeechStatus | null): boolean;
   /** Show the updater's new status in place. */
@@ -288,6 +295,10 @@ export const createSettingsView = (
   root.addEventListener('mouseover', (e) => setHover(themes.reaches(e.target) ? optionAt(e.target) : undefined));
   root.addEventListener('mousedown', (e) => e.stopPropagation());
 
+  /** Each column's list, by tab and column (pageColumn's class: keyboards:lays); the theme picker's list places itself. */
+  const lists = (): [string, HTMLElement][] =>
+    [...root.querySelectorAll<HTMLElement>('.col > .scroll')].map((list) => [`${info.tab}:${list.parentElement?.classList.item(1) ?? ''}`, list]);
+
   shadow.append(style, root);
   return {
     hoverAt: (x, y) => {
@@ -296,6 +307,10 @@ export const createSettingsView = (
     },
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
+    },
+    scroll: () => Object.fromEntries(lists().map(([name, list]) => [name, list.scrollTop])),
+    setScroll: (at) => {
+      for (const [name, list] of lists()) if (at[name]) list.scrollTop = at[name];
     },
     setDictation: (status) => dictationPage?.setStatus(status) ?? true,
     setUpdate: (status) => drawUpdate(status),
