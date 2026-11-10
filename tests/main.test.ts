@@ -243,6 +243,38 @@ describe('settings', () => {
     expect(haptics.length).toBe(before); // no tick with haptics off
   });
 
+  it('a tap keeps every list where it was scrolled, though the page is drawn again; reopened, settings starts at the top', async () => {
+    const { popup } = setup();
+    const panel = () => shadowOf(popup)!.querySelector<HTMLElement>('.panel')!;
+    const list = (col: string) => panel().querySelector<HTMLElement>(`.col.${col} > .list`)!;
+    const tab = (name: string) => [...panel().querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === name)!;
+    const press = async (el: HTMLElement) => {
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(50);
+    };
+    await tap(popup, 'settings');
+    const general = list('general');
+    general.scrollTop = 40;
+    list('options').scrollTop = 25;
+    await press([...general.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Haptics')!.querySelector<HTMLElement>('.switch')!);
+    expect(list('general')).not.toBe(general); // drawn again...
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([40, 25]); // ...scrolled as it was
+    await press(tab('Keyboards'));
+    expect(list('langs').scrollTop).toBe(0); // another tab's lists start at the top
+    list('langs').scrollTop = 30;
+    list('lays').scrollTop = 20;
+    list('mine').scrollTop = 15;
+    await press([...list('langs').querySelectorAll<HTMLElement>('.item')].find((i) => i.textContent?.startsWith('日本語'))!);
+    expect(list('lays').textContent).toContain('12キー');
+    expect([list('langs').scrollTop, list('lays').scrollTop, list('mine').scrollTop]).toEqual([30, 0, 15]); // Japanese layouts: from the top
+    await press(tab('Settings'));
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([40, 25]); // a tab comes back as it was left
+    await press(panel().querySelector<HTMLElement>('.opt.close')!);
+    await tap(popup, 'settings');
+    expect([list('general').scrollTop, list('options').scrollTop]).toEqual([0, 0]);
+  });
+
   it('12-key ABC: suggestions show where the candidates go; picking one replaces the word', async () => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
