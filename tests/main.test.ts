@@ -187,6 +187,8 @@ describe('suggestions', () => {
     expect(calls.slice(0, 4)).toEqual(['h', 'e', 'Backspace', 'Backspace']);
     expect(calls.slice(4).join('')).toBe('hello '); // ASCII goes one character per call in minimal mode
     expect(slots(popup)).toEqual(['', '', '']);
+    await tap(popup, '.'); // punctuation closes up to the picked word
+    expect(manager.calls.map(([k]) => k).slice(-2)).toEqual(['Backspace', '.']);
   });
 
   it('no lexicon or no sidecar: no suggestions, typing unaffected', async () => {
@@ -331,6 +333,12 @@ describe('swipe typing', () => {
   };
   const typed = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
   const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
+  const pick = async (popup: FakePopupWindow, word: string) => {
+    const slot = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].find((el) => el.textContent === word)!;
+    slot.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    slot.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(200);
+  };
 
   it('types the best word, a space before the next, and offers the others; a pick replaces the word', async () => {
     const { popup, manager, requests } = setupSwipe([['hello', 'hell', 'help'], ['world', 'would']]);
@@ -349,8 +357,35 @@ describe('swipe typing', () => {
     would.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     would.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
-    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would');
-    expect(slots(popup)).toEqual(['would', 'world', '']); // still offered: another pick replaces it again
+    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would ');
+    expect(slots(popup)).toEqual(['', '', '']); // picked: the alternatives go
+  });
+
+  it('a pick after a swipe adds a space and clears the bar; the next swipe adds no second space', async () => {
+    const { popup, manager } = setupSwipe([['hello', 'hell', 'help'], ['world']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    await pick(popup, 'hello'); // the swiped word itself: kept, with a space
+    expect(typed(manager)).toBe('hello ');
+    expect(slots(popup)).toEqual(['', '', '']);
+    await swipe(popup, 'w', 'd');
+    expect(typed(manager)).toBe('hello world');
+  });
+
+  it('punctuation typed right after a pick takes the place of its space; after anything else it does not', async () => {
+    const { popup, manager } = setupSwipe([['hello', 'help'], ['there', 'three']]);
+    layOut(popup);
+    await swipe(popup, 'h', 'o');
+    await pick(popup, 'help');
+    await tap(popup, ',');
+    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫,');
+    await tap(popup, ' ');
+    await swipe(popup, 't', 'e');
+    await pick(popup, 'there');
+    await tap(popup, 'a');
+    await tap(popup, ' ');
+    await tap(popup, '.');
+    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫, there a .');
   });
 
   it('the word list is loaded when the keyboard first shows, once', async () => {

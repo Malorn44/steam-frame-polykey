@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Effect } from '../../src/core/keyboard.js';
-import { NO_WORD, UNKNOWN, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
+import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
 
 const text = (t: string): Effect => ({ kind: 'text', text: t });
 const key = (k: 'Backspace' | 'Enter' | 'ArrowLeft'): Effect => ({ kind: 'key', key: k });
@@ -52,5 +52,10 @@ describe('ranking and replacing', () => {
   it('replaces exactly the typed letters, then adds a space', () => {
     expect(replaceWord('Hel', 'hello')).toEqual([key('Backspace'), key('Backspace'), key('Backspace'), text('Hello ')]);
     expect(replaceWord('café', 'cafés').filter((e) => e.kind === 'key')).toHaveLength(4); // é is one character
+  });
+
+  it('closeUp: one punctuation mark deletes the space before it; anything else is left alone', () => {
+    for (const mark of '.,!?;:') expect(closeUp([text(mark)])).toEqual([key('Backspace'), text(mark)]);
+    for (const effects of [[text('a')], [text(' ')], [text('('), text(')')], [key('Enter')], []]) expect(closeUp(effects)).toBe(effects);
   });
 });

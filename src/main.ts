@@ -7,7 +7,7 @@ import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, t
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
-import { NO_WORD, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
+import { NO_WORD, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
 import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
@@ -138,6 +138,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let word: WordState = NO_WORD;
   const session = new Map<string, number>();
   let suggestGeneration = 0;
+  /** A pick's space is the last thing sent: punctuation typed next takes its place. */
+  let pickSpace = false;
   // Swipe typing: the last characters sent into this field (for the space before a swiped word; null
   // when unknown), the swiped word and its alternatives while a pick can still replace it, and the
   // decode in flight, which presses wait for so they never overtake the word.
@@ -240,6 +242,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   const enqueue = (effects: readonly Effect[]): void => {
     recent = recentAfter(recent, effects);
+    pickSpace = false;
     // In order, one press after another, so fast typing never interleaves.
     queue = queue.then(async () => {
       for (const effect of effects) await apply(effect);
@@ -425,10 +428,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
     mods = result.mods;
     view?.update(mods);
-    const tracked = trackWord(word, result.effects);
+    const effects = pickSpace ? closeUp(result.effects) : result.effects;
+    const tracked = trackWord(word, effects);
     if (tracked.ended) boost(tracked.ended);
     setWord(tracked.state);
-    enqueue(result.effects);
+    enqueue(effects);
   };
 
   const segmentsOf = (reply: Record<string, unknown>): Omit<Segment, 'index'>[] =>
@@ -599,17 +603,21 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (afterSwipe(() => onSuggestion(chosen))) return;
     if (surface) tick(surface.win, hand);
     if (swiped) {
-      // An alternative replaces the swiped word (no space after: the next swipe brings one).
+      // An alternative replaces the swiped word; the swiped word itself is kept. Either way a space
+      // follows and the alternatives go, as for a typed word.
       const before = swiped.word;
-      swiped = { ...swiped, word: chosen };
+      swiped = null;
       boost(chosen);
-      if (chosen !== before) sendEffects([...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text: chosen }]);
+      sendEffects(chosen === before ? [{ kind: 'text', text: ' ' }]
+        : [...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text: `${chosen} ` }]);
+      pickSpace = true;
       return;
     }
     const typed = word.word;
     boost(chosen);
     setWord(NO_WORD);
     enqueue(replaceWord(typed, chosen));
+    pickSpace = true;
   };
 
   /**
@@ -998,6 +1006,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (open !== wasOpen) {
       swiped = null;
       recent = null; // a new field: what is before the cursor is unknown
+      pickSpace = false;
       setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
       if (!open) {
         ime = NO_IME; // the field is gone: an unsent reading is dropped, not typed elsewhere
