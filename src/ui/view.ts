@@ -41,8 +41,14 @@ const SLOTS = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'] as const;
 
 /** Alternate cells are a little smaller than the key. */
 const POPUP_SCALE = 0.85;
-/** The swipe trail fades out this long after the release. */
-const TRAIL_FADE_MS = 250;
+/**
+ * The swipe trail tapers like a comet's tail: each point of it is drawn at full width and strength when
+ * the laser passes, then thins and fades to the tail's over `life` ms (shaped by `curve`), and is gone.
+ * After the release what is left ages out the same way. A new point moves only `1 - smooth` of the way
+ * to the laser, and one within `minStep` px of the last moves it along instead, so a trembling laser
+ * draws a clean line. The fade is drawn in `bands` steps of opacity.
+ */
+const TRAIL = { life: 1000, headWidth: 8, tailWidth: 1, headOpacity: 0.8, tailOpacity: 0, curve: 0.8, minStep: 4, smooth: 0.3, bands: 20 };
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const CSS = `
@@ -146,11 +152,9 @@ const CSS = `
 .key .mk-marks { display: flex; gap: 0.35em; --mark-size: var(--size-mark); }
 .key .mk-size { font-size: var(--size-hint); color: var(--legend); white-space: nowrap; }
 .kb.large .bar .key { font-size: var(--size-bar-key); }
-/* The swipe trail, under the laser: one polyline, faded out by a transition after the release. */
+/* The swipe trail, under the laser: a quad per step, each as wide and strong as its age allows. */
 .trail { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; overflow: visible; }
-.trail polyline { fill: none; stroke: var(--accent); stroke-width: 4px; stroke-linecap: round; stroke-linejoin: round;
-  opacity: 0.7; transition: opacity ${TRAIL_FADE_MS}ms ease-out; }
-.trail.fade polyline { opacity: 0; }
+.trail path, .trail circle { fill: var(--accent); }
 /* The flick guide: the key's kana in a cross around it, in the hold popup's look; the pick in accent. */
 .fl { position: absolute; z-index: 2; pointer-events: none; }
 .fl div { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
@@ -416,8 +420,10 @@ export const createView = (
   let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
   // A press on a letter that may become a swipe: where it started, the path so far, and (once it left
   // the key) its trail. Only a swipe that left its key is one; until then it is a tap or a hold.
-  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean; at: number;
-    trail?: { svg: SVGSVGElement; line: SVGPolylineElement; origin: DOMRect; drawn: string } } | null = null;
+  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean; at: number } | null = null;
+  // The trail being drawn, or still ageing out after its release: its points (relative to the view) and
+  // when the laser passed each.
+  let trail: { svg: SVGSVGElement; quads: SVGGElement; head: SVGCircleElement; origin: DOMRect; pts: { x: number; y: number; t: number }[]; frame: number } | null = null;
   // A held flick key: where the press started and its guide (one cell per direction that has a kana).
   let flick: { key: Extract<KeyDef, { type: 'flick' }>; start: { x: number; y: number }; el: HTMLElement;
     cells: HTMLElement[]; pick: number } | null = null;
@@ -466,34 +472,90 @@ export const createView = (
     flick = null;
   };
 
-  const trailPoint = (origin: DOMRect, p: Point): string => `${Math.round(p.x - origin.left)},${Math.round(p.y - origin.top)} `;
+  const win = doc.defaultView ?? globalThis;
+  const closeTrail = (): void => {
+    if (!trail) return;
+    win.cancelAnimationFrame(trail.frame);
+    trail.svg.remove();
+    trail = null;
+  };
+  /** Draw the trail as it is now: each step a quad from its older point's width to its newer one's. */
+  const paintTrail = (): void => {
+    if (!trail) return;
+    const tune = TRAIL;
+    const now = performance.now();
+    const { pts, quads, head } = trail;
+    while (pts.length && now - pts[0]!.t > tune.life) pts.shift();
+    if (!pts.length && !swipe?.on) return closeTrail();
+    const age = (p: { t: number }): number => Math.min(1, Math.max(0, (now - p.t) / tune.life)) ** tune.curve;
+    const half = (p: { t: number }): number => (tune.headWidth + (tune.tailWidth - tune.headWidth) * age(p)) / 2;
+    // Steps are drawn in a few opacity bands, each one path: quads in one path that overlap fill once, so
+    // a slow, trembling trail has no darker seams or beads where its steps meet.
+    const bands = Math.max(1, Math.round(tune.bands));
+    const dot = (x: number, y: number, r: number): string => `M${x - r},${y}a${r},${r} 0 1 1 ${2 * r},0a${r},${r} 0 1 1 ${-2 * r},0Z`;
+    const d: string[] = Array.from({ length: bands }, () => '');
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!, b = pts[i]!;
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+      if (len < 0.5) continue;
+      const nx = -dy / len, ny = dx / len, ha = half(a), hb = half(b);
+      const band = Math.min(bands - 1, Math.floor(((age(a) + age(b)) / 2) * bands));
+      // Each quad wound the same way as the joins' dots, so one band's shapes add up and never cut holes.
+      d[band] += `M${a.x - nx * ha},${a.y - ny * ha}L${b.x - nx * hb},${b.y - ny * hb}L${b.x + nx * hb},${b.y + ny * hb}L${a.x + nx * ha},${a.y + ny * ha}Z`;
+      // A round join at the newer point fills the wedge a turn leaves open on its outside.
+      d[band] += dot(b.x, b.y, hb);
+    }
+    const paths = quads.children;
+    while (paths.length < bands) quads.appendChild(doc.createElementNS(SVG_NS, 'path'));
+    while (paths.length > bands) paths[paths.length - 1]!.remove();
+    d.forEach((path, band) => {
+      const el = paths[band]!;
+      el.setAttribute('d', path);
+      el.setAttribute('fill-opacity', String(tune.headOpacity + (tune.tailOpacity - tune.headOpacity) * ((band + 0.5) / bands)));
+    });
+    // A round end where the laser is: a dot as wide and strong as the newest point.
+    const last = pts[pts.length - 1];
+    if (last) {
+      head.setAttribute('cx', String(last.x));
+      head.setAttribute('cy', String(last.y));
+      head.setAttribute('r', String(half(last)));
+      head.setAttribute('fill-opacity', String(tune.headOpacity + (tune.tailOpacity - tune.headOpacity) * age(last)));
+    } else head.setAttribute('r', '0');
+    trail.frame = win.requestAnimationFrame(paintTrail);
+  };
+  // The laser trembles: each point is eased toward the last one drawn (smooth), and one closer than
+  // minStep to it only moves the newest point along, so a slow trail is a clean line, not a squiggle.
   const drawTrail = (p: Point): void => {
-    if (!swipe?.trail) return;
-    swipe.trail.drawn += trailPoint(swipe.trail.origin, p);
-    swipe.trail.line.setAttribute('points', swipe.trail.drawn);
+    if (!trail) return;
+    const { minStep, smooth } = TRAIL;
+    const raw = { x: p.x - trail.origin.left, y: p.y - trail.origin.top, t: performance.now() };
+    const pts = trail.pts;
+    const prev = pts[pts.length - 2], last = pts[pts.length - 1];
+    if (!last) return void pts.push(raw);
+    const k = Math.min(1, Math.max(0, 1 - smooth));
+    const eased = { x: last.x + (raw.x - last.x) * k, y: last.y + (raw.y - last.y) * k, t: raw.t };
+    if (prev && Math.hypot(last.x - prev.x, last.y - prev.y) < minStep) pts[pts.length - 1] = eased;
+    else pts.push(eased);
   };
   const openTrail = (): void => {
     if (!swipe) return;
+    closeTrail(); // a trail still ageing out goes at once
     const svg = doc.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'trail');
-    const line = doc.createElementNS(SVG_NS, 'polyline');
-    svg.append(line);
+    const quads = svg.appendChild(doc.createElementNS(SVG_NS, 'g'));
+    const head = svg.appendChild(doc.createElementNS(SVG_NS, 'circle'));
     root.append(svg);
     const origin = root.getBoundingClientRect();
-    swipe.trail = { svg, line, origin, drawn: swipe.points.map((p) => trailPoint(origin, p)).join('') };
-    line.setAttribute('points', swipe.trail.drawn);
+    trail = { svg, quads, head, origin, pts: [], frame: 0 };
+    // From where the press left its key: what it traced on the key before is a tap's wobble, not a trail.
+    const from = swipe.points[swipe.points.length - 1];
+    if (from) drawTrail(from);
+    trail.frame = win.requestAnimationFrame(paintTrail);
   };
-  /** End the swipe; its trail fades (after a swipe that typed) or goes at once. */
+  /** End the swipe; its trail ages out (after a swipe that typed) or goes at once. */
   const endSwipe = (fade: boolean): void => {
-    const svg = swipe?.trail?.svg;
     swipe = null;
-    if (!svg) return;
-    if (!fade) {
-      svg.remove();
-      return;
-    }
-    svg.classList.add('fade');
-    setTimeout(() => svg.remove(), TRAIL_FADE_MS);
+    if (!fade) closeTrail();
   };
   /** Each letter key's centre (lower case), as drawn now: the swipe engine matches the path against them. */
   const letterCentres = (): Record<string, [number, number]> => {
@@ -845,6 +907,6 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
-    destroy: () => { clearHold(); closePopup(); closeFlick(); endSwipe(false); style.remove(); root.remove(); },
+    destroy: () => { clearHold(); closePopup(); closeFlick(); endSwipe(false); closeTrail(); style.remove(); root.remove(); },
   };
 };

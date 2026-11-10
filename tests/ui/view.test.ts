@@ -447,7 +447,7 @@ describe('swipe', () => {
     return { view, shadow, keyIn, pressed, chosen, swipes };
   };
 
-  it('a press that leaves its letter key traces a path instead of typing, with a trail that fades', () => {
+  it('a press that leaves its letter key traces a path instead of typing, with a trail that thins and fades with age', () => {
     vi.useFakeTimers();
     const { keyIn, shadow, pressed, swipes } = swipeSetup();
     const q = keyIn(1, 'q'); // row 1, column 1: x 40-80, y 30-60
@@ -456,8 +456,13 @@ describe('swipe', () => {
     expect(shadow.querySelector('.trail')).toBeNull();
     touch(q, 'touchmove', 100, 45); // on w, a third of a key past q's edge: a swipe
     expect(q.classList.contains('down')).toBe(false);
-    expect(shadow.querySelector('.trail polyline')!.getAttribute('points')).toBe('60,45 75,45 100,45 ');
+    vi.advanceTimersByTime(20); // a frame
+    const drawn = () => [...shadow.querySelectorAll('.trail path')].filter((q) => q.getAttribute('d'));
+    expect(drawn()).toHaveLength(0); // it starts where the press left q: the wobble on q isn't drawn
+    expect(Number(shadow.querySelector('.trail circle')!.getAttribute('r'))).toBeGreaterThan(0); // the round head
     touch(q, 'touchmove', 140, 45);
+    vi.advanceTimersByTime(20);
+    expect(drawn().length).toBeGreaterThan(0);
     touch(q, 'touchend', 140, 45); // on e
     expect(pressed).toEqual([]);
     expect(swipes).toHaveLength(1);
@@ -467,8 +472,11 @@ describe('swipe', () => {
     expect(keys['a']).toEqual([60, 75]); // after Caps, a row down
     expect(Object.keys(keys).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz'); // letters only
     expect(width).toBe(40);
-    expect(shadow.querySelector('.trail')!.classList.contains('fade')).toBe(true);
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(20);
+    const bands = [...shadow.querySelectorAll('.trail path')].map((q) => Number(q.getAttribute('fill-opacity')));
+    expect(bands[0]!).toBeGreaterThan(bands[bands.length - 1]!); // older steps are fainter
+    expect(drawn().length).toBeGreaterThan(0); // still there just after the release
+    vi.advanceTimersByTime(1100); // past its life: it ages out after the release
     expect(shadow.querySelector('.trail')).toBeNull();
     vi.useRealTimers();
   });
