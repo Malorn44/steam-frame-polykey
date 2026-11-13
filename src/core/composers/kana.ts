@@ -17,12 +17,14 @@
 // かな while typing (無変換's job on a Windows keyboard) shows the reading as カタカナ, then ﾊﾝｶｸ, then
 // ひらがな again; 確定 sends it in that form. While converting it goes back to the reading, in カタカナ.
 
-import type { FlickKey, KeyDef, Layout, TableDef } from '../catalog.js';
+import type { FlickKey, KeyDef, Layout } from '../catalog.js';
 import { inForm, nextForm, toKatakana, type Form } from '../forms.js';
 import { modifyTable } from '../kana.js';
 import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
 import { UNDO, type Effect } from '../keyboard.js';
-import type { Composer, ComposerContext, ComposerResult, ConverterRequest, Learned as ConverterLearned, LiveSource } from './composer.js';
+import {
+  builtOnce, type Composer, type ComposerContext, type ComposerResult, type ConverterRequest, type Learned as ConverterLearned, type LiveSource,
+} from './composer.js';
 
 /** The longest reading the sidecar converts. */
 export const MAX_READING = 64;
@@ -265,17 +267,12 @@ export const liveCandidates = (forReading: string, segments: readonly Omit<Segme
 
 // --- the reading buffer as a composer ----------------------------------------------------------------
 
-const romajiTables = new WeakMap<TableDef, RomajiTable>();
-const modifyTables = new WeakMap<Layout, ReadonlyMap<string, string>>();
+const romajiTables = builtOnce(romajiTable);
+const modifyTables = builtOnce((layout: Layout) => modifyTable(layout.modify));
 const NO_MODIFY: ReadonlyMap<string, string> = new Map();
 
 /** The layout's ゛゜小 table, built once per layout. */
-const modifyOf = ({ layout }: ComposerContext): ReadonlyMap<string, string> => {
-  if (!layout) return NO_MODIFY;
-  let table = modifyTables.get(layout);
-  if (!table) modifyTables.set(layout, (table = modifyTable(layout.modify)));
-  return table;
-};
+const modifyOf = ({ layout }: ComposerContext): ReadonlyMap<string, string> => (layout ? modifyTables(layout) : NO_MODIFY);
 
 const asResult = (result: ImeResult): ComposerResult<Ime> => ({
   state: result.ime, effects: result.effects,
@@ -308,13 +305,8 @@ const learnedFrom = (ime: Ime, text: string, live: LiveSource | null): Converter
 /** The reading buffer as a composer; `typesRomaji`: whether typed letters go through the keyboard's romaji table. */
 export const readingComposer = (typesRomaji: (ctx: ComposerContext) => boolean): Composer<Ime> => {
   /** The keyboard's romaji table while it types romaji, built once per table. */
-  const romajiOf = (ctx: ComposerContext): RomajiTable | undefined => {
-    const def = ctx.table;
-    if (!def?.entries || !typesRomaji(ctx)) return undefined;
-    let table = romajiTables.get(def);
-    if (!table) romajiTables.set(def, (table = romajiTable(def.entries)));
-    return table;
-  };
+  const romajiOf = (ctx: ComposerContext): RomajiTable | undefined =>
+    (ctx.table?.entries && typesRomaji(ctx) ? romajiTables(ctx.table.entries) : undefined);
   return {
     empty: NO_IME,
     composing,

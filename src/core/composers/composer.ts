@@ -7,6 +7,18 @@
 import type { KeyDef, KeyboardOptions, Layout, TableDef } from '../catalog.js';
 import type { Effect } from '../keyboard.js';
 
+/**
+ * `build` run once per pack object (a table, a layout) and kept for as long as the object is: what a
+ * composer makes of its keyboard's packs (a romaji table, the ゛゜小 cycles, Hangul's pairs).
+ */
+export const builtOnce = <K extends object, V>(build: (source: K) => V): ((source: K) => V) => {
+  const built = new WeakMap<K, V>();
+  return (source) => {
+    if (!built.has(source)) built.set(source, build(source));
+    return built.get(source) as V;
+  };
+};
+
 /** What a press carries: the character a flick chose, or the text a typed key makes (Shift applied). */
 export interface ComposerInput { readonly flicked?: string; readonly typed?: string }
 
