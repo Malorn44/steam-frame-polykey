@@ -321,10 +321,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     return keyboard && composer ? { composer, ctx: contextOf(keyboard), converter: keyboard.converter } : null;
   };
   /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
-  const latinKeys = (keyboard: KeyboardDef | undefined): boolean => {
-    const composer = composerOf(keyboard);
-    return !!keyboard && !!composer && composer.latinKeys(contextOf(keyboard));
-  };
+  const latinKeys = (keyboard: KeyboardDef | undefined): boolean =>
+    !!keyboard && (composerOf(keyboard)?.latinKeys?.(contextOf(keyboard)) ?? false);
   // The bar: what the keyboard's composer has composed, with the converter's candidates (src/bar.ts).
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,

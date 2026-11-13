@@ -103,7 +103,6 @@ const tableOf = ({ table }: ComposerContext): HangulTable | undefined => (table?
 export const hangul: Composer<Syllable> = {
   empty: NO_SYLLABLE,
   composing,
-  latinKeys: () => false,
   press: (s, key, { typed }, ctx) => {
     const table = tableOf(ctx);
     if (!table) return null;
