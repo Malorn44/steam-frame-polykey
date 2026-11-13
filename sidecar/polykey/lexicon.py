@@ -4,6 +4,10 @@ Loaded on first use and kept in memory; a user list in ~/.config/polykey/packs/ 
 one. Lookups are prefix completions ranked by count, and spelling corrections (`suggest`). Typed
 prefixes are never logged.
 
+With a speller (spellers/), a prefix it spells is matched on the keys typed, against a second index of
+the words by their keys, built on first use: 하 (ㅎㅏ) completes to 한국 (ㅎㅏㄴㄱㅜㄱ), which the text alone
+does not start with.
+
 Corrections follow frame-jp-keyboard's src/english.js (MIT, Copyright (c) 2026 sasaken1102r): words one
 edit away, scored by how likely the slip is (a doubled letter, two swapped letters, a neighbouring
 QWERTY key) and by frequency; two edits away when nothing is one away.
@@ -22,7 +26,10 @@ import re
 import unicodedata
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping, Optional
+from typing import TYPE_CHECKING, Mapping, Optional
+
+if TYPE_CHECKING:
+    from .spellers import Speller
 
 ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 MAX_WORD_CHARS = 40
@@ -95,6 +102,8 @@ class Lexicon:
         self._lower: dict[str, str] = {}
         for w in sorted(self._counts, key=lambda w: -self._counts[w]):
             self._lower.setdefault(w.lower(), w)
+        # The words the last speller asked spells, sorted by their keys: (that speller, the keys, the words).
+        self._by_keys: Optional[tuple["Speller", list[str], list[str]]] = None
 
     @classmethod
     def parse(cls, text: str, blocked: frozenset[str] = frozenset()) -> "Lexicon":
@@ -120,10 +129,23 @@ class Lexicon:
         """Every word with its count (read-only), for engines that rank whole words (swipe)."""
         return MappingProxyType(self._counts)
 
-    def complete(self, prefix: str, limit: int) -> list[str]:
-        """The most frequent words starting with prefix (case-insensitive), most frequent first."""
+    def _spelled(self, speller: "Speller") -> tuple[list[str], list[str]]:
+        """Every word the speller spells, as (keys, words) sorted by keys; built once for a speller."""
+        if self._by_keys is None or self._by_keys[0] is not speller:
+            pairs = sorted((keys, w) for w in self._counts if (keys := speller.spell(w)))
+            self._by_keys = (speller, [keys for keys, _ in pairs], [w for _, w in pairs])
+        return self._by_keys[1], self._by_keys[2]
+
+    def complete(self, prefix: str, limit: int, speller: Optional["Speller"] = None) -> list[str]:
+        """The most frequent words starting with prefix (case-insensitive), most frequent first; with a
+        speller that spells the prefix, the words whose keys start with its keys."""
         if not prefix:
             return []
+        if speller and (keys := speller.spell(prefix)):
+            spelled, words = self._spelled(speller)
+            start = bisect.bisect_left(spelled, keys)
+            end = bisect.bisect_left(spelled, keys + "\U0010ffff")
+            return heapq.nlargest(limit, words[start:end], key=self._counts.__getitem__)
         candidates: list[str] = []
         for variant in {prefix, prefix.lower(), prefix[:1].upper() + prefix[1:].lower()}:
             start = bisect.bisect_left(self._keys, variant)
@@ -156,10 +178,11 @@ class Lexicon:
         """Words the typed one is probably a misspelling of, likeliest first."""
         return [w for _, w in self._corrections(typed)[:limit]]
 
-    def suggest(self, prefix: str, limit: int) -> list[str]:
-        """Completions; with few of them, the likeliest corrections too, ranked together by score (a
-        completion scores its frequency, a correction its frequency less the cost of the slip)."""
-        words = self.complete(prefix, limit)
+    def suggest(self, prefix: str, limit: int, speller: Optional["Speller"] = None) -> list[str]:
+        """Completions (on the keys typed, with a speller); with few of them, the likeliest corrections
+        too, ranked together by score (a completion scores its frequency, a correction its frequency less
+        the cost of the slip)."""
+        words = self.complete(prefix, limit, speller)
         if len(words) >= FEW_COMPLETIONS:
             return words
         scores = {w: float(-self._counts[w]) for w in words}

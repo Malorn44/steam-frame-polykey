@@ -21,6 +21,7 @@ from .packs import (
     write_json,
 )
 from .speech.session import OPS as DICTATION_OPS, Dictation
+from .spellers import Spellers
 from .swipe import Swipe
 from .updates import OPS as UPDATE_OPS, Updater
 from .wayland import WaylandError
@@ -62,8 +63,10 @@ class Bridge:
         swipe: Optional[Swipe] = None,
         dictation: Optional[Dictation] = None,
         updates: Optional[Updater] = None,
+        spellers: Optional[Spellers] = None,
     ) -> None:
         self._log = log
+        self._spellers = spellers
         self._updates = updates
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._dictation = dictation
@@ -192,7 +195,10 @@ class Bridge:
         return {"ok": True}
 
     def _suggest(self, request: dict) -> dict:
+        """Words for a prefix, from the word list named; with `table` (the keyboard's, when its mode composes),
+        matched on the keys typed by that table's speller."""
         prefix, lexicon_id, limit = request.get("prefix"), request.get("lexicon"), request.get("limit", 3)
+        table = request.get("table")
         if not isinstance(prefix, str) or not prefix or len(prefix) > 40:
             return {"ok": False, "error": "bad-prefix"}
         if not isinstance(limit, int) or not 1 <= limit <= MAX_SUGGESTIONS:
@@ -200,4 +206,5 @@ class Bridge:
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        return {"ok": True, "words": lexicon.suggest(prefix, limit)}
+        speller = self._spellers.get(table) if self._spellers and isinstance(table, str) else None
+        return {"ok": True, "words": lexicon.suggest(prefix, limit, speller)}

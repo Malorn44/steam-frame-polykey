@@ -26,6 +26,7 @@ from .cdp import CdpError, CdpSession, check_loopback, find_target, list_targets
 from .desktop import DesktopPaste
 from .lexicon import Lexicons
 from .speech.session import Dictation
+from .spellers import Spellers
 from .updates import Updater
 from .versions import mark_started
 
@@ -350,6 +351,7 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         Converters(log=log),
         dictation=dictation,
         updates=updates,
+        spellers=Spellers(pack_loader.loaded_tables),  # the tables of the boot the page has
     )
     try:
         await _serve_forever(cfg, log, stop, bridge, page)
