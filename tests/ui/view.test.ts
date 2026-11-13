@@ -77,6 +77,19 @@ describe('createView', () => {
     view.destroy();
     expect(shadow.querySelector('.kb')).toBeNull();
   });
+
+  it('draws the bar in the language\'s fonts, then the theme\'s; a language without any keeps the theme\'s', () => {
+    const boot = bundledBoot();
+    const fontOf = (languageFont?: string) => {
+      const shadow = document.createElement('div').attachShadow({ mode: 'open' });
+      createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/steam']!, () => {},
+        undefined, undefined, { languageFont });
+      return shadow.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
+    };
+    expect(fontOf('"Noto Sans CJK KR"')).toBe('"Noto Sans CJK KR", var(--font)');
+    expect(fontOf()).toBe('');
+    expect(setup().shadow.querySelector('style')!.textContent).toContain('.pre, .cand { font-family: var(--language-font, var(--font)); }');
+  });
 });
 
 describe('hover', () => {

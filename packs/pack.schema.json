@@ -1232,9 +1232,11 @@
           "$ref": "#/$defs/languageCode",
           "description": "The language dictation listens for (default: the id)."
         },
-        "cjk": {
-          "type": "boolean",
-          "description": "The bar draws the language's text in the theme's CJK fonts (fontCjk), as Hangul needs on the Frame (the system font has none)."
+        "font": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font: Korean's is \"Noto Sans CJK KR\", \"Noto Sans CJK JP\" (the Frame's system font has no Hangul)."
         }
       }
     },
