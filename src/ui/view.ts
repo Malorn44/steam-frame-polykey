@@ -55,7 +55,8 @@ const CSS = `
 :host { all: initial; }
 .kb { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
   background: var(--surface); color: var(--text); font: 400 var(--size-base)/1 var(--font);
-  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+  --indicator-width: 3px; /* the bar marking the current input mode (英数 / かな, 한/영) */ }
 .bar { height: var(--bar-height); display: flex; flex: none; }
 .bar .key { flex: none; width: 30px; font-size: var(--size-bar-key); }
 .bar .key[data-k="hide"] { width: 48px; font-size: calc(var(--size-bar-key) * 1.2); } /* a wide icon, and an easy target */
@@ -77,6 +78,8 @@ const CSS = `
 .pre .seg { padding: 0 1px; }
 .pre .seg.focus { background: var(--accent); color: var(--accent-text); border-radius: var(--radius-sm); }
 .pre.converting .seg:not(.focus) { color: var(--legend); }
+/* The reading and candidates in the language's fonts (Hangul, which the Frame's system font has none of), if it names any. */
+.pre, .cand { font-family: var(--language-font, var(--font)); }
 .pre .caret { display: inline-block; width: 1.5px; height: 1em; margin: 0 1px; vertical-align: -2px; background: var(--accent); }
 .list { flex: 1; display: flex; min-width: 0; overflow: hidden; height: 100%; }
 .cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: var(--size-candidate); white-space: nowrap;
@@ -137,7 +140,7 @@ const CSS = `
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
-.key.action.on { box-shadow: inset 0 -3px 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
+.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
 .key.down { filter: var(--pressed); }
@@ -189,10 +192,13 @@ const CSS = `
 .key.subbed { flex-direction: column; }
 .key .sub { font-size: var(--size-sub); line-height: 1; margin-top: 3px; color: var(--legend); }
 .kb.large .key.mod.labelled { font-size: var(--size-label); }
-/* The 12-key's mode key: あ and a, the current mode's in bold. */
-.key .pair { font-weight: 300; opacity: var(--opacity-muted); }
-.key .pair.now { font-weight: 700; opacity: 1; }
-.key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
+/* A part per mode, the current mode's marked: in bold (the 12-key's あ a), or over the indicator bar as
+   英数 / かな mark theirs (the mode key's 한/영). */
+.key .part.bold { font-weight: 300; opacity: var(--opacity-muted); }
+.key .part.bold.now { font-weight: 700; opacity: 1; }
+.key .part.bold + .part.bold { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
+.key .part.indicator { position: relative; }
+.key .part.indicator.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: var(--indicator-width); background: var(--indicator); }
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
 /* Notched (the JIS Enter, wider above): the top half's lower left is a corner of the key. */
 .kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
@@ -283,8 +289,11 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters: startLetters, otherLetters, keyboardMenu, onSwipe, canSwipe }:
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters: startLetters, otherLetters, languageFont,
+    keyboardMenu, onSwipe, canSwipe }:
     { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
+      /** The fonts the bar's reading and candidates are drawn in first (the language's font, a CSS font-family list). */
+      languageFont?: string | undefined;
       /** The other mode's letters (the mode key reads them); with letters, they swap as the mode does. */
       otherLetters?: string | undefined;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
@@ -313,8 +322,9 @@ export const createView = (
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS + MIC_CSS;
   const root = doc.createElement('div');
-  root.className = layout.large ? 'kb large' : 'kb';
+  root.className = `kb${layout.large ? ' large' : ''}`;
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
+  if (languageFont) root.style.setProperty('--language-font', `${languageFont}, var(--font)`);
 
   /** A key: its element, its label (slot c) and the small legends it shows now, by slot. */
   type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; pieces?: Entry[] };
@@ -797,16 +807,17 @@ export const createView = (
     if (legend.boxed) el.replaceChildren(boxed(legend.text));
     else el.textContent = legend.text;
   };
-  /** The label (slot c): text, an icon, the あ a pair, or ゛゜ over 大⇔小; a line beneath it in the flow. */
+  /** The label (slot c): text, an icon, a part per mode (あ a, 한/영), or ゛゜ over 大⇔小; a line beneath it in the flow. */
   const showLabel = (entry: Entry, legend: Legend | undefined): void => {
     const { el, label } = entry;
     label.className = `lbl${legend ? sizeClass(legend) + toneClass(legend) : ''}`;
     if (!legend) label.textContent = '';
     else if (legend.kind === 'text') putText(label, legend);
     else if (legend.kind === 'icon') label.innerHTML = ICONS[legend.icon as IconName] ?? '';
-    else if (legend.kind === 'pair') {
-      label.replaceChildren(...legend.parts.map((text, i) => Object.assign(doc.createElement('span'), {
-        className: i === legend.now ? 'pair now' : 'pair', textContent: text })));
+    else if (legend.kind === 'parts') {
+      const part = (i: 0 | 1): HTMLElement => Object.assign(doc.createElement('span'), {
+        className: `part ${legend.mark}${i === legend.now ? ' now' : ''}`, textContent: legend.parts[i] });
+      label.replaceChildren(...(legend.mark === 'indicator' ? [part(0), '/', part(1)] : [part(0), part(1)]));
     } else if (!label.querySelector('.mk')) {
       const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
       const marks = span('mk-marks', '');

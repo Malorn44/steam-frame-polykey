@@ -14,7 +14,8 @@ export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | '
 export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
 /**
  * A legend a pack puts in a slot (src/core/legends.ts): text, or null for none; or one of text, parts
- * (two halves, the second bold in 英数 mode: あ a) or marks (゛゜, side by side), with what is drawn
+ * (two halves, one per mode: the second bold in 英数 mode, あ a; on the mode key the current one marked
+ * with the indicator bar, 한/영) or marks (゛゜, side by side), with what is drawn
  * small beneath it (under), and its size, tone and box when not the slot's default.
  */
 export type LegendDef = string | null | {
@@ -96,12 +97,12 @@ export interface KeyboardPages { latin?: string | { flick: string; qwerty: strin
 export interface KeyboardDef {
   id: string; name: PackName; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   features?: KeyboardFeatures;
-  /**
-   * How typing composes text in the bar (src/core/composers/): direct, keys type at once; kana, a
-   * reading buffer, sent when confirmed; romaji, the same buffer, letters turned into kana with the table.
-   */
+  /** How typing composes text in the bar: one of COMPOSERS (src/core/composers/index.ts); direct, keys type at once. */
   composer?: ComposerId;
-  /** The composer's table (a table pack): romaji for composer romaji, or a kana keyboard's romajiInput option. */
+  /**
+   * The table pack the composer reads (or a kana keyboard's romajiInput option); it holds the field that
+   * composer reads (COMPOSER_TABLES, sidecar/polykey/packs.py).
+   */
   table?: string;
   /** The keyboard's other pages (src/core/pages.ts); layout is the main one. */
   pages?: KeyboardPages;
@@ -112,7 +113,7 @@ export interface KeyboardDef {
   modes?: { id: string; letters?: string; latin?: boolean }[];
   /** Text the keyboard shows: idleHint, where candidates appear while there are none (default: the language's). */
   strings?: { idleHint?: string };
-  /** The engine that converts what the composer reads (anthy): one of the sidecar's (sidecar/polykey/converters/). */
+  /** The engine that converts what the composer reads: one of the sidecar's CONVERTERS (sidecar/polykey/converters/). */
   converter?: string;
 }
 /**
@@ -122,6 +123,8 @@ export interface KeyboardDef {
  */
 export interface LanguageDef {
   id: string; name: PackName; letters?: string; labels?: Record<string, string>; idleHint?: string; dictation?: string;
+  /** The fonts the bar draws its text in first, a CSS font-family list (Korean's: Hangul, which the Frame's system font has none of). */
+  font?: string;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
@@ -139,9 +142,16 @@ export interface ThemeColors {
   /** The outline marking the current input mode (英数 / かな); default accent. */
   indicator?: string;
 }
-/** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
-/** entries: romaji to kana; cycles: what ゛゜小 does (layouts get theirs resolved into `modify`). */
-export interface TableDef { id: string; name: PackName; entries?: [string, string, string?][]; cycles?: string[] }
+/**
+ * Hangul composition (the hangul composer), what a layout varies: the vowels and the finals typed one after
+ * the other that make one ("ㅗㅏㅘ" is ㅗ then ㅏ, making ㅘ). The jamo themselves are Unicode's (hangul.ts).
+ */
+export interface HangulTableDef { compoundMedials?: string[]; compoundFinals?: string[] }
+/**
+ * A table: entries, romaji to kana ([input, output, pending letters?]); cycles, what ゛゜小 does (layouts
+ * get theirs resolved into `modify`); or hangul, how jamo compose.
+ */
+export interface TableDef { id: string; name: PackName; entries?: [string, string, string?][]; cycles?: string[]; hangul?: HangulTableDef }
 export interface Theme {
   id: string; name: PackName; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */

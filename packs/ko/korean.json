@@ -1,0 +1,20 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "ko/korean",
+ "name": "두벌식",
+ "description": "The 2-set layout, each syllable composed in the bar and sent as it completes; 한/영 switches to ABC, which types English as on the other keyboards' Latin modes.",
+ "language": "ko",
+ "layout": "ko/dubeolsik",
+ "pages": {"latin": "ko/qwerty"},
+ "composer": "hangul",
+ "table": "ko/hangul",
+ "lexicon": "en/words",
+ "features": {"swipe": {"lexicon": "en/words"}},
+ "options": {"swipe": false},
+ "modes": [
+  {"id": "hangul"},
+  {"id": "latin", "letters": "ABC", "latin": true}
+ ]
+}

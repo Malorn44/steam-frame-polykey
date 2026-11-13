@@ -331,6 +331,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     enqueue: (effects) => enqueue(effects), show: () => showBar(), keyboard: barKeyboard,
   });
 
+  /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
+  const dictatesIntoBar = (keyboard: KeyboardDef | undefined): boolean =>
+    composerOf(keyboard)?.insert !== undefined && !(keyboard && latinMode.has(keyboard.id));
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
@@ -490,8 +493,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * Dictated text, where typing would put it: the composition in the bar (or typed at once, as set),
-   * else sent with the spacing a typed phrase would have. No modifier stays armed or held.
+   * Dictated text, where typing would put it: into the composition in the bar, for its candidates (or
+   * typed at once, as set), where the composer takes it; else sent with the spacing a typed phrase would
+   * have, after what is composed. No modifier stays armed or held.
    */
   const placeDictated = (text: string, join?: (before: string) => string): void => {
     if (afterSwipe(() => placeDictated(text, join))) return;
@@ -501,14 +505,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     view?.update(mods);
     const keyboard = currentKeyboard();
     const latin = keyboard ? latinMode.has(keyboard.id) : false;
-    if (composes(keyboard) && !latin) {
+    if (dictatesIntoBar(keyboard)) {
       bar.dictate(text);
       return;
     }
+    // What is being composed goes first; it ends the word being typed.
+    const composed = bar.composedText();
+    bar.flush();
+    const inLatin = composes(keyboard) && latin; // the English word in the bar
     const language = dictationLanguage(keyboard, latin, languageFor(keyboard));
-    const before = composes(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
+    const before = inLatin ? en.chars.join('') : composed || word.word; // the word being typed: what is known before the caret
     const typed = join ? join(before) : spacedText(text, language, before !== '');
-    if (composes(keyboard)) sendEnglish(); // the Latin mode: the English word goes first
+    if (inLatin) sendEnglish(); // the Latin mode: the English word goes first
     else setWord(NO_WORD);
     enqueue([{ kind: 'text', text: typed }]);
   };
@@ -523,8 +531,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const endPhrases = (): void => {
     if (afterSwipe(endPhrases)) return;
     const keyboard = currentKeyboard();
-    const intoBar = composes(keyboard) && !(keyboard && latinMode.has(keyboard.id));
-    if (dictatedTail && !intoBar && spaceAfter(dictatedTail)) enqueue([{ kind: 'text', text: ' ' }]);
+    if (dictatedTail && !dictatesIntoBar(keyboard) && spaceAfter(dictatedTail)) enqueue([{ kind: 'text', text: ' ' }]);
     dictatedTail = null;
   };
 
@@ -803,6 +810,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
+          languageFont: languageFor(keyboard)?.font,
           ...(hint ? { placeholder: hint } : {}) });
       view.update(mods);
       applyBounds();

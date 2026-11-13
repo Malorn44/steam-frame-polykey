@@ -42,7 +42,7 @@ Each merge to main updates release-please's release PR, which holds the next ver
 
 ```
 src/core/       pure logic: catalog types, key handling, key codes, output planning
-                composers/: how typing composes in the bar (kana, romaji), one registry
+                composers/: how typing composes in the bar, one registry (COMPOSERS in index.ts)
 src/host/steam/ the only Steam-facing TypeScript
 src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
@@ -50,9 +50,18 @@ src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
 src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes, tables, picker sets, languages; pack.schema.json, their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation),
-                converters/ (the converters keyboards name: anthy)
+                converters/ (the converters keyboards name, one registry: CONVERTERS in __init__.py)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
                 release.sh, test-layout.sh; make-*.py rebuild the word list, blocklist and emoji data
 contrib/        polykey.service; allowed_signers, the release key
 ```
+
+## Adding a language
+
+What a language needs today; each step only if the language uses it.
+
+1. **Packs** in `packs/<code>/`: its `language.json`, its layouts and its keyboard ([PACKS.md](PACKS.md)).
+2. **A composer**, if typing composes in the bar: a module in `src/core/composers/`, its line in `COMPOSERS` (`index.ts`), and its id in the schema's keyboard `composer` enum. A test holds the enum to the registry.
+3. **A table format**, if its composer reads data no table holds yet: a field in the schema's `table`, with its option in that `oneOf`, and the composer's line in `COMPOSER_TABLES` (`sidecar/polykey/packs.py`).
+4. **A converter**, if what is composed is converted (kana to kanji): a module in `sidecar/polykey/converters/`, its line in `CONVERTERS` (`__init__.py`), and its id in the schema's keyboard `converter` enum. A test holds this enum to the registry too.

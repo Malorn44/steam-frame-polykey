@@ -77,6 +77,19 @@ describe('createView', () => {
     view.destroy();
     expect(shadow.querySelector('.kb')).toBeNull();
   });
+
+  it('draws the bar in the language\'s fonts, then the theme\'s; a language without any keeps the theme\'s', () => {
+    const boot = bundledBoot();
+    const fontOf = (languageFont?: string) => {
+      const shadow = document.createElement('div').attachShadow({ mode: 'open' });
+      createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/steam']!, () => {},
+        undefined, undefined, { languageFont });
+      return shadow.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
+    };
+    expect(fontOf('"Noto Sans CJK KR"')).toBe('"Noto Sans CJK KR", var(--font)');
+    expect(fontOf()).toBe('');
+    expect(setup().shadow.querySelector('style')!.textContent).toContain('.pre, .cand { font-family: var(--language-font, var(--font)); }');
+  });
 });
 
 describe('hover', () => {
@@ -648,5 +661,26 @@ describe('swipe', () => {
     touch(q, 'touchmove', 300, 45);
     touch(q, 'touchend', 300, 45);
     expect(pressed).toHaveLength(1);
+  });
+});
+
+describe('the mode key', () => {
+  it('marks the current mode\'s half with the indicator bar, following the mode without being drawn again', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/qwerty']!, boot.catalog.themes['themes/github-light']!, () => {});
+    view.update(NO_MODS);
+    const key = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'mode')!;
+    const halves = () => [...key.querySelectorAll('.part.indicator')].map((el) => [el.textContent, el.classList.contains('now')]);
+    expect(key.textContent).toBe('한/영');
+    expect(halves()).toEqual([['한', true], ['영', false]]);
+    view.setMode(true);
+    view.update(NO_MODS);
+    expect(halves()).toEqual([['한', false], ['영', true]]);
+    expect(key.classList.contains('on')).toBe(false); // not 英数 / かな's bar along the whole key
+    // The theme's indicator colour, as 英数 / かな's bar: no colour of its own.
+    expect(shadow.querySelector('style')!.textContent).toMatch(/\.key \.part\.indicator\.now::after \{[^}]*background: var\(--indicator\); \}/);
   });
 });
