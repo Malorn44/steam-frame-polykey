@@ -243,6 +243,164 @@ describe('emoji picker', () => {
   });
 });
 
+describe('haptics', () => {
+  /** The laser at (x, y) over `el` (jsdom lays nothing out): whether a tick is due. */
+  const laser = (made: ReturnType<typeof setup>, el: Element | null, x = 0, y = 0): boolean => {
+    made.shadow.elementsFromPoint = () => (el ? [el] : []);
+    return made.view.hoverAt(x, y);
+  };
+  const gridBox = (shadow: ShadowRoot) => {
+    shadow.querySelector<HTMLElement>('.grid')!.getBoundingClientRect = () => ({ left: 0, top: 0, width: 854, height: 163, right: 854, bottom: 163, x: 0, y: 0, toJSON: () => ({}) });
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it('moving across cells ticks once per new cell, and across tabs and onto the bin the same', () => {
+    const made = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { cell, shadow } = made;
+    const tab = (id: string) => shadow.querySelector(`.tab[data-section="${id}"]`)!;
+    expect(laser(made, cell('😀'), 1, 1)).toBe(true);
+    expect(laser(made, cell('😀'), 2, 1)).toBe(false); // the same cell: no second tick
+    expect(laser(made, cell('😃'), 3, 1)).toBe(true);
+    expect(laser(made, null, 4, 1)).toBe(false); // off the cells: nothing
+    expect(laser(made, cell('😃'), 5, 1)).toBe(true); // and back on
+    expect(laser(made, shadow.querySelector('.trash'), 6, 1)).toBe(true);
+    expect(laser(made, shadow.querySelector('.trash'), 7, 1)).toBe(false);
+    expect(laser(made, tab('people'), 8, 1)).toBe(true);
+    expect(laser(made, tab('people').appendChild(document.createElement('i')), 9, 1)).toBe(false); // its icon: the same tab
+    expect(laser(made, tab('smileys'), 10, 1)).toBe(true);
+  });
+
+  it('kaomoji tick the same way', () => {
+    const made = setup({ ...NO_EMOJI_STATE, mode: 'kaomoji' },
+      { kaomoji: { categories: [{ id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)'] }], japanese: false } });
+    const face = (text: string) => made.cell(text);
+    expect(laser(made, face('(^_^)'))).toBe(true);
+    expect(laser(made, face('(^_^)').firstElementChild)).toBe(false); // its text: the same cell
+    expect(laser(made, face('(≧▽≦)'))).toBe(true);
+    expect(laser(made, made.shadow.querySelector('.tab[data-section="smiling"]'))).toBe(true);
+  });
+
+  it('a tap keeps its one tick: the redraw it causes is not a new cell', () => {
+    const made = setup();
+    const { cell, view } = made;
+    expect(laser(made, cell('😃'))).toBe(true);
+    touch(cell('😃'), 'touchstart');
+    touch(cell('😃'), 'touchend');
+    view.update({ ...NO_EMOJI_STATE, recent: ['😃'] }); // as the caller does: every cell is drawn again
+    const again = [...made.shadow.querySelectorAll<HTMLElement>('.strip .cell')].filter((c) => c.textContent === '😃')[1]!;
+    expect(laser(made, again)).toBe(false);
+    expect(again.classList.contains('hover')).toBe(true);
+  });
+
+  it('no ticks while the grid is dragged, glides or is scrolled by the stick', () => {
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
+      return this.classList.contains('grid') ? 100 : 0;
+    });
+    const made = setup();
+    const { cell, shadow } = made;
+    expect(laser(made, cell('😀'))).toBe(true);
+    touch(cell('😀'), 'touchstart', 240, 50);
+    vi.advanceTimersByTime(20);
+    touch(cell('😀'), 'touchmove', 200, 50);
+    expect(laser(made, cell('😃'), 200, 50)).toBe(false); // dragged
+    vi.advanceTimersByTime(20);
+    touch(cell('😀'), 'touchmove', 160, 50);
+    touch(cell('😀'), 'touchend', 160, 50);
+    vi.advanceTimersByTime(50);
+    expect(laser(made, cell('😄'), 160, 50)).toBe(false); // gliding
+    vi.advanceTimersByTime(10000);
+    expect(laser(made, cell('😄'), 160, 50)).toBe(false); // at rest on the cell it stopped under
+    expect(laser(made, cell('😃'), 161, 50)).toBe(true);
+    shadow.querySelector('.grid')!.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true, cancelable: true }));
+    expect(laser(made, cell('😀'), 161, 50)).toBe(false); // the stick
+    vi.advanceTimersByTime(500);
+    expect(laser(made, cell('😄'), 162, 50)).toBe(true);
+  });
+
+  it('no ticks while the tabs are dragged or glide', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('tabstrip') ? 700 : 0;
+    });
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
+      return this.classList.contains('tabs') ? 250 : 0;
+    });
+    const made = setup();
+    const tab = (id: string) => made.shadow.querySelector(`.tab[data-section="${id}"]`)!;
+    touch(tab('people'), 'touchstart', 240, 10);
+    vi.advanceTimersByTime(20);
+    touch(tab('people'), 'touchmove', 200, 10);
+    expect(laser(made, tab('people'), 200, 10)).toBe(false);
+    vi.advanceTimersByTime(20);
+    touch(tab('people'), 'touchmove', 160, 10);
+    expect(laser(made, tab('smileys'), 160, 10)).toBe(false);
+    touch(tab('people'), 'touchend', 160, 10);
+    vi.advanceTimersByTime(50);
+    expect(laser(made, tab('recent'), 160, 10)).toBe(false); // gliding
+    vi.advanceTimersByTime(10000);
+    expect(laser(made, tab('people'), 161, 10)).toBe(true);
+  });
+
+  it('a lifted entry ticks only into and out of Favorites, and as it drops', () => {
+    const made = setup({ ...NO_EMOJI_STATE, recent: ['😄'], favorites: ['⭐', '🎉'] });
+    const { cell, shadow, calls } = made;
+    gridBox(shadow);
+    const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
+    expect(laser(made, recentCell, 10, 10)).toBe(true);
+    touch(recentCell, 'touchstart', 10, 10);
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(laser(made, recentCell, 10, 10)).toBe(false); // lifted: nothing yet
+    touch(recentCell, 'touchmove', 100, 50);
+    expect(laser(made, cell('😀'), 100, 50)).toBe(false); // passing over cells
+    touch(recentCell, 'touchmove', 270, 50); // into Favorites: its placeholder opens
+    expect(laser(made, cell('🎉'), 270, 50)).toBe(true);
+    touch(recentCell, 'touchmove', 270, 90); // another place in Favorites
+    expect(laser(made, cell('🎉'), 270, 90)).toBe(false);
+    touch(recentCell, 'touchmove', 600, 90); // out again
+    expect(laser(made, cell('😀'), 600, 90)).toBe(true);
+    expect(laser(made, cell('😃'), 610, 90)).toBe(false);
+    touch(recentCell, 'touchmove', 270, 50);
+    expect(laser(made, cell('🎉'), 270, 50)).toBe(true);
+    touch(recentCell, 'touchend', 270, 50);
+    expect(calls.favorites).toEqual([['⭐', '😄', '🎉']]);
+    expect(laser(made, null, 270, 50)).toBe(true); // the drop
+    expect(laser(made, null, 271, 50)).toBe(false);
+  });
+
+  it('lifting a favorite is quiet though its gap opens under it; dropping it outside ticks once', () => {
+    const made = setup({ ...NO_EMOJI_STATE, favorites: ['⭐', '🎉'] });
+    const { cell, shadow, calls } = made;
+    gridBox(shadow);
+    touch(cell('⭐'), 'touchstart', 270, 10);
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(shadow.querySelector('.placeholder')).not.toBeNull();
+    expect(laser(made, cell('⭐'), 270, 10)).toBe(false);
+    touch(cell('⭐'), 'touchmove', 600, 10);
+    expect(laser(made, null, 600, 10)).toBe(true); // out of Favorites
+    touch(cell('⭐'), 'touchend', 600, 10);
+    expect(calls.favorites).toEqual([['🎉']]);
+    expect(laser(made, null, 600, 10)).toBe(true); // the drop
+    expect(laser(made, null, 601, 10)).toBe(false);
+  });
+
+  it('skin tones tick as the pick moves between them, as before', () => {
+    const made = setup();
+    const { cell, shadow, view } = made;
+    touch(cell('👋'), 'touchstart', 10, 10);
+    vi.advanceTimersByTime(HOLD_MS);
+    const keys = [...shadow.querySelectorAll<HTMLElement>('.alts .key')];
+    keys.forEach((k, i) => {
+      k.getBoundingClientRect = () => ({ left: i * 40, top: 0, width: 40, height: 40, right: i * 40 + 40, bottom: 40, x: i * 40, y: 0, toJSON: () => ({}) });
+    });
+    const picks: boolean[] = [];
+    for (const x of [20, 100, 110, 180]) {
+      touch(cell('👋'), 'touchmove', x, 20);
+      picks.push(view.hoverAt(x, 20));
+    }
+    expect(picks).toEqual([false, true, false, true]); // once per tone the pick moves onto
+    expect(laser(made, cell('😀'), 180, 20)).toBe(false); // the grid under the popup stays quiet
+  });
+});
+
 describe('the tab strip', () => {
   /** Seven tabs of 100 px in a 250 px bar, over a 300 px grid (jsdom lays nothing out). */
   const laidOut = () => {

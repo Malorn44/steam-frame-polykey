@@ -878,9 +878,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (!speech.status || onDictationTab()) speech.follow();
     stopCursor = onCursor(win, (x, y, which) => {
       hand = which;
-      // A tick as the laser crosses keys, and as a held key's or emoji's pick moves between choices.
-      const tones = picker?.hoverAt(x, y) ?? false;
-      if ((view ?? panel)?.hoverAt(x, y) || tones) tick(win, which);
+      // A tick as the laser crosses keys or the picker's cells, and as a held key's or emoji's pick moves between choices.
+      const picked = picker?.hoverAt(x, y) ?? false;
+      if ((view ?? panel)?.hoverAt(x, y) || picked) tick(win, which);
     });
   };
 
