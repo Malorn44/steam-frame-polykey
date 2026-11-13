@@ -3,7 +3,7 @@
 
 import type { KeyboardDef } from '../catalog.js';
 import type { Composer } from './composer.js';
-import { hangul } from './hangul.js';
+import { hangul2Set } from './hangul.js';
 import { kana } from './kana.js';
 import { romaji } from './romaji.js';
 
@@ -11,7 +11,7 @@ export const COMPOSERS = {
   direct: null,
   kana,
   romaji,
-  hangul,
+  'hangul-2set': hangul2Set,
 } as const satisfies Record<string, Composer<unknown> | null>;
 
 export type ComposerId = keyof typeof COMPOSERS;

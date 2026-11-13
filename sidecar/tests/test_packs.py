@@ -581,7 +581,11 @@ def test_the_korean_packs_load():
     assert boot["errors"] == []
     catalog = boot["catalog"]
     korean = catalog["keyboards"]["ko/korean"]
-    assert (korean["composer"], korean["table"], korean["pages"]) == ("hangul", "ko/hangul", {"latin": "ko/qwerty"})
+    assert (korean["composer"], korean["table"], korean["pages"]) == (
+        "hangul-2set",
+        "ko/hangul",
+        {"latin": "ko/qwerty"},
+    )
     assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
     assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
         "한글",
@@ -629,7 +633,7 @@ def test_a_hangul_keyboard_needs_its_hangul_table(tmp_path):
     write(tmp_path / "packs", "mine/ko2.json", keyboard("mine/ko2", extends="ko/korean", table="mine/nope"))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == [
-        "mine/ko: hangul table ja/romaji-table not found",
-        "mine/ko2: hangul table mine/nope not found",
+        "mine/ko: hangul-2set table ja/romaji-table not found",
+        "mine/ko2: hangul-2set table mine/nope not found",
     ]
     assert "ko/korean" in boot["catalog"]["keyboards"] and "mine/ko" not in boot["catalog"]["keyboards"]
