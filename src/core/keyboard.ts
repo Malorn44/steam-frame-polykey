@@ -75,7 +75,7 @@ export const press = (mods: Mods, pressed: KeyDef): { mods: Mods; effects: Effec
   switch (key.type) {
     case 'gap':
       return { mods, effects: [] };
-    case 'flick': // a tap outside a reading buffer (core/ime.ts handles the 12-key kana): the key's own character
+    case 'flick': // a tap outside a reading buffer (the kana composer handles the 12-key kana): the key's own character
       return { mods: releaseOnce(mods), effects: key.flick[0] ? [{ kind: 'text', text: flickText(key.flick[0], mods) }] : [] };
     case 'mod':
       if (key.mod === 'super' && mods.super === 'once') {

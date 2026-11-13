@@ -2,6 +2,7 @@
 // is typed through Steam. Fails safe: does nothing while required Steam objects are missing or fjk is
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
+import { createBar, type BarKeyboard } from './bar.js';
 import { createBridge } from './bridge/client.js';
 import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
@@ -21,13 +22,11 @@ import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, nextSet, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { createEmojiView, type EmojiView } from './ui/emoji.js';
-import { modifyTable } from './core/kana.js';
+import { composerOf } from './core/composers/index.js';
+import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
 import { modeLetters, pageLayout } from './core/pages.js';
-import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
-import { FORM_LABELS, inForm, nextForm } from './core/forms.js';
-import { NO_IME, composing, flush, insertText, settleRomaji, liveCandidates, pickCandidate, pressIme, reading, withConversion, type Ime, type ImeRequest, type ImeResult, type Segment } from './core/ime.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
 import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
@@ -97,19 +96,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let stock = false;
   // Each keyboard's options as the user set them.
   const keyboardOptions: Record<string, KeyboardOptions> = { ...(boot?.settings.keyboardOptions ?? {}) };
-  const modifyTables = new Map<string, ReadonlyMap<string, string>>();
-  // The reading buffer of a keyboard with composer "kana" (core/ime.ts): typed kana wait here, shown in
-  // the bar, until confirmed. `live` are the candidates while typing; a generation drops stale replies.
-  let ime: Ime = NO_IME;
-  let live: string[] = [];
-  // Where the live candidates came from, so a picked one can be learned.
-  let liveSource: { reading: string; segments: Omit<Segment, 'index'>[]; predictions: string[] } | null = null;
-  let imeGeneration = 0;
   // Keyboards in 英数 mode (a JIS keyboard's keys type their Latin legends); the rest are in かな mode.
   const latinMode = new Set<string>();
   // Keyboards showing a numbers and symbols page (the 12-key's ?123 is 1, its =\< page 2).
   const symbolsOn = new Map<string, 1 | 2>();
-  let converterDown = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let surface: Surface | null = null;
   let view: View | null = null;
@@ -263,12 +253,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   const boost = (used: string): void => { session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1); };
 
-  /** A keyboard with a reading buffer (the Japanese ones). */
-  const buffered = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
-  /** Word suggestions: a Japanese keyboard has them only in 英数 mode, in its candidate area. */
+  /** A keyboard whose typing is composed in the bar (any composer but direct). */
+  const composes = (keyboard: KeyboardDef | undefined): boolean => composerOf(keyboard) !== null;
+  /** Word suggestions: a keyboard that composes has them only in its Latin mode, in its candidate area. */
   const lexiconId = (): string | undefined => {
     const keyboard = boot?.catalog.keyboards[ring[current] as string];
-    return buffered(keyboard) && !latinMode.has(keyboard!.id) ? undefined : keyboard?.lexicon;
+    return composes(keyboard) && !latinMode.has(keyboard!.id) ? undefined : keyboard?.lexicon;
   };
   /** The words suggested on a Japanese keyboard in 英数 mode, best first (shown as candidates). */
   let suggested: string[] = [];
@@ -283,9 +273,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     refreshSuggestions();
   };
   const showWords = (words: string[]): void => {
-    if (buffered(boot?.catalog.keyboards[ring[current] as string])) {
+    if (composes(boot?.catalog.keyboards[ring[current] as string])) {
       suggested = words;
-      showIme();
+      showBar();
     } else view?.setSuggestions(slotOrder(words));
   };
 
@@ -295,7 +285,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       showWords(swiped.words); // the swiped word in the middle, its alternatives beside it
       return;
     }
-    const inBar = buffered(boot?.catalog.keyboards[ring[current] as string]);
+    const inBar = composes(boot?.catalog.keyboards[ring[current] as string]);
     const prefix = inBar ? englishText(en) || null : suggestPrefix(word);
     const lexicon = lexiconId();
     if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
@@ -315,24 +305,28 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
-  const romajiTables = new Map<string, RomajiTable>();
-  /** Whether a keyboard types romaji: the romaji keyboard, or a JIS kana keyboard with its romajiInput option on. */
-  const typesRomaji = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'romaji'
-    || (keyboard?.composer === 'kana' && optionsFor(keyboard, keyboardOptions[keyboard.id]).romajiInput);
-  /** The keyboard's romaji table while it types romaji. */
-  const romajiFor = (keyboard: KeyboardDef | undefined): RomajiTable | undefined => {
-    const tableId = keyboard?.table;
-    const def = tableId ? boot?.catalog.tables?.[tableId] : undefined;
-    if (!tableId || !def?.entries || !typesRomaji(keyboard)) return undefined;
-    let table = romajiTables.get(tableId);
-    if (!table) romajiTables.set(tableId, (table = romajiTable(def.entries)));
-    return table;
+  /** What a keyboard's composer reads: its options as set, its table and its main layout. */
+  const contextOf = (keyboard: KeyboardDef): ComposerContext => ({
+    options: optionsFor(keyboard, keyboardOptions[keyboard.id]),
+    table: keyboard.table ? boot?.catalog.tables?.[keyboard.table] : undefined,
+    layout: boot?.catalog.layouts[keyboard.layout],
+  });
+  /** The current keyboard as the bar drives it; null when its keys type at once. */
+  const barKeyboard = (): BarKeyboard | null => {
+    const keyboard = currentKeyboard();
+    const composer = composerOf(keyboard);
+    return keyboard && composer ? { composer, ctx: contextOf(keyboard), converter: keyboard.converter } : null;
   };
-  const modifyFor = (layoutId: string): ReadonlyMap<string, string> => {
-    let table = modifyTables.get(layoutId);
-    if (!table) modifyTables.set(layoutId, (table = modifyTable(boot?.catalog.layouts[layoutId]?.modify)));
-    return table;
+  /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
+  const latinKeys = (keyboard: KeyboardDef | undefined): boolean => {
+    const composer = composerOf(keyboard);
+    return !!keyboard && !!composer && composer.latinKeys(contextOf(keyboard));
   };
+  // The bar: what the keyboard's composer has composed, with the converter's candidates (src/bar.ts).
+  const bar = createBar({
+    call: bridge.call, available: bridge.available, warn,
+    enqueue: (effects) => enqueue(effects), show: () => showBar(), keyboard: barKeyboard,
+  });
 
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
@@ -355,7 +349,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       swiped = null; // any other key ends the alternatives
       // Backspace straight after a swipe takes the whole word back, as phones do (in 英数 mode, out of the bar).
       if (key.type === 'key' && key.key === 'Backspace' && !repeat && mods.ctrl === 'off' && mods.alt === 'off') {
-        if (buffered(currentKeyboard())) {
+        if (composes(currentKeyboard())) {
           en = NO_ENGLISH;
           refreshSuggestions();
         } else sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
@@ -373,7 +367,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     // 英数 and かな (the Mac's two keys): one-way switches between typing Latin and typing kana.
     if (keyboard && key.type === 'action' && (key.action === 'eisu' || (key.action === 'kana' && latin))) {
       if (key.action === 'eisu' && !latin) {
-        if (composing(ime)) applyIme(flush(ime, romajiFor(keyboard))); // 英数 sends the reading first
+        bar.flush(); // 英数 sends the reading first
         latinMode.add(keyboard.id);
       } else if (key.action === 'kana') {
         sendEnglish(); // かな sends the English word first
@@ -396,8 +390,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       render();
       return;
     }
-    // 英数 mode on a Japanese keyboard: English words wait in the bar with their suggestions.
-    if (keyboard && buffered(keyboard) && page === 'keys' && latin) {
+    // The Latin mode of a keyboard that composes: English words wait in the bar with their suggestions.
+    if (keyboard && composes(keyboard) && page === 'keys' && latin) {
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const typed = chording ? undefined
         : key.type === 'char' ? (alternate ?? charText(key, mods))
@@ -412,29 +406,26 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         en = handled.word;
         enqueue(handled.effects);
         refreshSuggestions();
-        showIme();
+        showBar();
         return;
       }
       if (key.type !== 'mod' && !dictates(key)) sendEnglish(); // any other key sends the word first
     }
-    if (keyboard && buffered(keyboard) && page === 'keys' && !latin) {
-      const romaji = romajiFor(keyboard);
-      // A typed key goes into the buffer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
+    if (keyboard && composes(keyboard) && page === 'keys' && !latin) {
+      // A typed key goes to the composer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
-      const side = kanaSide(key, !romaji); // a JIS key types its kana (its Latin legend with romaji input)
+      const side = kanaSide(key, !latinKeys(keyboard)); // a JIS key types its kana (its Latin legend with romaji input)
       const typed = side.type === 'char' && !chording ? (alternate ?? charText(side, mods)) : undefined;
-      const handled = pressIme(ime, key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) },
-        options, { modify: modifyFor(keyboard.layout), ...(romaji ? { romaji } : {}) });
+      const handled = bar.press(key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) });
       if (handled) {
         if (typed !== undefined) {
           mods = pressText(mods, '').mods; // a one-shot Shift is used up
           view?.update(mods);
         }
-        applyIme(handled);
         return;
       }
-      // Any other key sends the buffer first (a modifier only arms, so it does not).
-      if (composing(ime) && key.type !== 'mod' && !dictates(key)) applyIme(flush(ime, romaji));
+      // Any other key sends what waits first (a modifier only arms, so it does not).
+      if (key.type !== 'mod' && !dictates(key)) bar.flush();
     }
     const result = alternate === undefined ? press(mods, key)
       : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
@@ -447,92 +438,32 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     enqueue(effects);
   };
 
-  const segmentsOf = (reply: Record<string, unknown>): Omit<Segment, 'index'>[] =>
-    (reply['ok'] && Array.isArray(reply['segments']) ? reply['segments'] as Omit<Segment, 'index'>[] : []);
-  const noteConverter = (reply: Record<string, unknown>): void => {
-    if (reply['error'] === 'unavailable' && !converterDown) {
-      converterDown = true;
-      warn('conversion unavailable (libanthy did not load); 確定 still sends the kana');
-    }
-  };
+  /** The words the bar's keys show while composing, by label name; the keyboard's language spells them. */
+  const JAPANESE: Readonly<Record<string, string>> = { convert: '変換', next: '次変換', confirm: '確定', hiragana: 'かな', katakana: 'カナ', halfwidth: 'ﾊﾝｶｸ' };
+  const spelled = (names: Readonly<Record<string, string>>): Record<string, string> =>
+    Object.fromEntries(Object.entries(names).flatMap(([id, name]) => (JAPANESE[name] ? [[id, JAPANESE[name]]] : [])));
 
-  /** Ask the converter for live candidates or a conversion of the buffer; stale replies are dropped. */
-  const requestIme = (request: ImeRequest): void => {
-    const generation = ++imeGeneration;
-    // Live candidates see pending letters settled (かn → かん); a conversion's buffer is settled already.
-    const forReading = reading(settleRomaji(ime, romajiFor(currentKeyboard())));
-    if (!forReading || !bridge.available()) {
-      live = forReading ? liveCandidates(forReading, [], []) : [];
-      showIme();
-      return;
-    }
-    if (request.kind === 'live') {
-      live = liveCandidates(forReading, [], []); // the kana themselves until the converter answers
-      void Promise.all([
-        bridge.call('convert', { reading: forReading }),
-        bridge.call('predict', { reading: forReading }),
-      ]).then(([converted, predicted]) => {
-        noteConverter(converted);
-        if (generation !== imeGeneration) return;
-        const predictions = predicted.ok && Array.isArray(predicted['predictions']) ? predicted['predictions'] as string[] : [];
-        live = liveCandidates(forReading, segmentsOf(converted), predictions);
-        liveSource = { reading: forReading, segments: segmentsOf(converted), predictions };
-        showIme();
-      });
-    } else {
-      void bridge.call('convert', {
-        reading: forReading,
-        ...(request.lengths ? { lengths: request.lengths } : {}),
-        ...(request.resize ? { resize: request.resize } : {}),
-      }).then((reply) => {
-        noteConverter(reply);
-        if (generation !== imeGeneration) return;
-        ime = withConversion(ime, forReading, segmentsOf(reply));
-        showIme();
-      });
-    }
-    showIme();
-  };
-
-  /** Draw the buffer in the bar (or the word suggestions when it is empty); 空白 becomes 変換 (次変換 once converting), ⏎ 確定. */
-  const showIme = (): void => {
+  /** Draw the bar: what is composed and its candidates, else the English word and its suggestions; keys follow (空白 → 変換). */
+  const showBar = (): void => {
     if (!view) return;
-    if (!composing(ime)) {
-      // 英数 mode: English word suggestions where the candidates go; picking one replaces the word typed.
+    const shown = bar.shown();
+    if (shown) {
+      view.setComposition(shown.composition);
+      view.setLabels(spelled(shown.labels));
+    } else {
+      // The Latin mode: English word suggestions where the candidates go; picking one replaces the word typed.
       view.setComposition(en.chars.length ? {
         before: en.chars.slice(0, en.caret).join(''), after: en.chars.slice(en.caret).join(''), candidates: suggested, selected: -1,
       } : null);
-      view.setLabels(en.chars.length ? { Enter: '確定' } : {});
-    } else {
-      const focused = ime.segments?.[ime.focus];
-      view.setComposition(ime.segments
-        ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
-          candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
-        : { before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form), after: inForm(ime.chars.slice(ime.caret).join(''), ime.form),
-          candidates: live, selected: -1 });
-      // Once converting, Space goes to the next candidate; かな shows the form it changes the reading to.
-      view.setLabels({ ' ': ime.segments ? '次変換' : '変換', Enter: '確定', kana: ime.segments ? FORM_LABELS.katakana : FORM_LABELS[nextForm(ime.form)] });
+      view.setLabels(spelled(en.chars.length ? { Enter: 'confirm' } : {}));
     }
     view.update(mods);
-  };
-
-  /** Have the converter learn what was sent (anthy's learning data, ~/.anthy). */
-  const learn = (request: Record<string, unknown>): void => {
-    if (bridge.available()) void bridge.call('learn', request);
-  };
-
-  const applyIme = (result: ImeResult): void => {
-    if (result.learned) learn({ ...result.learned });
-    ime = result.ime;
-    if (result.effects.length) enqueue(result.effects);
-    if (result.request) requestIme(result.request);
-    else showIme();
   };
 
   const onCandidate = (text: string, index: number): void => {
     if (afterSwipe(() => onCandidate(text, index))) return;
     swiped = null; // in 英数 mode a pick sends the word, as for any suggestion
-    if (!composing(ime) && en.chars.length) {
+    if (!bar.composing() && en.chars.length) {
       // A suggestion for the English word: sent in its place, with a space.
       if (surface) tick(surface.win, hand);
       boost(text);
@@ -542,17 +473,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     if (surface) tick(surface.win, hand);
-    const source = !ime.segments && liveSource?.reading === reading(ime) ? liveSource : null;
-    if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
-      learn({ reading: source.reading, lengths: source.segments.map((s) => Array.from(s.reading).length),
-        choices: source.segments.map(() => 0), texts: source.segments.map((s) => s.candidates[0] ?? s.reading) });
-    } else if (source?.predictions.includes(text)) learn({ reading: source.reading, prediction: text });
-    applyIme(pickCandidate(ime, text, index));
+    bar.pick(text, index);
   };
 
   /**
-   * Dictated text, where typing would put it: a Japanese keyboard's reading buffer (or typed at once,
-   * as set), else sent with the spacing a typed phrase would have. No modifier stays armed or held.
+   * Dictated text, where typing would put it: the composition in the bar (or typed at once, as set),
+   * else sent with the spacing a typed phrase would have. No modifier stays armed or held.
    */
   const placeDictated = (text: string, join?: (before: string) => string): void => {
     if (afterSwipe(() => placeDictated(text, join))) return;
@@ -562,22 +488,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     view?.update(mods);
     const keyboard = currentKeyboard();
     const latin = keyboard ? latinMode.has(keyboard.id) : false;
-    if (buffered(keyboard) && !latin) {
-      const romaji = romajiFor(keyboard);
-      if (ime.segments) applyIme(flush(ime, romaji)); // a conversion under way is sent first
-      const commit = optionsFor(keyboard, keyboardOptions[keyboard!.id]).dictationCommit;
-      const into = commit ? null : insertText(settleRomaji(ime, romaji), text);
-      if (into) applyIme({ ime: into, effects: [], request: { kind: 'live' } });
-      else {
-        if (composing(ime)) applyIme(flush(ime, romaji));
-        enqueue([{ kind: 'text', text }]);
-      }
+    if (composes(keyboard) && !latin) {
+      bar.dictate(text);
       return;
     }
     const language = dictationLanguage(keyboard, latin);
-    const before = buffered(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
+    const before = composes(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
     const typed = join ? join(before) : spacedText(text, language, before !== '');
-    if (buffered(keyboard)) sendEnglish(); // 英数 mode: the English word goes first
+    if (composes(keyboard)) sendEnglish(); // the Latin mode: the English word goes first
     else setWord(NO_WORD);
     enqueue([{ kind: 'text', text: typed }]);
   };
@@ -592,8 +510,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const endPhrases = (): void => {
     if (afterSwipe(endPhrases)) return;
     const keyboard = currentKeyboard();
-    const japanese = buffered(keyboard) && !(keyboard && latinMode.has(keyboard.id));
-    if (dictatedTail && !japanese && spaceAfter(dictatedTail)) enqueue([{ kind: 'text', text: ' ' }]);
+    const intoBar = composes(keyboard) && !(keyboard && latinMode.has(keyboard.id));
+    if (dictatedTail && !intoBar && spaceAfter(dictatedTail)) enqueue([{ kind: 'text', text: ' ' }]);
     dictatedTail = null;
   };
 
@@ -638,7 +556,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
    */
   const swipeNow = (): string | undefined => {
     const keyboard = currentKeyboard();
-    if (!keyboard || page !== 'keys' || (buffered(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
+    if (!keyboard || page !== 'keys' || (composes(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
     return swipeLexicon(keyboard, keyboardOptions[keyboard.id]);
   };
 
@@ -680,7 +598,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         return;
       }
       const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
-      if (buffered(currentKeyboard())) {
+      if (composes(currentKeyboard())) {
         swipeIntoBar(words);
         return;
       }
@@ -864,7 +782,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
-          latin: latinMode.has(id), romaji: typesRomaji(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
+          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
@@ -874,7 +792,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       view.update(mods);
       applyBounds();
       refreshSuggestions();
-      showIme();
+      showBar();
     }
     view?.setMic(dictation.state());
     view?.setMicProgress(speech.progress(currentDictationLanguage()));
@@ -969,7 +887,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   const changeOption = (keyboardId: string, name: OptionName, value: boolean): void => {
     keyboardOptions[keyboardId] = { ...keyboardOptions[keyboardId], [name]: value };
-    ime = { ...ime, cycle: null };
+    bar.pause();
     void bridge.call('settings.save', { settings: { keyboardOptions } }).then((reply) => {
       if (!reply.ok) warn(`settings not saved: ${reply.error ?? '?'}`);
     });
@@ -1003,12 +921,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const switchTo = (index: number): void => {
     swiped = null;
     dictation.cancel(); // its language was the keyboard's
-    if (composing(ime)) enqueue(flush(ime, romajiFor(currentKeyboard())).effects); // switching keyboards sends the buffer
+    bar.leave(); // switching keyboards sends what waits in the bar
     if (en.chars.length) enqueue(commitEnglish(en));
     en = NO_ENGLISH;
     symbolsOn.clear(); // a keyboard comes back on its letters
-    ime = NO_IME;
-    live = [];
     keys.releaseAll();
     mods = NO_MODS;
     current = index;
@@ -1040,9 +956,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       pickSpace = false;
       setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
       if (!open) {
-        ime = NO_IME; // the field is gone: an unsent reading is dropped, not typed elsewhere
-        live = [];
-        showIme();
+        bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
+        showBar();
         keys.releaseAll(); // closing must never leave a key held
         dictation.cancel(); // nor the mic listening
         mods = { ...NO_MODS, caps: mods.caps };

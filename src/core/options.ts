@@ -3,6 +3,7 @@
 // the current keyboard has.
 
 import type { KeyboardDef, KeyboardOptions } from './catalog.js';
+import { composerOf } from './composers/index.js';
 
 export type OptionName = keyof KeyboardOptions;
 
@@ -25,8 +26,8 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
   dictationCommit: { name: 'Dictation', off: 'Candidates', on: 'Type at once' },
 };
 
-/** A keyboard with a reading buffer (and so candidates) offers dictationCommit; packs do not list it. */
-const hasReading = (keyboard: KeyboardDef | undefined): boolean => keyboard?.composer === 'kana' || keyboard?.composer === 'romaji';
+/** A keyboard whose composer takes dictated text (into a reading, for its candidates) offers dictationCommit; packs do not list it. */
+const hasReading = (keyboard: KeyboardDef | undefined): boolean => composerOf(keyboard)?.insert !== undefined;
 
 /** The keyboard's options with the user's choices applied (only options the keyboard has). */
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {

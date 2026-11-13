@@ -1,6 +1,7 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
 // packs/pack.schema.json, which the sidecar has already validated.
 
+import type { ComposerId } from './composers/index.js';
 import type { EmojiState, PickerSet } from './emoji.js';
 import type { PackName } from './names.js';
 import type { NamedKey } from './keycodes.js';
@@ -96,11 +97,11 @@ export interface KeyboardDef {
   id: string; name: PackName; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   features?: KeyboardFeatures;
   /**
-   * direct: keys type at once. kana: a reading buffer, sent when confirmed (core/ime.ts). romaji: the
-   * same buffer, letters turned into kana with the keyboard's table.
+   * How typing composes text in the bar (src/core/composers/): direct, keys type at once; kana, a
+   * reading buffer, sent when confirmed; romaji, the same buffer, letters turned into kana with the table.
    */
-  composer?: 'direct' | 'kana' | 'romaji';
-  /** The romaji table (a table pack) for composer romaji, or a kana keyboard's romajiInput option. */
+  composer?: ComposerId;
+  /** The composer's table (a table pack): romaji for composer romaji, or a kana keyboard's romajiInput option. */
   table?: string;
   /** The keyboard's other pages (src/core/pages.ts); layout is the main one. */
   pages?: KeyboardPages;
@@ -111,8 +112,8 @@ export interface KeyboardDef {
   modes?: { id: string; letters: string; latin?: boolean }[];
   /** Text the keyboard shows: idleHint, where candidates appear while there are none. */
   strings?: { idleHint?: string };
-  /** The engine that converts the reading (with composer kana). */
-  converter?: 'anthy';
+  /** The engine that converts what the composer reads (anthy): one of the sidecar's (sidecar/polykey/converters/). */
+  converter?: string;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
