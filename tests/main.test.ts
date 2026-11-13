@@ -1425,8 +1425,9 @@ describe('Korean', () => {
     return { popup, sent, pre, typeAll };
   };
 
-  it('composes each syllable in the bar and sends it as the next begins; Space sends the last', async () => {
+  it('composes each syllable in the bar, in the CJK fonts, and sends it as the next begins; Space sends the last', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
+    expect(shadowOf(popup)!.querySelector('.kb.cjk')).not.toBeNull();
     await typeAll('ㅎㅏㄴ');
     expect([sent(), pre()]).toEqual([[], '한']);
     await typeAll('ㄱㅡㄹ');

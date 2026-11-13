@@ -77,6 +77,8 @@ const CSS = `
 .pre .seg { padding: 0 1px; }
 .pre .seg.focus { background: var(--accent); color: var(--accent-text); border-radius: var(--radius-sm); }
 .pre.converting .seg:not(.focus) { color: var(--legend); }
+/* A language whose text the system font does not draw (Hangul): the reading and candidates in the CJK fonts. */
+.kb.cjk .pre, .kb.cjk .cand { font-family: var(--font-cjk), var(--font); }
 .pre .caret { display: inline-block; width: 1.5px; height: 1em; margin: 0 1px; vertical-align: -2px; background: var(--accent); }
 .list { flex: 1; display: flex; min-width: 0; overflow: hidden; height: 100%; }
 .cand { flex: none; display: flex; align-items: center; padding: 0 10px; font-size: var(--size-candidate); white-space: nowrap;
@@ -283,8 +285,11 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters: startLetters, otherLetters, keyboardMenu, onSwipe, canSwipe }:
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters: startLetters, otherLetters, cjk = false,
+    keyboardMenu, onSwipe, canSwipe }:
     { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
+      /** The bar's reading and candidates in the theme's CJK fonts (the language's cjk: Hangul). */
+      cjk?: boolean;
       /** The other mode's letters (the mode key reads them); with letters, they swap as the mode does. */
       otherLetters?: string | undefined;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
@@ -313,7 +318,7 @@ export const createView = (
   const style = doc.createElement('style');
   style.textContent = CSS + HOLD_POPUP_CSS + MIC_CSS;
   const root = doc.createElement('div');
-  root.className = layout.large ? 'kb large' : 'kb';
+  root.className = `kb${layout.large ? ' large' : ''}${cjk ? ' cjk' : ''}`;
   root.style.cssText = themeVars(theme) + sizeVars(layout.large ? 'large' : 'normal');
 
   /** A key: its element, its label (slot c) and the small legends it shows now, by slot. */
