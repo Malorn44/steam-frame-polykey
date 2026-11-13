@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyDef, TableDef } from '../../src/core/catalog.js';
 import type { ComposerContext } from '../../src/core/composers/composer.js';
-import { FINALS, INITIALS, MEDIALS, NO_SYLLABLE, hangul, hangulTable, syllableText, type Syllable } from '../../src/core/composers/hangul.js';
+import { FINALS, INITIALS, MEDIALS, NO_SYLLABLE, hangul2Set, hangulTable, syllableText, type Syllable } from '../../src/core/composers/hangul.js';
 import { optionsFor } from '../../src/core/options.js';
 
 const def = JSON.parse(readFileSync('packs/ko/hangul.json', 'utf8')) as TableDef;
@@ -17,7 +17,7 @@ const type = (keys: string, from: Syllable = NO_SYLLABLE) => {
   let s = from;
   let sent = '';
   for (const ch of Array.from(keys)) {
-    const result = ch === '⌫' ? hangul.press(s, BACKSPACE, {}, ctx) : hangul.press(s, { type: 'char', char: ch }, { typed: ch }, ctx);
+    const result = ch === '⌫' ? hangul2Set.press(s, BACKSPACE, {}, ctx) : hangul2Set.press(s, { type: 'char', char: ch }, { typed: ch }, ctx);
     if (!result) {
       sent += `<${ch}>`;
       continue;
@@ -25,16 +25,16 @@ const type = (keys: string, from: Syllable = NO_SYLLABLE) => {
     s = result.state;
     for (const effect of result.effects) if (effect.kind === 'text') sent += effect.text;
   }
-  const shown = hangul.show(s, ctx).preedit;
+  const shown = hangul2Set.show(s, ctx).preedit;
   return { sent, bar: 'before' in shown ? shown.before : '', syllable: s };
 };
 /** Everything typed, the last syllable flushed (as the bar does on Space or a keyboard switch). */
 const written = (keys: string): string => {
   const { sent, syllable } = type(keys);
-  return sent + hangul.flush(syllable, ctx).effects.map((e) => (e.kind === 'text' ? e.text : '')).join('');
+  return sent + hangul2Set.flush(syllable, ctx).effects.map((e) => (e.kind === 'text' ? e.text : '')).join('');
 };
 
-describe('the hangul composer', () => {
+describe('the hangul-2set composer', () => {
   it('composes words, each syllable sent as the next begins', () => {
     expect(written('ㅎㅏㄴㄱㅡㄹ')).toBe('한글');
     expect(written('ㄱㅏㅂㅅ')).toBe('값');
@@ -85,10 +85,10 @@ describe('the hangul composer', () => {
 
   it('Space, Enter, punctuation and digits are not for it: the bar sends the syllable first', () => {
     expect(type('ㅎㅏㄴ .1')).toMatchObject({ sent: '< ><.><1>', bar: '한' });
-    expect(hangul.press(type('ㅎㅏㄴ').syllable, { type: 'key', key: 'Enter' }, {}, ctx)).toBeNull();
-    expect(hangul.flush(type('ㅎㅏㄴ').syllable, ctx).effects).toEqual([{ kind: 'text', text: '한' }]);
-    expect(hangul.flush(NO_SYLLABLE, ctx).effects).toEqual([]);
-    expect(hangul.composing(NO_SYLLABLE)).toBe(false);
+    expect(hangul2Set.press(type('ㅎㅏㄴ').syllable, { type: 'key', key: 'Enter' }, {}, ctx)).toBeNull();
+    expect(hangul2Set.flush(type('ㅎㅏㄴ').syllable, ctx).effects).toEqual([{ kind: 'text', text: '한' }]);
+    expect(hangul2Set.flush(NO_SYLLABLE, ctx).effects).toEqual([]);
+    expect(hangul2Set.composing(NO_SYLLABLE)).toBe(false);
   });
 
   it('makes every syllable with Unicode\'s formula, as the conjoining jamo compose', () => {
@@ -115,6 +115,6 @@ describe('the hangul composer', () => {
 
   it('without its table the keys type as they are', () => {
     const bare = { ...ctx, table: undefined };
-    expect(hangul.press(NO_SYLLABLE, { type: 'char', char: 'ㄱ' }, { typed: 'ㄱ' }, bare)).toBeNull();
+    expect(hangul2Set.press(NO_SYLLABLE, { type: 'char', char: 'ㄱ' }, { typed: 'ㄱ' }, bare)).toBeNull();
   });
 });

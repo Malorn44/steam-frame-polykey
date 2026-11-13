@@ -1,5 +1,8 @@
-// The hangul composer: Korean typed jamo by jamo, the syllable being composed shown in the bar and sent
-// once the next jamo cannot join it. Pure. A syllable is Unicode's formula, 0xAC00 + (initial × 21 +
+// The hangul-2set composer: Korean on a 2-set (두벌식) layout, typed jamo by jamo, the syllable being
+// composed shown in the bar and sent once the next jamo cannot join it. Pure. A 2-set key types the same
+// jamo whether it starts or ends a syllable, so where a consonant goes follows from what comes next (the
+// vowel rule below); a 3-set (세벌식) layout types the two apart and would be a composer of its own, with
+// the same syllables (syllableText) and Unicode lists. A syllable is Unicode's formula, 0xAC00 + (initial × 21 +
 // medial) × 28 + final (The Unicode Standard, 3.12), each its jamo's place in Unicode's lists below, which
 // are facts, not layout data. Its table (a table pack's hangul) is what a layout varies: the jamo typed one
 // after the other that make one (ㅗㅏ → ㅘ, ㄱㅅ → ㄳ).
@@ -100,7 +103,7 @@ const tables = builtOnce(hangulTable);
 /** The keyboard's table, built once per table pack; none: the keys type as they are. */
 const tableOf = ({ table }: ComposerContext): HangulTable | undefined => (table?.hangul ? tables(table.hangul) : undefined);
 
-export const hangul: Composer<Syllable> = {
+export const hangul2Set: Composer<Syllable> = {
   empty: NO_SYLLABLE,
   composing,
   press: (s, key, { typed }, ctx) => {

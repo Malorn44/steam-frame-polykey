@@ -25,7 +25,7 @@ describe('the composer registry', () => {
 
   it('says which composers take dictated text into what they compose: the reading buffers', () => {
     expect([takesDictation(keyboard('kana')), takesDictation(keyboard('romaji'))]).toEqual([true, true]);
-    expect([takesDictation(keyboard('hangul')), takesDictation(keyboard('direct')), takesDictation(undefined)]).toEqual([false, false, false]);
+    expect([takesDictation(keyboard('hangul-2set')), takesDictation(keyboard('direct')), takesDictation(undefined)]).toEqual([false, false, false]);
   });
 });
 

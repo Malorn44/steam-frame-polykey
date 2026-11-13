@@ -671,7 +671,7 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
 
 # The table field each composer reads, by composer id (src/core/composers/): its keyboard's table must have it.
 # (Which fields a table can hold, one of them, the schema says.)
-COMPOSER_TABLES = {"romaji": "entries", "hangul": "hangul"}
+COMPOSER_TABLES = {"romaji": "entries", "hangul-2set": "hangul"}
 
 
 def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
