@@ -271,6 +271,8 @@ def load_emoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
 MAX_KAOMOJI_CATEGORIES = 64
 MAX_KAOMOJI_FACES = 2000
 MAX_KAOMOJI_FACE = 64
+MAX_KAOMOJI_WORDS = 16
+MAX_KAOMOJI_WORD = 32
 KAOMOJI_ID = re.compile(r"^[a-z0-9-]{1,32}$")
 
 
@@ -278,12 +280,31 @@ def _kaomoji_name(value: object) -> bool:
     return isinstance(value, str) and 0 < len(value) <= 32 and value.isprintable()
 
 
-def _kaomoji_face(value: object) -> bool:
-    return isinstance(value, str) and 0 < len(value) <= MAX_KAOMOJI_FACE and value.isprintable()
+def _kaomoji_words(value: object) -> Optional[list]:
+    """A face's readings or tags: short words, or none; None when it is anything else."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > MAX_KAOMOJI_WORDS:
+        return None
+    return (
+        value
+        if all(isinstance(word, str) and 0 < len(word) <= MAX_KAOMOJI_WORD and word.isprintable() for word in value)
+        else None
+    )
+
+
+def _kaomoji_face(value: object) -> Optional[dict]:
+    """A face as {text, reading, tags}: the text is what is typed; readings (hiragana) and tags are optional."""
+    text = value.get("text") if isinstance(value, dict) else None
+    if not isinstance(text, str) or not 0 < len(text) <= MAX_KAOMOJI_FACE or not text.isprintable():
+        return None
+    reading, tags = _kaomoji_words(value.get("reading")), _kaomoji_words(value.get("tags"))
+    return None if reading is None or tags is None else {"text": text, "reading": reading, "tags": tags}
 
 
 def clean_kaomoji(data: object) -> Optional[dict]:
-    """The picker's kaomoji, if the data has the expected shape: categories of faces, within sane limits."""
+    """The picker's kaomoji, if the data has the expected shape: categories of faces, each with its text and
+    (for prediction, later) its readings and tags, within sane limits."""
     categories = data.get("categories") if isinstance(data, dict) else None
     if not isinstance(categories, list) or not 0 < len(categories) <= MAX_KAOMOJI_CATEGORIES:
         return None
@@ -296,7 +317,10 @@ def clean_kaomoji(data: object) -> Optional[dict]:
             return None
         if not _kaomoji_name(category.get("en")) or not _kaomoji_name(category.get("ja")):
             return None
-        if not isinstance(faces, list) or not faces or not all(_kaomoji_face(face) for face in faces):
+        if not isinstance(faces, list) or not faces:
+            return None
+        faces = [_kaomoji_face(face) for face in faces]
+        if not all(faces):
             return None
         ids.add(item_id)
         clean.append({"id": item_id, "en": category["en"], "ja": category["ja"], "faces": faces})
@@ -306,7 +330,8 @@ def clean_kaomoji(data: object) -> Optional[dict]:
 
 
 def load_kaomoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
-    """The picker's kaomoji (emoji/kaomoji.data, JSON): the user's copy first, then the bundled one."""
+    """The picker's kaomoji (emoji/kaomoji.data, JSON), with their readings and tags: the user's copy first,
+    then the bundled one."""
     name = "emoji/kaomoji.data"
     for directory in dirs:
         path = directory / "emoji" / "kaomoji.data"
@@ -326,6 +351,22 @@ def load_kaomoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
         errors.append(f"{name}: not kaomoji categories")
     errors.append(f"{name}: no kaomoji data, so no kaomoji key")
     return None
+
+
+def kaomoji_for_page(kaomoji: Optional[dict]) -> Optional[dict]:
+    """What the page gets of the kaomoji: each category's faces as their texts alone."""
+    if kaomoji is None:
+        return None
+    return {"categories": [{**c, "faces": [face["text"] for face in c["faces"]]} for c in kaomoji["categories"]]}
+
+
+# The kaomoji as last loaded, readings and tags included: the page is sent only the texts.
+_kaomoji: Optional[dict] = None
+
+
+def loaded_kaomoji() -> Optional[dict]:
+    """The kaomoji from the last load(), each face as {text, reading, tags}; None when there are none."""
+    return _kaomoji
 
 
 def clean_emoji_state(data: object) -> dict:
@@ -663,13 +704,14 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         default = DEFAULT_SETTINGS["theme"]
         settings["theme"] = default if default in catalog["themes"] else next(iter(sorted(catalog["themes"])), "")
     emoji = load_emoji([user / "packs", bundled], errors)
-    kaomoji = load_kaomoji([user / "packs", bundled], errors)
+    global _kaomoji
+    _kaomoji = load_kaomoji([user / "packs", bundled], errors)
     return {
         "catalog": catalog,
         "settings": settings,
         "errors": errors,
         "emoji": emoji,
-        "kaomoji": kaomoji,
+        "kaomoji": kaomoji_for_page(_kaomoji),
         "emojiState": load_emoji_state(user / "emoji.json"),
     }
 
