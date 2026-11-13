@@ -31,7 +31,7 @@ import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord 
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
 import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
-import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
+import { OPTIONS, offered, optionsFor, suggestLexicon, suggests, swipeLexicon, type OptionName } from './core/options.js';
 import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
 import { fullName, languageName, ownName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsScroll, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
@@ -256,10 +256,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /** A keyboard whose typing is composed in the bar (any composer but direct). */
   const composes = (keyboard: KeyboardDef | undefined): boolean => composerOf(keyboard) !== null;
-  /** Word suggestions: a keyboard that composes has them only in its Latin mode, in its candidate area. */
+  /** The word list suggested from in the current keyboard's mode (on a keyboard that composes, shown in its candidate area). */
   const lexiconId = (): string | undefined => {
     const keyboard = boot?.catalog.keyboards[ring[current] as string];
-    return composes(keyboard) && !latinMode.has(keyboard!.id) ? undefined : keyboard?.lexicon;
+    return suggestLexicon(keyboard, !!keyboard && latinMode.has(keyboard.id));
   };
   /** The words suggested on a Japanese keyboard in 英数 mode, best first (shown as candidates). */
   let suggested: string[] = [];
@@ -748,7 +748,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: nameFor(t.name, keyboard?.language), swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
         version: VERSION,
         errors: boot.errors,
-        suggestions: !!keyboard?.lexicon,
+        suggestions: suggests(keyboard),
         keyboardName: keyboard ? fullName(keyboard) : id,
         // The dictation row only while dictation is on.
         options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
