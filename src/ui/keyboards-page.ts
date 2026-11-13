@@ -4,6 +4,7 @@
 // one stays. A gap opens where a dragged keyboard will land.
 
 import { SLOP_PX, type TouchGuard } from '../core/interaction.js';
+import { nameFor, type PackName } from '../core/names.js';
 import { dragScroll, listenTouch, type DragScroll, type TouchPoint } from './gesture.js';
 import { ICONS, type IconName } from './icons.js';
 
@@ -16,8 +17,8 @@ export const inlineIcon = (doc: Document, name: IconName): HTMLElement =>
   Object.assign(doc.createElement('span'), { className: 'ic', innerHTML: ICONS[name] });
 
 export interface KeyboardsInfo {
-  /** Every keyboard there is: id, name, language code. */
-  all: { id: string; name: string; language: string }[];
+  /** Every keyboard there is: id, name (shown in the keyboard's own language), language code. */
+  all: { id: string; name: PackName; language: string }[];
   /** Yours, in 🌐's order. */
   ring: string[];
   /** The language whose layouts are shown. */
@@ -76,9 +77,12 @@ export const pageColumn = (root: HTMLElement, cls: string, heading: string | (st
   return { col, list };
 };
 
+/** A keyboard's name in its own language (with no language: its English name, or its first). */
+export const ownName = (k: { name: PackName; language?: string | undefined }): string => nameFor(k.name, k.language);
+
 /** A keyboard where languages are mixed (your list, settings): its language and layout. */
-export const fullName = (k: { name: string; language?: string | undefined }): string =>
-  (k.language ? `${languageName(k.language)} · ${k.name}` : k.name);
+export const fullName = (k: { name: PackName; language?: string | undefined }): string =>
+  (k.language ? `${languageName(k.language)} · ${ownName(k)}` : ownName(k));
 
 /** Your list after dropping `id` at `index` among the others (moved if it was there already). */
 export const dropInto = (ring: readonly string[], id: string, index: number): string[] => {
@@ -124,7 +128,7 @@ export const buildKeyboardsPage = (
   for (const k of info.all.filter((x) => x.language === info.language)) {
     const added = info.ring.includes(k.id);
     const item = el(added ? 'item added' : 'item');
-    item.append(el('nm', k.name), el('mark', added ? '✓' : '+'));
+    item.append(el('nm', ownName(k)), el('mark', added ? '✓' : '+'));
     actions.set(item, () => { if (!added) onKeyboards([...info.ring, k.id]); });
     draggable.set(item, { id: k.id, from: 'layout', source: item });
     lays.list.append(item);

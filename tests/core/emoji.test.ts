@@ -1,15 +1,44 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, toneTable, useRecent, withTone, type EmojiData } from '../../src/core/emoji.js';
+import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, nextSet, recentColumns, setFor, toneTable, useRecent, withTone, type PickerSet } from '../../src/core/emoji.js';
 
 const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
-const tones = toneTable({ groups: [{ id: 'people', name: 'People', items: [wave, '🙂'] }] });
+const set = (items: PickerSet['categories'][0]['items'], more: Partial<PickerSet> = {}): PickerSet =>
+  ({ id: 'emoji/emoji', name: 'Emoji', key: { icon: 'emoji' }, cells: 'emoji', tones: true, categories: [{ id: 'people', name: 'People', items }], ...more });
+const tones = toneTable([set([wave, '🙂'])]);
 
 describe('skin tones', () => {
   it('apply to emoji that take them, and leave others alone', () => {
     expect(withTone('👋', 'dark', tones)).toBe('👋🏿');
     expect(withTone('👋', '', tones)).toBe('👋');
     expect(withTone('🙂', 'dark', tones)).toBe('🙂');
+  });
+});
+
+describe('sets', () => {
+  const sets = ['emoji/emoji', 'emoji/kaomoji', 'mine/arrows'].map((id) => set(['a'], { id }));
+
+  it('skin tones come only from the sets that offer them', () => {
+    expect(toneTable([set([wave], { tones: false }), set([wave], { id: 'mine/b' })]).get('👋')).toEqual(wave);
+    expect(toneTable([set([wave], { tones: false })]).size).toBe(0);
+  });
+
+  it('the set shown is the saved one, or the first when it is gone', () => {
+    expect(setFor(sets, 'emoji/kaomoji')?.id).toBe('emoji/kaomoji');
+    expect(setFor(sets, 'mine/gone')?.id).toBe('emoji/emoji');
+    expect(setFor(sets, '')?.id).toBe('emoji/emoji');
+    expect(setFor([], 'emoji/emoji')).toBeUndefined();
+  });
+
+  it('the next set follows in pack order, round to the first; from a set that is gone it is the second', () => {
+    expect(['emoji/emoji', 'emoji/kaomoji', 'mine/arrows', 'mine/gone', ''].map((id) => nextSet(sets, id)?.id))
+      .toEqual(['emoji/kaomoji', 'mine/arrows', 'emoji/emoji', 'emoji/kaomoji', 'emoji/kaomoji']);
+    expect(nextSet(sets.slice(0, 1), 'emoji/emoji')?.id).toBe('emoji/emoji');
+    expect(nextSet([], '')).toBeUndefined();
+  });
+
+  it('Recent is as wide as six emoji cells, in whole columns', () => {
+    expect([1, 2, 2.5, 3, 4].map(recentColumns)).toEqual([6, 3, 2, 2, 2]);
   });
 });
 
@@ -51,7 +80,7 @@ describe('Steam items', () => {
 });
 
 describe('the bundled data', () => {
-  const bundled = JSON.parse(readFileSync('packs/emoji/emoji.data', 'utf8')) as EmojiData & { version: string };
+  const bundled = JSON.parse(readFileSync('packs/emoji/emoji.data', 'utf8')) as { version: string; groups: PickerSet['categories'] };
   const group = (id: string) => bundled.groups.find((g) => g.id === id)!.items;
 
   it('is Emoji 15.1: its fully-qualified emoji (3,773) less the 260 with mixed skin tones', () => {
@@ -65,7 +94,7 @@ describe('the bundled data', () => {
     // Person walking facing right: the skin tone goes before the ZWJ and ➡️. Person walking keeps its own.
     expect(group('people')).toContainEqual(['🚶‍➡️', '🚶🏻‍➡️', '🚶🏼‍➡️', '🚶🏽‍➡️', '🚶🏾‍➡️', '🚶🏿‍➡️']);
     expect(group('people')).toContainEqual(['🚶', '🚶🏻', '🚶🏼', '🚶🏽', '🚶🏾', '🚶🏿']);
-    const tones = toneTable(bundled);
+    const tones = toneTable([{ id: 'emoji/emoji', name: 'Emoji', key: { icon: 'emoji' }, cells: 'emoji', tones: true, categories: bundled.groups }]);
     expect(withTone('🚶‍➡️', 'dark', tones)).toBe('🚶🏿‍➡️');
     expect(withTone('🚶', 'dark', tones)).toBe('🚶🏿');
   });

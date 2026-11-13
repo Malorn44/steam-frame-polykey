@@ -1,11 +1,12 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
 // packs/pack.schema.json, which the sidecar has already validated.
 
-import type { EmojiData, EmojiState, KaomojiData } from './emoji.js';
+import type { EmojiState, PickerSet } from './emoji.js';
+import type { PackName } from './names.js';
 import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
-export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'kaomoji' | 'dictate' | 'abc'
+export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'next-set' | 'dictate' | 'abc'
   | 'modify' | 'undo' | 'eisu' | 'kana' | 'symbols' | 'more-symbols';
 
 /** Where on a key a legend sits: c is the label; the rest are small legends round it. */
@@ -58,7 +59,7 @@ export type FnKey = string | Omit<CharKey, 'w' | 'fn'> | Omit<NamedKeyKey, 'w' |
 
 export interface Layout {
   id: string;
-  name: string;
+  name: PackName;
   toolbar?: ActionKey[];
   rows: (string | KeyDef)[][];
   /** The rows with 🌐 hidden, for when your list has one keyboard (the loader builds them from "alone"). */
@@ -92,7 +93,7 @@ export interface KeyboardFeatures { swipe?: { lexicon: string } }
 export interface KeyboardPages { latin?: string | { flick: string; qwerty: string }; symbols?: string[] }
 
 export interface KeyboardDef {
-  id: string; name: string; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
+  id: string; name: PackName; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   features?: KeyboardFeatures;
   /**
    * direct: keys type at once. kana: a reading buffer, sent when confirmed (core/ime.ts). romaji: the
@@ -131,9 +132,9 @@ export interface ThemeColors {
 }
 /** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
 /** entries: romaji to kana; cycles: what ゛゜小 does (layouts get theirs resolved into `modify`). */
-export interface TableDef { id: string; name: string; entries?: [string, string, string?][]; cycles?: string[] }
+export interface TableDef { id: string; name: PackName; entries?: [string, string, string?][]; cycles?: string[] }
 export interface Theme {
-  id: string; name: string; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
+  id: string; name: PackName; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */
   tone?: 'dark' | 'light';
   /** Smaller radii: a focused segment (default 3), a dotted legend box (1), a switch (13). */
@@ -158,9 +159,8 @@ export interface Boot {
     keyboardOptions?: Record<string, KeyboardOptions>;
   };
   errors: string[];
-  emoji?: EmojiData | null;
-  /** The picker's kaomoji (emoji/kaomoji.data); without them there is no kaomoji key. */
-  kaomoji?: KaomojiData | null;
+  /** The picker's sets (picker packs), in pack order; with none there is no picker, with one no mode key. */
+  pickers?: PickerSet[];
   emojiState?: EmojiState;
 }
 

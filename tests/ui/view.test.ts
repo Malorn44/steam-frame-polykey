@@ -150,8 +150,9 @@ describe('icons', () => {
   it('the schema lists every icon', async () => {
     const { readFileSync } = await import('node:fs');
     const { ICONS } = await import('../../src/ui/icons.js');
-    const schema = JSON.parse(readFileSync('packs/pack.schema.json', 'utf8')) as { $defs: { icon: { enum: unknown[] } } };
-    expect(schema.$defs.icon.enum).toEqual([...Object.keys(ICONS), null]);
+    const schema = JSON.parse(readFileSync('packs/pack.schema.json', 'utf8')) as { $defs: { iconName: { enum: unknown[] }; icon: { oneOf: unknown[] } } };
+    expect(schema.$defs.iconName.enum).toEqual(Object.keys(ICONS));
+    expect(schema.$defs.icon.oneOf).toEqual([{ $ref: '#/$defs/iconName' }, { enum: [null] }]); // a key's can also be null
   });
 });
 

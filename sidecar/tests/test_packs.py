@@ -360,6 +360,34 @@ def test_validator_messages_name_the_field():
         assert packs.validate(layout, schema, schema) == [message]
 
 
+def test_a_name_is_a_string_or_a_name_per_language(tmp_path):
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    named = lambda name: packs.validate({**theme("mine/dark"), "name": name}, schema, schema)
+    for good in ("Dark", {"en": "Dark"}, {"en": "Dark", "ja": "ダーク", "pt-BR": "Escuro", "zh-Hant": "深色"}):
+        assert named(good) == [], good
+    assert named({}) == ["/name: needs at least 1 entries (it has 0)"]
+    assert named("") == ["/name: too short"]
+    assert named({"en": ""}) == ["/name/en: too short"]
+    assert named({"en": "x" * 81}) == ["/name/en: too long"]
+    assert named({"en": 5}) == ["/name/en: must be a string"]
+    for key in ("EN", "english", "e", "en_US", "en-", ""):
+        assert named({"en": "Dark", key: "Dark"}) == [f"/name: unknown field {key}"], key
+    assert named(5) and named(["Dark"]) and named(None)
+    # Keyboards, layouts and tables take the same names, and load with them as written.
+    name = {"en": "Dark", "ja": "ダーク"}
+    write(tmp_path / "packs", "mine/dark.json", {**theme("mine/dark"), "name": name})
+    write(tmp_path / "packs", "mine/keys.json", layout("mine/keys", name=name, rows=[["a"]]))
+    write(tmp_path / "packs", "mine/board.json", keyboard("mine/board", name=name, layout="mine/keys"))
+    write(tmp_path / "packs", "mine/empty.json", {**theme("mine/empty"), "name": {}})
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == ["mine/empty.json: /name: needs at least 1 entries (it has 0)"]
+    catalog = boot["catalog"]
+    assert [
+        catalog[k][i]["name"]
+        for k, i in (("themes", "mine/dark"), ("layouts", "mine/keys"), ("keyboards", "mine/board"))
+    ] == [name] * 3
+
+
 def test_boot_script_sets_the_catalog_and_logs_pack_errors(tmp_path):
     write(tmp_path / "packs", "themes/broken.json", "{")
     out = io.StringIO()
@@ -432,136 +460,6 @@ def test_the_japanese_12key_pack_loads():
     assert "はばぱ" in layout["modify"]
 
 
-def test_emoji_data_and_state(tmp_path):
-    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    groups = boot["emoji"]["groups"]
-    assert [g["id"] for g in groups][:2] == ["smileys", "people"]
-    assert groups[0]["items"][0] == "😀"
-    assert any(isinstance(i, list) and len(i) == 6 for i in groups[1]["items"])  # skin tones
-    assert boot["emojiState"] == {"recent": [], "favorites": [], "tone": "", "kaomojiRecent": [], "mode": "emoji"}
-    write(tmp_path, "emoji.json", {"recent": ["😀", 5, "x" * 99], "favorites": ["⭐"], "tone": "dark", "other": 1})
-    assert packs.load(BUNDLED, SCHEMA, tmp_path)["emojiState"] == {
-        "recent": ["😀"],
-        "favorites": ["⭐"],
-        "tone": "dark",
-        "kaomojiRecent": [],
-        "mode": "emoji",
-    }
-
-
-def test_emoji_state_keeps_a_clean_kaomoji_recent_and_mode():
-    state = packs.clean_emoji_state(
-        {"kaomojiRecent": ["(^_^)", 5, "", "x" * 65, "y" * 64, ["(>_<)"]] + ["^^"] * 50, "mode": "kaomoji"}
-    )
-    assert state["kaomojiRecent"][:2] == ["(^_^)", "y" * 64]
-    assert len(state["kaomojiRecent"]) == packs.MAX_EMOJI_LIST
-    assert state["mode"] == "kaomoji"
-    for mode in ("stickers", 1, None, ["kaomoji"]):
-        assert packs.clean_emoji_state({"mode": mode, "kaomojiRecent": "(^_^)"}) == {
-            "recent": [],
-            "favorites": [],
-            "tone": "",
-            "kaomojiRecent": [],
-            "mode": "emoji",
-        }
-
-
-def kaomoji(*categories) -> dict:
-    """kaomoji.data with these (id, faces) categories; a face given as a string is {"text": it}."""
-    faces = lambda items: [{"text": f} if isinstance(f, str) else f for f in items]
-    return {
-        "source": "test",
-        "categories": [{"id": i, "en": i.title(), "ja": "顔", "faces": faces(f)} for i, f in categories],
-    }
-
-
-def test_bundled_kaomoji_load_in_order_and_the_page_gets_only_their_texts(tmp_path):
-    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    categories = boot["kaomoji"]["categories"]
-    bundled = json.loads((BUNDLED / "emoji" / "kaomoji.data").read_text(encoding="utf-8"))["categories"]
-    assert boot["errors"] == []
-    assert set(boot["kaomoji"]) == {"categories"}  # the source note stays behind
-    assert len(categories) > 1 and all(set(c) == {"id", "en", "ja", "faces"} for c in categories)
-    # Every category and face, in the file's order; a face is its text alone.
-    assert [(c["id"], c["en"], c["ja"]) for c in categories] == [(c["id"], c["en"], c["ja"]) for c in bundled]
-    assert [c["faces"] for c in categories] == [[f["text"] for f in c["faces"]] for c in bundled]
-    assert all(isinstance(face, str) for c in categories for face in c["faces"])
-    # The sidecar keeps the readings and tags (some faces have none).
-    kept = [face for c in packs.loaded_kaomoji()["categories"] for face in c["faces"]]
-    assert all(set(face) == {"text", "reading", "tags"} for face in kept)
-    assert [face["text"] for face in kept] == [face for c in categories for face in c["faces"]]
-    assert any(face["reading"] and face["tags"] for face in kept)
-
-
-def test_a_users_kaomoji_replace_the_bundled_ones(tmp_path):
-    shy = {"text": "(o_o)", "reading": ["じー"], "tags": ["見る", "無言"]}
-    plain = {"text": "\\(^o^)/"}
-    write(tmp_path / "packs", "emoji/kaomoji.data", kaomoji(("mine", [shy, plain, {"text": ":)", "tags": []}])))
-    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["errors"] == []
-    assert boot["kaomoji"] == {
-        "categories": [{"id": "mine", "en": "Mine", "ja": "顔", "faces": ["(o_o)", "\\(^o^)/", ":)"]}]
-    }
-    assert packs.loaded_kaomoji()["categories"][0]["faces"] == [
-        shy,
-        {"text": "\\(^o^)/", "reading": [], "tags": []},
-        {"text": ":)", "reading": [], "tags": []},
-    ]
-
-
-def test_a_bad_kaomoji_copy_is_reported_and_the_bundled_one_used(tmp_path):
-    face = lambda **more: kaomoji(("mine", [{"text": "ok", **more}]))
-    bad = [
-        "{not json",
-        [],
-        {"categories": []},
-        {"categories": "faces"},
-        kaomoji(("mine", [])),
-        kaomoji(("mine", ["ok", 5])),
-        kaomoji(("mine", ["x" * 65])),
-        kaomoji(("mine", ["two\nlines"])),
-        kaomoji(("Mine!", ["ok"])),
-        kaomoji(("recent", ["ok"])),
-        kaomoji(("mine", ["ok"]), ("mine", ["ok"])),
-        {"categories": [{"id": "mine", "en": "Mine", "faces": [{"text": "ok"}]}]},
-        {"categories": [{"id": "mine", "en": "", "ja": "顔", "faces": [{"text": "ok"}]}]},
-        kaomoji(*((f"c{i}", ["ok"]) for i in range(65))),
-        kaomoji(*((f"c{i}", [f"{n}" for n in range(101)]) for i in range(20))),
-        "[" + " " * packs.MAX_FILE_BYTES + "]",
-        # A face is an object with its text; readings and tags are lists of short words.
-        {"categories": [{"id": "mine", "en": "Mine", "ja": "顔", "faces": ["ok"]}]},
-        kaomoji(("mine", [{"reading": ["にこ"]}])),
-        kaomoji(("mine", [{"text": ""}])),
-        kaomoji(("mine", [{"text": ["ok"]}])),
-        face(reading="にこにこ"),
-        face(reading=["にこ", 5]),
-        face(reading=[""]),
-        face(reading=["に" * 33]),
-        face(reading=["に\nこ"]),
-        face(reading=["にこ"] * 17),
-        face(tags={"笑顔": True}),
-        face(tags=[["笑顔"]]),
-        face(tags=["笑" * 33]),
-        face(tags=["笑顔"] * 17),
-    ]
-    for data in bad:
-        write(tmp_path / "packs", "emoji/kaomoji.data", data)
-        boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-        assert len(boot["errors"]) == 1 and boot["errors"][0].startswith("emoji/kaomoji.data: "), data
-        assert boot["kaomoji"] == packs.load(BUNDLED, SCHEMA, tmp_path / "none")["kaomoji"]
-    for data in (face(reading=["に" * 32] * 16, tags=["笑" * 32] * 16), face(reading=[], tags=None)):
-        write(tmp_path / "packs", "emoji/kaomoji.data", data)
-        assert packs.load(BUNDLED, SCHEMA, tmp_path)["errors"] == [], data
-
-
-def test_missing_kaomoji_are_reported_and_none(tmp_path):
-    errors: list[str] = []
-    assert packs.load_kaomoji([tmp_path / "packs", tmp_path / "bundled"], errors) is None
-    assert errors == ["emoji/kaomoji.data: no kaomoji data, so no kaomoji key"]
-    boot = packs.load(tmp_path / "bundled", SCHEMA, tmp_path)
-    assert boot["kaomoji"] is None and packs.loaded_kaomoji() is None
-
-
 def test_bridge_saves_emoji_state_cleaned(tmp_path):
     import asyncio
     from polykey.bridge import Bridge
@@ -572,8 +470,8 @@ def test_bridge_saves_emoji_state_cleaned(tmp_path):
     reply = asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "emoji.save", "state": state})))
     assert reply == {"id": 1, "ok": True}
     saved = json.loads((tmp_path / "emoji.json").read_text(encoding="utf-8"))
-    assert len(saved["recent"]) == 40 and saved["tone"] == ""
-    assert saved["kaomojiRecent"] == [] and saved["mode"] == "emoji"
+    assert saved["tone"] == ""
+    assert saved["recent"] == {"emoji/emoji": ["😀", "🎉"] + ["👍"] * 38} and saved["set"] == ""
     assert "😀" not in out.getvalue()
 
 

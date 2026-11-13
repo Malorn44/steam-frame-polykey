@@ -1,11 +1,9 @@
 {
- "source": "Kaomoji from kaomojikan/kaomoji-data (MIT, see LICENSE.kaomoji), chosen and sorted for polykey, with their readings and tags; Classic written for polykey.",
- "categories": [
+ "source": "Kaomoji from kaomojikan/kaomoji-data (MIT, see LICENSE.kaomoji), chosen and sorted for polykey, with their readings and tags.",
+ "groups": [
   {
    "id": "smiling",
-   "en": "Smiling",
-   "ja": "笑顔",
-   "faces": [
+   "items": [
     {
      "text": "(^_^)",
      "reading": [
@@ -416,9 +414,7 @@
   },
   {
    "id": "love",
-   "en": "Love",
-   "ja": "ハート",
-   "faces": [
+   "items": [
     {
      "text": "(｡♡‿♡｡)",
      "reading": [
@@ -657,9 +653,7 @@
   },
   {
    "id": "hugging",
-   "en": "Hugging",
-   "ja": "ハグ",
-   "faces": [
+   "items": [
     {
      "text": "⊂ʕ•ᴥ•⊂ʔ",
      "reading": [
@@ -901,9 +895,7 @@
   },
   {
    "id": "waving",
-   "en": "Waving",
-   "ja": "あいさつ",
-   "faces": [
+   "items": [
     {
      "text": "(^o^)ﾉ",
      "reading": [
@@ -1087,9 +1079,7 @@
   },
   {
    "id": "excited",
-   "en": "Excited",
-   "ja": "わくわく",
-   "faces": [
+   "items": [
     {
      "text": "(`ω´)",
      "reading": [
@@ -1425,9 +1415,7 @@
   },
   {
    "id": "surprise",
-   "en": "Surprise",
-   "ja": "びっくり",
-   "faces": [
+   "items": [
     {
      "text": "(゜ロ゜)",
      "reading": [
@@ -1741,9 +1729,7 @@
   },
   {
    "id": "teehee",
-   "en": "Teehee",
-   "ja": "てへっ",
-   "faces": [
+   "items": [
     {
      "text": "( ͡° ͜ʖ ͡°)",
      "reading": [
@@ -1957,9 +1943,7 @@
   },
   {
    "id": "nervous",
-   "en": "Nervous",
-   "ja": "緊張",
-   "faces": [
+   "items": [
     {
      "text": "(゜Д゜;)",
      "reading": [
@@ -2275,9 +2259,7 @@
   },
   {
    "id": "shy",
-   "en": "Shy",
-   "ja": "照れ",
-   "faces": [
+   "items": [
     {
      "text": "(⁄ ⁄•⁄ω⁄•⁄ ⁄)",
      "reading": [
@@ -2548,9 +2530,7 @@
   },
   {
    "id": "dancing",
-   "en": "Dancing",
-   "ja": "ダンス",
-   "faces": [
+   "items": [
     {
      "text": "d(´∀`)b",
      "reading": [
@@ -2794,9 +2774,7 @@
   },
   {
    "id": "cheering",
-   "en": "Cheering",
-   "ja": "応援",
-   "faces": [
+   "items": [
     {
      "text": "(`･ω･´)ゝ",
      "reading": [
@@ -2888,9 +2866,7 @@
   },
   {
    "id": "flexing",
-   "en": "Flexing",
-   "ja": "ガッツ",
-   "faces": [
+   "items": [
     {
      "text": "(๑•̀ㅂ•́)و✧",
      "reading": [
@@ -2988,9 +2964,7 @@
   },
   {
    "id": "peeking",
-   "en": "Peeking",
-   "ja": "チラッ",
-   "faces": [
+   "items": [
     {
      "text": "|ω・)",
      "reading": [
@@ -3216,9 +3190,7 @@
   },
   {
    "id": "eating",
-   "en": "Eating",
-   "ja": "もぐもぐ",
-   "faces": [
+   "items": [
     {
      "text": "(´ڡ`)",
      "reading": [
@@ -3314,9 +3286,7 @@
   },
   {
    "id": "sleepy",
-   "en": "Sleepy",
-   "ja": "眠い",
-   "faces": [
+   "items": [
     {
      "text": "_(:3」∠)_",
      "reading": [
@@ -3455,9 +3425,7 @@
   },
   {
    "id": "animals",
-   "en": "Animals",
-   "ja": "動物",
-   "faces": [
+   "items": [
     {
      "text": "(=^･ｪ･^=)",
      "reading": [
@@ -3842,9 +3810,7 @@
   },
   {
    "id": "shrug",
-   "en": "Shruggie",
-   "ja": "肩すくむ",
-   "faces": [
+   "items": [
     {
      "text": "¯\\_(ツ)_/¯",
      "reading": [
@@ -3941,9 +3907,7 @@
   },
   {
    "id": "angry",
-   "en": "Angry",
-   "ja": "怒り",
-   "faces": [
+   "items": [
     {
      "text": "(¬_¬)",
      "reading": [
@@ -4255,9 +4219,7 @@
   },
   {
    "id": "crying",
-   "en": "Crying",
-   "ja": "泣き",
-   "faces": [
+   "items": [
     {
      "text": "(个_个)",
      "reading": [
@@ -4619,9 +4581,7 @@
   },
   {
    "id": "tableflip",
-   "en": "Table flip",
-   "ja": "ちゃぶ台返し",
-   "faces": [
+   "items": [
     {
      "text": "╯‵Д′)╯彡┻━┻",
      "reading": [
@@ -4780,97 +4740,6 @@
       "ちゃぶ台返し",
       "怒り"
      ]
-    }
-   ]
-  },
-  {
-   "id": "classic",
-   "en": "Classic",
-   "ja": "クラシック",
-   "faces": [
-    {
-     "text": ":-)"
-    },
-    {
-     "text": "=)"
-    },
-    {
-     "text": ":-D"
-    },
-    {
-     "text": "^_^"
-    },
-    {
-     "text": "^^"
-    },
-    {
-     "text": "*_*"
-    },
-    {
-     "text": ";-)"
-    },
-    {
-     "text": ":-P"
-    },
-    {
-     "text": "UwU"
-    },
-    {
-     "text": "OwO"
-    },
-    {
-     "text": ":-*"
-    },
-    {
-     "text": "O:-)"
-    },
-    {
-     "text": "B-)"
-    },
-    {
-     "text": "8-)"
-    },
-    {
-     "text": ":-O"
-    },
-    {
-     "text": "o_O"
-    },
-    {
-     "text": "O_o"
-    },
-    {
-     "text": ":-$"
-    },
-    {
-     "text": ":-X"
-    },
-    {
-     "text": ":-|"
-    },
-    {
-     "text": ":-/"
-    },
-    {
-     "text": "-_-"
-    },
-    {
-     "text": ":-("
-    },
-    {
-     "text": ":'("
-    },
-    {
-     "text": "T_T"
-    },
-    {
-     "text": ">_<"
-    },
-    {
-     "text": ">:)"
-    },
-    {
-     "text": ">:-("
     }
    ]
   }

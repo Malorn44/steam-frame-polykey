@@ -18,10 +18,11 @@ import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
-import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
+import { NO_EMOJI_STATE, nextSet, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
-import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
+import { createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
+import { nameFor } from './core/names.js';
 import { modeLetters, pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
@@ -32,7 +33,7 @@ import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
 import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
 import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
-import { fullName, languageName } from './ui/keyboards-page.js';
+import { fullName, languageName, ownName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsScroll, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type SwipeHandler, type View } from './ui/view.js';
 import { ICONS } from './ui/icons.js';
@@ -119,9 +120,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let settingsTab: SettingsTab = 'general';
   let settingsScroll: SettingsScroll = {};
   let settingsLanguage: string | undefined;
-  // Emoji: Recent, Favorites and the skin tone, saved by the sidecar (~/.config/polykey/emoji.json).
+  // The picker: its sets (picker packs), and each set's Recent, Favorites, the skin tone and the set last
+  // shown, saved by the sidecar (~/.config/polykey/emoji.json).
+  const sets = boot?.pickers ?? [];
   let emoji: EmojiState = { ...NO_EMOJI_STATE, ...boot?.emojiState };
-  const tones = toneTable(boot?.emoji ?? { groups: [] });
+  const tones = toneTable(sets);
   let emojiSave: ReturnType<typeof setTimeout> | null = null;
   /** While the picker is open and Steam is still fetching its items. */
   let steamWait: ReturnType<typeof setInterval> | null = null;
@@ -225,14 +228,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (dictation.state() !== 'idle' || speech.progress(language) === null) dictation.toggle(language);
     } else if (action === 'settings' || action === 'emoji' || action === 'abc') {
       if (page === 'emoji') saveEmoji(0);
-      page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
-      if (action === 'emoji' && !boot?.emoji) log('emoji: no emoji data from the sidecar');
+      page = action === 'abc' ? 'keys' : action === 'emoji' && sets.length ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
+      if (action === 'emoji' && !sets.length) log('emoji: no picker sets from the sidecar');
       render();
     }
-    else if (action === 'kaomoji') {
-      // The picker's mode key: kaomoji, or back to emoji. The picker opens in the saved mode next time.
-      if (page !== 'emoji' || !boot?.kaomoji) return;
-      emoji = { ...emoji, mode: emoji.mode === 'kaomoji' ? 'emoji' : 'kaomoji' };
+    else if (action === 'next-set') {
+      // The picker's mode key: on to the next set, in pack order. The picker opens on the saved set next time.
+      const next = nextSet(sets, emoji.set);
+      if (page !== 'emoji' || sets.length < 2 || !next) return;
+      emoji = { ...emoji, set: next.id };
       saveEmoji(0);
       render();
     }
@@ -770,17 +774,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     }
     guard?.setActive(true);
     const win = surface.win;
-    if (page === 'emoji' && boot.emoji) {
+    if (page === 'emoji' && sets.length) {
       const owned = () => steamItems(g).map((item) => ({ item, image: steamItemImage(g, item) }));
       const steamLoading = loadSteamItems(g);
       picker = createEmojiView(surface.doc, surface.shadow, theme, {
-        data: boot.emoji,
+        sets,
+        language: keyboard?.language,
         steam: owned(),
         steamAvailable: steamItemsAvailable(g),
         steamLoading,
         tones,
-        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, japanese: keyboard?.language === 'ja' } : null,
-      }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent, onKaomoji: typeKaomoji });
+      }, emoji, { onItem: typeItem, onTone, onSteam, onFavorites, onClearRecent });
       if (steamLoading) {
         const until = Date.now() + STEAM_ITEMS_WAIT_MS;
         steamWait = setInterval(() => {
@@ -792,12 +796,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       }
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
-        // The mode key reads :-) over emoji and shows the emoji icon over kaomoji; without kaomoji data
-        // the row has none.
-        const faces = !!boot.kaomoji;
-        const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'kaomoji';
-        const rows = row.rows.map((keys) => keys.filter((k) => faces || !modeKey(k))
-          .map((k) => (modeKey(k) && emoji.mode === 'kaomoji' ? { ...(k as KeyDef), icon: 'emoji' } : k)));
+        // The mode key shows the set it goes to, as its pack says: an icon, or a text (:-)); with one set the row has none.
+        const next = sets.length > 1 ? nextSet(sets, emoji.set) : undefined;
+        const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'next-set';
+        const rows = row.rows.map((keys) => keys.filter((k) => next || !modeKey(k))
+          .map((k) => (!modeKey(k) ? k : next?.key.label ? { ...(k as KeyDef), label: next.key.label, icon: null } : { ...(k as KeyDef), icon: next?.key.icon ?? null })));
         // Its back key reads the current mode's letters (あいう, ABC).
         view = createView(surface.doc, surface.shadow, { ...row, rows }, theme, onKey, onSuggestion, undefined,
           { letters: modeLetters(keyboard, latinMode.has(id)) });
@@ -806,7 +809,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       applyBounds();
     } else if (page === 'settings') {
       panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
-        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
+        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: nameFor(t.name, keyboard?.language), swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
         version: VERSION,
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,
@@ -865,7 +868,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
-            return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
+            return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
           ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}) });
       view.update(mods);
@@ -901,44 +904,41 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     enqueue(effects);
   };
 
-  const typeEmoji = (base: string, fromRecent: boolean): void => {
+  /** Change the shown set's Recent, and show it. Recent is typed content: never logged. */
+  const setRecent = (recent: (was: string[]) => string[]): void => {
+    const shown = setFor(sets, emoji.set);
+    if (!shown?.recent) return; // a set without Recent keeps none
+    const id = shown.id;
+    emoji = { ...emoji, recent: { ...emoji.recent, [id]: recent(emoji.recent[id] ?? []) } };
+    picker?.update(emoji);
+  };
+
+  /** An item of the shown set is typed (an emoji in the chosen skin tone) and kept in the set's Recent. */
+  const typeItem = (base: string, fromRecent: boolean, room: number): void => {
     if (surface) tick(surface.win, hand);
     swiped = null;
-    sendEffects([{ kind: 'text', text: withTone(base, emoji.tone, tones) }]);
-    emoji = { ...emoji, recent: useRecent(emoji.recent, base, fromRecent, RECENT_MAX) };
-    picker?.update(emoji);
+    sendEffects([{ kind: 'text', text: setFor(sets, emoji.set)?.tones ? withTone(base, emoji.tone, tones) : base }]);
+    setRecent((was) => useRecent(was, base, fromRecent, room));
     saveEmoji();
   };
 
-  /** A kaomoji is typed as an emoji is, and kept in its own Recent. It is typed content: never logged. */
-  const typeKaomoji = (face: string, fromRecent: boolean, room: number): void => {
-    if (surface) tick(surface.win, hand);
-    swiped = null;
-    sendEffects([{ kind: 'text', text: face }]);
-    emoji = { ...emoji, kaomojiRecent: useRecent(emoji.kaomojiRecent, face, fromRecent, room) };
-    picker?.update(emoji);
-    saveEmoji();
-  };
-
-  const onSteam = (item: Parameters<typeof steamItemEffects>[0], fromRecent: boolean): void => {
+  const onSteam = (item: Parameters<typeof steamItemEffects>[0], fromRecent: boolean, room: number): void => {
     if (surface) tick(surface.win, hand);
     swiped = null;
     sendEffects(steamItemEffects(item));
-    emoji = { ...emoji, recent: useRecent(emoji.recent, steamKey(item), fromRecent, RECENT_MAX) };
-    picker?.update(emoji);
+    setRecent((was) => useRecent(was, steamKey(item), fromRecent, room));
     saveEmoji();
   };
 
   /** A skin tone picked from a hold: it applies everywhere from now on, starting with this emoji. */
-  const onTone = (tone: Tone, base: string): void => {
+  const onTone = (tone: Tone, base: string, room: number): void => {
     emoji = { ...emoji, tone };
-    typeEmoji(base, false);
+    typeItem(base, false, room);
   };
 
   const onClearRecent = (): void => {
     if (surface) tick(surface.win, hand);
-    emoji = { ...emoji, recent: [] };
-    picker?.update(emoji);
+    setRecent(() => []);
     saveEmoji(0);
   };
 

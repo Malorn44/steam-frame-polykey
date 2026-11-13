@@ -180,7 +180,7 @@ class Bridge:
         return {"ok": True}
 
     def _save_emoji(self, request: dict) -> dict:
-        """Save recent and favorite emoji and the skin tone (typed content: never logged)."""
+        """Save the picker's state: each set's Recent, the favorites and the skin tone (typed content: never logged)."""
         if self._settings_path is None or not isinstance(request.get("state"), dict):
             return {"ok": False, "error": "bad-state"}
         try:
