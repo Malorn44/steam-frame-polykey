@@ -192,13 +192,13 @@ const CSS = `
 .key.subbed { flex-direction: column; }
 .key .sub { font-size: var(--size-sub); line-height: 1; margin-top: 3px; color: var(--legend); }
 .kb.large .key.mod.labelled { font-size: var(--size-label); }
-/* The 12-key's mode key: あ and a, the current mode's in bold. */
-.key .pair { font-weight: 300; opacity: var(--opacity-muted); }
-.key .pair.now { font-weight: 700; opacity: 1; }
-.key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
-/* The mode key's halves (한/영): the current mode's over the indicator bar, as 英数 / かな mark theirs. */
-.key .half { position: relative; }
-.key .half.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: var(--indicator-width); background: var(--indicator); }
+/* A part per mode, the current mode's marked: in bold (the 12-key's あ a), or over the indicator bar as
+   英数 / かな mark theirs (the mode key's 한/영). */
+.key .part.bold { font-weight: 300; opacity: var(--opacity-muted); }
+.key .part.bold.now { font-weight: 700; opacity: 1; }
+.key .part.bold + .part.bold { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
+.key .part.indicator { position: relative; }
+.key .part.indicator.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: var(--indicator-width); background: var(--indicator); }
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
 /* Notched (the JIS Enter, wider above): the top half's lower left is a corner of the key. */
 .kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
@@ -807,20 +807,17 @@ export const createView = (
     if (legend.boxed) el.replaceChildren(boxed(legend.text));
     else el.textContent = legend.text;
   };
-  /** The label (slot c): text, an icon, the あ a pair, the mode key's halves, or ゛゜ over 大⇔小; a line beneath it in the flow. */
+  /** The label (slot c): text, an icon, a part per mode (あ a, 한/영), or ゛゜ over 大⇔小; a line beneath it in the flow. */
   const showLabel = (entry: Entry, legend: Legend | undefined): void => {
     const { el, label } = entry;
     label.className = `lbl${legend ? sizeClass(legend) + toneClass(legend) : ''}`;
     if (!legend) label.textContent = '';
     else if (legend.kind === 'text') putText(label, legend);
     else if (legend.kind === 'icon') label.innerHTML = ICONS[legend.icon as IconName] ?? '';
-    else if (legend.kind === 'pair') {
-      label.replaceChildren(...legend.parts.map((text, i) => Object.assign(doc.createElement('span'), {
-        className: i === legend.now ? 'pair now' : 'pair', textContent: text })));
-    } else if (legend.kind === 'modes') {
-      const half = (i: 0 | 1): HTMLElement => Object.assign(doc.createElement('span'), {
-        className: i === legend.now ? 'half now' : 'half', textContent: legend.parts[i] });
-      label.replaceChildren(half(0), '/', half(1));
+    else if (legend.kind === 'parts') {
+      const part = (i: 0 | 1): HTMLElement => Object.assign(doc.createElement('span'), {
+        className: `part ${legend.mark}${i === legend.now ? ' now' : ''}`, textContent: legend.parts[i] });
+      label.replaceChildren(...(legend.mark === 'indicator' ? [part(0), '/', part(1)] : [part(0), part(1)]));
     } else if (!label.querySelector('.mk')) {
       const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
       const marks = span('mk-marks', '');

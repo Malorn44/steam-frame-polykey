@@ -1425,7 +1425,7 @@ describe('Korean', () => {
     return { popup, sent, pre, typeAll, state: steam.state };
   };
   /** The mode key's marked half (한 or 영), in this popup. */
-  const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.half.now')?.textContent;
+  const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.part.now')?.textContent;
 
   it('composes each syllable in the bar, in the language\'s fonts, and sends it as the next begins; Space sends the last', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
