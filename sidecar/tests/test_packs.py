@@ -225,12 +225,26 @@ def test_a_two_row_key_needs_room_below(tmp_path):
     assert "mine/full: row 0: Enter is 2 rows high but row 1 has no room for it" in errors
 
 
-def test_a_table_has_entries_or_cycles(tmp_path):
+def test_a_table_holds_one_of_its_formats(tmp_path):
     table = {"schemaVersion": 1, "kind": "table", "id": "mine/empty", "name": "empty"}
     write(tmp_path / "packs", "mine/empty.json", table)
+    write(
+        tmp_path / "packs", "mine/two.json", {**table, "id": "mine/two", "cycles": ["はばぱ"], "entries": [["a", "あ"]]}
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert "mine/empty" not in boot["catalog"]["tables"]
-    assert "mine/empty: needs entries, cycles or hangul (one of them)" in boot["errors"]
+    assert "mine/empty" not in boot["catalog"]["tables"] and "mine/two" not in boot["catalog"]["tables"]
+    assert "mine/empty.json: /: needs entries, cycles or hangul (one of them)" in boot["errors"]
+    assert "mine/two.json: /: needs entries, cycles or hangul (one of them)" in boot["errors"]
+
+
+def test_the_schema_lists_each_table_format_once():
+    """A format is a table field and one oneOf option (exactly one of them); a composer reads one of them."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]
+    formats = [option["required"][0] for option in schema["table"]["oneOf"]]
+    common = {"$schema", "schemaVersion", "kind", "id", "name", "description"}
+    assert formats == [field for field in schema["table"]["properties"] if field not in common]
+    assert set(packs.COMPOSER_TABLES) <= set(schema["keyboard"]["properties"]["composer"]["enum"])
+    assert set(packs.COMPOSER_TABLES.values()) <= set(formats)
 
 
 def test_a_user_item_replaces_the_bundled_one(tmp_path):
@@ -596,7 +610,7 @@ def test_a_hangul_table_is_checked(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     finals = "does not match ^[ㄱ-ㄷㄹ-ㅂㅄ-ㅈㅊ-ㅎ]{3}$"
     assert sorted(boot["errors"]) == [
-        "mine/both: needs entries, cycles or hangul (one of them)",
+        "mine/both.json: /: needs entries, cycles or hangul (one of them)",
         f"mine/finals.json: /hangul/compoundFinals/0: {finals}",
         "mine/order.json: /hangul: unknown field initials",
         f"mine/tense.json: /hangul/compoundFinals/0: {finals}",
