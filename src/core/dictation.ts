@@ -20,7 +20,7 @@ export const dictationLanguage = (keyboard: KeyboardDef | undefined, latin: bool
   (latin ? 'en' : languageCode(language?.dictation ?? keyboard?.language) ?? 'en');
 
 /** The languages the keyboards dictate in, sorted (the Dictation tab lists them); `languageOf` gives each one's pack. */
-export const dictationLanguages = (keyboards: readonly KeyboardDef[], languageOf: (k: KeyboardDef) => LanguageDef | undefined = () => undefined): string[] =>
+export const dictationLanguages = (keyboards: readonly KeyboardDef[], languageOf: (k: KeyboardDef) => LanguageDef | undefined): string[] =>
   [...new Set(keyboards.flatMap((k) => languageCode(languageOf(k)?.dictation ?? k.language) ?? []))].sort();
 
 /** Dictated text as typed: a space first when a word was being typed, and one after it where words are spaced. */

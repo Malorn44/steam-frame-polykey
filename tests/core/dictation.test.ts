@@ -15,7 +15,7 @@ describe('dictation', () => {
     expect(dictationLanguage(keyboard('en-US'), false)).toBe('en');
     expect(dictationLanguage(keyboard(), false)).toBe('en');
     expect(dictationLanguage(keyboard('und;x'), false)).toBe('en');
-    expect(dictationLanguages([keyboard('ja'), keyboard('en-US'), keyboard('ja-JP'), keyboard(), keyboard('und;x')])).toEqual(['en', 'ja']);
+    expect(dictationLanguages([keyboard('ja'), keyboard('en-US'), keyboard('ja-JP'), keyboard(), keyboard('und;x')], () => undefined)).toEqual(['en', 'ja']);
   });
 
   it('spaces a phrase like typed words, except where words are not spaced', () => {
