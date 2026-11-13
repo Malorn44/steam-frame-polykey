@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef } from '../../src/core/catalog.js';
-import { builtOnce } from '../../src/core/composers/composer.js';
+import { MAX_READING, builtOnce } from '../../src/core/composers/composer.js';
 import { COMPOSERS, composerOf } from '../../src/core/composers/index.js';
 
 type Schema = { $defs: { keyboard: { properties: { composer: { enum: string[] } } } } };
@@ -21,6 +21,13 @@ describe('the composer registry', () => {
     expect(composerOf(keyboard())).toBeNull();
     expect(composerOf(keyboard('toString'))).toBeNull(); // not an own entry
     expect(composerOf(undefined)).toBeNull();
+  });
+});
+
+describe('MAX_READING', () => {
+  it('is the longest reading the sidecar converts', () => {
+    const engine = readFileSync('sidecar/polykey/converters/engine.py', 'utf8');
+    expect(engine.match(/^MAX_READING = (\d+)$/m)?.[1]).toBe(String(MAX_READING));
   });
 });
 
