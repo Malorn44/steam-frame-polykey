@@ -879,7 +879,7 @@
         },
         "table": {
           "$ref": "#/$defs/id",
-          "description": "The table (kind table) the composer reads: entries for composer romaji (or a kana keyboard's romajiInput option), hangul for composer hangul."
+          "description": "The table (kind table) the composer reads, or a kana keyboard's romajiInput option: it must hold the field that composer reads (COMPOSER_TABLES, sidecar/polykey/packs.py)."
         }
       }
     },
@@ -1092,6 +1092,23 @@
       ],
       "additionalProperties": false,
       "description": "A table: entries (romaji to kana), cycles (゛゜小), or hangul (how jamo compose); one of them.",
+      "oneOf": [
+        {
+          "required": [
+            "entries"
+          ]
+        },
+        {
+          "required": [
+            "cycles"
+          ]
+        },
+        {
+          "required": [
+            "hangul"
+          ]
+        }
+      ],
       "properties": {
         "$schema": {
           "type": "string"
