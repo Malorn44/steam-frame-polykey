@@ -19,3 +19,6 @@ export type ComposerId = keyof typeof COMPOSERS;
 /** The keyboard's composer: null when its keys type at once (direct, or a composer this build does not have). */
 export const composerOf = (keyboard: KeyboardDef | undefined): Composer<unknown> | null =>
   (keyboard?.composer && Object.hasOwn(COMPOSERS, keyboard.composer) ? COMPOSERS[keyboard.composer] : null);
+
+/** Whether the keyboard's composer takes dictated text into what it composes (a reading, for its candidates). */
+export const takesDictation = (keyboard: KeyboardDef | undefined): boolean => composerOf(keyboard)?.insert !== undefined;
