@@ -1,0 +1,24 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "picker",
+ "id": "emoji/emoji",
+ "name": {"en": "Emoji", "ja": "絵文字"},
+ "description": "Unicode's emoji in its groups (emoji.data, built by scripts/make-emoji.py), with skin tones, Favorites and your Steam items.",
+ "icon": "emoji",
+ "cellWidth": 1,
+ "tones": true,
+ "steam": true,
+ "favorites": true,
+ "categories": [
+  {"id": "smileys", "name": "Smileys & Emotion", "icon": "smileys", "items": {"file": "emoji/emoji.data"}},
+  {"id": "people", "name": "People & Body", "icon": "people", "items": {"file": "emoji/emoji.data"}},
+  {"id": "animals", "name": "Animals & Nature", "icon": "animals", "items": {"file": "emoji/emoji.data"}},
+  {"id": "food", "name": "Food & Drink", "icon": "food", "items": {"file": "emoji/emoji.data"}},
+  {"id": "travel", "name": "Travel & Places", "icon": "travel", "items": {"file": "emoji/emoji.data"}},
+  {"id": "activities", "name": "Activities", "icon": "activities", "items": {"file": "emoji/emoji.data"}},
+  {"id": "objects", "name": "Objects", "icon": "objects", "items": {"file": "emoji/emoji.data"}},
+  {"id": "symbols", "name": "Symbols", "icon": "symbols", "items": {"file": "emoji/emoji.data"}},
+  {"id": "flags", "name": "Flags", "icon": "flags", "items": {"file": "emoji/emoji.data"}}
+ ]
+}

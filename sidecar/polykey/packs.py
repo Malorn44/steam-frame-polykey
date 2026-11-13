@@ -1,4 +1,4 @@
-"""Load and validate packs (layouts, keyboards, themes) and the user's settings.
+"""Load and validate packs (layouts, keyboards, themes, picker sets) and the user's settings.
 
 Bundled packs come first; a user pack in ~/.config/polykey/packs/ replaces the bundled item with the
 same id. Files are validated against packs/pack.schema.json with a small stdlib validator for the
@@ -255,23 +255,6 @@ MAX_EMOJI_LIST = 40
 TONES = ("", "light", "medium-light", "medium", "medium-dark", "dark")
 
 
-def load_emoji(dirs: list[Path], errors: list[str]) -> Optional[dict]:
-    """The emoji picker data (emoji/emoji.data, JSON): the user's copy first, then the bundled one."""
-    for directory in dirs:
-        path = directory / "emoji" / "emoji.data"
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            continue
-        except (OSError, ValueError) as error:
-            errors.append(f"emoji/emoji.data: not valid JSON ({type(error).__name__})")
-            continue
-        if isinstance(data, dict) and isinstance(data.get("groups"), list):
-            return {"groups": data["groups"]}
-        errors.append("emoji/emoji.data: no groups")
-    return None
-
-
 MAX_KAOMOJI_CATEGORIES = 64
 MAX_KAOMOJI_FACES = 2000
 MAX_KAOMOJI_FACE = 64
@@ -378,6 +361,157 @@ _kaomoji: Optional[dict] = None
 def loaded_kaomoji() -> Optional[dict]:
     """The kaomoji from the last load(), each face as {text, reading, tags}; None when there are none."""
     return _kaomoji
+
+
+# --- picker sets ---------------------------------------------------------------------------------
+
+MAX_PICKER_SETS = 16
+MAX_PICKER_ITEMS = 4000
+# Sections the picker draws itself: a category cannot take their ids.
+PICKER_OWN_SECTION = re.compile(r"^(recent|favorites|steam-.*)\Z")
+_PICKER_FILE_ITEMS = {"type": "array", "minItems": 1, "maxItems": 2000, "items": {"$ref": "#/$defs/pickerItem"}}
+
+
+def _picker_problem(item: dict) -> Optional[str]:
+    """What is wrong with a picker set's categories that the schema cannot say, or None."""
+    ids = [category["id"] for category in item["categories"]]
+    own = next((i for i in ids if PICKER_OWN_SECTION.match(i)), None)
+    if own is not None:
+        return f"category {own}: that id is the picker's own"
+    twice = next((i for i in ids if ids.count(i) > 1), None)
+    return f"category {twice} is defined twice" if twice is not None else None
+
+
+def _merge_picker(bundled: dict, mine: dict) -> dict:
+    """A user's set over the bundled one with its id: the user's fields over the bundled ones, and the
+    bundled categories, each one the user also has replaced in place and the user's others after them."""
+    own = {category["id"]: category for category in mine["categories"]}
+    kept = [own.pop(category["id"], category) for category in bundled["categories"]]
+    return {**bundled, **mine, "categories": kept + list(own.values())}
+
+
+def _data_groups(path: Path) -> Any:
+    """A data file's groups as {id: items}; None when there is no file, or what is wrong with it."""
+    try:
+        if path.stat().st_size > MAX_FILE_BYTES:
+            return f"larger than {MAX_FILE_BYTES // 1024} KiB"
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as error:
+        return f"not valid JSON ({type(error).__name__})"
+    groups = data.get("groups") if isinstance(data, dict) else None
+    if not isinstance(groups, list) or not all(isinstance(g, dict) and isinstance(g.get("id"), str) for g in groups):
+        return "no groups"
+    return {group["id"]: group.get("items") for group in groups}
+
+
+class _DataFiles:
+    """Items kept in data files (<namespace>/<name>.data): the user's copy first, then the bundled one.
+    Each file is read once and each group checked once, however many categories name them."""
+
+    def __init__(self, dirs: list[Path], schema: dict, errors: list[str]):
+        self._dirs, self._schema, self._errors = dirs, schema, errors
+        self._groups: dict[Path, Any] = {}
+        self._items: dict[tuple[Path, str], Optional[list]] = {}
+
+    def items(self, name: str, group: str) -> Optional[list]:
+        for directory in self._dirs:
+            path = directory / name
+            if path not in self._groups:
+                self._groups[path] = _data_groups(path)
+                if isinstance(self._groups[path], str):
+                    self._errors.append(f"{name}: {self._groups[path]}")
+            groups = self._groups[path]
+            if not isinstance(groups, dict) or group not in groups:
+                continue
+            if (path, group) not in self._items:
+                problems = validate(groups[group], _PICKER_FILE_ITEMS, self._schema, f"/{group}")
+                if problems:
+                    self._errors.append(f"{name}: {problems[0]}")
+                self._items[(path, group)] = None if problems else groups[group]
+            if self._items[(path, group)] is not None:
+                return self._items[(path, group)]
+        return None
+
+
+def _resolve_picker(item: dict, files: _DataFiles, errors: list[str]) -> Optional[dict]:
+    """The set with every category's items listed (those kept in a data file read from it), or None
+    (reported) when the set cannot be shown. A category whose data is missing is left out, reported."""
+    problem = _picker_problem(item)
+    categories = []
+    for category in [] if problem else item["categories"]:
+        items = category["items"]
+        if isinstance(items, dict):
+            group = items.get("group", category["id"])
+            found = files.items(items["file"], group)
+            if found is None:
+                errors.append(f"{item['id']}: category {category['id']}: no group {group} in {items['file']}")
+                continue
+            items = found
+        categories.append({**category, "items": items})
+    if not problem and len(categories) > 64:
+        problem = "more than 64 categories"
+    if not problem and sum(len(category["items"]) for category in categories) > MAX_PICKER_ITEMS:
+        problem = f"more than {MAX_PICKER_ITEMS} items"
+    if not problem and not categories:
+        problem = "no categories"
+    if problem:
+        errors.append(f"{item['id']}: {problem}")
+        return None
+    return {**item, "categories": categories}
+
+
+def _load_pickers(bundled: dict, mine: dict, files: _DataFiles, errors: list[str]) -> list[dict]:
+    """The picker sets in pack order: the bundled ones, then the user's new ones. A user's set with a
+    bundled one's id is laid over it; if that cannot be shown, the bundled one is, as it was."""
+    sets = []
+    for set_id in [*bundled, *(i for i in mine if i not in bundled)]:
+        tries = [bundled[set_id]] if set_id in bundled else []
+        if set_id in mine:
+            own = _picker_problem(mine[set_id])
+            if own:
+                errors.append(f"{set_id}: {own}")
+            else:
+                tries.insert(0, _merge_picker(tries[0], mine[set_id]) if tries else mine[set_id])
+        resolved = next((r for r in (_resolve_picker(t, files, errors) for t in tries) if r is not None), None)
+        if resolved is not None:
+            sets.append(resolved)
+    if len(sets) > MAX_PICKER_SETS:
+        errors.append(
+            f"more than {MAX_PICKER_SETS} picker sets: {', '.join(s['id'] for s in sets[MAX_PICKER_SETS:])} left out"
+        )
+    return sets[:MAX_PICKER_SETS]
+
+
+def _picker_text(item: Any, tones: bool) -> Any:
+    """An item as the page gets it: its text; an emoji with skin tones keeps them only in a set that offers them."""
+    if isinstance(item, dict):
+        return item["text"]
+    return item if tones or isinstance(item, str) else item[0]
+
+
+def pickers_for_page(sets: list[dict]) -> list[dict]:
+    """What the page gets of the picker sets: each item as its text, without readings and tags."""
+    return [
+        {
+            **{k: v for k, v in s.items() if k not in ("kind", "schemaVersion", "description")},
+            "categories": [
+                {**c, "items": [_picker_text(item, s.get("tones", False)) for item in c["items"]]}
+                for c in s["categories"]
+            ],
+        }
+        for s in sets
+    ]
+
+
+# The picker sets as last loaded, readings and tags included: the page is sent only the texts.
+_pickers: list[dict] = []
+
+
+def loaded_pickers() -> list[dict]:
+    """The picker sets from the last load(), in pack order, each item as its pack wrote it."""
+    return _pickers
 
 
 def clean_emoji_state(data: object) -> dict:
@@ -681,11 +815,18 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         }
     user = user or user_dir()
     items = _scan(bundled, schema, errors)
-    items.update(_scan(user / "packs", schema, errors))  # user items replace bundled ones by id
+    mine = _scan(user / "packs", schema, errors)
+    is_picker = lambda found: {item_id: item for item_id, item in found.items() if item["kind"] == "picker"}
+    global _pickers
+    _pickers = _load_pickers(
+        is_picker(items), is_picker(mine), _DataFiles([user / "packs", bundled], schema, errors), errors
+    )
+    items.update(mine)  # user items replace bundled ones by id
 
     catalog: dict[str, dict] = {kind: {} for kind in KINDS.values()}
     for item_id, item in items.items():
-        catalog[KINDS[item["kind"]]][item_id] = item
+        if item["kind"] in KINDS:
+            catalog[KINDS[item["kind"]]][item_id] = item
     _check_tables(catalog, errors)
     _resolve_layouts(catalog, errors)
     catalog["keyboards"] = _extend_keyboards(catalog["keyboards"], errors)
@@ -714,7 +855,8 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         errors.append(f"settings.json: unknown theme {settings['theme']}")
         default = DEFAULT_SETTINGS["theme"]
         settings["theme"] = default if default in catalog["themes"] else next(iter(sorted(catalog["themes"])), "")
-    emoji = load_emoji([user / "packs", bundled], errors)
+    # Until the page draws the sets themselves, it gets the emoji set's categories as its groups.
+    emoji = next(({"groups": s["categories"]} for s in pickers_for_page(_pickers) if s["id"] == "emoji/emoji"), None)
     global _kaomoji
     _kaomoji = load_kaomoji([user / "packs", bundled], errors)
     return {
@@ -723,6 +865,7 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         "errors": errors,
         "emoji": emoji,
         "kaomoji": kaomoji_for_page(_kaomoji),
+        "pickers": pickers_for_page(_pickers),
         "emojiState": load_emoji_state(user / "emoji.json"),
     }
 
@@ -735,4 +878,5 @@ if __name__ == "__main__":
 
     with tempfile.TemporaryDirectory() as empty:
         result = load(Path(sys.argv[1]), Path(sys.argv[2]), user=Path(empty))
-    json.dump({"catalog": result["catalog"], "errors": result["errors"]}, sys.stdout, ensure_ascii=False)
+    shown = {"catalog": result["catalog"], "pickers": result["pickers"], "errors": result["errors"]}
+    json.dump(shown, sys.stdout, ensure_ascii=False)

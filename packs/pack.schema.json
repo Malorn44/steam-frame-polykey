@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://polykey/packs/pack.schema.json",
   "title": "polykey pack item",
-  "description": "One layout, keyboard, theme or table. Files live in packs/<namespace>/; ids are <namespace>/<name>.",
+  "description": "One layout, keyboard, theme, table or picker set. Files live in packs/<namespace>/; ids are <namespace>/<name>.",
   "oneOf": [
     {
       "$ref": "#/$defs/layout"
@@ -15,6 +15,9 @@
     },
     {
       "$ref": "#/$defs/table"
+    },
+    {
+      "$ref": "#/$defs/picker"
     }
   ],
   "$defs": {
@@ -1134,6 +1137,228 @@
         }
       },
       "description": "What this key becomes when 🌐 is hidden (one keyboard in your list): its width and how many rows high. The layout's rows must still be as wide as before."
+    },
+    "pickerText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$",
+      "description": "What the picker shows and types: up to 64 characters on one line."
+    },
+    "pickerWords": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32,
+        "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$"
+      }
+    },
+    "pickerItem": {
+      "description": "One thing to pick: its text; or its text with words that could call it up; or an emoji with its five skin tones.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/pickerText"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "$ref": "#/$defs/pickerText"
+            },
+            "reading": {
+              "$ref": "#/$defs/pickerWords",
+              "description": "Words in hiragana that could call the item up. Kept by the sidecar."
+            },
+            "tags": {
+              "$ref": "#/$defs/pickerWords",
+              "description": "Words that describe the item. Kept by the sidecar."
+            }
+          }
+        },
+        {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/pickerText"
+          },
+          "description": "[base, light, medium-light, medium, medium-dark, dark]: the tones are offered when the set has \"tones\": true."
+        }
+      ]
+    },
+    "pickerCategory": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,32}$",
+          "description": "Unique in its set. recent, favorites and steam-… are the picker's own."
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "icon": {
+          "$ref": "#/$defs/pickerIcon",
+          "description": "The category's tab. Without one the tab reads its name, and the name stands beside the category in the grid."
+        },
+        "items": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2000,
+              "items": {
+                "$ref": "#/$defs/pickerItem"
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "file"
+              ],
+              "additionalProperties": false,
+              "description": "The items are in a data file, for a list too long to write here.",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "pattern": "^[a-z0-9-]+/[a-z0-9-]+\\.data$",
+                  "description": "<namespace>/<name>.data, JSON: {\"groups\": [{\"id\": …, \"items\": […]}]}. A copy in your own packs folder is read instead of the bundled one."
+                },
+                "group": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]{1,32}$",
+                  "description": "The group in the file whose items these are; default: the category's id."
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "pickerIcon": {
+      "enum": [
+        "settings",
+        "emoji",
+        "dictate",
+        "copy",
+        "cut",
+        "paste",
+        "hide",
+        "close",
+        "back",
+        "menu",
+        "recent",
+        "favorites",
+        "smileys",
+        "people",
+        "animals",
+        "food",
+        "travel",
+        "activities",
+        "objects",
+        "symbols",
+        "flags",
+        "clear",
+        "emoticons",
+        "stickers",
+        "effects",
+        "backspace",
+        "undo",
+        "backspaceTag",
+        "enter",
+        "left",
+        "space",
+        "right",
+        "up",
+        "down",
+        "chevron",
+        "globe",
+        "shift",
+        "shiftLocked",
+        "caps",
+        "capsOn",
+        "frame",
+        "translate"
+      ],
+      "description": "An icon from src/ui/icons.ts."
+    },
+    "picker": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "kind",
+        "id",
+        "name",
+        "icon",
+        "categories"
+      ],
+      "additionalProperties": false,
+      "description": "A set the picker shows (emoji, kaomoji, your own): categories of things to tap and type.",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "picker"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "icon": {
+          "$ref": "#/$defs/pickerIcon",
+          "description": "Shown on the picker's mode key when this set is the next one."
+        },
+        "cellWidth": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "How wide a cell is, in emoji cells: 1 (the default) for single characters, 2.5 for kaomoji. Above 1, each item is shrunk to fit its cell."
+        },
+        "tones": {
+          "type": "boolean",
+          "description": "Items written with their skin tones offer them when held, and are typed in the tone last chosen."
+        },
+        "steam": {
+          "type": "boolean",
+          "description": "The user's Steam emoticons, stickers and room effects follow the categories."
+        },
+        "favorites": {
+          "type": "boolean",
+          "description": "A Favorites section, filled by drag and drop from Recent."
+        },
+        "categories": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/pickerCategory"
+          },
+          "description": "In the order their tabs show. In a pack of yours with a bundled set's id, a category with a bundled category's id replaces it and any other is added after them."
+        }
+      }
     }
   }
 }
