@@ -48,6 +48,8 @@ SOFTWARE.
 Each with its licence text next to it, in `packs/`:
 
 - The English word list, from AOSP: Apache License 2.0, `packs/en/LICENSE.words`.
+- The Korean word list, from the [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/en/download/kor) (Korean news 2022, web 2020, newscrawl 2016): CC BY 4.0, `packs/ko/LICENSE.words`, which says what was changed.
+- The Korean blocklist, `packs/ko/blocked.sha256` (hashes only), partly chosen from [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words)'s `ko` list (CC BY 4.0) and [doublems/korean-bad-words](https://github.com/doublems/korean-bad-words) (MIT, Copyright (c) 2019 Doublem.org, under the MIT License above).
 - The romaji table, Mozc's `romanji-hiragana.tsv`: BSD-3-Clause, `packs/ja/LICENSE.mozc`.
 - Emoji data, Unicode's `emoji-test.txt`: Unicode License v3, `packs/emoji/LICENSE.unicode`.
 - Kaomoji, chosen from [kaomojikan/kaomoji-data](https://github.com/kaomojikan/kaomoji-data): MIT, `packs/emoji/LICENSE.kaomoji`.
