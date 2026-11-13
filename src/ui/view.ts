@@ -55,7 +55,8 @@ const CSS = `
 :host { all: initial; }
 .kb { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
   background: var(--surface); color: var(--text); font: 400 var(--size-base)/1 var(--font);
-  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+  --indicator-width: 3px; /* the bar marking the current input mode (英数 / かな, 한/영) */ }
 .bar { height: var(--bar-height); display: flex; flex: none; }
 .bar .key { flex: none; width: 30px; font-size: var(--size-bar-key); }
 .bar .key[data-k="hide"] { width: 48px; font-size: calc(var(--size-bar-key) * 1.2); } /* a wide icon, and an easy target */
@@ -139,7 +140,7 @@ const CSS = `
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
-.key.action.on { box-shadow: inset 0 -3px 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
+.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
 .key.down { filter: var(--pressed); }
@@ -197,7 +198,7 @@ const CSS = `
 .key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
 /* The mode key's halves (한/영): the current mode's over the indicator bar, as 英数 / かな mark theirs. */
 .key .half { position: relative; }
-.key .half.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: 3px; background: var(--indicator); }
+.key .half.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: var(--indicator-width); background: var(--indicator); }
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
 /* Notched (the JIS Enter, wider above): the top half's lower left is a corner of the key. */
 .kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
