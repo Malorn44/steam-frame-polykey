@@ -426,6 +426,15 @@ def loaded_pickers() -> list[dict]:
     return _pickers
 
 
+# The tables as last loaded, as the page's composers read them: the spellers read them too.
+_tables: dict[str, dict] = {}
+
+
+def loaded_tables() -> dict[str, dict]:
+    """The table packs from the last load(), by id."""
+    return _tables
+
+
 MAX_STATE_ENTRY = 96
 EMOJI_SET, KAOMOJI_SET = "emoji/emoji", "emoji/kaomoji"
 
@@ -755,6 +764,8 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         if item["kind"] in KINDS:
             catalog[KINDS[item["kind"]]][item_id] = item
     _resolve_layouts(catalog, errors)
+    global _tables
+    _tables = catalog["tables"]
     catalog["keyboards"] = _extend_keyboards(catalog["keyboards"], errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in _pages(keyboard) if lay not in catalog["layouts"]]
