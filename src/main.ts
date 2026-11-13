@@ -22,7 +22,7 @@ import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, nextSet, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { createEmojiView, type EmojiView } from './ui/emoji.js';
-import { composerOf } from './core/composers/index.js';
+import { composerOf, takesDictation } from './core/composers/index.js';
 import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
 import { idleHint, languageOf, spelled } from './core/languages.js';
@@ -331,7 +331,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
   const dictatesIntoBar = (keyboard: KeyboardDef | undefined): boolean =>
-    composerOf(keyboard)?.insert !== undefined && !(keyboard && latinMode.has(keyboard.id));
+    takesDictation(keyboard) && !(keyboard && latinMode.has(keyboard.id));
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
