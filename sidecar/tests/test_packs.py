@@ -546,16 +546,18 @@ def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
         "変換",
         "入力すると、ここに変換候補が出ます",
     )
-    write(tmp_path / "packs", "de/german.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de"))
-    write(tmp_path / "packs", "mine/french.json", language("fr"))
-    write(tmp_path / "packs", "es/spanish.json", language("es", labels={"Convert!": "x"}))
-    write(tmp_path / "packs", "pt/portuguese.json", language("pt", letters="abcdefghi"))
+    write(
+        tmp_path / "packs", "de/language.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de")
+    )
+    write(tmp_path / "packs", "mine/language.json", language("fr"))
+    write(tmp_path / "packs", "es/language.json", language("es", labels={"Convert!": "x"}))
+    write(tmp_path / "packs", "pt/language.json", language("pt", letters="abcdefghi"))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["catalog"]["languages"]["de"]["labels"] == {"confirm": "OK"}
     assert boot["errors"] == [
-        "es/spanish.json: /labels: unknown field Convert!",
-        "mine/french.json: /id: must be mine (the folder name)",
-        "pt/portuguese.json: /letters: too long",
+        "es/language.json: /labels: unknown field Convert!",
+        "mine/language.json: /id: must be mine (the folder name)",
+        "pt/language.json: /letters: too long",
     ]
     assert {"de", "ja"} <= set(boot["catalog"]["languages"]) and not {"es", "fr", "pt"} & set(
         boot["catalog"]["languages"]
@@ -563,7 +565,7 @@ def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
 
 
 def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
-    write(tmp_path / "packs", "ja/mine.json", language("ja", letters="かな", labels={"convert": "Convert"}))
+    write(tmp_path / "packs", "ja/language.json", language("ja", letters="かな", labels={"convert": "Convert"}))
     ja = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["languages"]["ja"]
     assert (ja["letters"], ja["labels"], "idleHint" in ja) == ("かな", {"convert": "Convert"}, False)
 
