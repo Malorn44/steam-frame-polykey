@@ -23,6 +23,28 @@
       "pattern": "^[a-z0-9-]+/[a-z0-9-]+$",
       "maxLength": 80
     },
+    "name": {
+      "description": "A name: one string, or a name per language code, e.g. {\"en\": \"Smiling\", \"ja\": \"笑顔\"}.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          }
+        }
+      ]
+    },
     "icon": {
       "enum": [
         "settings",
@@ -559,9 +581,7 @@
           "$ref": "#/$defs/id"
         },
         "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
+          "$ref": "#/$defs/name"
         },
         "description": {
           "type": "string",
@@ -661,9 +681,7 @@
           "$ref": "#/$defs/id"
         },
         "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
+          "$ref": "#/$defs/name"
         },
         "description": {
           "type": "string",
@@ -863,9 +881,7 @@
           "$ref": "#/$defs/id"
         },
         "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
+          "$ref": "#/$defs/name"
         },
         "colors": {
           "type": "object",
@@ -1064,9 +1080,7 @@
           "$ref": "#/$defs/id"
         },
         "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
+          "$ref": "#/$defs/name"
         },
         "description": {
           "type": "string",

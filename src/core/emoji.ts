@@ -3,6 +3,7 @@
 // mode shows packs/emoji/kaomoji.data: categories of text faces.
 
 import type { Effect } from './keyboard.js';
+import type { PackName } from './names.js';
 
 export type EmojiItem = string | readonly string[];
 export interface EmojiGroup { id: string; name: string; items: EmojiItem[] }
@@ -14,7 +15,7 @@ export type PickerMode = 'emoji' | 'kaomoji';
 export interface EmojiState { recent: string[]; favorites: string[]; tone: Tone; kaomojiRecent: string[]; mode: PickerMode }
 export const NO_EMOJI_STATE: EmojiState = { recent: [], favorites: [], tone: '', kaomojiRecent: [], mode: 'emoji' };
 
-export interface KaomojiCategory { id: string; en: string; ja: string; faces: string[] }
+export interface KaomojiCategory { id: string; name: PackName; faces: string[] }
 export interface KaomojiData { categories: KaomojiCategory[] }
 
 /** A kaomoji cell is this many emoji cells wide, and Recent this many columns of them. */

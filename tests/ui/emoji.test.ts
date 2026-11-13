@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState } from '../../src/core/emoji.js';
+import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState, type KaomojiCategory } from '../../src/core/emoji.js';
 import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
 import { KAOMOJI_RECENT_NOTE, STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
 import { KAOMOJI_FONT } from '../../src/ui/theme.js';
@@ -333,11 +333,11 @@ describe('the tab strip', () => {
 
 describe('kaomoji mode', () => {
   const categories = [
-    { id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
-    { id: 'tableflip', en: 'Table flip', ja: 'ちゃぶ台返し', faces: ['(╯°□°)╯︵ ┻━┻', '┻━┻ ︵╰(°□°)╯︵ ┻━┻'] },
+    { id: 'smiling', name: { en: 'Smiling', ja: '笑顔' }, faces: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
+    { id: 'tableflip', name: { en: 'Table flip', ja: 'ちゃぶ台返し' }, faces: ['(╯°□°)╯︵ ┻━┻', '┻━┻ ︵╰(°□°)╯︵ ┻━┻'] },
   ];
-  const kaomoji = (state: Partial<EmojiState> = {}, japanese = false) =>
-    setup({ ...NO_EMOJI_STATE, mode: 'kaomoji', ...state }, { kaomoji: { categories, japanese } });
+  const kaomoji = (state: Partial<EmojiState> = {}, language = 'en', shown: KaomojiCategory[] = categories) =>
+    setup({ ...NO_EMOJI_STATE, mode: 'kaomoji', ...state }, { kaomoji: { categories: shown, language } });
   /** As a browser would measure: 10 px a character at the face size. */
   const measured = () => {
     const read: string[] = [];
@@ -369,9 +369,24 @@ describe('kaomoji mode', () => {
   });
 
   it('names tabs and labels in Japanese on a Japanese keyboard, the labels upright', () => {
-    const { shadow } = kaomoji({}, true);
+    const { shadow } = kaomoji({}, 'ja');
     expect([...shadow.querySelectorAll('.tab')].map((t) => t.textContent)).toEqual(['', '笑顔', 'ちゃぶ台返し']);
     expect([...shadow.querySelectorAll('.label.upright')].map((l) => l.textContent)).toEqual(['笑顔', 'ちゃぶ台返し']);
+    expect(kaomoji({}, 'en').shadow.querySelectorAll('.label.upright')).toHaveLength(0);
+  });
+
+  it('a category is named for the keyboard\'s language, else in English, else by its first name; a string is itself', () => {
+    const shown: KaomojiCategory[] = [
+      { id: 'a', name: { en: 'Smiling', ja: '笑顔', pt: 'Sorrindo' }, faces: ['(^_^)'] },
+      { id: 'b', name: { ja: 'ねこ' }, faces: ['(=^･ω･^=)'] },
+      { id: 'c', name: 'Classic', faces: [':-)'] },
+    ];
+    const tabs = (language: string) => [...kaomoji({}, language, shown).shadow.querySelectorAll('.tab')].map((t) => t.textContent);
+    expect(tabs('pt-BR')).toEqual(['', 'Sorrindo', 'ねこ', 'Classic']);
+    expect(tabs('fr')).toEqual(['', 'Smiling', 'ねこ', 'Classic']);
+    expect(tabs('ja')).toEqual(['', '笑顔', 'ねこ', 'Classic']);
+    // A name in kana stands upright whatever the keyboard.
+    expect([...kaomoji({}, 'fr', shown).shadow.querySelectorAll('.label.upright')].map((l) => l.textContent)).toEqual(['ねこ']);
   });
 
   it('a tap types the face and says how much Recent holds; from Recent it says so', () => {

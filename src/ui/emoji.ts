@@ -12,6 +12,7 @@
 
 import type { Theme } from '../core/catalog.js';
 import { HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
+import { nameFor } from '../core/names.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS } from './icons.js';
 import { BAR_PX, sizeVars } from './sizes.js';
@@ -25,6 +26,8 @@ export const RECENT_COLUMNS = 6;
 export const RECENT_MAX = RECENT_COLUMNS * 4 - 1;
 const GLIDE_TAU_S = 0.35;
 const GLIDE_MIN_SPEED = 300;
+/** A category's label stands upright, not turned on its side, when its name has kana or kanji. */
+const UPRIGHT = /[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}]/u;
 /** Room kept clear beside a face in its cell (both sides together). */
 const FACE_PAD_PX = 10;
 
@@ -88,8 +91,8 @@ export interface EmojiPickerInput {
   /** True while Steam is still fetching the items. */
   steamLoading?: boolean;
   tones: ReadonlyMap<string, readonly string[]>;
-  /** Kaomoji mode's faces, named in Japanese on a Japanese keyboard; without them the picker stays on emoji. */
-  kaomoji?: { categories: readonly KaomojiCategory[]; japanese: boolean } | null;
+  /** Kaomoji mode's faces, their categories named in `language` (the keyboard's); without them the picker stays on emoji. */
+  kaomoji?: { categories: readonly KaomojiCategory[]; language?: string | undefined } | null;
 }
 
 export interface EmojiView {
@@ -247,7 +250,7 @@ export const createEmojiView = (
       strip.append(el);
       if (label) {
         const l = doc.createElement('div');
-        l.className = upright ? 'label upright' : 'label'; // kana and kanji stand upright in a vertical line
+        l.className = upright ? 'label upright' : 'label';
         l.style.left = `${at + 3}px`;
         l.textContent = label;
         strip.append(l);
@@ -278,8 +281,8 @@ export const createEmojiView = (
         state.kaomojiRecent.slice(0, room).forEach((face, i) => addFace('recent', sx, i, face));
       });
       for (const category of kaomoji.categories) {
-        const name = kaomoji.japanese ? category.ja : category.en;
-        divider(x - gap + 3, name, kaomoji.japanese); // the label fills the gap before its section
+        const name = nameFor(category.name, kaomoji.language);
+        divider(x - gap + 3, name, UPRIGHT.test(name)); // the label fills the gap before its section
         section(category.id, name, Math.ceil(category.faces.length / rows), (sx) => {
           category.faces.forEach((face, i) => addFace(category.id, sx, i, face));
         }, gap);

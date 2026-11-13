@@ -22,6 +22,7 @@ import { NO_EMOJI_STATE, steamItemEffects, steamKey, toneTable, useRecent, withT
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { RECENT_MAX, createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
+import { nameFor } from './core/names.js';
 import { modeLetters, pageLayout } from './core/pages.js';
 import { romajiTable, type RomajiTable } from './core/romaji.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
@@ -32,7 +33,7 @@ import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
 import { OPTIONS, offered, optionsFor, swipeLexicon, type OptionName } from './core/options.js';
 import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
-import { fullName, languageName } from './ui/keyboards-page.js';
+import { fullName, languageName, ownName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsScroll, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type SwipeHandler, type View } from './ui/view.js';
 import { ICONS } from './ui/icons.js';
@@ -779,7 +780,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         steamAvailable: steamItemsAvailable(g),
         steamLoading,
         tones,
-        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, japanese: keyboard?.language === 'ja' } : null,
+        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, language: keyboard?.language } : null,
       }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent, onKaomoji: typeKaomoji });
       if (steamLoading) {
         const until = Date.now() + STEAM_ITEMS_WAIT_MS;
@@ -806,7 +807,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       applyBounds();
     } else if (page === 'settings') {
       panel = createSettingsView(surface.doc, surface.shadow, theme, settings, {
-        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
+        themes: Object.values(boot.catalog.themes).map((t) => ({ id: t.id, name: nameFor(t.name, keyboard?.language), swatch: [t.colors.surface, t.colors.key, t.colors.accent] })),
         version: VERSION,
         errors: boot.errors,
         suggestions: !!keyboard?.lexicon,
@@ -865,7 +866,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
-            return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${def.name}` : k;
+            return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
           ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}) });
       view.update(mods);

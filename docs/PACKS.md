@@ -27,6 +27,16 @@ Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema
 - **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
 - **table:** a romaji table (ka → か), or the cycles of the ゛゜小 key.
 
+A `name` is a string, or one name per language:
+
+```json
+"name": {"en": "Midnight", "ja": "ミッドナイト", "pt-BR": "Meia-noite"}
+```
+
+- The keys are language codes (`en`, `ja`, `pt-BR`), and there is at least one.
+- polykey shows the name for the current keyboard's language: that code's, then its base language's (`pt-BR` falls back to `pt`), then `en`, then the first one written.
+- A list of keyboards (Settings → Keyboards, holding 🌐) names each keyboard in its own language.
+
 The bundled packs are the best examples: [`packs/themes/`](../packs/themes/), [`packs/en/`](../packs/en/) and [`packs/ja/`](../packs/ja/).
 
 ## A theme
@@ -104,14 +114,14 @@ The emoji picker's data is `packs/emoji/emoji.data`, built from Unicode's `emoji
 The picker's kaomoji are `packs/emoji/kaomoji.data`, and a valid copy in `~/.config/polykey/packs/emoji/kaomoji.data` is used instead. It is JSON, with the categories in the order their tabs show:
 
 ```json
-{"categories": [{"id": "smiling", "en": "Smiling", "ja": "笑顔", "faces": [
+{"categories": [{"id": "smiling", "name": {"en": "Smiling", "ja": "笑顔"}, "faces": [
   {"text": "(^_^)", "reading": ["にこにこ", "えがお"], "tags": ["笑顔", "シンプル"]},
   {"text": ":-)"}
 ]}]}
 ```
 
 - Up to 64 categories and 2000 faces in all. An `id` is lowercase letters, digits and `-`.
-- `ja` names the category on a Japanese keyboard, `en` on any other.
+- A category's `name` is a string or one name per language, as a pack's is, and its tab shows the current keyboard's: `ja` on a Japanese keyboard. A name is up to 32 characters.
 - A face is an object. Its `text` is what the picker shows and types: up to 64 characters on one line.
 - `reading` (words in hiragana that could call the face up) and `tags` (Japanese words that describe it) are optional: up to 16 of each, 32 characters a word. Nothing uses them yet; they are kept for suggesting faces as you type.
 - A copy that is not valid is reported in settings, and without any valid data the picker has no kaomoji key.
