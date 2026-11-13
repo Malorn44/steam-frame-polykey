@@ -97,12 +97,12 @@ export interface KeyboardPages { latin?: string | { flick: string; qwerty: strin
 export interface KeyboardDef {
   id: string; name: PackName; layout: string; language?: string; lexicon?: string; options?: KeyboardOptions;
   features?: KeyboardFeatures;
-  /**
-   * How typing composes text in the bar (src/core/composers/): direct, keys type at once; kana, a
-   * reading buffer, sent when confirmed; romaji, the same buffer, letters turned into kana with the table.
-   */
+  /** How typing composes text in the bar: one of COMPOSERS (src/core/composers/index.ts); direct, keys type at once. */
   composer?: ComposerId;
-  /** The composer's table (a table pack): romaji for composer romaji, or a kana keyboard's romajiInput option. */
+  /**
+   * The table pack the composer reads (or a kana keyboard's romajiInput option); it holds the field that
+   * composer reads (COMPOSER_TABLES, sidecar/polykey/packs.py).
+   */
   table?: string;
   /** The keyboard's other pages (src/core/pages.ts); layout is the main one. */
   pages?: KeyboardPages;
@@ -113,7 +113,7 @@ export interface KeyboardDef {
   modes?: { id: string; letters?: string; latin?: boolean }[];
   /** Text the keyboard shows: idleHint, where candidates appear while there are none (default: the language's). */
   strings?: { idleHint?: string };
-  /** The engine that converts what the composer reads (anthy): one of the sidecar's (sidecar/polykey/converters/). */
+  /** The engine that converts what the composer reads: one of the sidecar's CONVERTERS (sidecar/polykey/converters/). */
   converter?: string;
 }
 /**

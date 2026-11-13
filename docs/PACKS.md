@@ -24,7 +24,7 @@ Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema
 
 - **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme.
 - **layout:** the keys, row by row, and the toolbar above them. A layout can `extends` another and replace only some of its rows.
-- **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
+- **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, if it composes in the bar, its composer, the table that composer reads and its converter. A keyboard can `extends` another too.
 - **table:** a romaji table (ka → か), the cycles of the ゛゜小 key, or how Hangul jamo compose.
 - **picker:** a set the emoji picker shows: categories of things to tap and type. Emoji and kaomoji are two of them.
 - **language:** what the keyboards in one language call their letters, and the words their bar shows while you compose (変換, 確定).
