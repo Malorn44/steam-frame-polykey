@@ -17,11 +17,13 @@ CONVERTERS = {
 
 
 class Converters:
-    """The registry's converters (or the ones given, for tests), by id."""
+    """The registry's converters (or the ones given, for tests), by id; `log` hears which ones fail to load."""
 
-    def __init__(self, converters: Optional[dict[str, Converter]] = None) -> None:
+    def __init__(self, converters: Optional[dict[str, Converter]] = None, log=None) -> None:
         self._converters = (
-            converters if converters is not None else {name: Converter(engine) for name, engine in CONVERTERS.items()}
+            converters
+            if converters is not None
+            else {name: Converter(engine, name, log) for name, engine in CONVERTERS.items()}
         )
 
     def handle(self, op: str, request: dict) -> dict:

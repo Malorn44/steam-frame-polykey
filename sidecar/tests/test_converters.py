@@ -54,3 +54,18 @@ def test_a_request_without_a_known_converter_is_refused_and_not_logged():
 def test_without_converters_conversion_is_unavailable():
     bridge = Bridge(Log(io.StringIO()))
     assert ask(bridge, op="convert", converter="anthy", reading="か")["error"] == "unavailable"
+
+
+def test_an_engine_that_fails_to_load_for_any_reason_is_unavailable_and_tried_once():
+    out = io.StringIO()
+    tries = []
+
+    def broken():
+        tries.append(1)
+        raise FileNotFoundError("/usr/share/dictionary ひみつ")
+
+    bridge = Bridge(Log(out), converters=Converters({"one": Converter(broken, "one", Log(out))}))
+    assert ask(bridge, op="convert", converter="one", reading="ひみつ")["error"] == "unavailable"
+    assert ask(bridge, op="predict", converter="one", reading="ひみつ")["error"] == "unavailable"
+    assert len(tries) == 1  # not retried on every request
+    assert out.getvalue() == "one did not load: FileNotFoundError\n"  # its type, nothing of the request
