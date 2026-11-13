@@ -273,7 +273,7 @@ export const createEmojiView = (
 
     if (kaomoji) {
       const room = KAOMOJI_RECENT_COLUMNS * rows;
-      section('recent', kaomoji.japanese ? '最近' : 'Recent', KAOMOJI_RECENT_COLUMNS, (sx) => {
+      section('recent', ICONS.recent, KAOMOJI_RECENT_COLUMNS, (sx) => {
         if (!state.kaomojiRecent.length) note(sx, KAOMOJI_RECENT_COLUMNS, KAOMOJI_RECENT_NOTE);
         state.kaomojiRecent.slice(0, room).forEach((face, i) => addFace('recent', sx, i, face));
       });
@@ -332,8 +332,9 @@ export const createEmojiView = (
     tabs.clear();
     for (const s of sections) {
       const tab = doc.createElement('div');
-      tab.className = kaomoji ? 'tab text' : 'tab';
-      if (s.tab.startsWith('<svg')) tab.innerHTML = s.tab;
+      const icon = s.tab.startsWith('<svg');
+      tab.className = kaomoji && !icon ? 'tab text' : 'tab'; // Recent's icon, as over emoji; a category's name
+      if (icon) tab.innerHTML = s.tab;
       else tab.textContent = s.tab;
       tab.dataset['section'] = s.id;
       tabStrip.append(tab);

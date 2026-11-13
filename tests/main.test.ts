@@ -915,7 +915,7 @@ describe('kaomoji mode', () => {
     await tap(popup, 'kaomoji');
     expect(key(popup, 'kaomoji').querySelector('.lbl svg')).not.toBeNull();
     expect(faces(popup).map((c) => c.textContent)).toEqual(['(^_^)', '(≧▽≦)', ':-)', ';-)']);
-    expect(tabs(popup)).toEqual(['Recent', 'Smiling', 'Classic']);
+    expect(tabs(popup)).toEqual(['', 'Smiling', 'Classic']); // Recent's tab is its icon
     expect(saved.at(-1)).toMatchObject({ mode: 'kaomoji' });
     await tap(popup, 'kaomoji');
     expect(key(popup, 'kaomoji').querySelector('.lbl')!.textContent).toBe(':-)');
@@ -952,7 +952,7 @@ describe('kaomoji mode', () => {
     const { popup, api } = setupKaomoji({ mode: 'kaomoji' });
     api.debug.use('ja/12key');
     await tap(popup, 'emoji');
-    expect(tabs(popup)).toEqual(['最近', '笑顔', 'クラシック']);
+    expect(tabs(popup)).toEqual(['', '笑顔', 'クラシック']);
   });
 
   it('without kaomoji data there is no mode key, and a saved kaomoji mode shows emoji', async () => {

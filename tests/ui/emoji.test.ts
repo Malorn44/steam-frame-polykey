@@ -349,10 +349,12 @@ describe('kaomoji mode', () => {
   };
   afterEach(() => vi.restoreAllMocks());
 
-  it('shows a text tab for Recent and each category, and wide cells filled down each column', () => {
+  it('shows Recent\'s icon tab and a text tab for each category, and wide cells filled down each column', () => {
     const { shadow, cell } = kaomoji();
     const tabs = [...shadow.querySelectorAll<HTMLElement>('.tab')];
-    expect(tabs.map((t) => t.textContent)).toEqual(['Recent', 'Smiling', 'Table flip']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['', 'Smiling', 'Table flip']);
+    expect(tabs.map((t) => [t.className, !!t.querySelector('svg')])).toEqual([['tab on', true], ['tab text', false], ['tab text', false]]);
+    expect(tabs[0]!.innerHTML).toBe(setup().shadow.querySelector('.tab')!.innerHTML); // the emoji picker's Recent icon
     expect(tabs.map((t) => t.dataset['section'])).toEqual(['recent', 'smiling', 'tableflip']);
     expect(shadow.querySelector('.note')!.textContent).toBe(KAOMOJI_RECENT_NOTE);
     expect(shadow.querySelector('.trash')).toBeNull();
@@ -367,7 +369,7 @@ describe('kaomoji mode', () => {
 
   it('names tabs and labels in Japanese on a Japanese keyboard, the labels upright', () => {
     const { shadow } = kaomoji({}, true);
-    expect([...shadow.querySelectorAll('.tab')].map((t) => t.textContent)).toEqual(['最近', '笑顔', 'ちゃぶ台返し']);
+    expect([...shadow.querySelectorAll('.tab')].map((t) => t.textContent)).toEqual(['', '笑顔', 'ちゃぶ台返し']);
     expect([...shadow.querySelectorAll('.label.upright')].map((l) => l.textContent)).toEqual(['笑顔', 'ちゃぶ台返し']);
   });
 
