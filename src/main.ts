@@ -797,18 +797,19 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;
       const shown = settings.dictation ? { ...layout, rows }
         : { ...layout, rows, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
-      const hint = idleHint(keyboard, languageFor(keyboard));
+      const language = languageFor(keyboard);
+      const hint = idleHint(keyboard, language);
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
-          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), languageFor(keyboard)),
-          otherLetters: modeLetters(keyboard, !latinMode.has(id), languageFor(keyboard)),
+          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), language),
+          otherLetters: modeLetters(keyboard, !latinMode.has(id), language),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
-          languageFont: languageFor(keyboard)?.font,
+          languageFont: language?.font,
           ...(hint ? { placeholder: hint } : {}) });
       view.update(mods);
       applyBounds();
