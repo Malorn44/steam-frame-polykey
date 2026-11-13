@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef } from '../../src/core/catalog.js';
-import { latinPage, modeLetters, pageLabel, pageLayout } from '../../src/core/pages.js';
+import { latinPage, latinTarget, modeLetters, pageLabel, pageLayout } from '../../src/core/pages.js';
 
 const twelve: KeyboardDef = {
   id: 'ja/12key', name: '12キー', layout: 'ja/flick',
@@ -44,5 +44,18 @@ describe('pages', () => {
     const abc = { type: 'action', action: 'abc' } as const; // the emoji row's back key
     expect(pageLabel(abc, { letters: '한글', symbols: 0 })).toBe('한글'); // whatever the mode is called
     expect(pageLabel(abc, { symbols: 0 })).toBe('ABC'); // a keyboard without modes
+  });
+
+  it('the mode key switches both ways and reads where it goes; 英数 goes in, かな comes back', () => {
+    const mode = { type: 'action', action: 'mode' } as const;
+    const eisu = { type: 'action', action: 'eisu' } as const;
+    const kana = { type: 'action', action: 'kana' } as const;
+    expect([latinTarget(mode, false), latinTarget(mode, true)]).toEqual([true, false]);
+    expect([latinTarget(eisu, false), latinTarget(eisu, true)]).toEqual([true, true]);
+    expect([latinTarget(kana, false), latinTarget(kana, true)]).toEqual([undefined, false]); // typing: it cycles forms
+    expect(latinTarget({ type: 'char', char: 'a' }, false)).toBeUndefined();
+    expect(pageLabel(mode, { letters: '한글', other: 'ABC', symbols: 0 })).toBe('ABC');
+    expect(pageLabel(mode, { letters: 'ABC', other: '한글', symbols: 1 })).toBe('한글');
+    expect(pageLabel({ ...mode, label: '한/영' }, { other: 'ABC', symbols: 0 })).toBeUndefined(); // its own label wins
   });
 });

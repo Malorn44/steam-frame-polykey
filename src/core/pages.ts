@@ -31,13 +31,27 @@ export const modeLetters = (keyboard: KeyboardDef | undefined, latin: boolean, l
 };
 
 /**
+ * Where a key switches modes from this one: true, into the Latin mode (英数, or the mode key from the
+ * keyboard's own letters); false, back to its own letters (かな in the Latin mode, or the mode key there);
+ * undefined, not a switch (かな while typing kana changes the reading's form instead).
+ */
+export const latinTarget = (key: KeyDef, latin: boolean): boolean | undefined => {
+  if (key.type !== 'action') return undefined;
+  if (key.action === 'mode') return !latin;
+  if (key.action === 'eisu') return true;
+  return key.action === 'kana' && latin ? false : undefined;
+};
+
+/**
  * Labels that follow the page and mode, for keys without a label of their own: the keys back to the
  * letters (the symbols key on a symbols page, and the emoji row's abc) read the current mode's letters
- * (あいう, ABC); more-symbols on the second page goes back to the first (123).
+ * (あいう, ABC); the mode key reads the letters it switches to (`other`: ABC, 한글); more-symbols on the
+ * second page goes back to the first (123).
  */
-export const pageLabel = (key: KeyDef, page: { readonly letters?: string | undefined; readonly symbols: 0 | 1 | 2 }): string | undefined => {
+export const pageLabel = (key: KeyDef, page: { readonly letters?: string | undefined; readonly other?: string | undefined; readonly symbols: 0 | 1 | 2 }): string | undefined => {
   if (key.type !== 'action' || key.label !== undefined) return undefined;
   if ((key.action === 'symbols' && page.symbols) || key.action === 'abc') return page.letters ?? 'ABC';
+  if (key.action === 'mode') return page.other;
   if (key.action === 'more-symbols' && page.symbols === 2) return '123';
   return undefined;
 };

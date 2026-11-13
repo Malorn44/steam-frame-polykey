@@ -283,8 +283,10 @@ export const createView = (
    * side: the reading and candidates in a panel left of the keys (fjk), instead of in the top bar.
    * hints: each flick key's other kana at its edges. placeholder: shown where candidates appear, while empty.
    */
-  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters, keyboardMenu, onSwipe, canSwipe }:
+  { side = false, hints = false, placeholder = '', latin: startLatin = false, romaji = false, symbols = 0, letters: startLetters, otherLetters, keyboardMenu, onSwipe, canSwipe }:
     { side?: boolean; hints?: boolean; symbols?: 0 | 1 | 2; letters?: string | undefined; placeholder?: string; latin?: boolean; romaji?: boolean;
+      /** The other mode's letters (the mode key reads them); with letters, they swap as the mode does. */
+      otherLetters?: string | undefined;
       /** Holding 🌐: the keyboards to pick from (ids, and names to show); the pick comes as its id. */
       keyboardMenu?: { ids: readonly string[]; names: readonly string[] };
       /** Swipe typing on: a press on a letter that leaves its key traces a word instead of typing. */
@@ -294,6 +296,9 @@ export const createView = (
 ): View => {
   /** 英数 mode: JIS keys type their Latin legends; otherwise their kana. */
   let latin = startLatin;
+  /** The current mode's letters and the other mode's. */
+  let letters = startLetters;
+  let other = otherLetters;
   /** Romaji input: JIS keys type their Latin legends in かな mode too. */
   const latinKeys = (): boolean => latin || romaji;
   const dotted = new Set(Array.from(layout.dotted ?? ''));
@@ -857,10 +862,11 @@ export const createView = (
         }
         const label = labels[el.dataset['k'] ?? ''];
         const icon = label === undefined ? iconFor(key, mods, iconSet, layout.arrowStyle ?? 'icon') : undefined;
-        showLegends(entry, keyLegends(key, mods, { latin, romaji, symbols, letters, hints, dotted, icon, label }));
+        showLegends(entry, keyLegends(key, mods, { latin, romaji, symbols, letters, other, hints, dotted, icon, label }));
       }
     },
     setMode: (next) => {
+      if (next !== latin) [letters, other] = [other, letters];
       latin = next;
     },
     setComposition: (c) => {

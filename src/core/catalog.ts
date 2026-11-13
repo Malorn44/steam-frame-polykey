@@ -8,7 +8,7 @@ import type { NamedKey } from './keycodes.js';
 
 export type ModName = 'shift' | 'caps' | 'ctrl' | 'alt' | 'super' | 'fn';
 export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | 'menu' | 'settings' | 'emoji' | 'next-set' | 'dictate' | 'abc'
-  | 'modify' | 'undo' | 'eisu' | 'kana' | 'symbols' | 'more-symbols';
+  | 'modify' | 'undo' | 'eisu' | 'kana' | 'mode' | 'symbols' | 'more-symbols';
 
 /** Where on a key a legend sits: c is the label; the rest are small legends round it. */
 export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';

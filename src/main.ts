@@ -26,7 +26,7 @@ import { composerOf } from './core/composers/index.js';
 import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
 import { idleHint, languageOf, spelled } from './core/languages.js';
-import { modeLetters, pageLayout } from './core/pages.js';
+import { latinTarget, modeLetters, pageLayout } from './core/pages.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
 import { createDictation, createSpeechModels } from './dictation.js';
@@ -343,6 +343,27 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     return true;
   };
 
+  /**
+   * Into or out of the keyboard's Latin mode, for every mode key: what waits in the bar goes first (the
+   * composition going in, the English word coming out), and suggestions start afresh.
+   */
+  const setLatin = (keyboard: KeyboardDef, on: boolean): void => {
+    const was = latinMode.has(keyboard.id);
+    if (on && !was) {
+      bar.flush();
+      latinMode.add(keyboard.id);
+    } else if (!on && was) {
+      sendEnglish();
+      latinMode.delete(keyboard.id);
+    }
+    setWord(NO_WORD); // suggestions only for words typed in the Latin mode
+    if (keyboard.pages?.latin) render(); // a page of its own (the 12-key's ABC keys)
+    else {
+      view?.setMode(latinMode.has(keyboard.id));
+      view?.update(mods);
+    }
+  };
+
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
@@ -367,21 +388,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const keyboard = currentKeyboard();
     const options = optionsFor(keyboard, keyboard ? keyboardOptions[keyboard.id] : undefined);
     const latin = keyboard ? latinMode.has(keyboard.id) : false;
-    // 英数 and かな (the Mac's two keys): one-way switches between typing Latin and typing kana.
-    if (keyboard && key.type === 'action' && (key.action === 'eisu' || (key.action === 'kana' && latin))) {
-      if (key.action === 'eisu' && !latin) {
-        bar.flush(); // 英数 sends the reading first
-        latinMode.add(keyboard.id);
-      } else if (key.action === 'kana') {
-        sendEnglish(); // かな sends the English word first
-        latinMode.delete(keyboard.id);
-      }
-      setWord(NO_WORD); // suggestions only for words typed in 英数 mode
-      if (keyboard.pages?.latin) render(); // the 12-key: ABC keys in 英数 mode
-      else {
-        view?.setMode(latinMode.has(keyboard.id));
-        view?.update(mods);
-      }
+    // The mode key (한/영) switches between the keyboard's own letters and its Latin mode; 英数 and かな (the
+    // Mac's two keys) are one-way switches, かな while typing kana changing the reading's form instead.
+    const toLatin = latinTarget(key, latin);
+    if (keyboard && toLatin !== undefined) {
+      setLatin(keyboard, toLatin);
       return;
     }
     // ?123: the numbers and symbols page, and back; what is being typed stays (3 + じ → 3時).
@@ -786,6 +797,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
           latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), languageFor(keyboard)),
+          otherLetters: modeLetters(keyboard, !latinMode.has(id), languageFor(keyboard)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
