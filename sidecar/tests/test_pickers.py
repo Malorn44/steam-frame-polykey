@@ -11,6 +11,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCHEMA = REPO / "packs" / "pack.schema.json"
 BUNDLED = REPO / "packs"
 EMOJI_GROUPS = ["smileys", "people", "animals", "food", "travel", "activities", "objects", "symbols", "flags"]
+STEAM = ["steam-emoticon", "steam-sticker", "steam-effect"]
 
 
 def write(directory: Path, name: str, data) -> None:
@@ -29,7 +30,8 @@ def picker(set_id: str, *categories: dict, **more) -> dict:
         "kind": "picker",
         "id": set_id,
         "name": "Mine",
-        "icon": "symbols",
+        "key": {"icon": "symbols"},
+        "cells": "emoji",
         "categories": list(categories) or [category("one")],
         **more,
     }
@@ -54,30 +56,42 @@ def test_the_bundled_sets_are_emoji_then_kaomoji(tmp_path):
     assert {k: v for k, v in emoji.items() if k != "categories"} == {
         "id": "emoji/emoji",
         "name": {"en": "Emoji", "ja": "絵文字"},
-        "icon": "emoji",
+        "key": {"icon": "emoji"},
+        "cells": "emoji",
         "cellWidth": 1,
-        "tones": True,
-        "steam": True,
+        "recent": True,
+        "recentBin": True,
         "favorites": True,
+        "tones": True,
     }
     assert {k: v for k, v in kaomoji.items() if k != "categories"} == {
         "id": "emoji/kaomoji",
         "name": {"en": "Kaomoji", "ja": "顔文字"},
-        "icon": "emoticons",
+        "key": {"label": ":-)"},
+        "cells": "text",
         "cellWidth": 2.5,
+        "recent": True,
     }
     # Emoji: Unicode's groups from emoji.data, each with its tab icon; skin tones as written there.
     data = json.loads((BUNDLED / "emoji" / "emoji.data").read_text(encoding="utf-8"))["groups"]
-    assert [(c["id"], c["name"], c["icon"]) for c in emoji["categories"]] == [
-        (g["id"], g["name"], g["id"]) for g in data
+    groups, steam = emoji["categories"][:-3], emoji["categories"][-3:]
+    assert [(c["id"], c["name"], c["icon"]) for c in groups] == [(g["id"], g["name"], g["id"]) for g in data]
+    assert ids(emoji) == EMOJI_GROUPS + STEAM
+    assert [c["items"] for c in groups] == [g["items"] for g in data]
+    assert all(set(c) == {"id", "name", "icon", "items"} for c in groups)  # no labels: their tabs say enough
+    # Then the user's Steam items, a category a kind, set apart, the first under "Steam".
+    assert [(c["steam"], c["icon"], c["items"], c["apart"]) for c in steam] == [
+        ("emoticon", "emoticons", [], True),
+        ("sticker", "stickers", [], True),
+        ("effect", "effects", [], True),
     ]
-    assert ids(emoji) == EMOJI_GROUPS
-    assert [c["items"] for c in emoji["categories"]] == [g["items"] for g in data]
+    assert [c.get("label") for c in steam] == ["Steam", None, None]
     assert emoji["categories"][0]["items"][0] == "😀"
     assert any(isinstance(i, list) and len(i) == 6 for i in emoji["categories"][1]["items"])
-    # Kaomoji: named categories without icons, in the pack's order.
+    # Kaomoji: categories without icons, each labelled with its name, in the pack's order.
     assert len(kaomoji["categories"]) > 1
-    assert all(set(c) == {"id", "name", "items"} and list(c["name"]) == ["en", "ja"] for c in kaomoji["categories"])
+    assert all(set(c) == {"id", "name", "label", "items"} and c["label"] is True for c in kaomoji["categories"])
+    assert all(list(c["name"]) == ["en", "ja"] for c in kaomoji["categories"])
     assert ids(kaomoji)[0] == "smiling"
 
 
@@ -111,7 +125,8 @@ def test_a_users_pack_adds_a_set_after_the_bundled_ones(tmp_path):
     assert boot["pickers"][2] == {
         "id": "mine/symbols",
         "name": "Mine",
-        "icon": "symbols",
+        "key": {"icon": "symbols"},
+        "cells": "emoji",
         "cellWidth": 2,
         "categories": [
             {"id": "arrows", "name": "Arrows", "icon": "right", "items": ["→", "←"]},
@@ -123,7 +138,7 @@ def test_a_users_pack_adds_a_set_after_the_bundled_ones(tmp_path):
 
 def test_a_users_category_replaces_the_bundled_one_with_its_id_and_others_are_added(tmp_path):
     bundled = sets(load(tmp_path / "none"))["emoji/kaomoji"]
-    mine = picker("emoji/kaomoji", category("love", ["<3"]), category("mine", ["o/"]), name="Faces", icon="smileys")
+    mine = picker("emoji/kaomoji", category("love", ["<3"]), category("mine", ["o/"]), name="Faces", cells="text")
     write(tmp_path / "packs", "emoji/kaomoji.json", mine)
     boot = load(tmp_path)
     assert boot["errors"] == []
@@ -135,15 +150,25 @@ def test_a_users_category_replaces_the_bundled_one_with_its_id_and_others_are_ad
     assert by_id["mine"]["items"] == ["o/"]
     assert by_id["smiling"] == bundled["categories"][0]
     # The set's own fields are the user's; what the user's pack leaves out stays as bundled.
-    assert (kaomoji["name"], kaomoji["icon"], kaomoji["cellWidth"]) == ("Faces", "smileys", 2.5)
+    assert (kaomoji["name"], kaomoji["key"], kaomoji["cellWidth"]) == ("Faces", {"icon": "symbols"}, 2.5)
+    assert kaomoji["recent"] is True
 
 
 def test_a_users_set_can_turn_a_bundled_sets_flags_off(tmp_path):
     mine = picker("emoji/emoji", category("flags", ["🏁"], icon="flags"), favorites=False)
     write(tmp_path / "packs", "emoji/emoji.json", mine)
     emoji = sets(load(tmp_path))["emoji/emoji"]
-    assert (emoji["favorites"], emoji["tones"], emoji["steam"]) == (False, True, True)
-    assert ids(emoji) == EMOJI_GROUPS and emoji["categories"][-1]["items"] == ["🏁"]
+    assert (emoji["favorites"], emoji["tones"], emoji["recent"], emoji["recentBin"]) == (False, True, True, True)
+    assert ids(emoji) == EMOJI_GROUPS + STEAM and emoji["categories"][8]["items"] == ["🏁"]
+    # Favorites cannot stay on with the Recent it is filled from switched off: the bundled set shows as it was.
+    write(tmp_path / "packs", "emoji/emoji.json", picker("emoji/emoji", category("flags", ["🏁"]), recent=False))
+    boot = load(tmp_path)
+    assert boot["errors"] == ["emoji/emoji: recentBin needs recent"]
+    assert sets(boot)["emoji/emoji"] == sets(load(tmp_path / "none"))["emoji/emoji"]
+    off = picker("emoji/emoji", category("flags", ["🏁"]), recent=False, recentBin=False, favorites=False)
+    write(tmp_path / "packs", "emoji/emoji.json", off)
+    boot = load(tmp_path)
+    assert boot["errors"] == [] and sets(boot)["emoji/emoji"]["recent"] is False
 
 
 def test_items_come_from_a_data_file(tmp_path):
@@ -176,7 +201,7 @@ def test_a_users_copy_of_emoji_data_is_read_instead(tmp_path):
     boot = load(tmp_path)
     assert boot["errors"] == []
     emoji = sets(boot)["emoji/emoji"]
-    assert ids(emoji) == EMOJI_GROUPS  # a group the copy leaves out is the bundled one
+    assert ids(emoji) == EMOJI_GROUPS + STEAM  # a group the copy leaves out is the bundled one
     assert emoji["categories"][0]["items"] == ["🙂"]
     assert len(emoji["categories"][1]["items"]) > 100
 
@@ -218,8 +243,25 @@ def test_a_bad_picker_pack_is_reported_and_skipped(tmp_path):
     items = lambda *found: picker("mine/set", category("one", found))
     word = lambda **more: items({"text": "ok", **more})
     bad = {
-        "/icon: must be one of": picker("mine/set", icon="rocket"),
-        "/: missing icon": {k: v for k, v in picker("mine/set").items() if k != "icon"},
+        "/key/icon: must be one of": picker("mine/set", key={"icon": "rocket"}),
+        "/: missing cells": {k: v for k, v in picker("mine/set").items() if k != "cells"},
+        "/cells: must be one of emoji, text": picker("mine/set", cells="wide"),
+        "/: missing key": {k: v for k, v in picker("mine/set").items() if k != "key"},
+        "/key/label: too long": picker("mine/set", key={"label": "x" * 9}),
+        "/key": picker("mine/set", key={"icon": "emoji", "label": ":)"}),
+        "/key: must be an object": picker("mine/set", key="emoji"),
+        "/: unknown field icon": picker("mine/set", icon="emoji"),
+        "/: unknown field steam": picker("mine/set", steam=True),
+        "/recent: must be a boolean": picker("mine/set", recent=1),
+        "/recentBin: must be a boolean": picker("mine/set", recentBin="yes"),
+        "/categories/0/label": picker("mine/set", category("one", label=False)),
+        "/categories/0/apart: must be a boolean": picker("mine/set", category("one", apart=1)),
+        "/categories/0/items/steam: must be one of emoticon, sticker, effect": picker(
+            "mine/set", category("one") | {"items": {"steam": "hat"}}
+        ),
+        "/categories/0/items: unknown field group": picker(
+            "mine/set", category("one") | {"items": {"steam": "sticker", "group": "one"}}
+        ),
         "/: missing name": {k: v for k, v in picker("mine/set").items() if k != "name"},
         "/: missing categories": {k: v for k, v in picker("mine/set").items() if k != "categories"},
         "/: unknown field faces": picker("mine/set", faces=[]),
@@ -270,12 +312,62 @@ def test_a_bad_picker_pack_is_reported_and_skipped(tmp_path):
         assert load(tmp_path)["errors"] == [], data
 
 
+def test_a_set_has_only_what_its_pack_says(tmp_path):
+    full = picker(
+        "mine/full",
+        category("one", label=True),
+        category("two", label={"en": "Elsewhere", "ja": "他"}, apart=True, icon="food"),
+        category("mine", icon="stickers") | {"items": {"steam": "sticker"}},
+        key={"label": "abc"},
+        cells="text",
+        recent=True,
+        recentBin=True,
+        favorites=True,
+        tones=True,
+    )
+    write(tmp_path / "packs", "mine/full.json", full)
+    write(tmp_path / "packs", "mine/bare.json", picker("mine/bare"))
+    boot = load(tmp_path)
+    assert boot["errors"] == []
+    assert sets(boot)["mine/bare"] == {
+        "id": "mine/bare",
+        "name": "Mine",
+        "key": {"icon": "symbols"},
+        "cells": "emoji",
+        "categories": [{"id": "one", "name": "One", "items": ["a", "b"]}],
+    }
+    shown = sets(boot)["mine/full"]
+    assert {k: v for k, v in shown.items() if k != "categories"} == {
+        "id": "mine/full",
+        "name": "Mine",
+        "key": {"label": "abc"},
+        "cells": "text",
+        "recent": True,
+        "recentBin": True,
+        "favorites": True,
+        "tones": True,
+    }
+    assert shown["categories"] == [
+        {"id": "one", "name": "One", "label": True, "items": ["a", "b"]},
+        {
+            "id": "two",
+            "name": "Two",
+            "label": {"en": "Elsewhere", "ja": "他"},
+            "apart": True,
+            "icon": "food",
+            "items": ["a", "b"],
+        },
+        {"id": "mine", "name": "Mine", "icon": "stickers", "steam": "sticker", "items": []},
+    ]
+
+
 def test_what_the_schema_cannot_say_is_checked_too(tmp_path):
     bad = {
         "mine/set: category one is defined twice": picker("mine/set", category("one"), category("one")),
         "mine/set: category recent: that id is the picker's own": picker("mine/set", category("recent")),
         "mine/set: category favorites: that id is the picker's own": picker("mine/set", category("favorites")),
-        "mine/set: category steam-sticker: that id is the picker's own": picker("mine/set", category("steam-sticker")),
+        "mine/set: favorites needs recent": picker("mine/set", favorites=True),
+        "mine/set: recentBin needs recent": picker("mine/set", recentBin=True, recent=False),
         "mine/set: more than 4000 items": picker(
             "mine/set", *(category(f"c{i}", [str(n) for n in range(1001)]) for i in range(4))
         ),
@@ -291,7 +383,7 @@ def test_a_bad_override_is_reported_and_the_bundled_set_kept(tmp_path):
     bundled = load(tmp_path / "none")["pickers"]
     many = [category(f"c{i}") for i in range(60)]
     bad = {
-        "emoji/kaomoji.json: /icon: must be one of": picker("emoji/kaomoji", icon="rocket"),
+        "emoji/kaomoji.json: /key/icon: must be one of": picker("emoji/kaomoji", key={"icon": "rocket"}),
         "emoji/kaomoji: category love is defined twice": picker("emoji/kaomoji", category("love"), category("love")),
         "emoji/kaomoji: more than 64 categories": picker("emoji/kaomoji", *many),
     }

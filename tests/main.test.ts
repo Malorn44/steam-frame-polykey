@@ -878,7 +878,7 @@ describe('picker sets', () => {
     { id: 'classic', name: { en: 'Classic', ja: 'クラシック' }, items: [':-)', ';-)'] },
   ]);
   /** A user's own set: plain characters, with no Favorites, tones or Steam items. */
-  const arrows: PickerSet = { id: 'mine/arrows', name: 'Arrows', icon: 'right', categories: [{ id: 'arrows', name: 'Arrows', icon: 'up', items: ['→', '←'] }] };
+  const arrows: PickerSet = { id: 'mine/arrows', name: 'Arrows', key: { icon: 'right' }, cells: 'emoji', recent: true, categories: [{ id: 'arrows', name: 'Arrows', icon: 'up', items: ['→', '←'] }] };
   /** polykey with these sets; `saved` is what the sidecar was asked to save. `state` is as the sidecar sent it. */
   const setupSets = (state: unknown = {}, sets: PickerSet[] = [emoji, kaomoji]) => {
     const boot = bundledBoot();
@@ -903,11 +903,12 @@ describe('picker sets', () => {
   const faces = (popup: FakePopupWindow) => cells(popup).filter((c) => c.classList.contains('face'));
   const tabs = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll('.tab')].map((t) => t.textContent);
   const note = (popup: FakePopupWindow) => shadowOf(popup)!.querySelector('.note')!.textContent;
-  /** The icon the mode key shows, by name. */
-  const modeIcon = (popup: FakePopupWindow) => {
-    const drawn = key(popup, 'kaomoji').querySelector('.lbl')!.innerHTML;
+  /** What the mode key shows: an icon, by name, or its text. */
+  const modeKey = (popup: FakePopupWindow) => {
+    const label = key(popup, 'next-set').querySelector('.lbl')!;
     const asDrawn = (svg: string): string => Object.assign(document.createElement('div'), { innerHTML: svg }).innerHTML;
-    return Object.entries(ICONS).find(([, svg]) => asDrawn(svg) === drawn)?.[0];
+    const icon = Object.entries(ICONS).find(([, svg]) => asDrawn(svg) === label.innerHTML)?.[0];
+    return icon ? `icon ${icon}` : label.textContent;
   };
   const press = async (el: HTMLElement) => {
     el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
@@ -915,36 +916,36 @@ describe('picker sets', () => {
     await vi.advanceTimersByTimeAsync(2000);
   };
 
-  it('the mode key shows the next set\'s icon and goes to it; each switch is saved', async () => {
+  it('the mode key reads :-) over emoji and shows the emoji icon over kaomoji; each switch is saved', async () => {
     const { popup, saved } = setupSets();
     await tap(popup, 'emoji');
-    expect(modeIcon(popup)).toBe('emoticons'); // the kaomoji set's
+    expect(modeKey(popup)).toBe(':-)'); // the kaomoji set's key label
     expect(faces(popup)).toHaveLength(0);
-    await tap(popup, 'kaomoji');
-    expect(modeIcon(popup)).toBe('emoji');
+    await tap(popup, 'next-set');
+    expect(modeKey(popup)).toBe('icon emoji');
     expect(faces(popup).map((c) => c.textContent)).toEqual(['(^_^)', '(≧▽≦)', ':-)', ';-)']);
     expect(tabs(popup)).toEqual(['', 'Smiling', 'Classic']); // Recent's tab is its icon
     expect(saved.at(-1)).toMatchObject({ set: KAOMOJI });
-    await tap(popup, 'kaomoji');
-    expect(modeIcon(popup)).toBe('emoticons');
+    await tap(popup, 'next-set');
+    expect(modeKey(popup)).toBe(':-)');
     expect(faces(popup)).toHaveLength(0);
     expect(cells(popup)[0]!.textContent).toBe('😀');
     expect(saved.at(-1)).toMatchObject({ set: EMOJI });
   });
 
-  it('the mode key cycles through every set in pack order, round to the first again', async () => {
+  it('the mode key cycles through every set in pack order, showing the next one\'s icon or key label', async () => {
     const { popup, saved } = setupSets({}, [emoji, kaomoji, arrows]);
     await tap(popup, 'emoji');
-    const seen: [string | null, string | undefined][] = [];
+    const seen: (string | null)[][] = [];
     for (let i = 0; i < 4; i++) {
-      seen.push([note(popup), modeIcon(popup)]);
-      await tap(popup, 'kaomoji');
+      seen.push([note(popup), modeKey(popup)]);
+      await tap(popup, 'next-set');
     }
     expect(seen).toEqual([
-      ['Recently used emoji appear here.', 'emoticons'],
-      ['Recently used kaomoji appear here.', 'right'],
-      ['Recently used arrows appear here.', 'emoji'],
-      ['Recently used emoji appear here.', 'emoticons'],
+      ['Recently used emoji appear here.', ':-)'],
+      ['Recently used kaomoji appear here.', 'icon right'],
+      ['Recently used arrows appear here.', 'icon emoji'],
+      ['Recently used emoji appear here.', ':-)'],
     ]);
     expect(saved.map((s) => s.set)).toEqual([KAOMOJI, 'mine/arrows', EMOJI, KAOMOJI]);
   });
@@ -952,7 +953,7 @@ describe('picker sets', () => {
   it('with one set there is no mode key, and a saved set that is gone shows the first', async () => {
     const { popup } = setupSets({ ...NO_EMOJI_STATE, set: KAOMOJI }, [emoji]);
     await tap(popup, 'emoji');
-    expect(key(popup, 'kaomoji')).toBeUndefined();
+    expect(key(popup, 'next-set')).toBeUndefined();
     expect(key(popup, 'abc')).toBeDefined();
     expect(cells(popup)[0]!.textContent).toBe('😀');
   });
@@ -960,7 +961,7 @@ describe('picker sets', () => {
   it('a set that is not emoji can stand alone, and is the picker', async () => {
     const { popup, manager } = setupSets({}, [arrows]);
     await tap(popup, 'emoji');
-    expect(key(popup, 'kaomoji')).toBeUndefined();
+    expect(key(popup, 'next-set')).toBeUndefined();
     expect(tabs(popup)).toHaveLength(2); // Recent and Arrows: no Favorites, no Steam items
     await press(cells(popup).find((c) => c.textContent === '←')!);
     expect(manager.calls).toEqual([['←', false]]);
@@ -995,13 +996,13 @@ describe('picker sets', () => {
     expect(typed()).toBe('(≧▽≦):-)(≧▽≦)');
     expect(saved.at(-1)!.recent[KAOMOJI]).toEqual([':-)', '(≧▽≦)']);
     // The next set has its own Recent, empty until something of its own is typed.
-    await tap(popup, 'kaomoji');
+    await tap(popup, 'next-set');
     expect(note(popup)).toBe('Recently used arrows appear here.');
     await press(cells(popup).find((c) => c.textContent === '→')!);
     expect(cells(popup).slice(0, 2).map((c) => c.textContent)).toEqual(['→', '→']); // Recent's, then the category's
     expect(saved.at(-1)!.recent).toEqual({ [EMOJI]: ['😀'], [KAOMOJI]: [':-)', '(≧▽≦)'], 'mine/arrows': ['→'] });
     // And the first set's is as it was.
-    await tap(popup, 'kaomoji');
+    await tap(popup, 'next-set');
     expect(cells(popup).slice(0, 2).map((c) => c.textContent)).toEqual(['😀', '😀']);
     expect(logged.join('\n')).not.toMatch(/≧|:-\)|→/);
   });
@@ -1018,11 +1019,11 @@ describe('picker sets', () => {
   it('the skin tone applies in a set that offers tones, and nowhere else', async () => {
     const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
     const toned = emojiSet([{ id: 'people', name: 'People & Body', icon: 'people', items: [wave] }]);
-    const plain: PickerSet = { id: 'mine/hands', name: 'Hands', icon: 'people', categories: [{ id: 'hands', name: 'Hands', icon: 'people', items: ['👋'] }] };
+    const plain: PickerSet = { id: 'mine/hands', name: 'Hands', key: { icon: 'people' }, cells: 'emoji', categories: [{ id: 'hands', name: 'Hands', icon: 'people', items: ['👋'] }] };
     const { popup, manager } = setupSets({ ...NO_EMOJI_STATE, tone: 'dark' }, [toned, plain]);
     await tap(popup, 'emoji');
     await press(cells(popup).find((c) => c.textContent === '👋🏿')!);
-    await tap(popup, 'kaomoji');
+    await tap(popup, 'next-set');
     await press(cells(popup).find((c) => c.textContent === '👋')!);
     expect(manager.calls.map(([text]) => text)).toEqual(['👋🏿', '👋']);
   });
@@ -1038,7 +1039,7 @@ describe('picker sets', () => {
     const { popup, saved } = setupSets({ recent: ['😀'], favorites: ['⭐'], tone: 'dark' });
     await tap(popup, 'emoji');
     expect(cells(popup).slice(0, 2).map((c) => c.textContent)).toEqual(['😀', '⭐']); // Recent, then Favorites
-    await tap(popup, 'kaomoji');
+    await tap(popup, 'next-set');
     expect(note(popup)).toBe('Recently used kaomoji appear here.');
     expect(saved.at(-1)).toEqual({ recent: { [EMOJI]: ['😀'], [KAOMOJI]: [] }, favorites: ['⭐'], tone: 'dark', set: KAOMOJI });
   });
@@ -1050,7 +1051,7 @@ describe('picker sets', () => {
     expect(faces(popup)[0]!.textContent).toBe(';-)');
     await press(faces(popup).find((c) => c.textContent === '(^_^)')!);
     expect(saved.at(-1)).toEqual({ recent: { [EMOJI]: ['😀'], [KAOMOJI]: ['(^_^)', ';-)'] }, favorites: [], tone: '', set: KAOMOJI });
-    await tap(popup, 'kaomoji');
+    await tap(popup, 'next-set');
     expect(cells(popup)[0]!.textContent).toBe('😀');
   });
 });

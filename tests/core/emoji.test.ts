@@ -4,7 +4,7 @@ import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, p
 
 const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
 const set = (items: PickerSet['categories'][0]['items'], more: Partial<PickerSet> = {}): PickerSet =>
-  ({ id: 'emoji/emoji', name: 'Emoji', icon: 'emoji', tones: true, categories: [{ id: 'people', name: 'People', items }], ...more });
+  ({ id: 'emoji/emoji', name: 'Emoji', key: { icon: 'emoji' }, cells: 'emoji', tones: true, categories: [{ id: 'people', name: 'People', items }], ...more });
 const tones = toneTable([set([wave, '🙂'])]);
 
 describe('skin tones', () => {
@@ -112,7 +112,7 @@ describe('the bundled data', () => {
     // Person walking facing right: the skin tone goes before the ZWJ and ➡️. Person walking keeps its own.
     expect(group('people')).toContainEqual(['🚶‍➡️', '🚶🏻‍➡️', '🚶🏼‍➡️', '🚶🏽‍➡️', '🚶🏾‍➡️', '🚶🏿‍➡️']);
     expect(group('people')).toContainEqual(['🚶', '🚶🏻', '🚶🏼', '🚶🏽', '🚶🏾', '🚶🏿']);
-    const tones = toneTable([{ id: 'emoji/emoji', name: 'Emoji', icon: 'emoji', tones: true, categories: bundled.groups }]);
+    const tones = toneTable([{ id: 'emoji/emoji', name: 'Emoji', key: { icon: 'emoji' }, cells: 'emoji', tones: true, categories: bundled.groups }]);
     expect(withTone('🚶‍➡️', 'dark', tones)).toBe('🚶🏿‍➡️');
     expect(withTone('🚶', 'dark', tones)).toBe('🚶🏿');
   });

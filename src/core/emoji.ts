@@ -6,14 +6,24 @@ import type { Effect } from './keyboard.js';
 import type { PackName } from './names.js';
 
 export type PickerItem = string | readonly string[];
-export interface PickerCategory { id: string; name: PackName; icon?: string; items: PickerItem[] }
 /**
- * A set, as its pack declares it. `cellWidth` is a cell's width in emoji cells (1 when left out); `tones`
- * offers skin tones, `steam` adds the user's Steam items and `favorites` a Favorites section.
+ * A category, as its pack declares it. Its tab is its `icon`, or its name. `label` puts a divider and a
+ * name before it in the grid (true: its own name); `apart` sets it off from the one before. With `steam`
+ * its items are the user's Steam items of that kind, not `items`.
+ */
+export interface PickerCategory {
+  id: string; name: PackName; icon?: string; label?: true | PackName; apart?: boolean;
+  steam?: SteamItemKind; items: PickerItem[];
+}
+/**
+ * A set, as its pack declares it; it has only what its pack says. The mode key shows `key`: an icon or
+ * a text. `cells` is how items are drawn and `cellWidth` a cell's width in emoji cells (1 when left
+ * out). `recent` is a Recent section, `recentBin` its bin, `favorites` a Favorites section, `tones`
+ * skin tones.
  */
 export interface PickerSet {
-  id: string; name: PackName; icon: string; cellWidth?: number;
-  tones?: boolean; steam?: boolean; favorites?: boolean;
+  id: string; name: PackName; key: { icon?: string; label?: string }; cells: 'emoji' | 'text'; cellWidth?: number;
+  recent?: boolean; recentBin?: boolean; favorites?: boolean; tones?: boolean;
   categories: PickerCategory[];
 }
 

@@ -232,7 +232,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (action === 'emoji' && !sets.length) log('emoji: no picker sets from the sidecar');
       render();
     }
-    else if (action === 'kaomoji') {
+    else if (action === 'next-set') {
       // The picker's mode key: on to the next set, in pack order. The picker opens on the saved set next time.
       const next = nextSet(sets, emoji.set);
       if (page !== 'emoji' || sets.length < 2 || !next) return;
@@ -796,11 +796,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       }
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
-        // The mode key shows the icon of the set it goes to; with one set the row has none.
+        // The mode key shows the set it goes to, as its pack says: an icon, or a text (:-)); with one set the row has none.
         const next = sets.length > 1 ? nextSet(sets, setFor(sets, emoji.set)?.id ?? '') : undefined;
-        const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'kaomoji';
+        const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'next-set';
         const rows = row.rows.map((keys) => keys.filter((k) => next || !modeKey(k))
-          .map((k) => (modeKey(k) ? { ...(k as KeyDef), icon: next!.icon } : k)));
+          .map((k) => (!modeKey(k) ? k : next?.key.label ? { ...(k as KeyDef), label: next.key.label, icon: null } : { ...(k as KeyDef), icon: next?.key.icon ?? null })));
         // Its back key reads the current mode's letters (あいう, ABC).
         view = createView(surface.doc, surface.shadow, { ...row, rows }, theme, onKey, onSuggestion, undefined,
           { letters: modeLetters(keyboard, latinMode.has(id)) });
@@ -906,8 +906,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /** Change the shown set's Recent, and show it. Recent is typed content: never logged. */
   const setRecent = (recent: (was: string[]) => string[]): void => {
-    const id = setFor(sets, emoji.set)?.id;
-    if (!id) return;
+    const shown = setFor(sets, emoji.set);
+    if (!shown?.recent) return; // a set without Recent keeps none
+    const id = shown.id;
     emoji = { ...emoji, recent: { ...emoji.recent, [id]: recent(emoji.recent[id] ?? []) } };
     picker?.update(emoji);
   };

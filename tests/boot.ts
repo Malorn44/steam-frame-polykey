@@ -12,9 +12,19 @@ export const bundledBoot = (): Boot => {
 
 export const EMOJI = 'emoji/emoji';
 export const KAOMOJI = 'emoji/kaomoji';
-/** A small emoji set, declared as the bundled one is. */
-export const emojiSet = (categories: PickerCategory[]): PickerSet =>
-  ({ id: EMOJI, name: { en: 'Emoji', ja: '絵文字' }, icon: 'emoji', cellWidth: 1, tones: true, steam: true, favorites: true, categories });
-/** A small kaomoji set, declared as the bundled one is. */
-export const kaomojiSet = (categories: PickerCategory[]): PickerSet =>
-  ({ id: KAOMOJI, name: { en: 'Kaomoji', ja: '顔文字' }, icon: 'emoticons', cellWidth: 2.5, categories });
+/** A small emoji set, declared as the bundled one is: these categories, then the Steam items. */
+export const emojiSet = (categories: PickerCategory[]): PickerSet => ({
+  id: EMOJI, name: { en: 'Emoji', ja: '絵文字' }, key: { icon: 'emoji' }, cells: 'emoji', cellWidth: 1,
+  recent: true, recentBin: true, favorites: true, tones: true,
+  categories: [
+    ...categories,
+    { id: 'steam-emoticon', name: 'Steam emoticons', icon: 'emoticons', label: 'Steam', apart: true, steam: 'emoticon', items: [] },
+    { id: 'steam-sticker', name: 'Steam stickers', icon: 'stickers', apart: true, steam: 'sticker', items: [] },
+    { id: 'steam-effect', name: 'Steam room effects', icon: 'effects', apart: true, steam: 'effect', items: [] },
+  ],
+});
+/** A small kaomoji set, declared as the bundled one is: every category labelled. */
+export const kaomojiSet = (categories: PickerCategory[]): PickerSet => ({
+  id: KAOMOJI, name: { en: 'Kaomoji', ja: '顔文字' }, key: { label: ':-)' }, cells: 'text', cellWidth: 2.5, recent: true,
+  categories: categories.map((c) => ({ label: true as const, ...c })),
+});

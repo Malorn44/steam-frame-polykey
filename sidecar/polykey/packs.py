@@ -260,16 +260,21 @@ TONES = ("", "light", "medium-light", "medium", "medium-dark", "dark")
 MAX_PICKER_SETS = 16
 MAX_PICKER_ITEMS = 4000
 # Sections the picker draws itself: a category cannot take their ids.
-PICKER_OWN_SECTION = re.compile(r"^(recent|favorites|steam-.*)\Z")
+PICKER_OWN_SECTION = re.compile(r"^(recent|favorites)\Z")
 _PICKER_FILE_ITEMS = {"type": "array", "minItems": 1, "maxItems": 2000, "items": {"$ref": "#/$defs/pickerItem"}}
 
 
 def _picker_problem(item: dict) -> Optional[str]:
-    """What is wrong with a picker set's categories that the schema cannot say, or None."""
+    """What is wrong with a picker set that the schema cannot say, or None."""
+    needs_recent = next((f for f in ("recentBin", "favorites") if item.get(f) and not item.get("recent")), None)
+    if needs_recent is not None:
+        return f"{needs_recent} needs recent"
+    own = next((c["id"] for c in item["categories"] if PICKER_OWN_SECTION.match(c["id"])), None)
+    return f"category {own}: that id is the picker's own" if own is not None else _category_twice(item)
+
+
+def _category_twice(item: dict) -> Optional[str]:
     ids = [category["id"] for category in item["categories"]]
-    own = next((i for i in ids if PICKER_OWN_SECTION.match(i)), None)
-    if own is not None:
-        return f"category {own}: that id is the picker's own"
     twice = next((i for i in ids if ids.count(i) > 1), None)
     return f"category {twice} is defined twice" if twice is not None else None
 
@@ -334,6 +339,9 @@ def _resolve_picker(item: dict, files: _DataFiles, errors: list[str]) -> Optiona
     categories = []
     for category in [] if problem else item["categories"]:
         items = category["items"]
+        if isinstance(items, dict) and "steam" in items:
+            categories.append({**category, "steam": items["steam"], "items": []})  # the page asks Steam
+            continue
         if isinstance(items, dict):
             group = items.get("group", category["id"])
             found = files.items(items["file"], group)
@@ -361,7 +369,7 @@ def _load_pickers(bundled: dict, mine: dict, files: _DataFiles, errors: list[str
     for set_id in [*bundled, *(i for i in mine if i not in bundled)]:
         tries = [bundled[set_id]] if set_id in bundled else []
         if set_id in mine:
-            own = _picker_problem(mine[set_id])
+            own = _category_twice(mine[set_id])  # laid over the bundled set, a second one would be lost
             if own:
                 errors.append(f"{set_id}: {own}")
             else:

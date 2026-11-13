@@ -490,22 +490,26 @@ describe('kaomoji mode', () => {
 
 describe('sets', () => {
   const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
-  /** A user's sets: plain characters; words in cells two wide; and one with icon and named categories mixed. */
-  const arrows: PickerSet = { id: 'mine/arrows', name: 'Arrows', icon: 'right', categories: [
+  /** A user's sets. Each has only what it says: plain characters with a Recent; words in text cells two wide; and a bare one. */
+  const arrows: PickerSet = { id: 'mine/arrows', name: 'Arrows', key: { icon: 'right' }, cells: 'emoji', recent: true, recentBin: true, categories: [
     { id: 'arrows', name: 'Arrows', icon: 'right', items: ['→', '←', wave] },
     { id: 'more', name: 'More', icon: 'up', items: ['↑'] },
   ] };
-  const words: PickerSet = { id: 'mine/words', name: { en: 'Words', ja: '言葉' }, icon: 'translate', cellWidth: 2, categories: [
-    { id: 'greetings', name: 'Greetings', items: ['hello', 'goodbye'] },
+  const words: PickerSet = { id: 'mine/words', name: { en: 'Words', ja: '言葉' }, key: { icon: 'translate' }, cells: 'text', cellWidth: 2, recent: true, categories: [
+    { id: 'greetings', name: 'Greetings', label: true, items: ['hello', 'goodbye'] },
   ] };
-  const mixed: PickerSet = { id: 'mine/mixed', name: 'Mixed', icon: 'symbols', categories: [
+  const bare: PickerSet = { id: 'mine/bare', name: 'Bare', key: { icon: 'symbols' }, cells: 'emoji', categories: [
     { id: 'named', name: '<svg onload="x">', items: ['a'] },
-    { id: 'drawn', name: 'Drawn', icon: 'flags', items: ['b'] },
+    { id: 'drawn', name: 'Drawn', icon: 'flags', label: true, items: ['b'] },
+    { id: 'other', name: 'Other', icon: 'food', label: { en: 'Elsewhere', ja: '他' }, apart: true, items: ['c'] },
+    { id: 'mine', name: 'Stickers', icon: 'stickers', steam: 'sticker', items: [] },
   ] };
-  const sets = [emoji, arrows, words, mixed];
-  const show = (set: string, state: Partial<EmojiState> = {}) => setup({ ...NO_EMOJI_STATE, set, ...state }, { sets });
+  const sets = [emoji, arrows, words, bare];
+  const show = (set: string, state: Partial<EmojiState> = {}, more: Partial<EmojiPickerInput> = {}) =>
+    setup({ ...NO_EMOJI_STATE, set, ...state }, { sets, ...more });
   const sectionsOf = (shadow: ShadowRoot) => [...shadow.querySelectorAll<HTMLElement>('.tab')].map((t) => t.dataset['section']);
   const texts = (shadow: ShadowRoot) => [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].map((c) => c.textContent);
+  const lefts = (shadow: ShadowRoot, of: string) => [...shadow.querySelectorAll<HTMLElement>(of)].map((e) => e.style.left);
 
   it('the state says which set shows; one that is not there shows the first', () => {
     expect(sectionsOf(show('mine/arrows').shadow)).toEqual(['recent', 'arrows', 'more']);
@@ -532,28 +536,83 @@ describe('sets', () => {
     expect(calls.steam).toEqual([]);
   });
 
-  it('cells one wide are emoji cells and Recent has its bin; wider cells are fitted text and Recent has none', () => {
-    const narrow = show('mine/arrows', { recent: { 'mine/arrows': ['→'] } });
+  it('a set has a Recent only when its pack says so; without one it opens on its first category', () => {
+    const { shadow, cell, calls } = show('mine/bare', { recent: { 'mine/bare': ['z'] } });
+    expect(sectionsOf(shadow)).toEqual(['named', 'drawn', 'other', 'mine']);
+    expect(texts(shadow)).toEqual(['a', 'b', 'c']);
+    expect(shadow.querySelector('.trash')).toBeNull();
+    expect(cell('a').style.left).toBe('0px');
+    expect(shadow.querySelector('.tab')!.classList.contains('on')).toBe(true);
+    touch(cell('b'), 'touchstart');
+    touch(cell('b'), 'touchend');
+    expect(calls.item.map(([text]) => text)).toEqual(['b']);
+  });
+
+  it('the bin is there when the pack says so, whatever the cells', () => {
+    const recent = { 'mine/arrows': ['→'], 'mine/words': ['hello'] };
+    const withBin = (set: PickerSet, bin: boolean) => setup({ ...NO_EMOJI_STATE, set: set.id, recent }, { sets: [{ ...set, recentBin: bin }] });
+    expect(withBin(arrows, true).shadow.querySelector('.trash')).not.toBeNull();
+    expect(withBin(arrows, false).shadow.querySelector('.trash')).toBeNull();
+    expect(withBin(words, false).shadow.querySelector('.trash')).toBeNull();
+    // Text cells with a bin: it takes the last of Recent's 3 × 4 places, and Recent holds one less.
+    const { shadow, cell, calls } = withBin(words, true);
+    const bin = shadow.querySelector<HTMLElement>('.strip .trash')!;
+    expect([bin.style.left, bin.style.top]).toEqual(['160px', '120px']);
+    touch(cell('goodbye'), 'touchstart');
+    touch(cell('goodbye'), 'touchend');
+    expect(calls.item).toEqual([['goodbye', false, 11]]);
+  });
+
+  it('cells are drawn as the pack says, whatever their width: emoji, or text on a key fitted to it', () => {
+    const narrow = show('mine/arrows');
     expect(narrow.shadow.querySelector('.cell.face')).toBeNull();
-    expect(narrow.shadow.querySelector('.trash')).not.toBeNull();
     expect(narrow.cell('←').style.cssText).toContain('width: 40px; height: 40px');
     const wide = show('mine/words', { recent: { 'mine/words': ['hello'] } });
     expect(wide.shadow.querySelectorAll('.cell.face span')).toHaveLength(3);
-    expect(wide.shadow.querySelector('.trash')).toBeNull();
     // Cells are 80 × 40; Recent is three columns of them (as wide as six emoji), then half a cell's gap.
     expect(wide.cell('goodbye').style.cssText).toContain('left: 260px; top: 40px; width: 80px; height: 40px');
     touch(wide.cell('goodbye'), 'touchstart');
     touch(wide.cell('goodbye'), 'touchend');
-    expect(wide.calls.item).toEqual([['goodbye', false, 12]]); // Recent holds its three columns of four rows
+    expect(wide.calls.item).toEqual([['goodbye', false, 12]]); // without a bin Recent holds its three columns of four rows
+    // Emoji drawn two cells wide, and text one cell wide.
+    const drawn = (set: PickerSet, more: Partial<PickerSet>) => setup({ ...NO_EMOJI_STATE, set: set.id }, { sets: [{ ...set, ...more }] });
+    const spaced = drawn(arrows, { cellWidth: 2 });
+    expect(spaced.shadow.querySelector('.cell.face')).toBeNull();
+    expect(spaced.cell('←').style.width).toBe('80px');
+    const tight = drawn(words, { cellWidth: 1 });
+    expect(tight.shadow.querySelectorAll('.cell.face span')).toHaveLength(2);
+    expect(tight.cell('hello').style.width).toBe('40px');
   });
 
-  it('a category with an icon has it as its tab; one without has its name, as text, there and beside it', () => {
-    const { shadow } = show('mine/mixed');
+  it('a tab is the category\'s icon, or its name as text; a label or standing apart is its own choice', () => {
+    const { shadow } = show('mine/bare');
     const tabs = [...shadow.querySelectorAll<HTMLElement>('.tab')];
-    expect(tabs.map((t) => [t.className, t.children.length])).toEqual([['tab on', 1], ['tab text', 0], ['tab', 1]]);
-    expect(tabs[1]!.textContent).toBe('<svg onload="x">'); // a name is never markup
-    expect([...shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['<svg onload="x">']);
-    expect(tabs[2]!.querySelector('svg')).not.toBeNull();
+    expect(tabs.map((t) => [t.className, t.children.length])).toEqual([['tab text on', 0], ['tab', 1], ['tab', 1], ['tab', 1]]);
+    expect(tabs[0]!.textContent).toBe('<svg onload="x">'); // a name is never markup
+    expect(tabs[1]!.querySelector('svg')).not.toBeNull();
+    // named: no icon and no label. drawn: an icon and its name as its label. other: apart, under another name.
+    expect([...shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['Drawn', 'Elsewhere']);
+    expect(show('mine/bare', {}, { language: 'ja' }).shadow.querySelector('.label.upright')).toBeNull(); // apart: as Steam's
+    expect([...show('mine/bare', {}, { language: 'ja' }).shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['Drawn', '他']);
+    // 40 px cells, 20 px gaps: a at 0; b at 60, its divider 3 px into the gap; c set apart at 140, its divider mid-gap.
+    expect(lefts(shadow, '.cell')).toEqual(['0px', '60px', '140px']);
+    expect(lefts(shadow, '.divider')).toEqual(['43px', '120px']);
+  });
+
+  it('a Steam category shows the user\'s items of its kind, and lets Recent hold Steam items', () => {
+    const sticker = { item: { kind: 'sticker' as const, name: 'Hi' }, image: 'https://cdn/s/hi' };
+    const none = show('mine/bare');
+    expect([...none.shadow.querySelectorAll('.note')].map((n) => n.textContent)).toEqual(['No Steam stickers yet']);
+    const { shadow, calls } = show('mine/bare', {}, { steam: [...steamhappy, sticker] });
+    expect([...shadow.querySelectorAll('.cell img')].map((i) => i.getAttribute('src'))).toEqual(['https://cdn/s/hi']); // stickers alone
+    const cell = shadow.querySelector('.cell img')!.parentElement!;
+    touch(cell, 'touchstart');
+    touch(cell, 'touchend');
+    expect(calls.steam).toEqual(['Hi']);
+    // In a set with a Recent and a Steam category, a Steam key in Recent is the item again.
+    const both: PickerSet = { ...bare, recent: true };
+    const kept = setup({ ...NO_EMOJI_STATE, recent: { 'mine/bare': ['steam:sticker:Hi'] } }, { sets: [both], steam: [sticker] });
+    expect([...kept.shadow.querySelectorAll('.cell img')]).toHaveLength(2);
   });
 
   it('each set shows its own Recent, named in its note while empty', () => {
@@ -572,7 +631,7 @@ describe('sets', () => {
     const strip = shadow.querySelector<HTMLElement>('.strip')!;
     shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, cancelable: true }));
     expect(strip.style.transform).toBe('translateX(-120px)');
-    for (const [set, second] of [['mine/arrows', 'arrows'], ['mine/words', 'greetings'], ['mine/mixed', 'named'], [EMOJI, 'favorites']] as const) {
+    for (const [set, second] of [['mine/arrows', 'arrows'], ['mine/words', 'greetings'], ['mine/bare', 'drawn'], [EMOJI, 'favorites']] as const) {
       view.update({ ...NO_EMOJI_STATE, set });
       expect(sectionsOf(shadow)[1]).toBe(second);
       expect(strip.style.transform).toBe('translateX(0px)');

@@ -475,7 +475,7 @@
             "menu",
             "settings",
             "emoji",
-            "kaomoji",
+            "next-set",
             "dictate",
             "abc",
             "modify",
@@ -1204,14 +1204,29 @@
         "id": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,32}$",
-          "description": "Unique in its set. recent, favorites and steam-… are the picker's own."
+          "description": "Unique in its set. recent and favorites are the picker's own."
         },
         "name": {
           "$ref": "#/$defs/name"
         },
         "icon": {
           "$ref": "#/$defs/pickerIcon",
-          "description": "The category's tab. Without one the tab reads its name, and the name stands beside the category in the grid."
+          "description": "The category's tab. Without one the tab reads its name."
+        },
+        "label": {
+          "description": "A divider before the category with a name beside it in the grid: true for the category's name, or another name (\"Steam\").",
+          "oneOf": [
+            {
+              "const": true
+            },
+            {
+              "$ref": "#/$defs/name"
+            }
+          ]
+        },
+        "apart": {
+          "type": "boolean",
+          "description": "The category sits apart from the one before: twice the gap, with a divider in it."
         },
         "items": {
           "oneOf": [
@@ -1241,6 +1256,23 @@
                   "type": "string",
                   "pattern": "^[a-z0-9-]{1,32}$",
                   "description": "The group in the file whose items these are; default: the category's id."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "steam"
+              ],
+              "additionalProperties": false,
+              "description": "The user's own Steam items of one kind, read from Steam.",
+              "properties": {
+                "steam": {
+                  "enum": [
+                    "emoticon",
+                    "sticker",
+                    "effect"
+                  ]
                 }
               }
             }
@@ -1302,7 +1334,8 @@
         "kind",
         "id",
         "name",
-        "icon",
+        "key",
+        "cells",
         "categories"
       ],
       "additionalProperties": false,
@@ -1327,27 +1360,65 @@
           "type": "string",
           "maxLength": 400
         },
-        "icon": {
-          "$ref": "#/$defs/pickerIcon",
-          "description": "Shown on the picker's mode key when this set is the next one."
+        "key": {
+          "description": "What the picker's mode key shows when this set is the next one: an icon, or a short text (\":-)\" for kaomoji).",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "icon"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "icon": {
+                  "$ref": "#/$defs/pickerIcon"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8
+                }
+              }
+            }
+          ]
+        },
+        "cells": {
+          "enum": [
+            "emoji",
+            "text"
+          ],
+          "description": "How an item is drawn: as an emoji, or as text on a key in fonts that cover many scripts, shrunk to fit its cell."
         },
         "cellWidth": {
           "type": "number",
           "minimum": 1,
           "maximum": 4,
-          "description": "How wide a cell is, in emoji cells: 1 (the default) for single characters, 2.5 for kaomoji. Above 1, each item is shrunk to fit its cell."
+          "description": "How wide a cell is, in emoji cells: 1 (the default) for single characters, 2.5 for kaomoji."
+        },
+        "recent": {
+          "type": "boolean",
+          "description": "A Recent section first, with what was last typed from this set."
+        },
+        "recentBin": {
+          "type": "boolean",
+          "description": "A bin in Recent's last place, to empty it. Needs recent."
+        },
+        "favorites": {
+          "type": "boolean",
+          "description": "A Favorites section after Recent, filled by drag and drop from it. Needs recent."
         },
         "tones": {
           "type": "boolean",
           "description": "Items written with their skin tones offer them when held, and are typed in the tone last chosen."
-        },
-        "steam": {
-          "type": "boolean",
-          "description": "The user's Steam emoticons, stickers and room effects follow the categories."
-        },
-        "favorites": {
-          "type": "boolean",
-          "description": "A Favorites section, filled by drag and drop from Recent."
         },
         "categories": {
           "type": "array",
