@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState } from '../../src/core/emoji.js';
 import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
-import { STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
+import { KAOMOJI_RECENT_NOTE, STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
 import { bundledBoot } from '../boot.js';
 
 const data: EmojiData = { groups: [
@@ -18,7 +18,7 @@ const setup = (state: EmojiState = NO_EMOJI_STATE, steam: Partial<EmojiPickerInp
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0 };
+  const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0, kaomoji: [] as [string, boolean, number][] };
   const view = createEmojiView(document, shadow, bundledBoot().catalog.themes['themes/steam']!, {
     data, tones: toneTable(data), steam: steamhappy, ...steam,
   }, state, {
@@ -27,6 +27,7 @@ const setup = (state: EmojiState = NO_EMOJI_STATE, steam: Partial<EmojiPickerInp
     onSteam: (i) => calls.steam.push(i.name),
     onFavorites: (f) => calls.favorites.push(f),
     onClearRecent: () => calls.clear++,
+    onKaomoji: (f, r, room) => calls.kaomoji.push([f, r, room]),
   });
   view.setBounds({ top: 0, left: 0, width: 854, height: 195 });
   const cell = (text: string) => [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === text)!;
@@ -238,5 +239,124 @@ describe('emoji picker', () => {
     touch(wave, 'touchend');
     expect(calls.tone).toEqual(['']);
     expect(shadow.querySelector('.cell img')).not.toBeNull();
+  });
+});
+
+describe('kaomoji mode', () => {
+  const categories = [
+    { id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
+    { id: 'tableflip', en: 'Table flip', ja: 'ちゃぶ台返し', faces: ['(╯°□°)╯︵ ┻━┻', '┻━┻ ︵╰(°□°)╯︵ ┻━┻'] },
+  ];
+  const kaomoji = (state: Partial<EmojiState> = {}, japanese = false) =>
+    setup({ ...NO_EMOJI_STATE, mode: 'kaomoji', ...state }, { kaomoji: { categories, japanese } });
+  /** As a browser would measure: 10 px a character at the face size. */
+  const measured = () => {
+    const read: string[] = [];
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      if (!this.parentElement?.classList.contains('face')) return 0;
+      read.push(this.textContent ?? '');
+      return [...this.textContent ?? ''].length * 10;
+    });
+    return read;
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it('shows a text tab for Recent and each category, and wide cells filled down each column', () => {
+    const { shadow, cell } = kaomoji();
+    const tabs = [...shadow.querySelectorAll<HTMLElement>('.tab')];
+    expect(tabs.map((t) => t.textContent)).toEqual(['Recent', 'Smiling', 'Table flip']);
+    expect(tabs.map((t) => t.dataset['section'])).toEqual(['recent', 'smiling', 'tableflip']);
+    expect(shadow.querySelector('.note')!.textContent).toBe(KAOMOJI_RECENT_NOTE);
+    expect(shadow.querySelector('.trash')).toBeNull();
+    expect([...shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['Smiling', 'Table flip']);
+    expect(shadow.querySelectorAll('.divider')).toHaveLength(2);
+    // A 195 px picker has 4 rows of 40 px: cells are 100 × 40, Recent 2 columns, then half a cell's gap.
+    expect(cell('(^_^)').style.cssText).toContain('left: 220px; top: 0px; width: 100px; height: 40px');
+    expect(cell('(≧▽≦)').style.top).toBe('40px');
+    expect(cell('(＾▽＾)').style.cssText).toContain('left: 320px; top: 0px');
+    expect(cell('(╯°□°)╯︵ ┻━┻').style.left).toBe('440px');
+  });
+
+  it('names tabs and labels in Japanese on a Japanese keyboard, the labels upright', () => {
+    const { shadow } = kaomoji({}, true);
+    expect([...shadow.querySelectorAll('.tab')].map((t) => t.textContent)).toEqual(['最近', '笑顔', 'ちゃぶ台返し']);
+    expect([...shadow.querySelectorAll('.label.upright')].map((l) => l.textContent)).toEqual(['笑顔', 'ちゃぶ台返し']);
+  });
+
+  it('a tap types the face and says how much Recent holds; from Recent it says so', () => {
+    const { cell, calls, shadow } = kaomoji({ kaomojiRecent: ['(´▽`)'] });
+    touch(cell('(≧▽≦)'), 'touchstart');
+    touch(cell('(≧▽≦)'), 'touchend');
+    const recent = shadow.querySelector<HTMLElement>('.strip .cell.face')!;
+    touch(recent, 'touchstart');
+    touch(recent, 'touchend');
+    expect(calls.kaomoji).toEqual([['(≧▽≦)', false, 8], ['(´▽`)', true, 8]]);
+    expect(calls.emoji).toEqual([]);
+  });
+
+  it('Recent shows what fits in its two columns, and follows the state', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `(${i})`);
+    const { shadow, view } = kaomoji({ kaomojiRecent: many });
+    const shown = () => [...shadow.querySelectorAll<HTMLElement>('.strip .cell.face')].map((c) => c.textContent);
+    expect(shown().slice(0, 9)).toEqual([...many.slice(0, 8), '(^_^)']);
+    view.update({ ...NO_EMOJI_STATE, mode: 'kaomoji', kaomojiRecent: [':-)'] });
+    expect(shown().slice(0, 2)).toEqual([':-)', '(^_^)']);
+  });
+
+  it('holding a face opens nothing and lifts nothing: the release still types it', () => {
+    const { calls, shadow } = kaomoji({ kaomojiRecent: ['(^_^)'] });
+    const recent = shadow.querySelector<HTMLElement>('.strip .cell.face')!;
+    touch(recent, 'touchstart');
+    vi.advanceTimersByTime(HOLD_MS * 2);
+    expect(shadow.querySelector('.ghost')).toBeNull();
+    expect(shadow.querySelector('.alts')).toBeNull();
+    touch(recent, 'touchend');
+    expect(calls.kaomoji).toEqual([['(^_^)', true, 8]]);
+    expect(calls.favorites).toEqual([]);
+  });
+
+  it('a face too wide for its cell shrinks, and the widest is squeezed as well', () => {
+    const widths = measured();
+    const { cell, view } = kaomoji();
+    const text = (face: string) => cell(face).querySelector<HTMLElement>('span')!;
+    expect(text('(^_^)').style.cssText).toBe(''); // 50 px in 90
+    expect(text('(╯°□°)╯︵ ┻━┻').style.fontSize).toBe('11.25px'); // 120 px: 15 × 90 / 120
+    expect(text('(╯°□°)╯︵ ┻━┻').style.transform).toBe('');
+    expect(text('┻━┻ ︵╰(°□°)╯︵ ┻━┻').style.fontSize).toBe('11px'); // 170 px: 125 at 11 px, squeezed to 90
+    expect(text('┻━┻ ︵╰(°□°)╯︵ ┻━┻').style.transform).toBe('scaleX(0.722)');
+    // Widths are measured once: drawing again (a new Recent) reads only the faces not seen before.
+    expect(widths).toHaveLength(8);
+    view.update({ ...NO_EMOJI_STATE, mode: 'kaomoji', kaomojiRecent: ['(^_^)'] });
+    expect(widths).toHaveLength(8);
+    expect(text('(╯°□°)╯︵ ┻━┻').style.fontSize).toBe('11.25px');
+  });
+
+  it('a tab jumps to its section, showing its divider and label; scrolling marks the tab', () => {
+    const { shadow } = kaomoji();
+    const strip = shadow.querySelector<HTMLElement>('.strip')!;
+    const tab = (id: string) => shadow.querySelector<HTMLElement>(`.tab[data-section="${id}"]`)!;
+    Object.defineProperty(shadow.querySelector('.grid')!, 'clientWidth', { value: 300 });
+    expect(tab('recent').classList.contains('on')).toBe(true);
+    touch(tab('smiling'), 'touchstart');
+    expect(strip.style.transform).toBe('translateX(-200px)'); // 220, less the gap its label sits in
+    expect(tab('smiling').classList.contains('on')).toBe(true);
+    shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, cancelable: true }));
+    expect(tab('recent').classList.contains('on')).toBe(true);
+    // The last section cannot reach the left edge: its tab is marked all the same, until the grid moves.
+    touch(tab('tableflip'), 'touchstart');
+    expect(strip.style.transform).toBe('translateX(-260px)'); // the strip is 560 wide, the grid 300
+    expect(tab('tableflip').classList.contains('on')).toBe(true);
+    shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, cancelable: true }));
+    expect(tab('smiling').classList.contains('on')).toBe(true);
+  });
+
+  it('switching mode draws the other picker from its start; without kaomoji data it stays on emoji', () => {
+    const { shadow, view } = kaomoji();
+    view.update({ ...NO_EMOJI_STATE, mode: 'emoji' });
+    expect(shadow.querySelector('.cell.face')).toBeNull();
+    expect([...shadow.querySelectorAll<HTMLElement>('.tab')].map((t) => t.dataset['section'])).toContain('favorites');
+    const none = setup({ ...NO_EMOJI_STATE, mode: 'kaomoji' });
+    expect(none.shadow.querySelector('.cell.face')).toBeNull();
+    expect(none.shadow.querySelector('.note')!.textContent).toContain('Recently used emoji');
   });
 });

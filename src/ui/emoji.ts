@@ -5,6 +5,9 @@
 // skin tones (the shared hold popup); holding an entry in Recent or Favorites lifts it for drag and drop
 // into Favorites, where a placeholder opens (drop elsewhere removes a favorite). A gesture is followed
 // across the whole shadow root, and ended if its release is lost. Like Full Keyboard: no haptics here.
+//
+// In kaomoji mode the same frame shows text faces instead: a Recent and a section per category, in wide
+// cells, each face shrunk or squeezed to fit its cell. Taps only: no favorites, lifting or hold popups.
 
 import type { Theme } from '../core/catalog.js';
 import { HOLD_MS, RELEASE_LOST_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
@@ -13,13 +16,16 @@ import { ICONS } from './icons.js';
 import { BAR_PX, sizeVars } from './sizes.js';
 import { listenTouch, type TouchPoint } from './gesture.js';
 import { themeVars } from './theme.js';
-import { MAX_FAVORITES, TONES, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf, type EmojiData, type EmojiState, type SteamItem, type Tone } from '../core/emoji.js';
+import { FACE_CELLS, FACE_PX, KAOMOJI_RECENT_COLUMNS, MAX_FAVORITES, TONES, fitFace, steamFromKey, steamKey, removeFavorite, placeFavorite, withTone, baseOf,
+  type EmojiData, type EmojiState, type KaomojiCategory, type SteamItem, type Tone } from '../core/emoji.js';
 
 export const RECENT_COLUMNS = 6;
 /** Recent's block is 6 × 4; its last place holds the bin. */
 export const RECENT_MAX = RECENT_COLUMNS * 4 - 1;
 const GLIDE_TAU_S = 0.35;
 const GLIDE_MIN_SPEED = 300;
+/** Room kept clear beside a face in its cell (both sides together). */
+const FACE_PAD_PX = 10;
 
 const CSS = `
 .emoji { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
@@ -28,6 +34,7 @@ const CSS = `
 .tabs { height: var(--bar-height); display: flex; flex: none; gap: 2px; overflow: hidden; }
 .tab { flex: none; min-width: 30px; height: 100%; display: flex; align-items: center; justify-content: center;
   padding: 0 6px; box-sizing: border-box; border-radius: var(--radius); font-size: var(--ui-icon); color: var(--legend); }
+.tab.text { padding: 0 7px; font-size: var(--ui-control); white-space: nowrap; }
 .tab.on { background: var(--mod); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .trash { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border-radius: var(--radius); font-size: var(--ui-icon-lg); color: var(--legend); }
@@ -39,6 +46,10 @@ const CSS = `
 .cell img { max-width: 80%; max-height: 80%; pointer-events: none; }
 .cell.effect { font-size: var(--ui-tiny); text-align: center; color: var(--legend); }
 .cell.hover { background: var(--hover); }
+.cell.face { font-size: ${FACE_PX}px; overflow: hidden; white-space: nowrap; background: none; }
+.cell.face::before { content: ""; position: absolute; inset: 2px; border-radius: var(--radius); background: var(--key); }
+.cell.face.hover::before { background: var(--hover); }
+.cell.face span { position: relative; display: inline-block; }
 .cell.lifted { opacity: var(--opacity-dim); }
 .cell.fav { transition: left 0.12s ease-out, top 0.12s ease-out; }
 .cell.away { visibility: hidden; }
@@ -47,6 +58,7 @@ const CSS = `
 .placeholder { position: absolute; box-sizing: border-box; border-radius: var(--radius); background: var(--hover); }
 .divider { position: absolute; top: 8%; height: 84%; width: 1px; background: var(--mod); }
 .label { position: absolute; top: 0; font-size: var(--ui-label); color: var(--legend); writing-mode: vertical-rl; transform: rotate(180deg); }
+.label.upright { transform: none; }
 .ghost { position: fixed; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center;
   font-size: var(--ui-emoji-lifted); background: var(--mod); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .alts .key { font-size: var(--size-emoji); }
@@ -60,6 +72,8 @@ export interface EmojiHandlers {
   /** Send a Steam item (the caller updates Recent, as for emoji). */
   onSteam(item: SteamItem, fromRecent: boolean): void;
   onFavorites(favorites: string[]): void;
+  /** Type a kaomoji (the caller updates its Recent, which holds `room` faces). */
+  onKaomoji(face: string, fromRecent: boolean, room: number): void;
   /** The bin over Recent: empty it. */
   onClearRecent(): void;
 }
@@ -72,6 +86,8 @@ export interface EmojiPickerInput {
   /** True while Steam is still fetching the items. */
   steamLoading?: boolean;
   tones: ReadonlyMap<string, readonly string[]>;
+  /** Kaomoji mode's faces, named in Japanese on a Japanese keyboard; without them the picker stays on emoji. */
+  kaomoji?: { categories: readonly KaomojiCategory[]; japanese: boolean } | null;
 }
 
 export interface EmojiView {
@@ -85,14 +101,16 @@ export interface EmojiView {
   destroy(): void;
 }
 
-type Cell = { el: HTMLElement; section: string; base?: string; steam?: SteamItem; toned: boolean; sx: number };
-type Section = { id: string; tab: string; x: number; columns: number };
+type Cell = { el: HTMLElement; section: string; base?: string; steam?: SteamItem; face?: string; toned: boolean; sx: number };
+/** `lead` is what a jump to the section shows before it: its divider and label. */
+type Section = { id: string; tab: string; x: number; columns: number; lead: number };
 
 const GROUP_TABS: Record<string, string> = {
   smileys: ICONS.smileys, people: ICONS.people, animals: ICONS.animals, food: ICONS.food, travel: ICONS.travel,
   activities: ICONS.activities, objects: ICONS.objects, symbols: ICONS.symbols, flags: ICONS.flags,
 };
 export const RECENT_NOTE = 'Recently used emoji appear here.';
+export const KAOMOJI_RECENT_NOTE = 'Recently used kaomoji appear here.';
 export const FAVORITES_NOTE = 'Drag and drop from Recent to add a favorite, drop outside to remove.';
 export const STEAM_LOADING_NOTE = 'Loading your Steam items…';
 
@@ -122,6 +140,12 @@ export const createEmojiView = (
   let state: EmojiState = initial;
   let rows = 4;
   let cellSize = 40;
+  /** A cell's width: an emoji's is square, a face's wider. */
+  let cellWidth = 40;
+  /** Each face's width at FACE_PX, measured once. */
+  const faceWidths = new Map<string, number>();
+  let shownTab: Section | undefined;
+  const faces = (): EmojiPickerInput['kaomoji'] => (state.mode === 'kaomoji' ? input.kaomoji : null);
   let offset = 0;
   let width = 0;
   let cells: Cell[] = [];
@@ -135,15 +159,30 @@ export const createEmojiView = (
   placeholder.className = 'placeholder';
   /** A cell's place: sections fill down each column, then across. */
   const cellPos = (sx: number, i: number): { left: string; top: string } =>
-    ({ left: `${sx + Math.floor(i / rows) * cellSize}px`, top: `${(i % rows) * cellSize}px` });
+    ({ left: `${sx + Math.floor(i / rows) * cellWidth}px`, top: `${(i % rows) * cellSize}px` });
 
   const shown = (base: string): string => withTone(base, state.tone, input.tones);
   const clamp = (x: number): number => Math.max(0, Math.min(x, Math.max(0, width - grid.clientWidth)));
-  const setOffset = (x: number): void => {
+  /** The tab last tapped, while the grid stays where that put it: a section near the end cannot scroll to the left edge. */
+  let jumped: string | undefined;
+  const setOffset = (x: number, tapped?: Section): void => {
+    if (tapped) jumped = tapped.id;
+    else if (clamp(x) !== offset) jumped = undefined;
     offset = clamp(x);
     strip.style.transform = `translateX(${-offset}px)`;
-    const current = [...sections].reverse().find((s) => s.x <= offset + 1) ?? sections[0];
+    const current = sections.find((s) => s.id === jumped && s.x - s.lead > offset)
+      ?? [...sections].reverse().find((s) => s.x - s.lead <= offset + 1) ?? sections[0];
     for (const [id, tab] of tabs) tab.classList.toggle('on', id === current?.id);
+    if (current === shownTab) return;
+    shownTab = current;
+    // Text tabs are wider than the picker: keep the current one and its neighbours in view.
+    const at = sections.indexOf(current!);
+    const first = tabs.get(sections[Math.max(0, at - 1)]?.id ?? '');
+    const last = tabs.get(sections[Math.min(sections.length - 1, at + 1)]?.id ?? '');
+    if (!faces() || !first || !last) return;
+    const start = first.offsetLeft - tabsEl.offsetLeft;
+    const end = last.offsetLeft + last.offsetWidth - tabsEl.offsetLeft;
+    tabsEl.scrollLeft = Math.max(Math.min(tabsEl.scrollLeft, start), end - tabsEl.clientWidth);
   };
 
   /** Lay out every section from scratch (on open, and when Favorites changes width or the tone changes). */
@@ -153,6 +192,8 @@ export const createEmojiView = (
     sections = [];
     let x = 0;
     const gap = cellSize / 2;
+    const kaomoji = faces();
+    cellWidth = kaomoji ? Math.round(cellSize * FACE_CELLS) : cellSize;
     /** A Recent or Favorites entry: an emoji, or a Steam item (its picture when the user still has it). */
     const entry = (key: string): { base: string; steam?: SteamItem; image?: string | null } => {
       const item = steamFromKey(key);
@@ -179,67 +220,94 @@ export const createEmojiView = (
     const note = (sx: number, columns: number, text: string): void => {
       const el = doc.createElement('div');
       el.className = 'note';
-      Object.assign(el.style, { left: `${sx}px`, top: '0', width: `${columns * cellSize}px`, height: `${rows * cellSize}px` });
+      Object.assign(el.style, { left: `${sx}px`, top: '0', width: `${columns * cellWidth}px`, height: `${rows * cellSize}px` });
       el.textContent = text;
       strip.append(el);
     };
-    const divider = (at: number, label?: string): void => {
+    const divider = (at: number, label?: string, upright = false): void => {
       const el = doc.createElement('div');
       el.className = 'divider';
       el.style.left = `${at}px`;
       strip.append(el);
       if (label) {
         const l = doc.createElement('div');
-        l.className = 'label';
+        l.className = upright ? 'label upright' : 'label'; // kana and kanji stand upright in a vertical line
         l.style.left = `${at + 3}px`;
         l.textContent = label;
         strip.append(l);
       }
     };
-    const section = (id: string, tab: string, columns: number, fill: (sx: number) => void): void => {
-      sections.push({ id, tab, x, columns });
+    const section = (id: string, tab: string, columns: number, fill: (sx: number) => void, lead = 0): void => {
+      sections.push({ id, tab, x, columns, lead });
       fill(x);
-      x += columns * cellSize + gap;
+      x += columns * cellWidth + gap;
+    };
+    const drawn: [HTMLElement, string][] = [];
+    const addFace = (sectionId: string, sx: number, i: number, face: string): void => {
+      const el = doc.createElement('div');
+      el.className = 'cell face';
+      Object.assign(el.style, { ...cellPos(sx, i), width: `${cellWidth}px`, height: `${cellSize}px` });
+      const text = doc.createElement('span');
+      text.textContent = face;
+      el.append(text);
+      strip.append(el);
+      drawn.push([text, face]);
+      cells.push({ el, section: sectionId, sx, toned: false, face });
     };
 
-    section('recent', ICONS.recent, RECENT_COLUMNS, (sx) => {
-      if (!state.recent.length) note(sx, RECENT_COLUMNS, RECENT_NOTE);
-      const room = RECENT_COLUMNS * rows - 1;
-      state.recent.slice(0, room).forEach((key, i) => addCell('recent', sx, i, entry(key)));
-      if (state.recent.length) {
-        Object.assign(trash.style, { ...cellPos(sx, room), width: `${cellSize}px`, height: `${cellSize}px` });
-        strip.append(trash);
+    if (kaomoji) {
+      const room = KAOMOJI_RECENT_COLUMNS * rows;
+      section('recent', kaomoji.japanese ? '最近' : 'Recent', KAOMOJI_RECENT_COLUMNS, (sx) => {
+        if (!state.kaomojiRecent.length) note(sx, KAOMOJI_RECENT_COLUMNS, KAOMOJI_RECENT_NOTE);
+        state.kaomojiRecent.slice(0, room).forEach((face, i) => addFace('recent', sx, i, face));
+      });
+      for (const category of kaomoji.categories) {
+        const name = kaomoji.japanese ? category.ja : category.en;
+        divider(x - gap + 3, name, kaomoji.japanese); // the label fills the gap before its section
+        section(category.id, name, Math.ceil(category.faces.length / rows), (sx) => {
+          category.faces.forEach((face, i) => addFace(category.id, sx, i, face));
+        }, gap);
       }
-    });
-    divider(x - gap / 2);
-    const favColumns = Math.max(3, Math.ceil((state.favorites.length + 1) / rows));
-    section('favorites', ICONS.favorites, favColumns, (sx) => {
-      if (!state.favorites.length) note(sx, favColumns, FAVORITES_NOTE);
-      state.favorites.forEach((key, i) => addCell('favorites', sx, i, entry(key)));
-    });
-    divider(x - gap / 2);
-    for (const group of input.data.groups) {
-      const columns = Math.ceil(group.items.length / rows);
-      section(group.id, GROUP_TABS[group.id] ?? group.name.slice(0, 2), columns, (sx) => {
-        group.items.forEach((item, i) => addCell(group.id, sx, i, { base: baseOf(item) }));
+    } else {
+      section('recent', ICONS.recent, RECENT_COLUMNS, (sx) => {
+        if (!state.recent.length) note(sx, RECENT_COLUMNS, RECENT_NOTE);
+        const room = RECENT_COLUMNS * rows - 1;
+        state.recent.slice(0, room).forEach((key, i) => addCell('recent', sx, i, entry(key)));
+        if (state.recent.length) {
+          Object.assign(trash.style, { ...cellPos(sx, room), width: `${cellSize}px`, height: `${cellSize}px` });
+          strip.append(trash);
+        }
       });
-    }
-    const steamKinds: [SteamItem['kind'], string, string][] = [
-      ['emoticon', ICONS.emoticons, 'No Steam emoticons yet'],
-      ['sticker', ICONS.stickers, 'No Steam stickers yet'],
-      ['effect', ICONS.effects, 'No room effects yet'],
-    ];
-    let firstSteam = true;
-    for (const [kind, icon, empty] of steamKinds) {
-      const items = input.steam.filter((s) => s.item.kind === kind);
-      x += gap; // Steam items sit apart from the emoji
-      divider(x - gap, firstSteam ? 'Steam' : undefined);
-      firstSteam = false;
-      const columns = items.length ? Math.ceil(items.length / rows) : 3;
-      section(`steam-${kind}`, icon, columns, (sx) => {
-        if (!items.length) note(sx, columns, input.steamAvailable === false ? 'Steam items unavailable' : input.steamLoading ? STEAM_LOADING_NOTE : empty);
-        items.forEach(({ item, image }, i) => addCell(`steam-${kind}`, sx, i, { base: steamKey(item), steam: item, image }));
+      divider(x - gap / 2);
+      const favColumns = Math.max(3, Math.ceil((state.favorites.length + 1) / rows));
+      section('favorites', ICONS.favorites, favColumns, (sx) => {
+        if (!state.favorites.length) note(sx, favColumns, FAVORITES_NOTE);
+        state.favorites.forEach((key, i) => addCell('favorites', sx, i, entry(key)));
       });
+      divider(x - gap / 2);
+      for (const group of input.data.groups) {
+        const columns = Math.ceil(group.items.length / rows);
+        section(group.id, GROUP_TABS[group.id] ?? group.name.slice(0, 2), columns, (sx) => {
+          group.items.forEach((item, i) => addCell(group.id, sx, i, { base: baseOf(item) }));
+        });
+      }
+      const steamKinds: [SteamItem['kind'], string, string][] = [
+        ['emoticon', ICONS.emoticons, 'No Steam emoticons yet'],
+        ['sticker', ICONS.stickers, 'No Steam stickers yet'],
+        ['effect', ICONS.effects, 'No room effects yet'],
+      ];
+      let firstSteam = true;
+      for (const [kind, icon, empty] of steamKinds) {
+        const items = input.steam.filter((s) => s.item.kind === kind);
+        x += gap; // Steam items sit apart from the emoji
+        divider(x - gap, firstSteam ? 'Steam' : undefined);
+        firstSteam = false;
+        const columns = items.length ? Math.ceil(items.length / rows) : 3;
+        section(`steam-${kind}`, icon, columns, (sx) => {
+          if (!items.length) note(sx, columns, input.steamAvailable === false ? 'Steam items unavailable' : input.steamLoading ? STEAM_LOADING_NOTE : empty);
+          items.forEach(({ item, image }, i) => addCell(`steam-${kind}`, sx, i, { base: steamKey(item), steam: item, image }));
+        });
+      }
     }
     width = x;
     strip.style.width = `${width}px`;
@@ -248,13 +316,24 @@ export const createEmojiView = (
     tabs.clear();
     for (const s of sections) {
       const tab = doc.createElement('div');
-      tab.className = 'tab';
+      tab.className = kaomoji ? 'tab text' : 'tab';
       if (s.tab.startsWith('<svg')) tab.innerHTML = s.tab;
       else tab.textContent = s.tab;
       tab.dataset['section'] = s.id;
       tabsEl.append(tab);
       tabs.set(s.id, tab);
     }
+    // Fit the faces: every width not yet known is read in one layout, then the styles are written.
+    for (const [el, face] of drawn) {
+      const measured = faceWidths.has(face) ? 0 : el.offsetWidth;
+      if (measured > 0) faceWidths.set(face, measured);
+    }
+    for (const [el, face] of drawn) {
+      const fit = fitFace(faceWidths.get(face) ?? 0, cellWidth - FACE_PAD_PX);
+      if (fit.font < FACE_PX) el.style.fontSize = `${fit.font.toFixed(2)}px`;
+      if (fit.scaleX < 1) el.style.transform = `scaleX(${fit.scaleX.toFixed(3)})`;
+    }
+    shownTab = undefined;
     setOffset(offset);
   };
 
@@ -383,7 +462,8 @@ export const createEmojiView = (
 
   const tap = (cell: Cell | undefined): void => {
     if (!cell) return;
-    if (cell.steam) handlers.onSteam(cell.steam, cell.section === 'recent');
+    if (cell.face) handlers.onKaomoji(cell.face, cell.section === 'recent', KAOMOJI_RECENT_COLUMNS * rows);
+    else if (cell.steam) handlers.onSteam(cell.steam, cell.section === 'recent');
     else if (cell.base) handlers.onEmoji(cell.base, cell.section === 'recent');
   };
 
@@ -399,7 +479,7 @@ export const createEmojiView = (
     const tab = (e.target as HTMLElement | null)?.closest?.('.tab') as HTMLElement | null;
     if (tab) {
       const section = sections.find((s) => s.id === tab.dataset['section']);
-      if (section) setOffset(section.x);
+      if (section) setOffset(section.x - section.lead, section);
       mode = 'idle';
       return;
     }
@@ -411,6 +491,7 @@ export const createEmojiView = (
     mode = 'press';
     clearHold();
     const held = pressed;
+    if (held?.face) return; // a face only taps
     if (held && (held.section === 'recent' || held.section === 'favorites')) {
       holdTimer = setTimeout(() => { holdTimer = null; if (mode === 'press') lift(held, last); }, HOLD_MS);
     } else if (held?.toned) {
@@ -433,7 +514,7 @@ export const createEmojiView = (
     if (!p) return true;
     last = p;
     lastTouchAt = now();
-    const slop = pressed && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? SLOP_PX.holdWander : SLOP_PX.scroll;
+    const slop = pressed && !pressed.face && (pressed.toned || pressed.section === 'recent' || pressed.section === 'favorites') ? SLOP_PX.holdWander : SLOP_PX.scroll;
     if (mode === 'press' && Math.hypot(p.x - start.x, p.y - start.y) > slop) {
       clearHold();
       mode = 'scroll';
@@ -502,7 +583,7 @@ export const createEmojiView = (
     const tab = (e.target as HTMLElement | null)?.closest?.('.tab') as HTMLElement | null;
     if (tab) {
       const section = sections.find((s) => s.id === tab.dataset['section']);
-      if (section) setOffset(section.x);
+      if (section) setOffset(section.x - section.lead, section);
     } else if (mode === 'idle') tap(cellAt(e.target));
   }
 
@@ -528,7 +609,9 @@ export const createEmojiView = (
   return {
     update: (next) => {
       const rebuild = next.tone !== state.tone || next.favorites.length !== state.favorites.length
-        || next.recent.join() !== state.recent.join() || next.favorites.join() !== state.favorites.join();
+        || next.recent.join() !== state.recent.join() || next.favorites.join() !== state.favorites.join()
+        || next.mode !== state.mode || next.kaomojiRecent.join('\n') !== state.kaomojiRecent.join('\n');
+      if (next.mode !== state.mode) offset = 0; // the other mode opens at its Recent
       state = next;
       if (rebuild) build();
     },

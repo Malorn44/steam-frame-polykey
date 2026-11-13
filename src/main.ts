@@ -120,7 +120,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let settingsScroll: SettingsScroll = {};
   let settingsLanguage: string | undefined;
   // Emoji: Recent, Favorites and the skin tone, saved by the sidecar (~/.config/polykey/emoji.json).
-  let emoji: EmojiState = boot?.emojiState ?? NO_EMOJI_STATE;
+  let emoji: EmojiState = { ...NO_EMOJI_STATE, ...boot?.emojiState };
   const tones = toneTable(boot?.emoji ?? { groups: [] });
   let emojiSave: ReturnType<typeof setTimeout> | null = null;
   /** While the picker is open and Steam is still fetching its items. */
@@ -227,6 +227,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (page === 'emoji') saveEmoji(0);
       page = action === 'abc' ? 'keys' : action === 'emoji' && boot?.emoji ? 'emoji' : action === 'emoji' ? 'keys' : 'settings';
       if (action === 'emoji' && !boot?.emoji) log('emoji: no emoji data from the sidecar');
+      render();
+    }
+    else if (action === 'kaomoji') {
+      // The picker's mode key: kaomoji, or back to emoji. The picker opens in the saved mode next time.
+      if (page !== 'emoji' || !boot?.kaomoji) return;
+      emoji = { ...emoji, mode: emoji.mode === 'kaomoji' ? 'emoji' : 'kaomoji' };
+      saveEmoji(0);
       render();
     }
     else log(`${action}: not available yet`);
@@ -772,7 +779,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         steamAvailable: steamItemsAvailable(g),
         steamLoading,
         tones,
-      }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent });
+        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, japanese: keyboard?.language === 'ja' } : null,
+      }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent, onKaomoji: typeKaomoji });
       if (steamLoading) {
         const until = Date.now() + STEAM_ITEMS_WAIT_MS;
         steamWait = setInterval(() => {
@@ -784,8 +792,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       }
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
+        // The mode key reads :-) over emoji and shows the emoji icon over kaomoji; without kaomoji data
+        // the row has none.
+        const faces = !!boot.kaomoji;
+        const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'kaomoji';
+        const rows = row.rows.map((keys) => keys.filter((k) => faces || !modeKey(k))
+          .map((k) => (modeKey(k) && emoji.mode === 'kaomoji' ? { ...(k as KeyDef), icon: 'emoji' } : k)));
         // Its back key reads the current mode's letters (あいう, ABC).
-        view = createView(surface.doc, surface.shadow, row, theme, onKey, onSuggestion, undefined,
+        view = createView(surface.doc, surface.shadow, { ...row, rows }, theme, onKey, onSuggestion, undefined,
           { letters: modeLetters(keyboard, latinMode.has(id)) });
         view.update(mods);
       }
@@ -892,6 +906,16 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     swiped = null;
     sendEffects([{ kind: 'text', text: withTone(base, emoji.tone, tones) }]);
     emoji = { ...emoji, recent: useRecent(emoji.recent, base, fromRecent, RECENT_MAX) };
+    picker?.update(emoji);
+    saveEmoji();
+  };
+
+  /** A kaomoji is typed as an emoji is, and kept in its own Recent. It is typed content: never logged. */
+  const typeKaomoji = (face: string, fromRecent: boolean, room: number): void => {
+    if (surface) tick(surface.win, hand);
+    swiped = null;
+    sendEffects([{ kind: 'text', text: face }]);
+    emoji = { ...emoji, kaomojiRecent: useRecent(emoji.kaomojiRecent, face, fromRecent, room) };
     picker?.update(emoji);
     saveEmoji();
   };
