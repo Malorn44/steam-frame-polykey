@@ -101,27 +101,36 @@ def user_dir() -> Path:
 _TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
 
 
+def _one_of(value: Any, options: list, root: dict, path: str) -> list[str]:
+    """A oneOf's errors: none when exactly one option matches."""
+    # Options that each only require a field say "exactly one of these fields" (a table's entries, cycles or hangul).
+    fields = [o["required"][0] for o in options if list(o) == ["required"] and len(o["required"]) == 1]
+    if len(fields) == len(options):
+        if not isinstance(value, dict) or sum(f in value for f in fields) == 1:
+            return []  # (not an object: its type says so)
+        return [f"{path or '/'}: needs {', '.join(fields[:-1])} or {fields[-1]} (one of them)"]
+    results = [validate(value, option, root, path) for option in options]
+    valid = sum(1 for r in results if not r)
+    if valid == 1:
+        return []
+    if valid > 1:
+        return [f"{path or '/'}: matches more than one option"]
+    # Report the option the value was meant to be: its "type"/"kind" matched.
+    tags = (f"{path}/type: must be", f"{path}/kind: must be")
+    wrong_type = (f"{path or '/'}: must be a ", f"{path or '/'}: must be an ")
+    meant = [
+        r
+        for r in results
+        if not any(e.startswith(tags) for e in r) and not (len(r) == 1 and r[0].startswith(wrong_type))
+    ]
+    return min(meant, key=len) if meant else max(results, key=lambda r: max(e.count("/") for e in r))
+
+
 def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
     """Errors as "path: reason" (empty when valid)."""
     if "$ref" in schema:
         name = schema["$ref"].rsplit("/", 1)[-1]
         return validate(value, root["$defs"][name], root, path)
-    if "oneOf" in schema:
-        results = [validate(value, option, root, path) for option in schema["oneOf"]]
-        valid = sum(1 for r in results if not r)
-        if valid == 1:
-            return []
-        if valid > 1:
-            return [f"{path or '/'}: matches more than one option"]
-        # Report the option the value was meant to be: its "type"/"kind" matched.
-        tags = (f"{path}/type: must be", f"{path}/kind: must be")
-        wrong_type = (f"{path or '/'}: must be a ", f"{path or '/'}: must be an ")
-        meant = [
-            r
-            for r in results
-            if not any(e.startswith(tags) for e in r) and not (len(r) == 1 and r[0].startswith(wrong_type))
-        ]
-        return min(meant, key=len) if meant else max(results, key=lambda r: max(e.count("/") for e in r))
     errors: list[str] = []
     where = path or "/"
     if "const" in schema and value != schema["const"]:
@@ -169,6 +178,8 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
                 errors += validate(item, patterns[pattern], root, f"{path}/{name}")
             elif schema.get("additionalProperties") is False:
                 errors.append(f"{where}: unknown field {name}")
+    if "oneOf" in schema:
+        errors += _one_of(value, schema["oneOf"], root, path)
     return errors
 
 
@@ -658,18 +669,9 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
             errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")
 
 
-# What a table holds: one of these.
-TABLE_DATA = ("entries", "cycles", "hangul")
-# The table each composer reads, and what it is called in an error (src/core/composers/).
-COMPOSER_TABLES = {"romaji": ("entries", "romaji"), "hangul": ("hangul", "hangul")}
-
-
-def _check_tables(catalog: dict, errors: list[str]) -> None:
-    """A table is entries (romaji), cycles (゛゜小) or hangul (how jamo compose): one of them."""
-    for table_id, table in list(catalog["tables"].items()):
-        if sum(f in table for f in TABLE_DATA) != 1:
-            errors.append(f"{table_id}: needs entries, cycles or hangul (one of them)")
-            del catalog["tables"][table_id]
+# The table field each composer reads, by composer id (src/core/composers/): its keyboard's table must have it.
+# (Which fields a table can hold, one of them, the schema says.)
+COMPOSER_TABLES = {"romaji": "entries", "hangul": "hangul"}
 
 
 def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
@@ -711,11 +713,12 @@ def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
     return {k: v for k, v in resolved.items() if v is not None}
 
 
-def _table_needed(keyboard: dict) -> Optional[tuple[str, str]]:
-    """What the keyboard's table must hold for its composer (a kana keyboard's romajiInput: romaji), or None."""
-    if keyboard.get("composer") in COMPOSER_TABLES:
-        return COMPOSER_TABLES[keyboard["composer"]]
-    return COMPOSER_TABLES["romaji"] if "romajiInput" in keyboard.get("options", {}) else None
+def _table_composer(keyboard: dict) -> Optional[str]:
+    """The composer whose table the keyboard needs (a kana keyboard's romajiInput reads romaji's), or None."""
+    composer = keyboard.get("composer")
+    if composer in COMPOSER_TABLES:
+        return composer
+    return "romaji" if "romajiInput" in keyboard.get("options", {}) else None
 
 
 def _pages(keyboard: dict) -> list[str]:
@@ -751,17 +754,16 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     for item_id, item in items.items():
         if item["kind"] in KINDS:
             catalog[KINDS[item["kind"]]][item_id] = item
-    _check_tables(catalog, errors)
     _resolve_layouts(catalog, errors)
     catalog["keyboards"] = _extend_keyboards(catalog["keyboards"], errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in _pages(keyboard) if lay not in catalog["layouts"]]
-        table = _table_needed(keyboard)
+        composer = _table_composer(keyboard)
         if missing:
             errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]
-        elif table and table[0] not in catalog["tables"].get(keyboard.get("table"), {}):
-            errors.append(f"{keyboard_id}: {table[1]} table {keyboard.get('table')} not found")
+        elif composer and COMPOSER_TABLES[composer] not in catalog["tables"].get(keyboard.get("table"), {}):
+            errors.append(f"{keyboard_id}: {composer} table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
         elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
             errors.append(f"{keyboard_id}: the swipe option needs features.swipe")  # the keyboard still types
