@@ -86,7 +86,7 @@ export interface Composer<S> {
   press(state: S, key: KeyDef, input: ComposerInput, ctx: ComposerContext): ComposerResult<S> | null;
   /** Send everything that waits, as it stands. */
   flush(state: S, ctx: ComposerContext): ComposerResult<S>;
-  show(state: S): Shown;
+  show(state: S, ctx: ComposerContext): Shown;
   /** End anything waiting on the next press (a tap cycle), keeping what is composed. */
   pause?(state: S): S;
   /** Dictated text into the composition, for its candidates; null when it cannot take it (it is then sent at once). */

@@ -177,7 +177,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
     shown: () => {
       const kb = keyboard();
       if (!composing(kb)) return null;
-      const { preedit, labels } = kb.composer.show(stateOf(kb));
+      const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
       return { composition: 'segments' in preedit ? preedit : { ...preedit, candidates: live, selected: -1 }, labels };
     },
   };
