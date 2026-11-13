@@ -6,7 +6,7 @@ polykey's layouts, keyboards, themes and picker sets are JSON files called packs
 
 - polykey's own packs are in [`packs/`](../packs/), one folder per namespace: `en`, `ja`, `themes` and so on.
 - Yours go on the Frame in `~/.config/polykey/packs/<namespace>/`, in a namespace of your own (`mine` in the examples below).
-- Each file holds one item. Its `id` is `<namespace>/<name>`, in lower-case letters, digits and `-`, and starts with its folder's name. A language's `id` is its code alone (`ja`), and its folder has that name.
+- Each file holds one item. Its `id` is `<namespace>/<name>`, in lower-case letters, digits and `-`, and starts with its folder's name. A language's `id` is its code alone (`ja`), and it is `language.json` in the folder of that name.
 - An item with the same id as a bundled one replaces it. Any other id adds a new one.
 - New keyboards show up in Settings → Keyboards, under their language. New themes show up in the theme picker. New picker sets show up in the emoji picker.
 
@@ -104,7 +104,7 @@ Restart polykey, then add QWERTZ in Settings → Keyboards.
 
 ## A language
 
-A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack with that code fills in what the keyboard leaves out. Its `id` is the code, and its file sits in the folder of that name. This is polykey's Japanese, [`packs/ja/japanese.json`](../packs/ja/japanese.json):
+A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack with that code fills in what the keyboard leaves out. Its `id` is the code, and its file is `language.json` in the folder of that name. This is polykey's Japanese, [`packs/ja/language.json`](../packs/ja/language.json):
 
 ```json
 {
@@ -124,7 +124,7 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 - `dictation`: the language dictation listens for, if it is not the `id`.
 - `font`: the fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font. Korean's is `"Noto Sans CJK KR", "Noto Sans CJK JP"`: the Frame's system font has no Hangul.
 
-A language of yours replaces the bundled one with its code: to change the Japanese words, copy the file to `~/.config/polykey/packs/ja/` and edit it there.
+A language of yours replaces the bundled one with its code: to change the Japanese words, copy it to `~/.config/polykey/packs/ja/language.json` and edit it there.
 
 ## A Hangul table
 
