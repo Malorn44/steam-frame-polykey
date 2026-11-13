@@ -1,6 +1,6 @@
 // Which layout a keyboard shows: its main layout, its 英数 page, or one of its symbols pages.
 
-import type { KeyDef, KeyboardDef } from './catalog.js';
+import type { KeyDef, KeyboardDef, LanguageDef } from './catalog.js';
 
 /** What the keyboard is showing: 英数 mode, which symbols page (0: none), and the qwertyLatin option. */
 export interface PageState { readonly latin: boolean; readonly symbols: 0 | 1 | 2; readonly qwerty: boolean }
@@ -19,12 +19,15 @@ export const pageLayout = (keyboard: KeyboardDef, state: PageState): string => {
 };
 
 /**
- * What the current mode's letters are called (its pack's letters: あいう, ABC); a keyboard without modes
- * has the back key's own name. latin: in the keyboard's Latin mode (英数).
+ * What the current mode's letters are called: the mode's own (ABC), else for the keyboard's own letters
+ * its language's (あいう, 한글); otherwise none, and the back key has its own name. latin: in the
+ * keyboard's Latin mode (英数).
  */
-export const modeLetters = (keyboard: KeyboardDef | undefined, latin: boolean): string | undefined => {
+export const modeLetters = (keyboard: KeyboardDef | undefined, latin: boolean, language?: LanguageDef): string | undefined => {
   const modes = keyboard?.modes ?? [];
-  return (modes.find((mode) => !!mode.latin === latin) ?? modes[0])?.letters;
+  const mode = modes.find((m) => !!m.latin === latin) ?? modes[0];
+  if (mode?.letters) return mode.letters;
+  return (mode ? !mode.latin : !latin) ? language?.letters : undefined;
 };
 
 /**
