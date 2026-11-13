@@ -101,8 +101,9 @@ def test_it_loads_on_its_own(layout_id, tmp_path):
         shutil.copy(source, alone / source.parent.name / source.name)
 
     boot = packs.load(alone, SCHEMA, tmp_path / "user")
-    # On its own there are no keyboards or themes for the settings to name; that is not the layout's.
-    assert [e for e in boot["errors"] if not e.startswith("settings.json:")] == []
+    # On its own there are no keyboards or themes for the settings to name, and no kaomoji data; those
+    # are not the layout's.
+    assert [e for e in boot["errors"] if not e.startswith(("settings.json:", "emoji/kaomoji.data:"))] == []
     assert boot["catalog"]["layouts"].get(layout_id) == full_boot()["catalog"]["layouts"].get(layout_id)
 
 

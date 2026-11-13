@@ -438,13 +438,85 @@ def test_emoji_data_and_state(tmp_path):
     assert [g["id"] for g in groups][:2] == ["smileys", "people"]
     assert groups[0]["items"][0] == "😀"
     assert any(isinstance(i, list) and len(i) == 6 for i in groups[1]["items"])  # skin tones
-    assert boot["emojiState"] == {"recent": [], "favorites": [], "tone": ""}
+    assert boot["emojiState"] == {"recent": [], "favorites": [], "tone": "", "kaomojiRecent": [], "mode": "emoji"}
     write(tmp_path, "emoji.json", {"recent": ["😀", 5, "x" * 99], "favorites": ["⭐"], "tone": "dark", "other": 1})
     assert packs.load(BUNDLED, SCHEMA, tmp_path)["emojiState"] == {
         "recent": ["😀"],
         "favorites": ["⭐"],
         "tone": "dark",
+        "kaomojiRecent": [],
+        "mode": "emoji",
     }
+
+
+def test_emoji_state_keeps_a_clean_kaomoji_recent_and_mode():
+    state = packs.clean_emoji_state(
+        {"kaomojiRecent": ["(^_^)", 5, "", "x" * 65, "y" * 64, ["(>_<)"]] + ["^^"] * 50, "mode": "kaomoji"}
+    )
+    assert state["kaomojiRecent"][:2] == ["(^_^)", "y" * 64]
+    assert len(state["kaomojiRecent"]) == packs.MAX_EMOJI_LIST
+    assert state["mode"] == "kaomoji"
+    for mode in ("stickers", 1, None, ["kaomoji"]):
+        assert packs.clean_emoji_state({"mode": mode, "kaomojiRecent": "(^_^)"}) == {
+            "recent": [],
+            "favorites": [],
+            "tone": "",
+            "kaomojiRecent": [],
+            "mode": "emoji",
+        }
+
+
+def kaomoji(*categories) -> dict:
+    return {"source": "test", "categories": [{"id": i, "en": i.title(), "ja": "顔", "faces": f} for i, f in categories]}
+
+
+def test_bundled_kaomoji_load_in_order(tmp_path):
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    categories = boot["kaomoji"]["categories"]
+    bundled = json.loads((BUNDLED / "emoji" / "kaomoji.data").read_text(encoding="utf-8"))["categories"]
+    assert boot["errors"] == []
+    assert set(boot["kaomoji"]) == {"categories"}  # the source note stays behind
+    assert categories == bundled and len(categories) > 1  # every category and face, in the file's order
+    assert all(set(c) == {"id", "en", "ja", "faces"} for c in categories)
+
+
+def test_a_users_kaomoji_replace_the_bundled_ones(tmp_path):
+    write(tmp_path / "packs", "emoji/kaomoji.data", kaomoji(("mine", ["(o_o)", "\\(^o^)/"])))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == []
+    assert boot["kaomoji"] == {"categories": [{"id": "mine", "en": "Mine", "ja": "顔", "faces": ["(o_o)", "\\(^o^)/"]}]}
+
+
+def test_a_bad_kaomoji_copy_is_reported_and_the_bundled_one_used(tmp_path):
+    bad = [
+        "{not json",
+        [],
+        {"categories": []},
+        {"categories": "faces"},
+        kaomoji(("mine", [])),
+        kaomoji(("mine", ["ok", 5])),
+        kaomoji(("mine", ["x" * 65])),
+        kaomoji(("mine", ["two\nlines"])),
+        kaomoji(("Mine!", ["ok"])),
+        kaomoji(("recent", ["ok"])),
+        kaomoji(("mine", ["ok"]), ("mine", ["ok"])),
+        {"categories": [{"id": "mine", "en": "Mine", "faces": ["ok"]}]},
+        {"categories": [{"id": "mine", "en": "", "ja": "顔", "faces": ["ok"]}]},
+        kaomoji(*((f"c{i}", ["ok"]) for i in range(65))),
+        kaomoji(*((f"c{i}", [f"{n}" for n in range(101)]) for i in range(20))),
+        "[" + " " * packs.MAX_FILE_BYTES + "]",
+    ]
+    for data in bad:
+        write(tmp_path / "packs", "emoji/kaomoji.data", data)
+        boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+        assert len(boot["errors"]) == 1 and boot["errors"][0].startswith("emoji/kaomoji.data: "), data
+        assert boot["kaomoji"] == packs.load(BUNDLED, SCHEMA, tmp_path / "none")["kaomoji"]
+
+
+def test_missing_kaomoji_are_reported_and_none(tmp_path):
+    errors: list[str] = []
+    assert packs.load_kaomoji([tmp_path / "packs", tmp_path / "bundled"], errors) is None
+    assert errors == ["emoji/kaomoji.data: no kaomoji data, so no kaomoji key"]
 
 
 def test_bridge_saves_emoji_state_cleaned(tmp_path):
@@ -458,6 +530,7 @@ def test_bridge_saves_emoji_state_cleaned(tmp_path):
     assert reply == {"id": 1, "ok": True}
     saved = json.loads((tmp_path / "emoji.json").read_text(encoding="utf-8"))
     assert len(saved["recent"]) == 40 and saved["tone"] == ""
+    assert saved["kaomojiRecent"] == [] and saved["mode"] == "emoji"
     assert "😀" not in out.getvalue()
 
 
