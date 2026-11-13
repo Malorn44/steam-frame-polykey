@@ -498,7 +498,7 @@ describe('settings → Dictation', () => {
     const { popup, sidecar } = setup({ dictation: true });
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
-    expect(items(popup, 'langs').map((i) => i.textContent)).toEqual(['English✓', '日本語', 'Downloaded1']);
+    expect(items(popup, 'langs').map((i) => i.textContent)).toEqual(['English✓', '日本語', '한국어', 'Downloaded1']);
     expect(items(popup, 'langs')[0]!.classList.contains('sel')).toBe(true); // the keyboard's
     const models = () => items(popup, 'models');
     // The title line, outside the scroller, labels the grid's columns: the graded language, speed and size.
@@ -563,7 +563,7 @@ describe('settings → Dictation', () => {
     const head = [...panel(popup).querySelectorAll('.dm .models .colhead > div')].map((d) => d.textContent);
     expect(head).toEqual(['Downloaded · 999 MB', 'Used for', 'Size']); // the finished ones
     expect(items(popup, 'models').map((i) => ['.nm', '.used', '.mark'].map((c) => i.querySelector(c)!.textContent))).toEqual([
-      ['Whisper small', '日本語', '✓'], ['Parakeet', 'English', '✓'], ['SenseVoice Small', 'not used', '0%']]);
+      ['Whisper small', '日本語, 한국어', '✓'], ['Parakeet', 'English', '✓'], ['SenseVoice Small', 'not used', '0%']]);
     expect(items(popup, 'models').every((i) => i.lastElementChild!.querySelector('svg'))).toBe(true); // ✕ on each
     await touch(items(popup, 'models')[0]!); // a row tap chooses nothing
     expect(sidecar.ops()).not.toContain('settings.save');

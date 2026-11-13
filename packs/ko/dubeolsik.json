@@ -1,0 +1,14 @@
+{
+  "$schema": "../pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ko/dubeolsik",
+  "name": "Korean 2-set (두벌식)",
+  "description": "The standard 2-set layout (KS X 5002): consonants on the left, vowels on the right, at the QWERTY positions. Shift gives the tense consonants ㅃㅉㄸㄲㅆ and ㅒㅖ. The bottom row is the English one with 한/영 right of Space (ko/qwerty, the Latin mode).",
+  "extends": "ko/qwerty",
+  "rows": {
+    "1": [{"type": "key", "key": "Tab", "w": 1.5}, {"type": "char", "char": "ㅂ", "shift": "ㅃ"}, {"type": "char", "char": "ㅈ", "shift": "ㅉ"}, {"type": "char", "char": "ㄷ", "shift": "ㄸ"}, {"type": "char", "char": "ㄱ", "shift": "ㄲ"}, {"type": "char", "char": "ㅅ", "shift": "ㅆ"}, "ㅛ", "ㅕ", "ㅑ", {"type": "char", "char": "ㅐ", "shift": "ㅒ"}, {"type": "char", "char": "ㅔ", "shift": "ㅖ"}, {"type": "char", "char": "[", "shift": "{"}, {"type": "char", "char": "]", "shift": "}"}, {"type": "char", "char": "\\", "shift": "|", "w": 1.5}],
+    "2": [{"type": "mod", "mod": "caps", "w": 1.75}, "ㅁ", "ㄴ", "ㅇ", "ㄹ", "ㅎ", "ㅗ", "ㅓ", "ㅏ", "ㅣ", {"type": "char", "char": ";", "shift": ":"}, {"type": "char", "char": "'", "shift": "\""}, {"type": "key", "key": "Enter", "w": 2.25}],
+    "3": [{"type": "mod", "mod": "shift", "w": 2.25}, "ㅋ", "ㅌ", "ㅊ", "ㅍ", "ㅠ", "ㅜ", "ㅡ", {"type": "char", "char": ",", "shift": "<"}, {"type": "char", "char": ".", "shift": ">"}, {"type": "char", "char": "/", "shift": "?", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowUp", "alone": {"w": 1.25}}, {"type": "mod", "mod": "shift", "w": 1.75, "alone": {"w": 1.25}}]
+  }
+}

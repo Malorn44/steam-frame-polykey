@@ -658,11 +658,28 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
             errors.append(f"{layout_id}: has a ゛゜小 key but no modify table")
 
 
+# What a table holds: one of these.
+TABLE_DATA = ("entries", "cycles", "hangul")
+# The table each composer reads, and what it is called in an error (src/core/composers/).
+COMPOSER_TABLES = {"romaji": ("entries", "romaji"), "hangul": ("hangul", "hangul")}
+
+
+def _hangul_problem(hangul: dict) -> Optional[str]:
+    """What is wrong with a hangul table that the schema cannot say, or None: each pair's jamo are in its lists."""
+    for field, jamo in (("compoundMedials", hangul["medials"]), ("compoundFinals", hangul["finals"])):
+        wrong = next((pair for pair in hangul.get(field, []) if any(ch not in jamo for ch in pair)), None)
+        if wrong is not None:
+            return f"{field} {wrong}: its jamo must all be in {'medials' if field == 'compoundMedials' else 'finals'}"
+    return None
+
+
 def _check_tables(catalog: dict, errors: list[str]) -> None:
-    """A table is either entries (romaji) or cycles (゛゜小)."""
+    """A table is entries (romaji), cycles (゛゜小) or hangul (how jamo compose): one of them."""
     for table_id, table in list(catalog["tables"].items()):
-        if ("entries" in table) == ("cycles" in table):
-            errors.append(f"{table_id}: needs entries or cycles (one of them)")
+        problem = "needs entries, cycles or hangul (one of them)" if sum(f in table for f in TABLE_DATA) != 1 else None
+        problem = problem or (_hangul_problem(table["hangul"]) if "hangul" in table else None)
+        if problem:
+            errors.append(f"{table_id}: {problem}")
             del catalog["tables"][table_id]
 
 
@@ -705,6 +722,13 @@ def _extend_keyboards(keyboards: dict, errors: list[str]) -> dict:
     return {k: v for k, v in resolved.items() if v is not None}
 
 
+def _table_needed(keyboard: dict) -> Optional[tuple[str, str]]:
+    """What the keyboard's table must hold for its composer (a kana keyboard's romajiInput: romaji), or None."""
+    if keyboard.get("composer") in COMPOSER_TABLES:
+        return COMPOSER_TABLES[keyboard["composer"]]
+    return COMPOSER_TABLES["romaji"] if "romajiInput" in keyboard.get("options", {}) else None
+
+
 def _pages(keyboard: dict) -> list[str]:
     """Every layout a keyboard can show: its layout, its 英数 page(s) and its symbols pages."""
     pages = keyboard.get("pages", {})
@@ -743,13 +767,12 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
     catalog["keyboards"] = _extend_keyboards(catalog["keyboards"], errors)
     for keyboard_id, keyboard in list(catalog["keyboards"].items()):
         missing = [lay for lay in _pages(keyboard) if lay not in catalog["layouts"]]
+        table = _table_needed(keyboard)
         if missing:
             errors.append(f"{keyboard_id}: layout {missing[0]} not found")
             del catalog["keyboards"][keyboard_id]
-        elif (
-            keyboard.get("composer") == "romaji" or "romajiInput" in keyboard.get("options", {})
-        ) and "entries" not in catalog["tables"].get(keyboard.get("table"), {}):
-            errors.append(f"{keyboard_id}: romaji table {keyboard.get('table')} not found")
+        elif table and table[0] not in catalog["tables"].get(keyboard.get("table"), {}):
+            errors.append(f"{keyboard_id}: {table[1]} table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
         elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
             errors.append(f"{keyboard_id}: the swipe option needs features.swipe")  # the keyboard still types

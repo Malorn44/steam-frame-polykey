@@ -1410,6 +1410,75 @@ describe('the mode key', () => {
   });
 });
 
+describe('Korean', () => {
+  const setupKo = () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboards = ['ko/korean', 'en/english'];
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    const sent = () => manager.calls.map((c) => c[0]);
+    const pre = () => shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null;
+    const typeAll = async (keys: string) => { for (const k of Array.from(keys)) await tap(popup, k); };
+    return { popup, sent, pre, typeAll };
+  };
+
+  it('composes each syllable in the bar and sends it as the next begins; Space sends the last', async () => {
+    const { popup, sent, pre, typeAll } = setupKo();
+    await typeAll('ㅎㅏㄴ');
+    expect([sent(), pre()]).toEqual([[], '한']);
+    await typeAll('ㄱㅡㄹ');
+    expect([sent(), pre()]).toEqual([['한'], '글']); // one text per syllable
+    await tap(popup, ' ');
+    expect([sent(), pre()]).toEqual([['한', '글', ' '], null]);
+    await typeAll('ㅇㅓㅂㅅㅇㅓ.');
+    expect(sent().slice(3)).toEqual(['없', '어', '.']); // punctuation sends the syllable first
+  });
+
+  it('Shift types the tense consonant once; ⌫ takes jamo off, then deletes in the field', async () => {
+    const { popup, sent, pre, typeAll } = setupKo();
+    await tap(popup, 'shift');
+    expect(key(popup, 'ㅂ').querySelector('.lbl')!.textContent).toBe('ㅃ');
+    await typeAll('ㅂㅏ');
+    expect(pre()).toBe('빠');
+    expect(key(popup, 'ㅂ').querySelector('.lbl')!.textContent).toBe('ㅂ'); // Shift was one-shot
+    await typeAll('ㅂ');
+    expect(pre()).toBe('빱');
+    for (const shown of ['빠', 'ㅃ', null]) {
+      await tap(popup, 'Backspace');
+      expect(pre()).toBe(shown);
+    }
+    expect(sent()).toEqual([]);
+    await tap(popup, 'Backspace'); // nothing composed: the field's
+    expect(sent()).toEqual(['Backspace']);
+  });
+
+  it('한/영 sends the syllable and switches to ABC, where English waits in the bar as in any Latin mode; and back', async () => {
+    const { popup, sent, pre, typeAll } = setupKo();
+    await typeAll('ㅎㅏ');
+    expect(key(popup, 'mode').textContent).toBe('한/영');
+    await tap(popup, 'mode');
+    expect(sent()).toEqual(['하']);
+    expect(key(popup, 'ㅂ')).toBeUndefined(); // the ABC page
+    await typeAll('hi');
+    expect(pre()).toBe('hi');
+    await tap(popup, 'mode'); // the English word goes first
+    expect(sent().join('')).toBe('하hi');
+    await typeAll('ㄱㅏ');
+    expect(pre()).toBe('가');
+  });
+
+  it('switching keyboards sends the syllable', async () => {
+    const { popup, sent, typeAll } = setupKo();
+    await typeAll('ㄷㅏㄹㄱ');
+    await tap(popup, 'next-keyboard');
+    expect(sent()).toEqual(['닭']);
+    expect(key(popup, 'q')).toBeDefined(); // English
+  });
+});
+
 describe('failing safe', () => {
   it('does nothing without packs from the sidecar', () => {
     const popup = fakePopupWindow();

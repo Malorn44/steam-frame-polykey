@@ -1,0 +1,9 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "language",
+ "id": "ko",
+ "name": {"en": "Korean", "ko": "한국어"},
+ "description": "What the Korean keyboards call their letters.",
+ "letters": "한글"
+}
