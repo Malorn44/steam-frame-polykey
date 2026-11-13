@@ -3,7 +3,8 @@
 // the current keyboard has.
 
 import type { KeyboardDef, KeyboardOptions } from './catalog.js';
-import { takesDictation } from './composers/index.js';
+import { composerOf, takesDictation } from './composers/index.js';
+import { modeOf } from './pages.js';
 
 export type OptionName = keyof KeyboardOptions;
 
@@ -48,3 +49,14 @@ export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
 /** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
 export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>
   (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? keyboard.features.swipe.lexicon : undefined);
+
+/**
+ * The word list suggested from in the keyboard's current mode (latin: its Latin mode): the mode's own,
+ * else the keyboard's, except in a mode that composes (かな, whose text is not the keyboard's words).
+ */
+export const suggestLexicon = (keyboard: KeyboardDef | undefined, latin: boolean): string | undefined =>
+  modeOf(keyboard, latin)?.lexicon ?? (composerOf(keyboard) && !latin ? undefined : keyboard?.lexicon);
+
+/** Whether the keyboard suggests words in any of its modes (settings then offers to turn suggestions off). */
+export const suggests = (keyboard: KeyboardDef | undefined): boolean =>
+  !!keyboard?.lexicon || !!keyboard?.modes?.some((mode) => mode.lexicon);
