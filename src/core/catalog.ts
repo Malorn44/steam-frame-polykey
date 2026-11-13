@@ -139,9 +139,16 @@ export interface ThemeColors {
   /** The outline marking the current input mode (英数 / かな); default accent. */
   indicator?: string;
 }
-/** A conversion table: [input, output, pending letters?] rows (e.g. romaji to kana). */
-/** entries: romaji to kana; cycles: what ゛゜小 does (layouts get theirs resolved into `modify`). */
-export interface TableDef { id: string; name: PackName; entries?: [string, string, string?][]; cycles?: string[] }
+/**
+ * Hangul composition (the hangul composer): the jamo in Unicode's order, a syllable's initial, medial and
+ * final being its index in each, and the pairs typed one after the other that make one jamo ("ㅗㅏㅘ").
+ */
+export interface HangulTableDef { initials: string; medials: string; finals: string; compoundMedials?: string[]; compoundFinals?: string[] }
+/**
+ * A table: entries, romaji to kana ([input, output, pending letters?]); cycles, what ゛゜小 does (layouts
+ * get theirs resolved into `modify`); or hangul, how jamo compose.
+ */
+export interface TableDef { id: string; name: PackName; entries?: [string, string, string?][]; cycles?: string[]; hangul?: HangulTableDef }
 export interface Theme {
   id: string; name: PackName; radius?: number; font?: string; followSteam?: boolean; colors: ThemeColors;
   /** dark (the default): pressed and raised states shift lighter; light: they shift darker. */

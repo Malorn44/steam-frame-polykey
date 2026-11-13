@@ -810,9 +810,10 @@
           "enum": [
             "direct",
             "kana",
-            "romaji"
+            "romaji",
+            "hangul"
           ],
-          "description": "direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table."
+          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul: jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table."
         },
         "lexicon": {
           "$ref": "#/$defs/id",
@@ -878,7 +879,7 @@
         },
         "table": {
           "$ref": "#/$defs/id",
-          "description": "The table (kind table) for composer romaji."
+          "description": "The table (kind table) the composer reads: entries for composer romaji (or a kana keyboard's romajiInput option), hangul for composer hangul."
         }
       }
     },
@@ -1090,7 +1091,7 @@
         "name"
       ],
       "additionalProperties": false,
-      "description": "A conversion table: entries (romaji to kana) or cycles (゛゜小).",
+      "description": "A table: entries (romaji to kana), cycles (゛゜小), or hangul (how jamo compose); one of them.",
       "properties": {
         "$schema": {
           "type": "string"
@@ -1128,6 +1129,56 @@
         },
         "cycles": {
           "$ref": "#/$defs/cycles"
+        },
+        "hangul": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "initials",
+            "medials",
+            "finals"
+          ],
+          "description": "How jamo compose into syllables (composer hangul). The lists are in Unicode's order, so a syllable is 0xAC00 + (initial × 21 + medial) × 28 + final, each its index in its list (final counting from 1; 0 is none).",
+          "properties": {
+            "initials": {
+              "type": "string",
+              "minLength": 19,
+              "maxLength": 19,
+              "description": "The 19 initial consonants, ㄱ to ㅎ: the jamo a key types that can start a syllable."
+            },
+            "medials": {
+              "type": "string",
+              "minLength": 21,
+              "maxLength": 21,
+              "description": "The 21 vowels, ㅏ to ㅣ, compound ones included (ㅘ)."
+            },
+            "finals": {
+              "type": "string",
+              "minLength": 27,
+              "maxLength": 27,
+              "description": "The 27 final consonants, ㄱ to ㅎ, compound ones included (ㄳ): the jamo that can end a syllable."
+            },
+            "compoundMedials": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial)."
+            },
+            "compoundFinals": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "description": "Final consonants typed one after the other that make one: \"ㄱㅅㄳ\" is ㄱ then ㅅ, making ㄳ (a final). A vowel after it takes the second (닭 + ㅏ → 달 가)."
+            }
+          }
         }
       }
     },
