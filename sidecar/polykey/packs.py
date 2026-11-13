@@ -664,22 +664,11 @@ TABLE_DATA = ("entries", "cycles", "hangul")
 COMPOSER_TABLES = {"romaji": ("entries", "romaji"), "hangul": ("hangul", "hangul")}
 
 
-def _hangul_problem(hangul: dict) -> Optional[str]:
-    """What is wrong with a hangul table that the schema cannot say, or None: each pair's jamo are in its lists."""
-    for field, jamo in (("compoundMedials", hangul["medials"]), ("compoundFinals", hangul["finals"])):
-        wrong = next((pair for pair in hangul.get(field, []) if any(ch not in jamo for ch in pair)), None)
-        if wrong is not None:
-            return f"{field} {wrong}: its jamo must all be in {'medials' if field == 'compoundMedials' else 'finals'}"
-    return None
-
-
 def _check_tables(catalog: dict, errors: list[str]) -> None:
     """A table is entries (romaji), cycles (゛゜小) or hangul (how jamo compose): one of them."""
     for table_id, table in list(catalog["tables"].items()):
-        problem = "needs entries, cycles or hangul (one of them)" if sum(f in table for f in TABLE_DATA) != 1 else None
-        problem = problem or (_hangul_problem(table["hangul"]) if "hangul" in table else None)
-        if problem:
-            errors.append(f"{table_id}: {problem}")
+        if sum(f in table for f in TABLE_DATA) != 1:
+            errors.append(f"{table_id}: needs entries, cycles or hangul (one of them)")
             del catalog["tables"][table_id]
 
 

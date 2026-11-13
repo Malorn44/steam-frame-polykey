@@ -1133,50 +1133,25 @@
         "hangul": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "initials",
-            "medials",
-            "finals"
-          ],
-          "description": "How jamo compose into syllables (composer hangul). The lists are in Unicode's order, so a syllable is 0xAC00 + (initial × 21 + medial) × 28 + final, each its index in its list (final counting from 1; 0 is none).",
+          "description": "How jamo compose (composer hangul), what a layout varies: the jamo typed one after the other that make one. The jamo themselves, and their order in Unicode's syllable formula, are Unicode's (src/core/composers/hangul.ts).",
           "properties": {
-            "initials": {
-              "type": "string",
-              "minLength": 19,
-              "maxLength": 19,
-              "description": "The 19 initial consonants, ㄱ to ㅎ: the jamo a key types that can start a syllable."
-            },
-            "medials": {
-              "type": "string",
-              "minLength": 21,
-              "maxLength": 21,
-              "description": "The 21 vowels, ㅏ to ㅣ, compound ones included (ㅘ)."
-            },
-            "finals": {
-              "type": "string",
-              "minLength": 27,
-              "maxLength": 27,
-              "description": "The 27 final consonants, ㄱ to ㅎ, compound ones included (ㄳ): the jamo that can end a syllable."
-            },
             "compoundMedials": {
               "type": "array",
               "maxItems": 32,
               "items": {
                 "type": "string",
-                "minLength": 3,
-                "maxLength": 3
+                "pattern": "^[ㅏ-ㅣ]{3}$"
               },
-              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial)."
+              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial). Three vowels (ㅏ to ㅣ)."
             },
             "compoundFinals": {
               "type": "array",
               "maxItems": 32,
               "items": {
                 "type": "string",
-                "minLength": 3,
-                "maxLength": 3
+                "pattern": "^[ㄱ-ㄷㄹ-ㅂㅄ-ㅈㅊ-ㅎ]{3}$"
               },
-              "description": "Final consonants typed one after the other that make one: \"ㄱㅅㄳ\" is ㄱ then ㅅ, making ㄳ (a final). A vowel after it takes the second (닭 + ㅏ → 달 가)."
+              "description": "Final consonants typed one after the other that make one: \"ㄱㅅㄳ\" is ㄱ then ㅅ, making ㄳ (a final). A vowel after it takes the second (닭 + ㅏ → 달 가). Three consonants that can end a syllable (not ㄸ, ㅃ or ㅉ)."
             }
           }
         }

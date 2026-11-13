@@ -128,21 +128,17 @@ A language of yours replaces the bundled one with its code: to change the Japane
 
 ## A Hangul table
 
-The Korean keyboard's composer (`"composer": "hangul"`) reads the table its `table` names, whose `hangul` says how jamo compose. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+The Korean keyboard's composer (`"composer": "hangul"`) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
 
 ```json
 "hangul": {
- "initials": "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ",
- "medials": "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ",
- "finals": "ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ",
  "compoundMedials": ["ㅗㅏㅘ", "ㅗㅐㅙ", "ㅗㅣㅚ", "ㅜㅓㅝ", "ㅜㅔㅞ", "ㅜㅣㅟ", "ㅡㅣㅢ"],
  "compoundFinals": ["ㄱㅅㄳ", "ㄴㅈㄵ", "ㄴㅎㄶ", "ㄹㄱㄺ", "ㄹㅁㄻ", "ㄹㅂㄼ", "ㄹㅅㄽ", "ㄹㅌㄾ", "ㄹㅍㄿ", "ㄹㅎㅀ", "ㅂㅅㅄ"]
 }
 ```
 
-- `initials`, `medials` and `finals` are the 19 consonants that start a syllable, the 21 vowels and the 27 consonants that end one, in Unicode's order. A syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each the jamo's place in its list (the final counting from 1, 0 for none), so they must be exactly these lengths.
-- A jamo a key types joins the syllable if its list allows it there: ㄸ, ㅃ and ㅉ are not finals, so they always start a new syllable.
-- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가).
+- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). A pair's jamo are three vowels, or three consonants that can end a syllable.
+- The jamo themselves are Unicode's, not the table's: a syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each its jamo's place in Unicode's lists (in `src/core/composers/hangul.ts`). ㄸ, ㅃ and ㅉ end no syllable, so they always start a new one.
 - Another Hangul layout is its own layout pack, with this table or one of its own.
 
 ## Word lists
