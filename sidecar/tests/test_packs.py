@@ -567,7 +567,7 @@ def test_the_korean_packs_load():
     korean = catalog["keyboards"]["ko/korean"]
     assert (korean["composer"], korean["table"], korean["pages"]) == ("hangul", "ko/hangul", {"latin": "ko/qwerty"})
     assert len(catalog["tables"]["ko/hangul"]["hangul"]["finals"]) == 27
-    assert catalog["languages"]["ko"]["letters"] == "한글"
+    assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["cjk"]) == ("한글", True)
     hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
     assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
     assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한/영
