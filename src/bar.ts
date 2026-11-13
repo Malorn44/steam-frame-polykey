@@ -135,6 +135,13 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
     if (composing(kb)) apply(kb, kb.composer.flush(stateOf(kb), kb.ctx));
   };
 
+  const shown: Bar['shown'] = () => {
+    const kb = keyboard();
+    if (!composing(kb)) return null;
+    const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
+    return { composition: 'segments' in preedit ? preedit : { ...preedit, candidates: live, selected: -1 }, labels };
+  };
+
   /** Forget what is composed; a converter's answer still on its way is dropped. */
   const clear = (): void => {
     held = null;
@@ -176,17 +183,11 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
       flush();
       enqueue([{ kind: 'text', text }]);
     },
-    shown: () => {
-      const kb = keyboard();
-      if (!composing(kb)) return null;
-      const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
-      return { composition: 'segments' in preedit ? preedit : { ...preedit, candidates: live, selected: -1 }, labels };
-    },
+    shown,
     composedText: () => {
-      const kb = keyboard();
-      if (!composing(kb)) return '';
-      const { preedit } = kb.composer.show(stateOf(kb), kb.ctx);
-      return 'segments' in preedit ? preedit.segments.join('') : preedit.before + preedit.after;
+      const composition = shown()?.composition;
+      if (!composition) return '';
+      return 'segments' in composition ? composition.segments.join('') : composition.before + composition.after;
     },
   };
 };
