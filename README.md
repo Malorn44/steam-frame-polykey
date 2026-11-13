@@ -1,6 +1,6 @@
 # polykey
 
-An on-screen keyboard for the Valve Steam Frame, with English and Japanese keyboards, swipe typing and offline dictation. It draws inside Steam's own keyboard popup and sends text through Steam's own key entry point, so it works wherever Steam's keyboard appears.
+An on-screen keyboard for the Valve Steam Frame, with English, Japanese and Korean keyboards, swipe typing and offline dictation. It draws inside Steam's own keyboard popup and sends text through Steam's own key entry point, so it works wherever Steam's keyboard appears.
 
 > **Unofficial; not affiliated with Valve.** It relies on private Steam internals. When a required Steam object is missing, it does nothing and leaves the stock keyboard alone.
 
@@ -44,7 +44,7 @@ If a rollback can't run, install an earlier `polykey-X.Y.Z.tar.gz` from [Release
 
 ## Features
 
-- **[English and Japanese keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows, and Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy.
+- **[English, Japanese and Korean keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows; Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy; and the Korean 2-set layout, each syllable composed in the bar.
 - **[Word suggestions](docs/KEYBOARDS.md#english)** as you type, with spelling corrections (teh → the).
 - **[Swipe typing](docs/KEYBOARDS.md#swipe-typing):** hold the trigger and trace a word. Turn it on per keyboard in settings.
 - **[Offline dictation](docs/DICTATION.md):** speech is recognized on the Frame's own CPU, and no audio leaves it. Off until you turn it on.

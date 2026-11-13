@@ -25,7 +25,7 @@ Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema
 - **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme.
 - **layout:** the keys, row by row, and the toolbar above them. A layout can `extends` another and replace only some of its rows.
 - **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
-- **table:** a romaji table (ka → か), or the cycles of the ゛゜小 key.
+- **table:** a romaji table (ka → か), the cycles of the ゛゜小 key, or how Hangul jamo compose.
 - **picker:** a set the emoji picker shows: categories of things to tap and type. Emoji and kaomoji are two of them.
 - **language:** what the keyboards in one language call their letters, and the words their bar shows while you compose (変換, 確定).
 
@@ -122,8 +122,28 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 - `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. A key whose name is left out keeps its own label.
 - `idleHint`: shown where candidates appear while there are none. A keyboard's `strings.idleHint` wins.
 - `dictation`: the language dictation listens for, if it is not the `id`.
+- `cjk`: `true` draws the language's text in the bar in the theme's CJK fonts. Korean sets it: the Frame's system font has no Hangul.
 
 A language of yours replaces the bundled one with its code: to change the Japanese words, copy the file to `~/.config/polykey/packs/ja/` and edit it there.
+
+## A Hangul table
+
+The Korean keyboard's composer (`"composer": "hangul"`) reads the table its `table` names, whose `hangul` says how jamo compose. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+
+```json
+"hangul": {
+ "initials": "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ",
+ "medials": "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ",
+ "finals": "ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ",
+ "compoundMedials": ["ㅗㅏㅘ", "ㅗㅐㅙ", "ㅗㅣㅚ", "ㅜㅓㅝ", "ㅜㅔㅞ", "ㅜㅣㅟ", "ㅡㅣㅢ"],
+ "compoundFinals": ["ㄱㅅㄳ", "ㄴㅈㄵ", "ㄴㅎㄶ", "ㄹㄱㄺ", "ㄹㅁㄻ", "ㄹㅂㄼ", "ㄹㅅㄽ", "ㄹㅌㄾ", "ㄹㅍㄿ", "ㄹㅎㅀ", "ㅂㅅㅄ"]
+}
+```
+
+- `initials`, `medials` and `finals` are the 19 consonants that start a syllable, the 21 vowels and the 27 consonants that end one, in Unicode's order. A syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each the jamo's place in its list (the final counting from 1, 0 for none), so they must be exactly these lengths.
+- A jamo a key types joins the syllable if its list allows it there: ㄸ, ㅃ and ㅉ are not finals, so they always start a new syllable.
+- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가).
+- Another Hangul layout is its own layout pack, with this table or one of its own.
 
 ## Word lists
 

@@ -1,6 +1,6 @@
 # Keyboards
 
-What polykey's English and Japanese keyboards do, and the toolbar and emoji they share.
+What polykey's English, Japanese and Korean keyboards do, and the toolbar and emoji they share.
 
 ![The English keyboard, with its toolbar, number row, Fn keys and arrows, above the Japanese 12-key flick keyboard with flick hints and its candidate panel on the left](images/keyboards.png)
 
@@ -42,6 +42,17 @@ The JIS layout, Mac style. Each key has its Latin and kana legends: 英数 types
 ### English on the Japanese keyboards
 
 In 英数 (ABC) mode the word waits in the bar like a kana reading, with up to eight suggestions where the candidates go. Space or punctuation sends it, 確定 sends it alone, and a picked suggestion replaces it.
+
+## Korean
+
+The standard 2-set (두벌식) layout: consonants on the left, vowels on the right, at the QWERTY positions. Shift gives the tense consonants ㅃ ㅉ ㄸ ㄲ ㅆ and ㅒ ㅖ.
+
+- **Composing:** the syllable you are typing waits in the bar, and is sent once the next jamo cannot join it (한 + ㄱ sends 한). Vowels and finals that combine do (ㅗ + ㅏ → ㅘ, ㄹ + ㄱ → ㄺ), and a vowel after a final takes that consonant into the next syllable (한 + ㅏ → 하 나).
+- **⌫** takes the last jamo off (닭 → 달 → 다 → ㄷ); with nothing in the bar it deletes in the field.
+- **Space, Enter and punctuation** send the syllable first, as do 한/영, 🌐 and dictation.
+- **한/영**, right of Space, switches to ABC: the English layout, where words wait in the bar with suggestions and swipe typing works, as in the Japanese keyboards' 英数 mode. 한/영 again goes back.
+
+There are no word suggestions or Hanja conversion in Korean yet.
 
 ## Toolbar
 
