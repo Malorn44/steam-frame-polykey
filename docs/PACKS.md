@@ -110,7 +110,7 @@ A keyboard's `lexicon` names the word list its suggestions come from: `en/words`
 
 ## A picker set
 
-The emoji picker shows one set at a time: emoji ([`packs/emoji/emoji.json`](../packs/emoji/emoji.json)), kaomoji ([`packs/emoji/kaomoji.json`](../packs/emoji/kaomoji.json)) and any of your own. The key next to ABC on its bottom row goes to the next set, in the order above with yours after, and shows that set's icon. With one set there is no such key.
+The emoji picker shows one set at a time: emoji ([`packs/emoji/emoji.json`](../packs/emoji/emoji.json)), kaomoji ([`packs/emoji/kaomoji.json`](../packs/emoji/kaomoji.json)) and any of your own. The key next to ABC on its bottom row goes to the next set, in the order above with yours after, and shows what that set's `key` says. With one set there is no such key.
 
 Save this as `~/.config/polykey/packs/mine/symbols.json` and restart polykey for a third set, with two categories:
 
@@ -120,27 +120,37 @@ Save this as `~/.config/polykey/packs/mine/symbols.json` and restart polykey for
  "kind": "picker",
  "id": "mine/symbols",
  "name": {"en": "Symbols", "ja": "記号"},
- "icon": "symbols",
- "cellWidth": 1,
+ "key": {"icon": "symbols"},
+ "cells": "emoji",
+ "recent": true,
+ "recentBin": true,
  "categories": [
   {"id": "arrows", "name": "Arrows", "icon": "right", "items": ["→", "←", "↑", "↓", "↔", "⇒", "⇐"]},
-  {"id": "maths", "name": {"en": "Maths", "ja": "数学"}, "items": ["±", "×", "÷", "≠", "≤", "≥", "∞",
+  {"id": "maths", "name": {"en": "Maths", "ja": "数学"}, "label": true, "items": ["±", "×", "÷", "≠", "≤", "≥", "∞",
    {"text": "√", "reading": ["るーと"], "tags": ["平方根"]}]}
  ]
 }
 ```
 
-- `icon` is one of polykey's icons, listed under `pickerIcon` in the schema. A category's `icon` is its tab. A category without one has its name as its tab, and beside it in the grid.
-- `cellWidth` is how wide a cell is, in emoji cells: 1 for single characters (the default), 2.5 for kaomoji, up to 4. Above 1, each item is drawn as text and shrunk to fit its cell.
-- An item is a string: what the picker shows and types, up to 64 characters on one line. Or it is an object with that as its `text`, and optional `reading` (words in hiragana that could call the item up) and `tags` (words that describe it): up to 16 of each, 32 characters a word. Nothing uses them yet; they are kept for suggesting items as you type.
-- A set has up to 64 categories and 4000 items, a category up to 2000 items. An `id` is lowercase letters, digits and `-`; `recent`, `favorites` and ids starting `steam-` are the picker's own.
-- Each set keeps its own Recent. polykey shows up to 16 sets.
+A set has only what its pack says:
 
-What else a set does, it switches on:
-
-- `"favorites": true` adds Favorites, filled by drag and drop from Recent. Every set with Favorites shows the same ones.
+- `key` is what the mode key shows when this set is next: `{"icon": "symbols"}`, one of polykey's icons (listed under `pickerIcon` in the schema), or `{"label": ":-)"}`, up to 8 characters.
+- `cells` is how an item is drawn: `"emoji"`, or `"text"` for text on a key, shrunk to fit its cell, in fonts that cover many scripts (kaomoji).
+- `cellWidth` is how wide a cell is, in emoji cells: 1 when left out, 2.5 for kaomoji, up to 4.
+- `"recent": true` puts a Recent section first, with what you last typed from this set. Each set keeps its own.
+- `"recentBin": true` puts a bin in Recent's last place, to empty it.
+- `"favorites": true` adds Favorites after Recent, filled by drag and drop from it. Every set with Favorites shows the same ones.
 - `"tones": true` offers skin tones. A toned emoji is written as six strings, `[base, light, medium-light, medium, medium-dark, dark]`, in place of one.
-- `"steam": true` adds your Steam emoticons, stickers and room effects after the categories.
+
+And so does a category:
+
+- Its tab is its `icon`, or its `name` without one.
+- `"label": true` puts a divider before it in the grid with its name beside it. Another name there (`"label": "Steam"`) shows that instead.
+- `"apart": true` sets it apart from the category before, with twice the gap.
+- An item is a string: what the picker shows and types, up to 64 characters on one line. Or it is an object with that as its `text`, and optional `reading` (words in hiragana that could call the item up) and `tags` (words that describe it): up to 16 of each, 32 characters a word. Nothing uses them yet; they are kept for suggesting items as you type.
+- `"items": {"steam": "sticker"}` makes it your Steam stickers (`emoticon` and `effect` are the other kinds), as the emoji set's last three categories are. In a set with one, Recent and Favorites hold Steam items too.
+
+A set has up to 64 categories and 4000 items, a category up to 2000 items. An `id` is lowercase letters, digits and `-`; `recent` and `favorites` are the picker's own. polykey shows up to 16 sets.
 
 ### Changing a bundled set
 
@@ -152,21 +162,22 @@ A pack of yours with a bundled set's id is laid over it. Save this as `~/.config
  "kind": "picker",
  "id": "emoji/kaomoji",
  "name": {"en": "Kaomoji", "ja": "顔文字"},
- "icon": "emoticons",
+ "key": {"label": ":-)"},
+ "cells": "text",
  "categories": [
-  {"id": "love", "name": {"en": "Love", "ja": "ハート"}, "items": ["(♡˙︶˙♡)", "(´ ▽ `).｡ｏ♡"]},
-  {"id": "mine", "name": "Mine", "items": ["ʕ•ᴥ•ʔ"]}
+  {"id": "love", "name": {"en": "Love", "ja": "ハート"}, "label": true, "items": ["(♡˙︶˙♡)", "(´ ▽ `).｡ｏ♡"]},
+  {"id": "mine", "name": "Mine", "label": true, "items": ["ʕ•ᴥ•ʔ"]}
  ]
 }
 ```
 
 - A category with a bundled category's id replaces it, in its place. Any other is added after the bundled ones.
-- `name` and `icon` are yours. What your pack leaves out (`cellWidth`, `favorites`, `tones`, `steam`) stays as bundled, and `"favorites": false` switches one off.
+- `name`, `key` and `cells` are yours. What your pack leaves out (`cellWidth`, `recent`, `recentBin`, `favorites`, `tones`) stays as bundled, and `"favorites": false` switches one off.
 - If your pack has a mistake, the bundled set shows as it was.
 
 ### Items in a data file
 
-A list too long for a pack goes in a data file, and the category points to it:
+A list too long for a pack, or one from a source of its own, goes in a data file, and the category points to it:
 
 ```json
 {"id": "smileys", "name": "Smileys & Emotion", "icon": "smileys", "items": {"file": "emoji/emoji.data"}}
@@ -174,7 +185,8 @@ A list too long for a pack goes in a data file, and the category points to it:
 
 - The file is `<namespace>/<name>.data`, JSON, up to 256 KiB: `{"groups": [{"id": "smileys", "items": ["😀", "😃"]}]}`.
 - The category takes the group with its own id, or the one `"group"` names.
-- A copy in your packs folder is read before the bundled file, group by group. `packs/emoji/emoji.data` is every emoji, built from Unicode's `emoji-test.txt` by `scripts/make-emoji.py`, so a valid `~/.config/polykey/packs/emoji/emoji.data` replaces the emoji in the groups it has.
+- A copy in your packs folder is read before the bundled file, group by group.
+- `packs/emoji/emoji.data` is every emoji, built from Unicode's `emoji-test.txt` by `scripts/make-emoji.py`. `packs/emoji/kaomoji.data` is the kaomoji from kaomojikan/kaomoji-data, with their readings and tags.
 
 ## Adding a pack to polykey
 
