@@ -106,6 +106,14 @@ describe('keyLegends', () => {
     expect(keyLegends(abc, mods(), ctx()).slots.c).toMatchObject({ text: 'abc', under: { text: '2', size: 'sub' } });
   });
 
+  it('the mode key with a part per mode shows both, the current mode\'s marked; without parts, the letters it goes to', () => {
+    const hanYeong: KeyDef = { type: 'action', action: 'mode', legends: { c: { parts: ['한', '영'] } } };
+    expect(keyLegends(hanYeong, mods(), ctx()).slots.c).toEqual({ kind: 'modes', parts: ['한', '영'], now: 0 });
+    expect(keyLegends(hanYeong, mods(), ctx({ latin: true })).slots.c).toEqual({ kind: 'modes', parts: ['한', '영'], now: 1 });
+    expect(shown({ type: 'action', action: 'mode' }, mods(), ctx({ other: 'ABC' }))).toEqual({ arrangement: 'plain', c: 'ABC' });
+    expect(shown({ type: 'action', action: 'mode', label: '한/영' }, mods(), ctx({ other: 'ABC' }))).toEqual({ arrangement: 'plain', c: '한/영' });
+  });
+
   it('the symbols pages\' keys are labelled by page and mode', () => {
     const back: KeyDef = { type: 'action', action: 'symbols' };
     expect(shown(back, mods(), ctx({ symbols: 1, letters: 'あいう' }))).toEqual({ arrangement: 'plain', c: 'あいう' });

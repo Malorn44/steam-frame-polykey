@@ -195,6 +195,9 @@ const CSS = `
 .key .pair { font-weight: 300; opacity: var(--opacity-muted); }
 .key .pair.now { font-weight: 700; opacity: 1; }
 .key .pair + .pair { margin-left: 0.5px; font-size: 1.6em; line-height: 0.6; } /* a sits against あ, one glyph */
+/* The mode key's halves (한/영): the current mode's over the indicator bar, as 英数 / かな mark theirs. */
+.key .half { position: relative; }
+.key .half.now::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: 3px; background: var(--indicator); }
 .kb .key.tall-top { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; overflow: visible; z-index: 1; }
 /* Notched (the JIS Enter, wider above): the top half's lower left is a corner of the key. */
 .kb .key.tall-top.notched { border-bottom-left-radius: var(--radius); }
@@ -802,7 +805,7 @@ export const createView = (
     if (legend.boxed) el.replaceChildren(boxed(legend.text));
     else el.textContent = legend.text;
   };
-  /** The label (slot c): text, an icon, the あ a pair, or ゛゜ over 大⇔小; a line beneath it in the flow. */
+  /** The label (slot c): text, an icon, the あ a pair, the mode key's halves, or ゛゜ over 大⇔小; a line beneath it in the flow. */
   const showLabel = (entry: Entry, legend: Legend | undefined): void => {
     const { el, label } = entry;
     label.className = `lbl${legend ? sizeClass(legend) + toneClass(legend) : ''}`;
@@ -812,6 +815,10 @@ export const createView = (
     else if (legend.kind === 'pair') {
       label.replaceChildren(...legend.parts.map((text, i) => Object.assign(doc.createElement('span'), {
         className: i === legend.now ? 'pair now' : 'pair', textContent: text })));
+    } else if (legend.kind === 'modes') {
+      const half = (i: 0 | 1): HTMLElement => Object.assign(doc.createElement('span'), {
+        className: i === legend.now ? 'half now' : 'half', textContent: legend.parts[i] });
+      label.replaceChildren(half(0), '/', half(1));
     } else if (!label.querySelector('.mk')) {
       const span = (className: string, textContent: string): HTMLElement => Object.assign(doc.createElement('span'), { className, textContent });
       const marks = span('mk-marks', '');

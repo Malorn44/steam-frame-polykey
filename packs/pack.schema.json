@@ -144,7 +144,7 @@
                 "type": "string",
                 "maxLength": 8
               },
-              "description": "Two halves side by side, the second bold in 英数 mode (the 12-key's あ a)."
+              "description": "Two halves side by side, one per mode, the keyboard's own first: on the mode key the current mode's is marked with the indicator bar (한/영); elsewhere the second is bold in 英数 mode (the 12-key's あ a)."
             },
             "marks": {
               "type": "array",

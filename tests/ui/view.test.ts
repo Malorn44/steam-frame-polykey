@@ -650,3 +650,24 @@ describe('swipe', () => {
     expect(pressed).toHaveLength(1);
   });
 });
+
+describe('the mode key', () => {
+  it('marks the current mode\'s half with the indicator bar, following the mode without being drawn again', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/qwerty']!, boot.catalog.themes['themes/github-light']!, () => {});
+    view.update(NO_MODS);
+    const key = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'mode')!;
+    const halves = () => [...key.querySelectorAll('.half')].map((el) => [el.textContent, el.classList.contains('now')]);
+    expect(key.textContent).toBe('한/영');
+    expect(halves()).toEqual([['한', true], ['영', false]]);
+    view.setMode(true);
+    view.update(NO_MODS);
+    expect(halves()).toEqual([['한', false], ['영', true]]);
+    expect(key.classList.contains('on')).toBe(false); // not 英数 / かな's bar along the whole key
+    // The theme's indicator colour, as 英数 / かな's bar: no colour of its own.
+    expect(shadow.querySelector('style')!.textContent).toMatch(/\.key \.half\.now::after \{[^}]*background: var\(--indicator\); \}/);
+  });
+});

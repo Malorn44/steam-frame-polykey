@@ -7,6 +7,6 @@
   "description": "The Korean keyboard's Latin mode: the English QWERTY layout with 한/영 right of Space, as on a Korean keyboard. 한/영 goes back to Hangul (ko/dubeolsik, which extends this).",
   "extends": "en/qwerty",
   "rows": {
-    "4": [{"type": "mod", "mod": "fn"}, {"type": "mod", "mod": "ctrl"}, {"type": "mod", "mod": "super"}, {"type": "mod", "mod": "alt"}, {"type": "char", "char": " ", "label": "Space", "w": 5.75}, {"type": "action", "action": "mode", "label": "한/영", "w": 1.5}, {"type": "key", "key": "ArrowLeft", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowDown", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowRight", "alone": {"w": 1.25}}, {"type": "action", "action": "next-keyboard", "w": 0.75}]
+    "4": [{"type": "mod", "mod": "fn"}, {"type": "mod", "mod": "ctrl"}, {"type": "mod", "mod": "super"}, {"type": "mod", "mod": "alt"}, {"type": "char", "char": " ", "label": "Space", "w": 5.75}, {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.5}, {"type": "key", "key": "ArrowLeft", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowDown", "alone": {"w": 1.25}}, {"type": "key", "key": "ArrowRight", "alone": {"w": 1.25}}, {"type": "action", "action": "next-keyboard", "w": 0.75}]
   }
 }

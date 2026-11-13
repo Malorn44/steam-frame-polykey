@@ -1422,8 +1422,10 @@ describe('Korean', () => {
     const sent = () => manager.calls.map((c) => c[0]);
     const pre = () => shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null;
     const typeAll = async (keys: string) => { for (const k of Array.from(keys)) await tap(popup, k); };
-    return { popup, sent, pre, typeAll };
+    return { popup, sent, pre, typeAll, state: steam.state };
   };
+  /** The mode key's marked half (한 or 영), in this popup. */
+  const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.half.now')?.textContent;
 
   it('composes each syllable in the bar, in the CJK fonts, and sends it as the next begins; Space sends the last', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
@@ -1459,16 +1461,38 @@ describe('Korean', () => {
   it('한/영 sends the syllable and switches to ABC, where English waits in the bar as in any Latin mode; and back', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
     await typeAll('ㅎㅏ');
-    expect(key(popup, 'mode').textContent).toBe('한/영');
+    expect([key(popup, 'mode').textContent, marked(popup)]).toEqual(['한/영', '한']);
     await tap(popup, 'mode');
     expect(sent()).toEqual(['하']);
     expect(key(popup, 'ㅂ')).toBeUndefined(); // the ABC page
+    expect(marked(popup)).toBe('영');
     await typeAll('hi');
     expect(pre()).toBe('hi');
     await tap(popup, 'mode'); // the English word goes first
     expect(sent().join('')).toBe('하hi');
+    expect(marked(popup)).toBe('한');
     await typeAll('ㄱㅏ');
     expect(pre()).toBe('가');
+  });
+
+  it('the marked half follows the mode through a keyboard switch, a closed and reopened keyboard, and a new popup', async () => {
+    const { popup, state } = setupKo();
+    await tap(popup, 'mode');
+    expect(marked(popup)).toBe('영');
+    await tap(popup, 'next-keyboard'); // English
+    await tap(popup, 'next-keyboard'); // back to Korean, still in ABC
+    expect([key(popup, 'q') !== undefined, marked(popup)]).toEqual([true, '영']);
+    state.status = { ...MINIMAL, bIsOpen: false };
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    state.status = { ...MINIMAL, bIsOpen: true };
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(marked(popup)).toBe('영');
+    const next = fakePopupWindow(); // Steam made the popup again: polykey is drawn anew in it
+    state.popup = next;
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(marked(next)).toBe('영');
+    await tap(next, 'mode');
+    expect(marked(next)).toBe('한');
   });
 
   it('switching keyboards sends the syllable', async () => {
