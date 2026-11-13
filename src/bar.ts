@@ -39,6 +39,8 @@ export interface Bar {
   dictate(text: string): void;
   /** What the bar shows of the composition, its key labels as names (convert, confirm); null when nothing is composed. */
   shown(): { composition: CompositionView; labels: Readonly<Record<string, string>> } | null;
+  /** The text being composed, as the bar shows it ('' when nothing is): the word being typed, for dictation's spacing. */
+  composedText(): string;
 }
 
 const segmentsOf = (reply: BridgeReply): Converted[] =>
@@ -179,6 +181,12 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
       if (!composing(kb)) return null;
       const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
       return { composition: 'segments' in preedit ? preedit : { ...preedit, candidates: live, selected: -1 }, labels };
+    },
+    composedText: () => {
+      const kb = keyboard();
+      if (!composing(kb)) return '';
+      const { preedit } = kb.composer.show(stateOf(kb), kb.ctx);
+      return 'segments' in preedit ? preedit.segments.join('') : preedit.before + preedit.after;
     },
   };
 };

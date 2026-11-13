@@ -509,13 +509,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       bar.dictate(text);
       return;
     }
-    // A syllable being composed goes first; it ends the word being typed.
-    const composed = bar.shown()?.composition;
-    const syllable = composed && 'before' in composed ? composed.before + composed.after : '';
+    // What is being composed goes first; it ends the word being typed.
+    const composed = bar.composedText();
     bar.flush();
     const inLatin = composes(keyboard) && latin; // the English word in the bar
     const language = dictationLanguage(keyboard, latin, languageFor(keyboard));
-    const before = inLatin ? en.chars.join('') : syllable || word.word; // the word being typed: what is known before the caret
+    const before = inLatin ? en.chars.join('') : composed || word.word; // the word being typed: what is known before the caret
     const typed = join ? join(before) : spacedText(text, language, before !== '');
     if (inLatin) sendEnglish(); // the Latin mode: the English word goes first
     else setWord(NO_WORD);

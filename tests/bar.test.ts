@@ -59,11 +59,12 @@ describe('the bar controller', () => {
     expect(bar.press(char('i'), { typed: 'i' })).toBe(true);
     expect(bar.composing()).toBe(true);
     expect(bar.shown()).toEqual({ composition: { before: 'HI', after: '', candidates: ['HI'], selected: -1 }, labels: { ' ': 'send' } });
+    expect(bar.composedText()).toBe('HI');
     expect(bar.press({ type: 'key', key: 'Tab' }, {})).toBe(false); // not for it
     bar.flush();
     expect(sent).toEqual([{ kind: 'text', text: 'HI' }]);
     expect(bar.composing()).toBe(false);
-    expect(bar.shown()).toBeNull();
+    expect([bar.shown(), bar.composedText()]).toEqual([null, '']);
   });
 
   it('asks the keyboard\'s own converter, by name, and shows its answer', async () => {
@@ -130,5 +131,13 @@ describe('the bar controller', () => {
     switchTo(null);
     expect(bar.press(char('a'), { typed: 'a' })).toBe(false);
     expect([bar.composing(), bar.shown()]).toEqual([false, null]);
+  });
+
+  it('the text being composed is what the bar shows: a converted reading is its segments', () => {
+    const { bar, switchTo } = setup(null);
+    const segments: Composer<string> = { ...shout, show: (s) => ({ preedit: { segments: [s, '!'], focus: 0, candidates: [], selected: 0 }, labels: {} }) };
+    switchTo({ composer: segments, ctx, converter: undefined });
+    bar.press(char('h'), { typed: 'h' });
+    expect(bar.composedText()).toBe('H!');
   });
 });
