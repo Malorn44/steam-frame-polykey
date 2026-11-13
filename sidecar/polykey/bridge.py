@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from .anthy import Converter
+from .converters import Converters
 from .desktop import NESTED_DESKTOP_PROCESS, DesktopPaste, DesktopUnavailable, focused_process
 from .lexicon import Lexicons
 from .packs import (
@@ -58,7 +58,7 @@ class Bridge:
         desktop: Optional[DesktopPaste] = None,
         lexicons: Optional[Lexicons] = None,
         settings_path: Optional[Path] = None,
-        converter: Optional[Converter] = None,
+        converters: Optional[Converters] = None,
         swipe: Optional[Swipe] = None,
         dictation: Optional[Dictation] = None,
         updates: Optional[Updater] = None,
@@ -67,7 +67,7 @@ class Bridge:
         self._updates = updates
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._dictation = dictation
-        self._converter = converter
+        self._converters = converters
         self._desktop = desktop
         self._lexicons = lexicons
         self._settings_path = settings_path
@@ -117,7 +117,8 @@ class Bridge:
         if op == "emoji.save":
             return self._save_emoji(request)
         if op in ("convert", "predict", "learn"):
-            return self._converter.handle(op, request) if self._converter else {"ok": False, "error": "unavailable"}
+            # To the converter the request names (the keyboard's), from the registry.
+            return self._converters.handle(op, request) if self._converters else {"ok": False, "error": "unavailable"}
         if self._desktop is None:
             return {"ok": False, "error": "desktop-paste-off"}
         if op == "desktop.prepare":
