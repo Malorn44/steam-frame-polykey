@@ -12,7 +12,7 @@
 //     the syllable first, then the key acts as usual.
 
 import type { HangulTableDef } from '../catalog.js';
-import type { Composer, ComposerContext } from './composer.js';
+import { builtOnce, type Composer, type ComposerContext } from './composer.js';
 
 /** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in one or two parts each. */
 export interface Syllable { readonly initial: string; readonly medial: readonly string[]; readonly final: readonly string[] }
@@ -96,15 +96,9 @@ export const removeJamo = (s: Syllable): Syllable =>
   (s.final.length ? { ...s, final: s.final.slice(0, -1) }
     : s.medial.length ? { ...s, medial: s.medial.slice(0, -1) } : NO_SYLLABLE);
 
-const tables = new WeakMap<HangulTableDef, HangulTable>();
+const tables = builtOnce(hangulTable);
 /** The keyboard's table, built once per table pack; none: the keys type as they are. */
-const tableOf = ({ table }: ComposerContext): HangulTable | undefined => {
-  const def = table?.hangul;
-  if (!def) return undefined;
-  let built = tables.get(def);
-  if (!built) tables.set(def, (built = hangulTable(def)));
-  return built;
-};
+const tableOf = ({ table }: ComposerContext): HangulTable | undefined => (table?.hangul ? tables(table.hangul) : undefined);
 
 export const hangul: Composer<Syllable> = {
   empty: NO_SYLLABLE,

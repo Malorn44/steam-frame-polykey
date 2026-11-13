@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef } from '../../src/core/catalog.js';
+import { builtOnce } from '../../src/core/composers/composer.js';
 import { COMPOSERS, composerOf } from '../../src/core/composers/index.js';
 
 type Schema = { $defs: { keyboard: { properties: { composer: { enum: string[] } } } } };
@@ -20,5 +21,15 @@ describe('the composer registry', () => {
     expect(composerOf(keyboard())).toBeNull();
     expect(composerOf(keyboard('toString'))).toBeNull(); // not an own entry
     expect(composerOf(undefined)).toBeNull();
+  });
+});
+
+describe('builtOnce', () => {
+  it('builds once per pack object, and again for another', () => {
+    let builds = 0;
+    const sizeOf = builtOnce((list: readonly string[]) => { builds++; return list.length; });
+    const one = ['a', 'b'];
+    expect([sizeOf(one), sizeOf(one), sizeOf(['c'])]).toEqual([2, 2, 1]);
+    expect(builds).toBe(2);
   });
 });
