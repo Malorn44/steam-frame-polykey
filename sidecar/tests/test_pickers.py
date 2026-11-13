@@ -84,11 +84,16 @@ def test_the_bundled_sets_are_emoji_then_kaomoji(tmp_path):
 def test_the_page_gets_texts_and_the_sidecar_keeps_readings_and_tags(tmp_path):
     kaomoji = load(tmp_path)["pickers"][1]
     assert all(isinstance(item, str) for c in kaomoji["categories"] for item in c["items"])
-    written = json.loads((BUNDLED / "emoji" / "kaomoji.json").read_text(encoding="utf-8"))["categories"]
-    assert [c["items"] for c in kaomoji["categories"]] == [[item["text"] for item in c["items"]] for c in written]
+    # The faces we sourced are in kaomoji.data, group by group; Classic, our own, is in the pack.
+    data = json.loads((BUNDLED / "emoji" / "kaomoji.data").read_text(encoding="utf-8"))["groups"]
+    pack = json.loads((BUNDLED / "emoji" / "kaomoji.json").read_text(encoding="utf-8"))["categories"]
+    assert [c["id"] for c in pack] == [g["id"] for g in data] + ["classic"]
+    assert all(c["items"] == {"file": "emoji/kaomoji.data"} for c in pack[:-1])
+    written = [g["items"] for g in data] + [pack[-1]["items"]]
+    assert [c["items"] for c in kaomoji["categories"]] == [[item["text"] for item in items] for items in written]
     kept = packs.loaded_pickers()[1]
-    assert kept["id"] == "emoji/kaomoji" and [c["items"] for c in kept["categories"]] == [c["items"] for c in written]
-    assert any(item.get("reading") and item.get("tags") for c in kept["categories"] for item in c["items"])
+    assert kept["id"] == "emoji/kaomoji" and [c["items"] for c in kept["categories"]] == written
+    assert any(item.get("reading") and item.get("tags") for items in written for item in items)
 
 
 def test_a_users_pack_adds_a_set_after_the_bundled_ones(tmp_path):
