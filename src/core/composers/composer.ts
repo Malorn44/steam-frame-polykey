@@ -39,6 +39,9 @@ export type ConverterRequest =
   | { readonly kind: 'live' }
   | { readonly kind: 'convert'; readonly lengths?: readonly number[]; readonly resize?: readonly [number, number] };
 
+/** The longest reading a converter is asked about, in characters; the sidecar refuses longer (converters/engine.py). */
+export const MAX_READING = 64;
+
 /** A sent conversion or prediction, for the converter to learn (picked candidates come first next time). */
 export type Learned =
   | { readonly reading: string; readonly lengths: readonly number[]; readonly choices: readonly number[]; readonly texts: readonly string[] }

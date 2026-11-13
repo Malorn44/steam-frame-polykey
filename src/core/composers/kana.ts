@@ -23,11 +23,8 @@ import { modifyTable } from '../kana.js';
 import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
 import { UNDO } from '../keyboard.js';
 import {
-  builtOnce, type Composer, type ComposerContext, type ComposerInput, type ComposerResult, type Converted, type Learned, type LiveSource,
+  MAX_READING, builtOnce, type Composer, type ComposerContext, type ComposerInput, type ComposerResult, type Converted, type Learned, type LiveSource,
 } from './composer.js';
-
-/** The longest reading the sidecar converts. */
-export const MAX_READING = 64;
 
 /** A segment of a conversion, with the candidate picked for it. */
 export interface Segment extends Converted { readonly index: number }
