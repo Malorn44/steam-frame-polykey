@@ -1353,6 +1353,25 @@ describe('Japanese romaji and JIS kana', () => {
   });
 });
 
+describe('language packs', () => {
+  it('a Japanese keyboard takes its bar words, its letters and its idle hint from the ja pack', async () => {
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    const ja = boot.catalog.languages!['ja']!;
+    boot.catalog.languages = { ...boot.catalog.languages, ja: { ...ja, letters: 'かなA', idleHint: 'Type here',
+      labels: { ...ja.labels, convert: 'Conv', confirm: 'OK' } } };
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'next-keyboard'); // the 12-key
+    expect(shadowOf(popup)!.querySelector('.comp.on .placeholder')?.textContent).toBe('Type here');
+    await tap(popup, 'た');
+    expect([key(popup, ' ').textContent, key(popup, 'Enter').textContent]).toEqual(['Conv', 'OK']);
+    await tap(popup, 'symbols');
+    expect(key(popup, 'symbols').querySelector('.lbl')!.textContent).toBe('かなA'); // back to the kana
+  });
+});
+
 describe('failing safe', () => {
   it('does nothing without packs from the sidecar', () => {
     const popup = fakePopupWindow();

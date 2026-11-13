@@ -107,13 +107,21 @@ export interface KeyboardDef {
   pages?: KeyboardPages;
   /**
    * The keyboard's modes, the first its default: what each one's letters are called (あいう, ABC; read
-   * by the keys back to them), and which is its Latin mode (英数). None: one mode, called ABC.
+   * by the keys back to them; default: the language's for the first), and which is its Latin mode (英数).
    */
-  modes?: { id: string; letters: string; latin?: boolean }[];
-  /** Text the keyboard shows: idleHint, where candidates appear while there are none. */
+  modes?: { id: string; letters?: string; latin?: boolean }[];
+  /** Text the keyboard shows: idleHint, where candidates appear while there are none (default: the language's). */
   strings?: { idleHint?: string };
   /** The engine that converts what the composer reads (anthy): one of the sidecar's (sidecar/polykey/converters/). */
   converter?: string;
+}
+/**
+ * A language (core/languages.ts): what the keyboards with its code call their letters (あいう, 한글), the
+ * words their bar's keys show by label name (convert: 変換), their idle hint, and the language dictation
+ * listens for (default: the id). A keyboard's own modes and strings win.
+ */
+export interface LanguageDef {
+  id: string; name: PackName; letters?: string; labels?: Record<string, string>; idleHint?: string; dictation?: string;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
@@ -149,6 +157,8 @@ export interface Boot {
   catalog: {
     layouts: Record<string, Layout>; keyboards: Record<string, KeyboardDef>; themes: Record<string, Theme>;
     tables?: Record<string, TableDef>;
+    /** Language packs, by code. */
+    languages?: Record<string, LanguageDef>;
   };
   settings: {
     keyboards: string[]; theme: string; haptics?: boolean; suggestions?: boolean;

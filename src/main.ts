@@ -25,6 +25,7 @@ import { createEmojiView, type EmojiView } from './ui/emoji.js';
 import { composerOf } from './core/composers/index.js';
 import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
+import { idleHint, languageOf, spelled } from './core/languages.js';
 import { modeLetters, pageLayout } from './core/pages.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
@@ -305,6 +306,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
+  /** A keyboard's language pack (its letters, bar words, idle hint, dictation language). */
+  const languageFor = (keyboard: KeyboardDef | undefined) => languageOf(boot?.catalog.languages, keyboard);
   /** What a keyboard's composer reads: its options as set, its table and its main layout. */
   const contextOf = (keyboard: KeyboardDef): ComposerContext => ({
     options: optionsFor(keyboard, keyboardOptions[keyboard.id]),
@@ -438,24 +441,23 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     enqueue(effects);
   };
 
-  /** The words the bar's keys show while composing, by label name; the keyboard's language spells them. */
-  const JAPANESE: Readonly<Record<string, string>> = { convert: '変換', next: '次変換', confirm: '確定', hiragana: 'かな', katakana: 'カナ', halfwidth: 'ﾊﾝｶｸ' };
-  const spelled = (names: Readonly<Record<string, string>>): Record<string, string> =>
-    Object.fromEntries(Object.entries(names).flatMap(([id, name]) => (JAPANESE[name] ? [[id, JAPANESE[name]]] : [])));
-
-  /** Draw the bar: what is composed and its candidates, else the English word and its suggestions; keys follow (空白 → 変換). */
+  /**
+   * Draw the bar: what is composed and its candidates, else the English word and its suggestions; keys
+   * follow, in the words of the keyboard's language (空白 → 変換).
+   */
   const showBar = (): void => {
     if (!view) return;
     const shown = bar.shown();
+    const language = languageFor(currentKeyboard());
     if (shown) {
       view.setComposition(shown.composition);
-      view.setLabels(spelled(shown.labels));
+      view.setLabels(spelled(shown.labels, language));
     } else {
       // The Latin mode: English word suggestions where the candidates go; picking one replaces the word typed.
       view.setComposition(en.chars.length ? {
         before: en.chars.slice(0, en.caret).join(''), after: en.chars.slice(en.caret).join(''), candidates: suggested, selected: -1,
       } : null);
-      view.setLabels(spelled(en.chars.length ? { Enter: 'confirm' } : {}));
+      view.setLabels(spelled(en.chars.length ? { Enter: 'confirm' } : {}, language));
     }
     view.update(mods);
   };
@@ -492,7 +494,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       bar.dictate(text);
       return;
     }
-    const language = dictationLanguage(keyboard, latin);
+    const language = dictationLanguage(keyboard, latin, languageFor(keyboard));
     const before = composes(keyboard) ? en.chars.join('') : word.word; // the word being typed: what is known before the caret
     const typed = join ? join(before) : spacedText(text, language, before !== '');
     if (composes(keyboard)) sendEnglish(); // the Latin mode: the English word goes first
@@ -517,7 +519,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   const currentDictationLanguage = (): string => {
     const keyboard = currentKeyboard();
-    return dictationLanguage(keyboard, keyboard ? latinMode.has(keyboard.id) : false);
+    return dictationLanguage(keyboard, keyboard ? latinMode.has(keyboard.id) : false, languageFor(keyboard));
   };
 
   /** Settings → Dictation at `language` (the mic without the engine, or without a model for the language). */
@@ -721,7 +723,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
           .map((k) => (!modeKey(k) ? k : next?.key.label ? { ...(k as KeyDef), label: next.key.label, icon: null } : { ...(k as KeyDef), icon: next?.key.icon ?? null })));
         // Its back key reads the current mode's letters (あいう, ABC).
         view = createView(surface.doc, surface.shadow, { ...row, rows }, theme, onKey, onSuggestion, undefined,
-          { letters: modeLetters(keyboard, latinMode.has(id)) });
+          { letters: modeLetters(keyboard, latinMode.has(id), languageFor(keyboard)) });
         view.update(mods);
       }
       applyBounds();
@@ -743,7 +745,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         update: updates.status,
         dictation: {
           catalog: speech.catalog, status: speech.status,
-          languages: dictationLanguages(Object.values(boot.catalog.keyboards)),
+          languages: dictationLanguages(Object.values(boot.catalog.keyboards), languageFor),
           language: speechLanguage ?? currentDictationLanguage(),
         },
       }, {
@@ -779,16 +781,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;
       const shown = settings.dictation ? { ...layout, rows }
         : { ...layout, rows, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
+      const hint = idleHint(keyboard, languageFor(keyboard));
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
-          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id)),
+          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), languageFor(keyboard)),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
-          ...(keyboard?.strings?.idleHint ? { placeholder: keyboard.strings.idleHint } : {}) });
+          ...(hint ? { placeholder: hint } : {}) });
       view.update(mods);
       applyBounds();
       refreshSuggestions();

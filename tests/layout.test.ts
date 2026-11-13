@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, KeyboardDef, Layout } from '../src/core/catalog.js';
 import { HOLD_MS } from '../src/core/interaction.js';
 import { NO_MODS, charText, flickText, kanaSide, press, resolveKey, type Mods } from '../src/core/keyboard.js';
+import { languageOf } from '../src/core/languages.js';
 import { modeLetters } from '../src/core/pages.js';
 import { createView } from '../src/ui/view.js';
 import { bundledBoot } from './boot.js';
@@ -52,7 +53,7 @@ const placesIn = (keyboard: KeyboardDef, layoutId: string): Place[] => {
   return pages.flatMap((page) => romajis.flatMap((romaji) => values('flickHints' in options, !!options.flickHints).map((hints) => ({
     name: [keyboard.id, page.latin ? '英数' : buffered ? 'かな' : '', page.symbols ? `symbols ${page.symbols}` : '',
       romaji && buffered ? 'romaji' : '', hints ? 'flick hints' : ''].filter(Boolean).join(', '),
-    latin: page.latin, romaji, kana: buffered && !page.latin, symbols: page.symbols, letters: modeLetters(keyboard, page.latin), hints,
+    latin: page.latin, romaji, kana: buffered && !page.latin, symbols: page.symbols, letters: modeLetters(keyboard, page.latin, languageOf(boot.catalog.languages, keyboard)), hints,
   }))));
 };
 
