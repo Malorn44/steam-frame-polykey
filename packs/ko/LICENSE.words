@@ -1,0 +1,29 @@
+Korean word list: packs/ko/words.tsv
+
+Source
+  Leipzig Corpora Collection: Korean news 2022, web 2020, newscrawl 2016,
+  https://wortschatz.uni-leipzig.de/en/download/kor
+  (the word lists of the corpora kor_news_2022_1M, kor-kr_web_2020_1M and kor_newscrawl_2016_1M)
+
+Licence
+  Creative Commons Attribution 4.0 International (CC BY 4.0),
+  https://creativecommons.org/licenses/by/4.0/
+
+  The collection's terms of usage (https://wortschatz.uni-leipzig.de/en/usage) say: "The text corpora
+  offered for download are made available under the Creative Commons licence CC BY."
+
+  The licence gives no warranties: see its Section 5, Disclaimer of Warranties and Limitation of
+  Liability.
+
+Changes made for polykey (scripts/make-lexicon.py, source leipzig)
+  - Words taken in Unicode NFC, and only whole Hangul words of 1 to 10 syllables kept.
+  - Each word's counts summed over the three corpora, and words found in fewer than two of them dropped.
+  - Blocked words (slurs) removed, with the words that start with them.
+  - Counts scaled to frequencies from 0 to 255 on a logarithmic scale.
+  - Cut to the 60,000 most frequent words.
+
+The word list as changed is offered under the same licence, CC BY 4.0.
+
+The collection asks to be cited as: D. Goldhahn, T. Eckart and U. Quasthoff, "Building Large
+Monolingual Dictionaries at the Leipzig Corpora Collection: From 100 to 200 Languages", Proceedings of
+the Eighth International Conference on Language Resources and Evaluation (LREC'12), 2012.

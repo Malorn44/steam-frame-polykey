@@ -149,6 +149,7 @@ A keyboard's `lexicon` names the word list its suggestions come from: `en/words`
 
 - A list in `~/.config/polykey/packs/<namespace>/` replaces the bundled one with the same name.
 - Words in `~/.config/polykey/packs/<namespace>/blocked.txt`, one per line, are never suggested from that namespace's lists.
+- Korean words carry their particles and endings, so `ko/words` was built without every word that starts with a blocked word of two syllables or more (slur + 가). A word in `blocked.txt` blocks only itself.
 
 ## A picker set
 

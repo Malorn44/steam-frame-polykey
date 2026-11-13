@@ -1,12 +1,14 @@
 """scripts/make-lexicon.py: the leipzig source on a tiny fixture, and the blocklist's prefix rule."""
 
 import importlib.util
+import json
 import math
 import sys
 import unicodedata
 from pathlib import Path
 
-from polykey.lexicon import word_hash
+from polykey.lexicon import Lexicons, word_hash
+from polykey.spellers.hangul import HangulSpeller
 from polykey.swipe import FREQUENCY_SCALE
 
 REPO = Path(__file__).resolve().parents[2]
@@ -65,3 +67,21 @@ def test_main_writes_the_header_then_the_words(tmp_path, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].startswith("# Korean word list") and lines[-1] == "있다\t255"
     assert make_lexicon.main(["nope"]) == 2
+
+
+def test_the_bundled_korean_list():
+    path = REPO / "packs" / "ko" / "words.tsv"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header = [line for line in lines if line.startswith("#")]
+    entries = [line.split("\t") for line in lines if line and not line.startswith("#")]
+    assert len(entries) == 60_000 and "Leipzig Corpora Collection" in header[1] and "CC BY 4.0" in header[2]
+    korean = make_lexicon.LEIPZIG["ko"]
+    assert all(korean.word.fullmatch(w) and unicodedata.is_normalized("NFC", w) for w, _ in entries)
+    frequencies = [int(f) for _, f in entries]
+    assert frequencies == sorted(frequencies, reverse=True) and frequencies[0] == 255 and frequencies[-1] >= 0
+    blocked = make_lexicon.read_blocked(str(REPO / "packs" / "ko" / "blocked.sha256"))
+    assert blocked and not any(make_lexicon.is_blocked(w, blocked, korean.stems) for w, _ in entries)
+    hangul = HangulSpeller(json.loads((REPO / "packs" / "ko" / "hangul.json").read_text(encoding="utf-8"))["hangul"])
+    lexicon = Lexicons([REPO / "packs"]).get("ko/words")  # under the size cap, with its blocklist
+    assert len(lexicon) == 60_000 and lexicon.suggest("한ㄱ", 1, hangul) == ["한국"]
+    assert {"학교에서", "학교를"} <= set(lexicon.suggest("학교", 8, hangul))
