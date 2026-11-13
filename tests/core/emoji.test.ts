@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, nextSet, readState, recentColumns, setFor, toneTable, useRecent, withTone, type PickerSet } from '../../src/core/emoji.js';
+import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, nextSet, recentColumns, setFor, toneTable, useRecent, withTone, type PickerSet } from '../../src/core/emoji.js';
 
 const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
 const set = (items: PickerSet['categories'][0]['items'], more: Partial<PickerSet> = {}): PickerSet =>
@@ -39,24 +39,6 @@ describe('sets', () => {
 
   it('Recent is as wide as six emoji cells, in whole columns', () => {
     expect([1, 2, 2.5, 3, 4].map(recentColumns)).toEqual([6, 3, 2, 2, 2]);
-  });
-});
-
-describe('the saved state', () => {
-  it('is Recent per set, the favorites, the tone and the set last shown', () => {
-    const state = { recent: { 'emoji/emoji': ['😀'], 'mine/arrows': ['→'] }, favorites: ['⭐'], tone: 'dark', set: 'mine/arrows' };
-    expect(readState(state)).toEqual(state);
-    expect(readState(undefined)).toEqual({ recent: {}, favorites: [], tone: '', set: '' });
-    expect(readState({})).toEqual({ recent: {}, favorites: [], tone: '', set: '' });
-  });
-
-  it('from before sets were packs: recent is the emoji set\'s, kaomojiRecent the kaomoji set\'s, mode the set', () => {
-    expect(readState({ recent: ['😀'], favorites: ['⭐'], tone: 'dark', kaomojiRecent: [':-)'], mode: 'kaomoji' }))
-      .toEqual({ recent: { 'emoji/emoji': ['😀'], 'emoji/kaomoji': [':-)'] }, favorites: ['⭐'], tone: 'dark', set: 'emoji/kaomoji' });
-    expect(readState({ recent: [], favorites: [], tone: '', kaomojiRecent: [], mode: 'emoji' }).set).toBe('emoji/emoji');
-    // From before kaomoji: only the one Recent.
-    expect(readState({ recent: ['😀'], favorites: [], tone: '' }))
-      .toEqual({ recent: { 'emoji/emoji': ['😀'], 'emoji/kaomoji': [] }, favorites: [], tone: '', set: '' });
   });
 });
 

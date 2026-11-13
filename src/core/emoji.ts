@@ -33,23 +33,6 @@ export type Tone = (typeof TONES)[number];
 export interface EmojiState { recent: Record<string, string[]>; favorites: string[]; tone: Tone; set: string }
 export const NO_EMOJI_STATE: EmojiState = { recent: {}, favorites: [], tone: '', set: '' };
 
-const EMOJI_SET = 'emoji/emoji';
-const KAOMOJI_SET = 'emoji/kaomoji';
-
-/**
- * The saved state, also as it was before sets were packs: one `recent` list (the emoji set's),
- * `kaomojiRecent` (the kaomoji set's) and `mode` (which of the two was last shown).
- */
-export const readState = (saved: unknown): EmojiState => {
-  const was = (saved ?? {}) as Partial<Omit<EmojiState, 'recent'>> & { recent?: string[] | Record<string, string[]>; kaomojiRecent?: string[]; mode?: string };
-  return {
-    recent: Array.isArray(was.recent) ? { [EMOJI_SET]: was.recent, [KAOMOJI_SET]: was.kaomojiRecent ?? [] } : was.recent ?? {},
-    favorites: was.favorites ?? [],
-    tone: was.tone ?? '',
-    set: was.set ?? (was.mode === 'kaomoji' ? KAOMOJI_SET : was.mode === 'emoji' ? EMOJI_SET : ''),
-  };
-};
-
 /** The set to show: the one last shown, or the first when that is gone. */
 export const setFor = (sets: readonly PickerSet[], id: string): PickerSet | undefined => sets.find((s) => s.id === id) ?? sets[0];
 /** The set the mode key goes to: the one after the shown one, in pack order, round again at the end. */

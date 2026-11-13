@@ -261,7 +261,6 @@ MAX_PICKER_SETS = 16
 MAX_PICKER_ITEMS = 4000
 # Sections the picker draws itself: a category cannot take their ids.
 PICKER_OWN_SECTION = re.compile(r"^(recent|favorites)\Z")
-_PICKER_FILE_ITEMS = {"type": "array", "minItems": 1, "maxItems": 2000, "items": {"$ref": "#/$defs/pickerItem"}}
 
 
 def _picker_problem(item: dict) -> Optional[str]:
@@ -323,7 +322,7 @@ class _DataFiles:
             if not isinstance(groups, dict) or group not in groups:
                 continue
             if (path, group) not in self._items:
-                problems = validate(groups[group], _PICKER_FILE_ITEMS, self._schema, f"/{group}")
+                problems = validate(groups[group], {"$ref": "#/$defs/pickerItems"}, self._schema, f"/{group}")
                 if problems:
                     self._errors.append(f"{name}: {problems[0]}")
                 self._items[(path, group)] = None if problems else groups[group]

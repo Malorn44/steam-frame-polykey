@@ -6,18 +6,10 @@ import json
 from pathlib import Path
 
 from polykey import packs
+from test_packs import BUNDLED, SCHEMA, write
 
-REPO = Path(__file__).resolve().parents[2]
-SCHEMA = REPO / "packs" / "pack.schema.json"
-BUNDLED = REPO / "packs"
 EMOJI_GROUPS = ["smileys", "people", "animals", "food", "travel", "activities", "objects", "symbols", "flags"]
 STEAM = ["steam-emoticon", "steam-sticker", "steam-effect"]
-
-
-def write(directory: Path, name: str, data) -> None:
-    path = directory / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
 
 
 def category(category_id: str, items=("a", "b"), **more) -> dict:

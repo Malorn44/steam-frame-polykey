@@ -18,7 +18,7 @@ import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
 import { HAPTIC, haptic, onCursor, steamKeyboardStyle } from './host/steam/vr.js';
 import { log, warn } from './log.js';
-import { nextSet, readState, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
+import { NO_EMOJI_STATE, nextSet, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { createEmojiView, type EmojiView } from './ui/emoji.js';
 import { modifyTable } from './core/kana.js';
@@ -123,7 +123,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   // The picker: its sets (picker packs), and each set's Recent, Favorites, the skin tone and the set last
   // shown, saved by the sidecar (~/.config/polykey/emoji.json).
   const sets = boot?.pickers ?? [];
-  let emoji: EmojiState = readState(boot?.emojiState);
+  let emoji: EmojiState = { ...NO_EMOJI_STATE, ...boot?.emojiState };
   const tones = toneTable(sets);
   let emojiSave: ReturnType<typeof setTimeout> | null = null;
   /** While the picker is open and Steam is still fetching its items. */
@@ -797,7 +797,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const row = boot.catalog.layouts[EMOJI_ROW];
       if (row) {
         // The mode key shows the set it goes to, as its pack says: an icon, or a text (:-)); with one set the row has none.
-        const next = sets.length > 1 ? nextSet(sets, setFor(sets, emoji.set)?.id ?? '') : undefined;
+        const next = sets.length > 1 ? nextSet(sets, emoji.set) : undefined;
         const modeKey = (k: KeyDef | string): boolean => typeof k !== 'string' && k.type === 'action' && k.action === 'next-set';
         const rows = row.rows.map((keys) => keys.filter((k) => next || !modeKey(k))
           .map((k) => (!modeKey(k) ? k : next?.key.label ? { ...(k as KeyDef), label: next.key.label, icon: null } : { ...(k as KeyDef), icon: next?.key.icon ?? null })));

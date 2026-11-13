@@ -1,7 +1,7 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
 // packs/pack.schema.json, which the sidecar has already validated.
 
-import type { PickerSet } from './emoji.js';
+import type { EmojiState, PickerSet } from './emoji.js';
 import type { PackName } from './names.js';
 import type { NamedKey } from './keycodes.js';
 
@@ -161,8 +161,7 @@ export interface Boot {
   errors: string[];
   /** The picker's sets (picker packs), in pack order; with none there is no picker, with one no mode key. */
   pickers?: PickerSet[];
-  /** As the sidecar saved it, which may be from before sets were packs: read with readState. */
-  emojiState?: unknown;
+  emojiState?: EmojiState;
 }
 
 /** A one-character string is shorthand for a char key. */

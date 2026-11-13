@@ -48,7 +48,7 @@
         }
       ]
     },
-    "icon": {
+    "iconName": {
       "enum": [
         "settings",
         "emoji",
@@ -91,10 +91,22 @@
         "caps",
         "capsOn",
         "frame",
-        "translate",
-        null
+        "translate"
       ],
-      "description": "The icon the key draws (src/ui/icons.ts), instead of its default; null: text, never an icon."
+      "description": "An icon from src/ui/icons.ts."
+    },
+    "icon": {
+      "description": "The icon the key draws (src/ui/icons.ts), instead of its default; null: text, never an icon.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/iconName"
+        },
+        {
+          "enum": [
+            null
+          ]
+        }
+      ]
     },
     "legendDef": {
       "oneOf": [
@@ -1210,7 +1222,7 @@
           "$ref": "#/$defs/name"
         },
         "icon": {
-          "$ref": "#/$defs/pickerIcon",
+          "$ref": "#/$defs/iconName",
           "description": "The category's tab. Without one the tab reads its name."
         },
         "label": {
@@ -1231,12 +1243,7 @@
         "items": {
           "oneOf": [
             {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 2000,
-              "items": {
-                "$ref": "#/$defs/pickerItem"
-              }
+              "$ref": "#/$defs/pickerItems"
             },
             {
               "type": "object",
@@ -1279,53 +1286,6 @@
           ]
         }
       }
-    },
-    "pickerIcon": {
-      "enum": [
-        "settings",
-        "emoji",
-        "dictate",
-        "copy",
-        "cut",
-        "paste",
-        "hide",
-        "close",
-        "back",
-        "menu",
-        "recent",
-        "favorites",
-        "smileys",
-        "people",
-        "animals",
-        "food",
-        "travel",
-        "activities",
-        "objects",
-        "symbols",
-        "flags",
-        "clear",
-        "emoticons",
-        "stickers",
-        "effects",
-        "backspace",
-        "undo",
-        "backspaceTag",
-        "enter",
-        "left",
-        "space",
-        "right",
-        "up",
-        "down",
-        "chevron",
-        "globe",
-        "shift",
-        "shiftLocked",
-        "caps",
-        "capsOn",
-        "frame",
-        "translate"
-      ],
-      "description": "An icon from src/ui/icons.ts."
     },
     "picker": {
       "type": "object",
@@ -1371,7 +1331,7 @@
               "additionalProperties": false,
               "properties": {
                 "icon": {
-                  "$ref": "#/$defs/pickerIcon"
+                  "$ref": "#/$defs/iconName"
                 }
               }
             },
@@ -1429,6 +1389,14 @@
           },
           "description": "In the order their tabs show. In a pack of yours with a bundled set's id, a category with a bundled category's id replaces it and any other is added after them."
         }
+      }
+    },
+    "pickerItems": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2000,
+      "items": {
+        "$ref": "#/$defs/pickerItem"
       }
     }
   }

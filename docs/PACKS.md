@@ -134,7 +134,7 @@ Save this as `~/.config/polykey/packs/mine/symbols.json` and restart polykey for
 
 A set has only what its pack says:
 
-- `key` is what the mode key shows when this set is next: `{"icon": "symbols"}`, one of polykey's icons (listed under `pickerIcon` in the schema), or `{"label": ":-)"}`, up to 8 characters.
+- `key` is what the mode key shows when this set is next: `{"icon": "symbols"}`, one of polykey's icons (listed under `iconName` in the schema), or `{"label": ":-)"}`, up to 8 characters.
 - `cells` is how an item is drawn: `"emoji"`, or `"text"` for text on a key, shrunk to fit its cell, in fonts that cover many scripts (kaomoji).
 - `cellWidth` is how wide a cell is, in emoji cells: 1 when left out, 2.5 for kaomoji, up to 4.
 - `"recent": true` puts a Recent section first, with what you last typed from this set. Each set keeps its own.
