@@ -308,3 +308,62 @@ def test_at_most_16_sets(tmp_path):
 def test_without_picker_packs_there_are_no_sets(tmp_path):
     boot = packs.load(tmp_path / "bundled", SCHEMA, tmp_path)
     assert boot["pickers"] == [] and packs.loaded_pickers() == []
+
+
+# --- the saved state -----------------------------------------------------------------------------
+
+NO_STATE = {"recent": {}, "favorites": [], "tone": "", "set": ""}
+
+
+def test_state_is_recent_per_set_favorites_the_tone_and_the_set_last_shown(tmp_path):
+    assert load(tmp_path)["emojiState"] == NO_STATE
+    state = {
+        "recent": {"emoji/emoji": ["😀", 5, "x" * 97, "steam:sticker:Hi"], "mine/symbols": ["→"], "emoji/kaomoji": []},
+        "favorites": ["⭐", ""],
+        "tone": "dark",
+        "set": "mine/symbols",
+        "other": 1,
+    }
+    write(tmp_path, "emoji.json", state)
+    assert load(tmp_path)["emojiState"] == {
+        "recent": {"emoji/emoji": ["😀", "steam:sticker:Hi"], "mine/symbols": ["→"]},
+        "favorites": ["⭐"],
+        "tone": "dark",
+        "set": "mine/symbols",
+    }
+
+
+def test_state_that_is_not_the_expected_shape_is_dropped():
+    assert packs.clean_emoji_state(None) == NO_STATE
+    assert packs.clean_emoji_state({"recent": "😀", "favorites": {"a": 1}, "tone": "nope", "set": 5}) == NO_STATE
+    for set_id in ("Emoji", "emoji", "../x", "a/b/c", "a/" + "b" * 90, ""):
+        assert packs.clean_emoji_state({"recent": {set_id: ["a"]}, "set": set_id}) == NO_STATE, set_id
+    long = packs.clean_emoji_state({"recent": {"mine/a": ["^^"] * 50, "mine/b": "^^"}})
+    assert list(long["recent"]) == ["mine/a"] and len(long["recent"]["mine/a"]) == packs.MAX_EMOJI_LIST
+    many = packs.clean_emoji_state({"recent": {f"mine/s{i}": ["a"] for i in range(40)}})
+    assert len(many["recent"]) == packs.MAX_PICKER_SETS
+
+
+def test_a_state_from_before_sets_were_packs_still_loads(tmp_path):
+    # As main saves it today: one Recent, no kaomoji.
+    old = {"recent": ["😀", "steam:emoticon:steamhappy"], "favorites": ["⭐"], "tone": "medium"}
+    assert packs.clean_emoji_state(old) == {
+        "recent": {"emoji/emoji": ["😀", "steam:emoticon:steamhappy"]},
+        "favorites": ["⭐"],
+        "tone": "medium",
+        "set": "",
+    }
+    # With kaomoji: their own Recent, and the mode last shown.
+    old = {**old, "kaomojiRecent": ["(^_^)", 5, ""], "mode": "kaomoji"}
+    write(tmp_path, "emoji.json", old)
+    assert load(tmp_path)["emojiState"] == {
+        "recent": {"emoji/emoji": ["😀", "steam:emoticon:steamhappy"], "emoji/kaomoji": ["(^_^)"]},
+        "favorites": ["⭐"],
+        "tone": "medium",
+        "set": "emoji/kaomoji",
+    }
+    assert packs.clean_emoji_state({**old, "mode": "emoji"})["set"] == "emoji/emoji"
+    assert packs.clean_emoji_state({"recent": [], "kaomojiRecent": [], "mode": "stickers"}) == NO_STATE
+    # What was migrated reads the same again.
+    migrated = packs.clean_emoji_state(old)
+    assert packs.clean_emoji_state(migrated) == migrated

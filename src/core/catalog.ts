@@ -1,7 +1,7 @@
 // Pack data as the page receives it from the sidecar (globalThis.__polykeyBoot); the shapes follow
 // packs/pack.schema.json, which the sidecar has already validated.
 
-import type { EmojiData, EmojiState, KaomojiData } from './emoji.js';
+import type { PickerSet } from './emoji.js';
 import type { PackName } from './names.js';
 import type { NamedKey } from './keycodes.js';
 
@@ -159,10 +159,10 @@ export interface Boot {
     keyboardOptions?: Record<string, KeyboardOptions>;
   };
   errors: string[];
-  emoji?: EmojiData | null;
-  /** The picker's kaomoji (emoji/kaomoji.data); without them there is no kaomoji key. */
-  kaomoji?: KaomojiData | null;
-  emojiState?: EmojiState;
+  /** The picker's sets (picker packs), in pack order; with none there is no picker, with one no mode key. */
+  pickers?: PickerSet[];
+  /** As the sidecar saved it, which may be from before sets were packs: read with readState. */
+  emojiState?: unknown;
 }
 
 /** A one-character string is shorthand for a char key. */

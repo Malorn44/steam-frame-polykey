@@ -1,26 +1,53 @@
-// Emoji picker logic. Pure. Data comes from packs/emoji/emoji.data (Unicode Emoji 15.1): an item is an emoji,
-// or [base, light, medium-light, medium, medium-dark, dark] when it takes a skin tone. The picker's kaomoji
-// mode shows packs/emoji/kaomoji.data: categories of text faces.
+// Picker logic. Pure. The picker shows sets, each a picker pack (packs/emoji/emoji.json, kaomoji.json, a
+// user's own): categories of items. An item is its text, or [base, light, medium-light, medium,
+// medium-dark, dark] for an emoji that takes a skin tone (Unicode Emoji 15.1, packs/emoji/emoji.data).
 
 import type { Effect } from './keyboard.js';
 import type { PackName } from './names.js';
 
-export type EmojiItem = string | readonly string[];
-export interface EmojiGroup { id: string; name: string; items: EmojiItem[] }
-export interface EmojiData { groups: EmojiGroup[] }
+export type PickerItem = string | readonly string[];
+export interface PickerCategory { id: string; name: PackName; icon?: string; items: PickerItem[] }
+/**
+ * A set, as its pack declares it. `cellWidth` is a cell's width in emoji cells (1 when left out); `tones`
+ * offers skin tones, `steam` adds the user's Steam items and `favorites` a Favorites section.
+ */
+export interface PickerSet {
+  id: string; name: PackName; icon: string; cellWidth?: number;
+  tones?: boolean; steam?: boolean; favorites?: boolean;
+  categories: PickerCategory[];
+}
 
 export const TONES = ['', 'light', 'medium-light', 'medium', 'medium-dark', 'dark'] as const;
 export type Tone = (typeof TONES)[number];
-export type PickerMode = 'emoji' | 'kaomoji';
-export interface EmojiState { recent: string[]; favorites: string[]; tone: Tone; kaomojiRecent: string[]; mode: PickerMode }
-export const NO_EMOJI_STATE: EmojiState = { recent: [], favorites: [], tone: '', kaomojiRecent: [], mode: 'emoji' };
+/** Recent by set id, the Favorites and skin tone every set shares, and the set last shown ('' is the first). */
+export interface EmojiState { recent: Record<string, string[]>; favorites: string[]; tone: Tone; set: string }
+export const NO_EMOJI_STATE: EmojiState = { recent: {}, favorites: [], tone: '', set: '' };
 
-export interface KaomojiCategory { id: string; name: PackName; faces: string[] }
-export interface KaomojiData { categories: KaomojiCategory[] }
+const EMOJI_SET = 'emoji/emoji';
+const KAOMOJI_SET = 'emoji/kaomoji';
 
-/** A kaomoji cell is this many emoji cells wide, and Recent this many columns of them. */
-export const FACE_CELLS = 2.5;
-export const KAOMOJI_RECENT_COLUMNS = 2;
+/**
+ * The saved state, also as it was before sets were packs: one `recent` list (the emoji set's),
+ * `kaomojiRecent` (the kaomoji set's) and `mode` (which of the two was last shown).
+ */
+export const readState = (saved: unknown): EmojiState => {
+  const was = (saved ?? {}) as Partial<Omit<EmojiState, 'recent'>> & { recent?: string[] | Record<string, string[]>; kaomojiRecent?: string[]; mode?: string };
+  return {
+    recent: Array.isArray(was.recent) ? { [EMOJI_SET]: was.recent, [KAOMOJI_SET]: was.kaomojiRecent ?? [] } : was.recent ?? {},
+    favorites: was.favorites ?? [],
+    tone: was.tone ?? '',
+    set: was.set ?? (was.mode === 'kaomoji' ? KAOMOJI_SET : was.mode === 'emoji' ? EMOJI_SET : ''),
+  };
+};
+
+/** The set to show: the one last shown, or the first when that is gone. */
+export const setFor = (sets: readonly PickerSet[], id: string): PickerSet | undefined => sets.find((s) => s.id === id) ?? sets[0];
+/** The set the mode key goes to: the one after the shown one, in pack order, round again at the end. */
+export const nextSet = (sets: readonly PickerSet[], id: string): PickerSet | undefined =>
+  sets[(Math.max(0, sets.findIndex((s) => s.id === id)) + 1) % sets.length];
+
+/** Recent is as wide as six emoji cells, in whole columns of the set's own cells. */
+export const recentColumns = (cellWidth: number): number => Math.max(1, Math.round(6 / cellWidth));
 export const FACE_PX = 15;
 export const FACE_MIN_PX = 11;
 
@@ -37,11 +64,12 @@ export const fitFace = (width: number, room: number): { font: number; scaleX: nu
 /** Recent fills a fixed block; Favorites caps at the sidecar's limit. */
 export const MAX_FAVORITES = 40;
 
-export const baseOf = (item: EmojiItem): string => (typeof item === 'string' ? item : item[0]!);
+export const baseOf = (item: PickerItem): string => (typeof item === 'string' ? item : item[0]!);
 
-/** Every base emoji that takes a skin tone, with its variants. */
-export const toneTable = (data: EmojiData): Map<string, readonly string[]> =>
-  new Map(data.groups.flatMap((g) => g.items.filter((i): i is readonly string[] => typeof i !== 'string').map((i) => [i[0]!, i])));
+/** Every base emoji that takes a skin tone, with its variants, from the sets that offer tones. */
+export const toneTable = (sets: readonly PickerSet[]): Map<string, readonly string[]> =>
+  new Map(sets.filter((s) => s.tones).flatMap((s) => s.categories)
+    .flatMap((c) => c.items.filter((i): i is readonly string[] => typeof i !== 'string').map((i) => [i[0]!, i])));
 
 /** The emoji as typed: with the chosen skin tone where it takes one. */
 export const withTone = (base: string, tone: Tone, tones: ReadonlyMap<string, readonly string[]>): string =>

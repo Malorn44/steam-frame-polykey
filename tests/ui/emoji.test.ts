@@ -1,34 +1,35 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState, type KaomojiCategory } from '../../src/core/emoji.js';
+import { NO_EMOJI_STATE, toneTable, type EmojiState, type PickerCategory, type PickerSet } from '../../src/core/emoji.js';
 import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
-import { KAOMOJI_RECENT_NOTE, STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
+import { STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
 import { KAOMOJI_FONT } from '../../src/ui/theme.js';
-import { bundledBoot } from '../boot.js';
+import { EMOJI, KAOMOJI, bundledBoot, emojiSet, kaomojiSet } from '../boot.js';
 
-const data: EmojiData = { groups: [
-  { id: 'smileys', name: 'Smileys & Emotion', items: ['😀', '😃', '😄'] },
-  { id: 'people', name: 'People & Body', items: [['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'], '🙂'] },
-] };
+const emoji = emojiSet([
+  { id: 'smileys', name: 'Smileys & Emotion', icon: 'smileys', items: ['😀', '😃', '😄'] },
+  { id: 'people', name: 'People & Body', icon: 'people', items: [['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'], '🙂'] },
+]);
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 const steamhappy: EmojiPickerInput['steam'] = [{ item: { kind: 'emoticon', name: 'steamhappy' }, image: 'https://cdn/e/steamhappy' }];
-const setup = (state: EmojiState = NO_EMOJI_STATE, steam: Partial<EmojiPickerInput> = {}) => {
+/** The picker over `sets` (the emoji set alone unless `more` says otherwise). */
+const setup = (state: EmojiState = NO_EMOJI_STATE, more: Partial<EmojiPickerInput> = {}) => {
   const host = document.createElement('div');
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0, kaomoji: [] as [string, boolean, number][] };
+  const calls = { emoji: [] as [string, boolean][], tone: [] as string[], steam: [] as string[], favorites: [] as string[][], clear: 0, item: [] as [string, boolean, number][] };
+  const sets = more.sets ?? [emoji];
   const view = createEmojiView(document, shadow, bundledBoot().catalog.themes['themes/steam']!, {
-    data, tones: toneTable(data), steam: steamhappy, ...steam,
+    sets, tones: toneTable(sets), steam: steamhappy, ...more,
   }, state, {
-    onEmoji: (b, r) => calls.emoji.push([b, r]),
+    onItem: (b, r, room) => { calls.emoji.push([b, r]); calls.item.push([b, r, room]); },
     onTone: (t) => calls.tone.push(t),
     onSteam: (i) => calls.steam.push(i.name),
     onFavorites: (f) => calls.favorites.push(f),
     onClearRecent: () => calls.clear++,
-    onKaomoji: (f, r, room) => calls.kaomoji.push([f, r, room]),
   });
   view.setBounds({ top: 0, left: 0, width: 854, height: 195 });
   const cell = (text: string) => [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].find((c) => c.textContent === text)!;
@@ -57,7 +58,7 @@ describe('emoji picker', () => {
     const { cell, calls, shadow } = setup();
     touch(cell('😃'), 'touchstart');
     touch(cell('😃'), 'touchend');
-    expect(calls.emoji).toEqual([['😃', false]]);
+    expect(calls.item).toEqual([['😃', false, 23]]); // Recent holds 6 × 4, less the bin
     const steam = shadow.querySelector('.cell img')!.parentElement!;
     touch(steam, 'touchstart');
     touch(steam, 'touchend');
@@ -84,12 +85,12 @@ describe('emoji picker', () => {
   });
 
   it('shows the tone everywhere it applies', () => {
-    const { cell } = setup({ ...NO_EMOJI_STATE, tone: 'dark', recent: ['👋'] });
+    const { cell } = setup({ ...NO_EMOJI_STATE, tone: 'dark', recent: { [EMOJI]: ['👋'] } });
     expect(cell('👋🏿')).toBeDefined();
   });
 
   it('a held Recent emoji lifts; dropping off Favorites does nothing, picking from Recent keeps its place', () => {
-    const { cell, calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { cell, calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] } });
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 40);
     vi.advanceTimersByTime(HOLD_MS);
@@ -104,7 +105,7 @@ describe('emoji picker', () => {
   });
 
   it('a new press clears a tone popup or lifted emoji left over from a missed release', () => {
-    const { cell, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { cell, shadow } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] } });
     touch(cell('👋'), 'touchstart');
     vi.advanceTimersByTime(HOLD_MS);
     expect(shadow.querySelector('.alts')).not.toBeNull();
@@ -120,7 +121,7 @@ describe('emoji picker', () => {
   });
 
   it('dragging over Favorites opens a gap, the others slide aside, and the drop lands there', () => {
-    const { calls, shadow, cell } = setup({ ...NO_EMOJI_STATE, recent: ['😄'], favorites: ['⭐', '🎉'] });
+    const { calls, shadow, cell } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] }, favorites: ['⭐', '🎉'] });
     const grid = shadow.querySelector<HTMLElement>('.grid')!;
     grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 854, height: 163, right: 854, bottom: 163, x: 0, y: 0, toJSON: () => ({}) });
     // 4 rows of 40 px: Recent is 6 columns (0–240), a 20 px gap, then Favorites from x = 260.
@@ -137,7 +138,7 @@ describe('emoji picker', () => {
   });
 
   it('a release outside the picker (a fast drag into the key row) still ends the drag', () => {
-    const { shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { shadow } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] } });
     const outside = document.createElement('div');
     shadow.append(outside);
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
@@ -168,7 +169,7 @@ describe('emoji picker', () => {
   });
 
   it('Steam items appear in Recent and Favorites with their picture, and send as Steam items', () => {
-    const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['steam:emoticon:steamhappy'], favorites: ['steam:sticker:Gone'] });
+    const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['steam:emoticon:steamhappy'] }, favorites: ['steam:sticker:Gone'] });
     const [recent, fav] = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')];
     expect(recent!.querySelector('img')!.getAttribute('src')).toBe('https://cdn/e/steamhappy');
     expect(fav!.textContent).toBe('Gone'); // no longer owned: its name stands in
@@ -178,7 +179,7 @@ describe('emoji picker', () => {
   });
 
   it('a lost release (the laser moves on with no touch moves) drops the lifted emoji', () => {
-    const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] } });
     const recentCell = [...shadow.querySelectorAll<HTMLElement>('.strip .cell')][0]!;
     touch(recentCell, 'touchstart', 10, 10); // a quick press whose release never arrives
     vi.advanceTimersByTime(HOLD_MS); // the hold still lifts it
@@ -193,7 +194,7 @@ describe('emoji picker', () => {
 
   it('the bin sits in Recent\'s last place, empties it, and shows only when there is something to clear', () => {
     expect(setup().shadow.querySelector('.trash')).toBeNull();
-    const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: ['😄'] });
+    const { calls, shadow } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['😄'] } });
     const bin = shadow.querySelector<HTMLElement>('.strip .trash')!;
     expect([bin.style.left, bin.style.top]).toEqual(['200px', '120px']);
     touch(bin, 'touchstart');
@@ -216,7 +217,7 @@ describe('emoji picker', () => {
   });
 
   it('Steam items still loading say so, then arrive in place, the scroll kept', () => {
-    const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: ['steam:emoticon:steamhappy'] }, { steam: [], steamLoading: true });
+    const { shadow, view } = setup({ ...NO_EMOJI_STATE, recent: { [EMOJI]: ['steam:emoticon:steamhappy'] } }, { steam: [], steamLoading: true });
     const notes = () => [...shadow.querySelectorAll('.note')].map((n) => n.textContent);
     expect(notes().filter((n) => n === STEAM_LOADING_NOTE)).toHaveLength(3); // emoticons, stickers, effects
     shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, cancelable: true }));
@@ -333,11 +334,11 @@ describe('the tab strip', () => {
 
 describe('kaomoji mode', () => {
   const categories = [
-    { id: 'smiling', name: { en: 'Smiling', ja: '笑顔' }, faces: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
-    { id: 'tableflip', name: { en: 'Table flip', ja: 'ちゃぶ台返し' }, faces: ['(╯°□°)╯︵ ┻━┻', '┻━┻ ︵╰(°□°)╯︵ ┻━┻'] },
+    { id: 'smiling', name: { en: 'Smiling', ja: '笑顔' }, items: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
+    { id: 'tableflip', name: { en: 'Table flip', ja: 'ちゃぶ台返し' }, items: ['(╯°□°)╯︵ ┻━┻', '┻━┻ ︵╰(°□°)╯︵ ┻━┻'] },
   ];
-  const kaomoji = (state: Partial<EmojiState> = {}, language = 'en', shown: KaomojiCategory[] = categories) =>
-    setup({ ...NO_EMOJI_STATE, mode: 'kaomoji', ...state }, { kaomoji: { categories: shown, language } });
+  const kaomoji = (state: Partial<EmojiState> = {}, language = 'en', shown: PickerCategory[] = categories) =>
+    setup({ ...NO_EMOJI_STATE, set: KAOMOJI, ...state }, { sets: [emoji, kaomojiSet(shown)], language });
   /** As a browser would measure: 10 px a character at the face size. */
   const measured = () => {
     const read: string[] = [];
@@ -357,7 +358,7 @@ describe('kaomoji mode', () => {
     expect(tabs.map((t) => [t.className, !!t.querySelector('svg')])).toEqual([['tab on', true], ['tab text', false], ['tab text', false]]);
     expect(tabs[0]!.innerHTML).toBe(setup().shadow.querySelector('.tab')!.innerHTML); // the emoji picker's Recent icon
     expect(tabs.map((t) => t.dataset['section'])).toEqual(['recent', 'smiling', 'tableflip']);
-    expect(shadow.querySelector('.note')!.textContent).toBe(KAOMOJI_RECENT_NOTE);
+    expect(shadow.querySelector('.note')!.textContent).toBe('Recently used kaomoji appear here.');
     expect(shadow.querySelector('.trash')).toBeNull();
     expect([...shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['Smiling', 'Table flip']);
     expect(shadow.querySelectorAll('.divider')).toHaveLength(2);
@@ -376,10 +377,10 @@ describe('kaomoji mode', () => {
   });
 
   it('a category is named for the keyboard\'s language, else in English, else by its first name; a string is itself', () => {
-    const shown: KaomojiCategory[] = [
-      { id: 'a', name: { en: 'Smiling', ja: '笑顔', pt: 'Sorrindo' }, faces: ['(^_^)'] },
-      { id: 'b', name: { ja: 'ねこ' }, faces: ['(=^･ω･^=)'] },
-      { id: 'c', name: 'Classic', faces: [':-)'] },
+    const shown: PickerCategory[] = [
+      { id: 'a', name: { en: 'Smiling', ja: '笑顔', pt: 'Sorrindo' }, items: ['(^_^)'] },
+      { id: 'b', name: { ja: 'ねこ' }, items: ['(=^･ω･^=)'] },
+      { id: 'c', name: 'Classic', items: [':-)'] },
     ];
     const tabs = (language: string) => [...kaomoji({}, language, shown).shadow.querySelectorAll('.tab')].map((t) => t.textContent);
     expect(tabs('pt-BR')).toEqual(['', 'Sorrindo', 'ねこ', 'Classic']);
@@ -390,34 +391,33 @@ describe('kaomoji mode', () => {
   });
 
   it('a tap types the face and says how much Recent holds; from Recent it says so', () => {
-    const { cell, calls, shadow } = kaomoji({ kaomojiRecent: ['(´▽`)'] });
+    const { cell, calls, shadow } = kaomoji({ recent: { [KAOMOJI]: ['(´▽`)'] } });
     touch(cell('(≧▽≦)'), 'touchstart');
     touch(cell('(≧▽≦)'), 'touchend');
     const recent = shadow.querySelector<HTMLElement>('.strip .cell.face')!;
     touch(recent, 'touchstart');
     touch(recent, 'touchend');
-    expect(calls.kaomoji).toEqual([['(≧▽≦)', false, 8], ['(´▽`)', true, 8]]);
-    expect(calls.emoji).toEqual([]);
+    expect(calls.item).toEqual([['(≧▽≦)', false, 8], ['(´▽`)', true, 8]]);
   });
 
   it('Recent shows what fits in its two columns, and follows the state', () => {
     const many = Array.from({ length: 12 }, (_, i) => `(${i})`);
-    const { shadow, view } = kaomoji({ kaomojiRecent: many });
+    const { shadow, view } = kaomoji({ recent: { [KAOMOJI]: many } });
     const shown = () => [...shadow.querySelectorAll<HTMLElement>('.strip .cell.face')].map((c) => c.textContent);
     expect(shown().slice(0, 9)).toEqual([...many.slice(0, 8), '(^_^)']);
-    view.update({ ...NO_EMOJI_STATE, mode: 'kaomoji', kaomojiRecent: [':-)'] });
+    view.update({ ...NO_EMOJI_STATE, set: KAOMOJI, recent: { [KAOMOJI]: [':-)'] } });
     expect(shown().slice(0, 2)).toEqual([':-)', '(^_^)']);
   });
 
   it('holding a face opens nothing and lifts nothing: the release still types it', () => {
-    const { calls, shadow } = kaomoji({ kaomojiRecent: ['(^_^)'] });
+    const { calls, shadow } = kaomoji({ recent: { [KAOMOJI]: ['(^_^)'] } });
     const recent = shadow.querySelector<HTMLElement>('.strip .cell.face')!;
     touch(recent, 'touchstart');
     vi.advanceTimersByTime(HOLD_MS * 2);
     expect(shadow.querySelector('.ghost')).toBeNull();
     expect(shadow.querySelector('.alts')).toBeNull();
     touch(recent, 'touchend');
-    expect(calls.kaomoji).toEqual([['(^_^)', true, 8]]);
+    expect(calls.item).toEqual([['(^_^)', true, 8]]);
     expect(calls.favorites).toEqual([]);
   });
 
@@ -432,7 +432,7 @@ describe('kaomoji mode', () => {
     expect(text('┻━┻ ︵╰(°□°)╯︵ ┻━┻').style.transform).toBe('scaleX(0.722)');
     // Widths are measured once: drawing again (a new Recent) reads only the faces not seen before.
     expect(widths).toHaveLength(8);
-    view.update({ ...NO_EMOJI_STATE, mode: 'kaomoji', kaomojiRecent: ['(^_^)'] });
+    view.update({ ...NO_EMOJI_STATE, set: KAOMOJI, recent: { [KAOMOJI]: ['(^_^)'] } });
     expect(widths).toHaveLength(8);
     expect(text('(╯°□°)╯︵ ┻━┻').style.fontSize).toBe('11.25px');
   });
@@ -477,13 +477,105 @@ describe('kaomoji mode', () => {
     expect(tab('smiling').classList.contains('on')).toBe(true);
   });
 
-  it('switching mode draws the other picker from its start; without kaomoji data it stays on emoji', () => {
+  it('switching set draws the other from its start; without the kaomoji set it stays on emoji', () => {
     const { shadow, view } = kaomoji();
-    view.update({ ...NO_EMOJI_STATE, mode: 'emoji' });
+    view.update({ ...NO_EMOJI_STATE, set: EMOJI });
     expect(shadow.querySelector('.cell.face')).toBeNull();
     expect([...shadow.querySelectorAll<HTMLElement>('.tab')].map((t) => t.dataset['section'])).toContain('favorites');
-    const none = setup({ ...NO_EMOJI_STATE, mode: 'kaomoji' });
+    const none = setup({ ...NO_EMOJI_STATE, set: KAOMOJI });
     expect(none.shadow.querySelector('.cell.face')).toBeNull();
     expect(none.shadow.querySelector('.note')!.textContent).toContain('Recently used emoji');
+  });
+});
+
+describe('sets', () => {
+  const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
+  /** A user's sets: plain characters; words in cells two wide; and one with icon and named categories mixed. */
+  const arrows: PickerSet = { id: 'mine/arrows', name: 'Arrows', icon: 'right', categories: [
+    { id: 'arrows', name: 'Arrows', icon: 'right', items: ['→', '←', wave] },
+    { id: 'more', name: 'More', icon: 'up', items: ['↑'] },
+  ] };
+  const words: PickerSet = { id: 'mine/words', name: { en: 'Words', ja: '言葉' }, icon: 'translate', cellWidth: 2, categories: [
+    { id: 'greetings', name: 'Greetings', items: ['hello', 'goodbye'] },
+  ] };
+  const mixed: PickerSet = { id: 'mine/mixed', name: 'Mixed', icon: 'symbols', categories: [
+    { id: 'named', name: '<svg onload="x">', items: ['a'] },
+    { id: 'drawn', name: 'Drawn', icon: 'flags', items: ['b'] },
+  ] };
+  const sets = [emoji, arrows, words, mixed];
+  const show = (set: string, state: Partial<EmojiState> = {}) => setup({ ...NO_EMOJI_STATE, set, ...state }, { sets });
+  const sectionsOf = (shadow: ShadowRoot) => [...shadow.querySelectorAll<HTMLElement>('.tab')].map((t) => t.dataset['section']);
+  const texts = (shadow: ShadowRoot) => [...shadow.querySelectorAll<HTMLElement>('.strip .cell')].map((c) => c.textContent);
+
+  it('the state says which set shows; one that is not there shows the first', () => {
+    expect(sectionsOf(show('mine/arrows').shadow)).toEqual(['recent', 'arrows', 'more']);
+    expect(sectionsOf(show('mine/words').shadow)).toEqual(['recent', 'greetings']);
+    expect(sectionsOf(show('mine/gone').shadow)[1]).toBe('favorites');
+    expect(sectionsOf(show('').shadow)[1]).toBe('favorites');
+  });
+
+  it('a set has Favorites, skin tones and Steam items only when its pack says so', () => {
+    const { shadow, calls, cell } = show('mine/arrows', { recent: { 'mine/arrows': ['→', 'steam:sticker:Hi'] }, favorites: ['⭐'], tone: 'dark' });
+    expect(sectionsOf(shadow)).toEqual(['recent', 'arrows', 'more']); // no Favorites, no Steam items
+    expect(texts(shadow)).toEqual(['→', 'steam:sticker:Hi', '→', '←', '👋', '↑']); // a Steam key is only text here
+    expect(shadow.querySelector('.label')).toBeNull();
+    expect(shadow.querySelectorAll('.divider')).toHaveLength(1); // between Recent and the categories
+    // Nothing lifts and nothing offers tones: a hold is a tap when released.
+    for (const held of [shadow.querySelector<HTMLElement>('.strip .cell')!, cell('👋')]) {
+      touch(held, 'touchstart');
+      vi.advanceTimersByTime(HOLD_MS * 2);
+      expect(shadow.querySelector('.ghost')).toBeNull();
+      expect(shadow.querySelector('.alts')).toBeNull();
+      touch(held, 'touchend');
+    }
+    expect(calls.item).toEqual([['→', true, 23], ['👋', false, 23]]);
+    expect(calls.steam).toEqual([]);
+  });
+
+  it('cells one wide are emoji cells and Recent has its bin; wider cells are fitted text and Recent has none', () => {
+    const narrow = show('mine/arrows', { recent: { 'mine/arrows': ['→'] } });
+    expect(narrow.shadow.querySelector('.cell.face')).toBeNull();
+    expect(narrow.shadow.querySelector('.trash')).not.toBeNull();
+    expect(narrow.cell('←').style.cssText).toContain('width: 40px; height: 40px');
+    const wide = show('mine/words', { recent: { 'mine/words': ['hello'] } });
+    expect(wide.shadow.querySelectorAll('.cell.face span')).toHaveLength(3);
+    expect(wide.shadow.querySelector('.trash')).toBeNull();
+    // Cells are 80 × 40; Recent is three columns of them (as wide as six emoji), then half a cell's gap.
+    expect(wide.cell('goodbye').style.cssText).toContain('left: 260px; top: 40px; width: 80px; height: 40px');
+    touch(wide.cell('goodbye'), 'touchstart');
+    touch(wide.cell('goodbye'), 'touchend');
+    expect(wide.calls.item).toEqual([['goodbye', false, 12]]); // Recent holds its three columns of four rows
+  });
+
+  it('a category with an icon has it as its tab; one without has its name, as text, there and beside it', () => {
+    const { shadow } = show('mine/mixed');
+    const tabs = [...shadow.querySelectorAll<HTMLElement>('.tab')];
+    expect(tabs.map((t) => [t.className, t.children.length])).toEqual([['tab on', 1], ['tab text', 0], ['tab', 1]]);
+    expect(tabs[1]!.textContent).toBe('<svg onload="x">'); // a name is never markup
+    expect([...shadow.querySelectorAll('.label')].map((l) => l.textContent)).toEqual(['<svg onload="x">']);
+    expect(tabs[2]!.querySelector('svg')).not.toBeNull();
+  });
+
+  it('each set shows its own Recent, named in its note while empty', () => {
+    const recent = { [EMOJI]: ['😄'], 'mine/arrows': ['←'] };
+    expect(texts(show(EMOJI, { recent }).shadow)[0]).toBe('😄');
+    expect(texts(show('mine/arrows', { recent }).shadow)[0]).toBe('←');
+    const { shadow, view } = show('mine/words', { recent });
+    expect(shadow.querySelector('.note')!.textContent).toBe('Recently used words appear here.');
+    view.update({ ...NO_EMOJI_STATE, set: 'mine/words', recent: { ...recent, 'mine/words': ['goodbye'] } });
+    expect(texts(shadow)).toEqual(['goodbye', 'hello', 'goodbye']);
+  });
+
+  it('going to another set draws it from its start, and back again', () => {
+    const { shadow, view } = show(EMOJI);
+    Object.defineProperty(shadow.querySelector('.grid')!, 'clientWidth', { value: 300 });
+    const strip = shadow.querySelector<HTMLElement>('.strip')!;
+    shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, cancelable: true }));
+    expect(strip.style.transform).toBe('translateX(-120px)');
+    for (const [set, second] of [['mine/arrows', 'arrows'], ['mine/words', 'greetings'], ['mine/mixed', 'named'], [EMOJI, 'favorites']] as const) {
+      view.update({ ...NO_EMOJI_STATE, set });
+      expect(sectionsOf(shadow)[1]).toBe(second);
+      expect(strip.style.transform).toBe('translateX(0px)');
+    }
   });
 });
