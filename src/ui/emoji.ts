@@ -3,7 +3,9 @@
 // column) with the set's categories
 // (the tabs scroll the same way when they are wider than the picker, and keep the current one in view).
 // Drag or the thumbstick (wheel events) scrolls; a quick drag glides. A gesture is followed across the
-// whole shadow root, and ended if its release is lost. Like Full Keyboard: no haptics here.
+// whole shadow root, and ended if its release is lost. In every set the laser ticks as it comes onto a
+// cell, the bin or a tab, but not while anything scrolls; a lifted entry ticks only into and out of
+// Favorites, and as it drops.
 //
 // A set has only what its pack says. recent: a Recent section first, and recentBin: a bin in its last
 // place. favorites: a section after Recent, and holding an entry in either lifts it for drag and drop
@@ -28,6 +30,8 @@ import { FACE_PX, MAX_FAVORITES, TONES, fitFace, recentColumns, setFor, steamFro
 
 const GLIDE_TAU_S = 0.35;
 const GLIDE_MIN_SPEED = 300;
+/** After the thumbstick scrolls, the cells passing under the laser stay quiet this long. */
+const WHEEL_QUIET_MS = 150;
 /** A category's label stands upright, not turned on its side, when its name has kana or kanji. */
 const UPRIGHT = /[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}]/u;
 /** Room kept clear beside a face in its cell (both sides together). */
@@ -102,7 +106,7 @@ export interface EmojiPickerInput {
 export interface EmojiView {
   /** Show new Recent/Favorites/tone (keeps the scroll position). */
   update(state: EmojiState): void;
-  /** The laser over the picker; true when a skin tone pick moved (a haptic tick). */
+  /** The laser over the picker; true when a haptic tick is due (see the top of this file). */
   hoverAt(x: number, y: number): boolean;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
   /** Show the Steam items again (they arrived, or stopped loading); keeps the scroll position. */
@@ -110,7 +114,8 @@ export interface EmojiView {
   destroy(): void;
 }
 
-type Cell = { el: HTMLElement; section: string; base?: string; steam?: SteamItem; toned: boolean; sx: number };
+/** `at` is the cell's place (its section and index there), the same across a redraw. */
+type Cell = { el: HTMLElement; at: string; section: string; base?: string; steam?: SteamItem; toned: boolean; sx: number };
 /** `tab` is an icon's SVG, or (`text`) a name; `lead` is what a jump to the section shows before it: its divider and label. */
 type Section = { id: string; tab: string; text: boolean; x: number; columns: number; lead: number };
 
@@ -251,7 +256,7 @@ export const createEmojiView = (
       } else el.textContent = reads;
       strip.append(el);
       const toned = !!set.tones && !content.steam && !!content.base && input.tones.has(content.base);
-      cells.push({ el, section, sx, toned, ...(content.base ? { base: content.base } : {}), ...(content.steam ? { steam: content.steam } : {}) });
+      cells.push({ el, at: `${section}:${i}`, section, sx, toned, ...(content.base ? { base: content.base } : {}), ...(content.steam ? { steam: content.steam } : {}) });
     };
     const note = (sx: number, columns: number, text: string): void => {
       const el = doc.createElement('div');
@@ -379,15 +384,16 @@ export const createEmojiView = (
   let dropIndex = -1;
   let toneBox: HoldPopup | null = null;
   let hovered: HTMLElement | undefined;
+  /** What the laser is on, for haptics: a cell's place, the bin, a tab, or '' for none of them. */
+  let over = '';
+  /** A tick hoverAt has yet to report: a tone pick moved, a lifted entry crossed Favorites' edge or dropped. */
+  let tickDue = false;
+  let wheelAt = -Infinity;
   const win = doc.defaultView;
   const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const guard = touchGuard(now);
 
   const cellAt = (target: EventTarget | null): Cell | undefined => cells.find((c) => c.el === target || c.el.contains(target as Node));
-  const cellAtPoint = (x: number, y: number): Cell | undefined => {
-    const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-    return hits.map(cellAt).find(Boolean);
-  };
   const clearHold = (): void => {
     if (holdTimer !== null) clearTimeout(holdTimer);
     holdTimer = null;
@@ -445,12 +451,15 @@ export const createEmojiView = (
     Object.assign(ghost.style, { width: `${cellSize * 1.2}px`, height: `${cellSize * 1.2}px` });
     root.append(ghost);
     moveGhost(p);
+    tickDue = false; // lifting a favorite opens its gap at once: not a crossing
   };
   const moveGhost = (p: { x: number; y: number }): void => {
     if (!ghost) return;
     // Centred just above the laser, so the target under it stays visible.
     Object.assign(ghost.style, { left: `${p.x - cellSize * 0.6}px`, top: `${p.y - cellSize * 1.6}px` });
+    const inside = dropIndex >= 0;
     showGap(favoriteIndexAt(p.x, p.y));
+    if (dropIndex >= 0 !== inside) tickDue = true;
   };
   const drop = (): void => {
     const base = pressed?.base;
@@ -471,13 +480,11 @@ export const createEmojiView = (
     if (!variants || !cell.el.isConnected) return;
     mode = 'tones';
     lastTouchAt = now();
-    toneMoved = false;
+    tickDue = false;
     toneBox = openHoldPopup(doc, shadow, root, at, variants,
-      { width: cellSize, height: cellSize }, last, false, '', () => { toneMoved = true; });
+      { width: cellSize, height: cellSize }, last, false, '', () => { tickDue = true; });
   };
   const pickTone = (x: number, y: number): void => toneBox?.pickAt(x, y);
-  /** The tone pick moved since hoverAt last said so: a haptic tick, as crossing keys. */
-  let toneMoved = false;
 
   /** Remove any tone popup or lifted emoji left over (a missed release, a second laser, a scroll). */
   const clearOverlays = (): void => {
@@ -578,7 +585,10 @@ export const createEmojiView = (
     if (was === 'tabs') jumpTo(pressedTab);
     else if (was === 'tabscroll') startGlide(() => tabOffset, setTabOffset, () => tabMax);
     else if (was === 'press') tap(pressed);
-    else if (was === 'drag') drop();
+    else if (was === 'drag') {
+      drop();
+      tickDue = true;
+    }
     else if (was === 'tones' && toneBox && pressed?.base) {
       const pick = toneBox.pick;
       clearOverlays();
@@ -612,6 +622,7 @@ export const createEmojiView = (
     e.preventDefault();
     if (mode === 'tones' || mode === 'drag') return; // the stick must not slide the grid under a popup
     stopGlide();
+    wheelAt = now();
     const by = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     if (tabsEl.contains(e.target as Node | null)) { // over the tabs, the stick scrolls them
       measureTabs();
@@ -664,21 +675,25 @@ export const createEmojiView = (
       // no touch moves means the release was lost somewhere: end the gesture there and then.
       if ((mode === 'drag' || mode === 'tones' || mode === 'scroll' || mode === 'tabscroll') && now() - lastTouchAt > RELEASE_LOST_MS
         && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) finish();
-      if (mode === 'tones') {
-        pickTone(x, y);
-        const moved = toneMoved;
-        toneMoved = false;
-        return moved;
-      }
-      if (mode === 'drag') return false; // dragging follows touch alone: two pointer sources disagree
+      if (mode === 'tones') pickTone(x, y);
+      const due = tickDue;
+      tickDue = false;
+      if (mode === 'tones' || mode === 'drag') return due; // dragging follows touch alone: two pointer sources disagree
       const hits = typeof shadow.elementsFromPoint === 'function' ? shadow.elementsFromPoint(x, y) : [];
-      trash.classList.toggle('hover', hits.includes(trash) || hits.some((h) => trash.contains(h)));
-      const cell = cellAtPoint(x, y)?.el;
-      if (cell === hovered) return false;
-      hovered?.classList.remove('hover');
-      hovered = cell;
-      cell?.classList.add('hover');
-      return false; // no haptics in the grid (only between skin tones)
+      const bin = hits.includes(trash) || hits.some((h) => trash.contains(h));
+      trash.classList.toggle('hover', bin);
+      const cell = hits.map(cellAt).find(Boolean);
+      if (cell?.el !== hovered) {
+        hovered?.classList.remove('hover');
+        hovered = cell?.el;
+        hovered?.classList.add('hover');
+      }
+      const tab = hits.map((h) => h.closest<HTMLElement>('.tab')).find(Boolean);
+      const was = over;
+      over = cell?.at ?? (bin ? 'bin' : tab ? `tab:${tab.dataset['section']}` : '');
+      // Onto another cell or tab, unless they are the ones moving: a drag, a glide, the thumbstick.
+      const still = mode !== 'scroll' && mode !== 'tabscroll' && glide === null && now() - wheelAt > WHEEL_QUIET_MS;
+      return due || (still && over !== '' && over !== was);
     },
     setBounds: ({ top, left, width: w, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${w}px`, height: `${height}px` });
