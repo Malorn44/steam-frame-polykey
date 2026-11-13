@@ -811,7 +811,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
-          cjk: languageFor(keyboard)?.cjk === true,
+          languageFont: languageFor(keyboard)?.font,
           ...(hint ? { placeholder: hint } : {}) });
       view.update(mods);
       applyBounds();

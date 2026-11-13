@@ -123,8 +123,8 @@ export interface KeyboardDef {
  */
 export interface LanguageDef {
   id: string; name: PackName; letters?: string; labels?: Record<string, string>; idleHint?: string; dictation?: string;
-  /** The bar draws its text in the theme's CJK fonts (fontCjk): Hangul, which the Frame's system font has none of. */
-  cjk?: boolean;
+  /** The fonts the bar draws its text in first, a CSS font-family list (Korean's: Hangul, which the Frame's system font has none of). */
+  font?: string;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;

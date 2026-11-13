@@ -1427,9 +1427,10 @@ describe('Korean', () => {
   /** The mode key's marked half (한 or 영), in this popup. */
   const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.half.now')?.textContent;
 
-  it('composes each syllable in the bar, in the CJK fonts, and sends it as the next begins; Space sends the last', async () => {
+  it('composes each syllable in the bar, in the language\'s fonts, and sends it as the next begins; Space sends the last', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
-    expect(shadowOf(popup)!.querySelector('.kb.cjk')).not.toBeNull();
+    const font = shadowOf(popup)!.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
+    expect(font).toBe('"Noto Sans CJK KR", "Noto Sans CJK JP", var(--font)'); // then the theme's
     await typeAll('ㅎㅏㄴ');
     expect([sent(), pre()]).toEqual([[], '한']);
     await typeAll('ㄱㅡㄹ');
