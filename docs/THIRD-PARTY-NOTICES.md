@@ -60,6 +60,10 @@ polykey's own code does these, following others' work:
   Its decoder is SHARK2-style template matching (Kristensson and Zhai, 2004).
 - **Dictation** follows Steam Frame Full Keyboard's findings (the raw microphone, the phrase detection
   thresholds, CPU only) and the design of its mic key.
+- **Hangul composition** follows the Unicode Standard's Hangul syllable composition (section 3.12,
+  "Conjoining Jamo Behavior"): a syllable's code point is computed from its jamo's places in Unicode's
+  order. The **2-set (두벌식) layout** is the Korean standard KS X 5002. Both are standards, followed;
+  no code or data is copied from any keyboard.
 
 ## Downloaded on request, not included
 
