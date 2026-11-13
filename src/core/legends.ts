@@ -33,6 +33,8 @@ export type Legend =
   | { kind: 'icon'; icon: string }
   /** The 12-key mode key's あ a: now is the part for the current mode (bold). */
   | { kind: 'pair'; parts: readonly [string, string]; now: 0 | 1 }
+  /** The mode key's halves, one per mode (한/영): now is the current mode's, marked with the indicator bar. */
+  | { kind: 'modes'; parts: readonly [string, string]; now: 0 | 1 }
   /** ゛゜ side by side (each boxed when listed), with a line beneath. */
   | { kind: 'marks'; marks: readonly Legend[]; under: Legend };
 
@@ -82,7 +84,7 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
   const slots = { ...derived.slots };
   for (const [slot, def] of Object.entries(own) as [SlotName, LegendDef | undefined][]) {
     if (def === undefined || (slot === 'c' && ctx.label !== undefined)) continue;
-    const legend = def === null ? undefined : fromDef(def, slot, ctx);
+    const legend = def === null ? undefined : fromDef(def, slot, ctx, key);
     if (legend) slots[slot] = legend;
     else delete slots[slot];
   }
@@ -90,12 +92,16 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
 };
 
 /** A pack's legend: a string is text at the slot's usual size and tone (a label in c, a small legend elsewhere). */
-const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext): Legend | undefined => {
+const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext, key: KeyDef): Legend | undefined => {
   const spec = typeof def === 'string' ? { text: def } : def;
   const small = slot !== 'c';
   const text = (value: string, size: LegendSize, tone: Tone): Legend =>
     ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
-  if (spec.parts) return { kind: 'pair', parts: spec.parts, now: ctx.latin ? 1 : 0 };
+  // Parts are the two modes', the keyboard's own first: on the mode key the current one is marked (한/영), elsewhere bold (あ a).
+  if (spec.parts) {
+    const now = ctx.latin ? 1 : 0;
+    return key.type === 'action' && key.action === 'mode' ? { kind: 'modes', parts: spec.parts, now } : { kind: 'pair', parts: spec.parts, now };
+  }
   // Beneath marks small as a hint (大⇔小); beneath text as the ABC keys' digit.
   if (spec.marks) return { kind: 'marks', marks: spec.marks.map((mark) => text(mark, 'key', 'text')), under: text(spec.under ?? '', 'hint', 'legend') };
   const under = spec.under === undefined ? undefined : text(spec.under, 'sub', 'legend');
