@@ -31,10 +31,11 @@ export type Legend =
   /** Text; boxed: in a dotted box (the layout lists it); under: a line beneath it, in the flow. */
   | { kind: 'text'; text: string; size: LegendSize; tone: Tone; boxed: boolean; under?: Legend }
   | { kind: 'icon'; icon: string }
-  /** The 12-key mode key's あ a: now is the part for the current mode (bold). */
-  | { kind: 'pair'; parts: readonly [string, string]; now: 0 | 1 }
-  /** The mode key's halves, one per mode (한/영): now is the current mode's, marked with the indicator bar. */
-  | { kind: 'modes'; parts: readonly [string, string]; now: 0 | 1 }
+  /**
+   * A part per mode, the keyboard's own first; now is the current mode's. mark: how it is marked, bold
+   * (the 12-key's あ a) or over the indicator bar, the parts a slash apart (the mode key's 한/영).
+   */
+  | { kind: 'parts'; parts: readonly [string, string]; now: 0 | 1; mark: 'bold' | 'indicator' }
   /** ゛゜ side by side (each boxed when listed), with a line beneath. */
   | { kind: 'marks'; marks: readonly Legend[]; under: Legend };
 
@@ -97,10 +98,9 @@ const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendConte
   const small = slot !== 'c';
   const text = (value: string, size: LegendSize, tone: Tone): Legend =>
     ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
-  // Parts are the two modes', the keyboard's own first: on the mode key the current one is marked (한/영), elsewhere bold (あ a).
+  // Parts are the two modes', the keyboard's own first: on the mode key the current one is over the bar (한/영), elsewhere bold (あ a).
   if (spec.parts) {
-    const now = ctx.latin ? 1 : 0;
-    return key.type === 'action' && key.action === 'mode' ? { kind: 'modes', parts: spec.parts, now } : { kind: 'pair', parts: spec.parts, now };
+    return { kind: 'parts', parts: spec.parts, now: ctx.latin ? 1 : 0, mark: key.type === 'action' && key.action === 'mode' ? 'indicator' : 'bold' };
   }
   // Beneath marks small as a hint (大⇔小); beneath text as the ABC keys' digit.
   if (spec.marks) return { kind: 'marks', marks: spec.marks.map((mark) => text(mark, 'key', 'text')), under: text(spec.under ?? '', 'hint', 'legend') };
