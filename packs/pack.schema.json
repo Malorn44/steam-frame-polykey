@@ -503,9 +503,11 @@
             "undo",
             "eisu",
             "kana",
+            "mode",
             "symbols",
             "more-symbols"
-          ]
+          ],
+          "description": "What the key does. eisu and kana switch one way into and out of the Latin mode (かな while typing kana also cycles its forms); mode switches between the keyboard's first mode and its Latin mode, reading the letters it goes to."
         },
         "label": {
           "$ref": "#/$defs/label"
