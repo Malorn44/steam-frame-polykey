@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.1](https://github.com/Malorn44/steam-frame-polykey/compare/v0.1.0...v0.1.1) (2026-11-13)
+
+
+### Features
+
+* **emoji:** a kaomoji mode in the emoji picker ([#46](https://github.com/Malorn44/steam-frame-polykey/issues/46)) ([1c68a55](https://github.com/Malorn44/steam-frame-polykey/commit/1c68a559d9b7ba8bfdecf91afab791470d6ec6d6))
+* **emoji:** the picker ticks as the laser crosses cells and tabs ([#50](https://github.com/Malorn44/steam-frame-polykey/issues/50)) ([df1c280](https://github.com/Malorn44/steam-frame-polykey/commit/df1c280247370cf10c0f31d5fa66d665a0b37d69))
+* **packs:** names in more than one language ([#51](https://github.com/Malorn44/steam-frame-polykey/issues/51)) ([8efff01](https://github.com/Malorn44/steam-frame-polykey/commit/8efff01cfbeb53c7314189b73b9571c0a274abe6))
+* **packs:** picker sets are packs ([#52](https://github.com/Malorn44/steam-frame-polykey/issues/52)) ([d27c1a9](https://github.com/Malorn44/steam-frame-polykey/commit/d27c1a92ee50745026a4f500336bb2bcb3003629))
+* **ui:** the swipe trail thins and fades along its length ([#41](https://github.com/Malorn44/steam-frame-polykey/issues/41)) ([7c8518f](https://github.com/Malorn44/steam-frame-polykey/commit/7c8518f12584a4b95edd7f6742097e479b96191d))
+
+
+### Bug Fixes
+
+* **suggest:** a picked alternative of a swiped word adds a space and clears the bar ([#43](https://github.com/Malorn44/steam-frame-polykey/issues/43)) ([bdf6a3e](https://github.com/Malorn44/steam-frame-polykey/commit/bdf6a3e29b22abdf67f3125459b2c8d8d332f5c3))
+* **ui:** keep settings lists scrolled when a tap redraws the page ([#38](https://github.com/Malorn44/steam-frame-polykey/issues/38)) ([d74515b](https://github.com/Malorn44/steam-frame-polykey/commit/d74515ba869b397ed1e777556de3c977df50b54c))
+* **ui:** scroll a long reading to keep the caret in view ([#39](https://github.com/Malorn44/steam-frame-polykey/issues/39)) ([4826de6](https://github.com/Malorn44/steam-frame-polykey/commit/4826de6ede6f5592502e67f0182e99e13dc3f5af))
+
 ## 0.1.0 (2026-11-07)
 
 The first release of polykey, an on-screen keyboard for the Valve Steam Frame. It draws inside Steam's own keyboard popup and types through Steam's own key entry point, so it works wherever Steam's keyboard appears.
