@@ -1,4 +1,4 @@
-// Japanese input with a reading buffer. Pure. Kana go into the buffer (shown in the bar), not into
+// The kana composer: Japanese input with a reading buffer. Pure. Kana go into the buffer (shown in the bar), not into
 // the app; nothing is sent until it is confirmed: 確定 (Enter) sends the reading as it is, or 変換
 // (Space) converts it into segments whose candidates are picked one segment at a time, and the
 // converted text is sent once the last segment is picked or confirmed. While only typing, live candidates
@@ -17,10 +17,12 @@
 // かな while typing (無変換's job on a Windows keyboard) shows the reading as カタカナ, then ﾊﾝｶｸ, then
 // ひらがな again; 確定 sends it in that form. While converting it goes back to the reading, in カタカナ.
 
-import type { FlickKey, KeyDef } from './catalog.js';
-import { inForm, nextForm, toKatakana, type Form } from './forms.js';
-import { feedRomaji, isRomaji, type RomajiTable } from './romaji.js';
-import { UNDO, type Effect } from './keyboard.js';
+import type { FlickKey, KeyDef, Layout, TableDef } from '../catalog.js';
+import { inForm, nextForm, toKatakana, type Form } from '../forms.js';
+import { modifyTable } from '../kana.js';
+import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
+import { UNDO, type Effect } from '../keyboard.js';
+import type { Composer, ComposerContext, ComposerResult, ConverterRequest, Learned as ConverterLearned, LiveSource } from './composer.js';
 
 /** The longest reading the sidecar converts. */
 export const MAX_READING = 64;
@@ -46,9 +48,7 @@ export interface Ime {
 export const NO_IME: Ime = { chars: [], caret: 0, cycle: null, segments: null, focus: 0, form: 'hiragana' };
 
 /** What the caller should ask the converter for after a press. */
-export type ImeRequest =
-  | { readonly kind: 'live' }
-  | { readonly kind: 'convert'; readonly lengths?: readonly number[]; readonly resize?: readonly [number, number] };
+export type ImeRequest = ConverterRequest;
 
 /** A sent conversion, for the converter to learn (picked candidates come first next time). */
 export interface Learned {
@@ -262,3 +262,92 @@ export const liveCandidates = (forReading: string, segments: readonly Omit<Segme
   const best = segments.length ? segments.map((s) => s.candidates[0] ?? s.reading).join('') : '';
   return [...new Set([best, ...predictions, forReading, toKatakana(forReading)].filter(Boolean))];
 };
+
+// --- the reading buffer as a composer ----------------------------------------------------------------
+
+const romajiTables = new WeakMap<TableDef, RomajiTable>();
+const modifyTables = new WeakMap<Layout, ReadonlyMap<string, string>>();
+const NO_MODIFY: ReadonlyMap<string, string> = new Map();
+
+/** The layout's ゛゜小 table, built once per layout. */
+const modifyOf = ({ layout }: ComposerContext): ReadonlyMap<string, string> => {
+  if (!layout) return NO_MODIFY;
+  let table = modifyTables.get(layout);
+  if (!table) modifyTables.set(layout, (table = modifyTable(layout.modify)));
+  return table;
+};
+
+const asResult = (result: ImeResult): ComposerResult<Ime> => ({
+  state: result.ime, effects: result.effects,
+  ...(result.request ? { request: result.request } : {}), ...(result.learned ? { learned: result.learned } : {}),
+});
+
+/** What the bar shows: the reading in its form with the caret, or the segments with the focused one's candidates. */
+const show: Composer<Ime>['show'] = (ime) => {
+  const focused = ime.segments?.[ime.focus];
+  return {
+    preedit: ime.segments
+      ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
+        candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
+      : { before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form), after: inForm(ime.chars.slice(ime.caret).join(''), ime.form) },
+    // Space converts (次変換 once converting), Enter confirms; かな shows the form it changes the reading to.
+    labels: { ' ': ime.segments ? 'next' : 'convert', Enter: 'confirm', kana: ime.segments ? 'katakana' : nextForm(ime.form) },
+  };
+};
+
+/** A live candidate that was the best conversion or a prediction: what the converter learns from the pick. */
+const learnedFrom = (ime: Ime, text: string, live: LiveSource | null): ConverterLearned | undefined => {
+  const source = !ime.segments && live?.reading === reading(ime) ? live : null;
+  if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
+    return { reading: source.reading, lengths: source.segments.map((s) => Array.from(s.reading).length),
+      choices: source.segments.map(() => 0), texts: source.segments.map((s) => s.candidates[0] ?? s.reading) };
+  }
+  return source?.predictions.includes(text) ? { reading: source.reading, prediction: text } : undefined;
+};
+
+/** The reading buffer as a composer; `typesRomaji`: whether typed letters go through the keyboard's romaji table. */
+export const readingComposer = (typesRomaji: (ctx: ComposerContext) => boolean): Composer<Ime> => {
+  /** The keyboard's romaji table while it types romaji, built once per table. */
+  const romajiOf = (ctx: ComposerContext): RomajiTable | undefined => {
+    const def = ctx.table;
+    if (!def?.entries || !typesRomaji(ctx)) return undefined;
+    let table = romajiTables.get(def);
+    if (!table) romajiTables.set(def, (table = romajiTable(def.entries)));
+    return table;
+  };
+  return {
+    empty: NO_IME,
+    composing,
+    latinKeys: (ctx) => romajiOf(ctx) !== undefined,
+    press: (ime, key, input, ctx) => {
+      const romaji = romajiOf(ctx);
+      const result = pressIme(ime, key, input, ctx.options, { modify: modifyOf(ctx), ...(romaji ? { romaji } : {}) });
+      return result && asResult(result);
+    },
+    flush: (ime, ctx) => asResult(flush(ime, romajiOf(ctx))),
+    show,
+    pause: (ime) => ({ ...ime, cycle: null }),
+    insert: (ime, text, ctx) => {
+      const romaji = romajiOf(ctx);
+      const sent = ime.segments ? flush(ime, romaji) : null; // a conversion under way is sent first
+      const into = insertText(sent ? sent.ime : settleRomaji(ime, romaji), text);
+      return into
+        ? { state: into, effects: sent?.effects ?? [], request: { kind: 'live' }, ...(sent?.learned ? { learned: sent.learned } : {}) }
+        : null;
+    },
+    convert: {
+      // Live candidates see pending letters settled (かn → かん); a conversion's buffer is settled already.
+      reading: (ime, ctx) => reading(settleRomaji(ime, romajiOf(ctx))),
+      converted: withConversion,
+      live: liveCandidates,
+      pick: (ime, text, index, live) => {
+        const picked = asResult(pickCandidate(ime, text, index));
+        const learned = learnedFrom(ime, text, live);
+        return learned ? { ...picked, learned } : picked;
+      },
+    },
+  };
+};
+
+/** Kana keys (12-key, 五十音, JIS), or romaji through the table with the romajiInput option. */
+export const kana = readingComposer((ctx) => ctx.options.romajiInput);

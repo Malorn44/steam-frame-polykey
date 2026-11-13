@@ -1,5 +1,5 @@
 // 12-key kana helpers: flick directions and the ゛゜小 table. Pure. The reading buffer they feed is
-// core/ime.ts.
+// core/composers/kana.ts.
 
 import { SLOP_PX } from './interaction.js';
 

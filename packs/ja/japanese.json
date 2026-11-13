@@ -1,0 +1,11 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "language",
+ "id": "ja",
+ "name": {"en": "Japanese", "ja": "日本語"},
+ "description": "What the Japanese keyboards call their kana and say in the bar while a reading is typed or converted.",
+ "letters": "あいう",
+ "labels": {"convert": "変換", "next": "次変換", "confirm": "確定", "hiragana": "かな", "katakana": "カナ", "halfwidth": "ﾊﾝｶｸ"},
+ "idleHint": "入力すると、ここに変換候補が出ます"
+}

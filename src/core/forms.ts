@@ -3,8 +3,6 @@
 
 export type Form = 'hiragana' | 'katakana' | 'halfwidth';
 export const FORMS: readonly Form[] = ['hiragana', 'katakana', 'halfwidth'];
-/** What a key that goes to this form shows. */
-export const FORM_LABELS: Record<Form, string> = { hiragana: 'かな', katakana: 'カナ', halfwidth: 'ﾊﾝｶｸ' };
 
 export const toKatakana = (text: string): string =>
   text.replace(/[ぁ-ゖゝゞ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));

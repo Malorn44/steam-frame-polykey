@@ -22,10 +22,7 @@
  "converter": "anthy",
  "lexicon": "en/words",
  "modes": [
-  {"id": "kana", "letters": "あいう"},
+  {"id": "kana"},
   {"id": "latin", "letters": "ABC", "latin": true}
- ],
- "strings": {
-  "idleHint": "入力すると、ここに変換候補が出ます"
- }
+ ]
 }

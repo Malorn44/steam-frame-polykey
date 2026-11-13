@@ -19,7 +19,7 @@ from typing import Awaitable, Optional, TextIO
 
 import aiohttp
 
-from .anthy import Converter
+from .converters import Converters
 from . import packs as pack_loader
 from .bridge import BINDING_NAME, Bridge, reply_expression
 from .cdp import CdpError, CdpSession, check_loopback, find_target, list_targets
@@ -347,7 +347,7 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         desktop,
         Lexicons([cfg.user_dir / "packs", cfg.packs]),
         settings,
-        Converter(),
+        Converters(log=log),
         dictation=dictation,
         updates=updates,
     )

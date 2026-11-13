@@ -4,7 +4,9 @@ import asyncio
 import io
 import json
 
-from polykey.anthy import AnthyUnavailable, Converter
+from polykey.converters import Converters
+from polykey.converters.anthy import AnthyUnavailable
+from polykey.converters.engine import Converter
 from polykey.bridge import Bridge
 from polykey.injector import Log
 
@@ -33,12 +35,12 @@ class FakeAnthy:
 
 
 def ask(bridge, **request):
-    return asyncio.run(bridge.handle(json.dumps({"id": 1, **request})))
+    return asyncio.run(bridge.handle(json.dumps({"id": 1, "converter": "anthy", **request})))
 
 
 def test_convert_and_predict_pass_through():
     engine = FakeAnthy()
-    bridge = Bridge(Log(io.StringIO()), converter=Converter(lambda: engine))
+    bridge = Bridge(Log(io.StringIO()), converters=Converters({"anthy": Converter(lambda: engine)}))
     reply = ask(bridge, op="convert", reading="きょうは", lengths=[2, 2], resize=[0, 1])
     assert reply["segments"][0]["candidates"] == ["今日", "きょう"]
     assert engine.calls == [("きょうは", [2, 2], (0, 1))]
@@ -47,7 +49,7 @@ def test_convert_and_predict_pass_through():
 
 def test_bad_requests_and_a_missing_library():
     out = io.StringIO()
-    bridge = Bridge(Log(out), converter=Converter(lambda: FakeAnthy()))
+    bridge = Bridge(Log(out), converters=Converters({"anthy": Converter(lambda: FakeAnthy())}))
     assert ask(bridge, op="convert", reading="")["error"] == "bad-reading"
     assert ask(bridge, op="convert", reading="あ" * 65)["error"] == "bad-reading"
     assert ask(bridge, op="convert", reading="あ", lengths=["x"])["error"] == "bad-lengths"
@@ -55,14 +57,14 @@ def test_bad_requests_and_a_missing_library():
     def missing():
         raise AnthyUnavailable("no libanthy")
 
-    bridge = Bridge(Log(out), converter=Converter(missing))
+    bridge = Bridge(Log(out), converters=Converters({"anthy": Converter(missing)}))
     assert ask(bridge, op="convert", reading="ひみつ")["error"] == "unavailable"
     assert "ひみつ" not in out.getvalue()  # readings are typed text: never logged
 
 
 def test_learn_passes_checked_choices_through():
     engine = FakeAnthy()
-    bridge = Bridge(Log(io.StringIO()), converter=Converter(lambda: engine))
+    bridge = Bridge(Log(io.StringIO()), converters=Converters({"anthy": Converter(lambda: engine)}))
     assert ask(bridge, op="learn", reading="かんじ", lengths=[3], choices=[0], texts=["漢字"])["ok"] is True
     assert ask(bridge, op="learn", reading="ありが", prediction="ありがとう")["ok"] is True
     assert ask(bridge, op="learn", reading="かんじ", lengths=[3], choices=["x"], texts=["漢字"])["error"] == "bad-learn"

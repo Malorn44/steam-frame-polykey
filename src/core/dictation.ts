@@ -1,7 +1,7 @@
 // Dictation, the pure parts: the language a keyboard dictates in, and the text a keyboard that types
 // directly sends. Dictated text is typed content: never logged.
 
-import type { KeyboardDef } from './catalog.js';
+import type { KeyboardDef, LanguageDef } from './catalog.js';
 
 /** The mic key: idle, listening (push to talk), the phrase being recognized, or a failure shown briefly. */
 export type MicState = 'idle' | 'listening' | 'transcribing' | 'error';
@@ -15,13 +15,13 @@ const languageCode = (tag: string | undefined): string | undefined => {
   return /^[a-z]{2,3}$/.test(code) ? code : undefined;
 };
 
-/** English in a Japanese keyboard's 英数 mode; otherwise the keyboard's language. */
-export const dictationLanguage = (keyboard: KeyboardDef | undefined, latin: boolean): string =>
-  (latin ? 'en' : languageCode(keyboard?.language) ?? 'en');
+/** English in a keyboard's Latin mode (英数); otherwise its language's dictation language, else the keyboard's language. */
+export const dictationLanguage = (keyboard: KeyboardDef | undefined, latin: boolean, language?: LanguageDef): string =>
+  (latin ? 'en' : languageCode(language?.dictation ?? keyboard?.language) ?? 'en');
 
-/** The languages the keyboards dictate in, sorted (the Dictation tab lists them). */
-export const dictationLanguages = (keyboards: readonly KeyboardDef[]): string[] =>
-  [...new Set(keyboards.flatMap((k) => languageCode(k.language) ?? []))].sort();
+/** The languages the keyboards dictate in, sorted (the Dictation tab lists them); `languageOf` gives each one's pack. */
+export const dictationLanguages = (keyboards: readonly KeyboardDef[], languageOf: (k: KeyboardDef) => LanguageDef | undefined = () => undefined): string[] =>
+  [...new Set(keyboards.flatMap((k) => languageCode(languageOf(k)?.dictation ?? k.language) ?? []))].sort();
 
 /** Dictated text as typed: a space first when a word was being typed, and one after it where words are spaced. */
 export const spacedText = (text: string, language: string, midWord: boolean): string =>

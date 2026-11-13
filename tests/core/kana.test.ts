@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FlickKey, KeyDef } from '../../src/core/catalog.js';
-import { NO_IME, composing, pressIme, reading, type Ime } from '../../src/core/ime.js';
+import { NO_IME, composing, pressIme, reading, type Ime } from '../../src/core/composers/kana.js';
 import { flickDirection, modifyTable } from '../../src/core/kana.js';
 import { inForm, toHalfwidth } from '../../src/core/forms.js';
 import { optionsFor } from '../../src/core/options.js';
