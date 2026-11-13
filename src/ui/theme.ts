@@ -13,6 +13,12 @@ export const THEME_DEFAULTS = {
   shadowLarge: '0 4px 14px rgba(0,0,0,0.6)',
 } as const;
 
+/**
+ * The fonts kaomoji draw in, whatever the theme's: faces mix kana, symbols and marks from many scripts,
+ * and the Frame's system-ui (Cantarell) draws some of them blank and sends others to odd fallbacks.
+ */
+export const KAOMOJI_FONT = '"Noto Sans CJK JP", "Noto Sans", "Noto Sans Symbols 2", "Noto Sans Symbols", sans-serif';
+
 /** How states shift by tone: a dark theme lightens a pressed key and a raised cell; a light one darkens. */
 const TONE = {
   dark: { pressed: 'brightness(1.5)', raised: 'rgba(255, 255, 255, 0.1)' },
@@ -48,6 +54,7 @@ export const themeVars = (theme: Theme): string => {
     '--radius-pill': `${theme.radiusPill ?? THEME_DEFAULTS.radiusPill}px`,
     '--font': theme.font ?? THEME_DEFAULTS.font,
     '--font-cjk': theme.fontCjk ?? THEME_DEFAULTS.fontCjk,
+    '--font-kaomoji': KAOMOJI_FONT,
   };
   return Object.entries(vars).map(([name, value]) => `${name}:${value};`).join('');
 };

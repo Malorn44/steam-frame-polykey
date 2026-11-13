@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { MAX_FAVORITES, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, toneTable, useRecent, withTone, type EmojiData } from '../../src/core/emoji.js';
+import { FACE_MIN_PX, FACE_PX, MAX_FAVORITES, fitFace, steamFromKey, steamKey, placeFavorite, removeFavorite, steamItemEffects, toneTable, useRecent, withTone, type EmojiData } from '../../src/core/emoji.js';
 
 const wave = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
 const tones = toneTable({ groups: [{ id: 'people', name: 'People', items: [wave, '🙂'] }] });
@@ -68,5 +68,34 @@ describe('the bundled data', () => {
     const tones = toneTable(bundled);
     expect(withTone('🚶‍➡️', 'dark', tones)).toBe('🚶🏿‍➡️');
     expect(withTone('🚶', 'dark', tones)).toBe('🚶🏿');
+  });
+});
+
+describe('fitting a face to its cell', () => {
+  it('a face that fits is drawn as it is', () => {
+    expect(fitFace(60, 90)).toEqual({ font: FACE_PX, scaleX: 1 });
+    expect(fitFace(90, 90)).toEqual({ font: FACE_PX, scaleX: 1 });
+    expect(fitFace(0, 90)).toEqual({ font: FACE_PX, scaleX: 1 }); // not measured (yet)
+  });
+
+  it('a wider one shrinks until it just fits', () => {
+    const fit = fitFace(100, 90);
+    expect(fit.scaleX).toBe(1);
+    expect(fit.font).toBeCloseTo(13.5);
+    expect(100 * fit.font / FACE_PX).toBeCloseTo(90);
+  });
+
+  it('shrinks no further than the smallest size, then is squeezed to fit', () => {
+    const edge = 90 * FACE_PX / FACE_MIN_PX; // exactly fits at the smallest size
+    expect(fitFace(edge, 90).scaleX).toBe(1);
+    expect(fitFace(edge, 90).font).toBeCloseTo(FACE_MIN_PX);
+    const fit = fitFace(180, 90);
+    expect(fit.font).toBe(FACE_MIN_PX);
+    expect(fit.scaleX).toBeCloseTo(90 / (180 * FACE_MIN_PX / FACE_PX));
+    expect(180 * (fit.font / FACE_PX) * fit.scaleX).toBeCloseTo(90);
+  });
+
+  it('a cell with no room leaves the face alone', () => {
+    expect(fitFace(50, 0)).toEqual({ font: FACE_PX, scaleX: 1 });
   });
 });

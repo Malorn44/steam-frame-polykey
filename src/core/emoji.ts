@@ -1,5 +1,6 @@
 // Emoji picker logic. Pure. Data comes from packs/emoji/emoji.data (Unicode Emoji 15.1): an item is an emoji,
-// or [base, light, medium-light, medium, medium-dark, dark] when it takes a skin tone.
+// or [base, light, medium-light, medium, medium-dark, dark] when it takes a skin tone. The picker's kaomoji
+// mode shows packs/emoji/kaomoji.data: categories of text faces.
 
 import type { Effect } from './keyboard.js';
 
@@ -9,8 +10,28 @@ export interface EmojiData { groups: EmojiGroup[] }
 
 export const TONES = ['', 'light', 'medium-light', 'medium', 'medium-dark', 'dark'] as const;
 export type Tone = (typeof TONES)[number];
-export interface EmojiState { recent: string[]; favorites: string[]; tone: Tone }
-export const NO_EMOJI_STATE: EmojiState = { recent: [], favorites: [], tone: '' };
+export type PickerMode = 'emoji' | 'kaomoji';
+export interface EmojiState { recent: string[]; favorites: string[]; tone: Tone; kaomojiRecent: string[]; mode: PickerMode }
+export const NO_EMOJI_STATE: EmojiState = { recent: [], favorites: [], tone: '', kaomojiRecent: [], mode: 'emoji' };
+
+export interface KaomojiCategory { id: string; en: string; ja: string; faces: string[] }
+export interface KaomojiData { categories: KaomojiCategory[] }
+
+/** A kaomoji cell is this many emoji cells wide, and Recent this many columns of them. */
+export const FACE_CELLS = 2.5;
+export const KAOMOJI_RECENT_COLUMNS = 2;
+export const FACE_PX = 15;
+export const FACE_MIN_PX = 11;
+
+/**
+ * How a face `width` px wide at FACE_PX is drawn in `room` px: as it is when it fits; else in a smaller
+ * font, down to FACE_MIN_PX; and if still too wide there, squeezed horizontally (scaleX) as well.
+ */
+export const fitFace = (width: number, room: number): { font: number; scaleX: number } => {
+  if (!(width > room) || room <= 0) return { font: FACE_PX, scaleX: 1 };
+  const font = FACE_PX * room / width;
+  return font >= FACE_MIN_PX ? { font, scaleX: 1 } : { font: FACE_MIN_PX, scaleX: room / (width * FACE_MIN_PX / FACE_PX) };
+};
 
 /** Recent fills a fixed block; Favorites caps at the sidecar's limit. */
 export const MAX_FAVORITES = 40;

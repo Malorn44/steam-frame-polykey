@@ -101,6 +101,21 @@ A keyboard's `lexicon` names the word list its suggestions come from: `en/words`
 
 The emoji picker's data is `packs/emoji/emoji.data`, built from Unicode's `emoji-test.txt` by `scripts/make-emoji.py`. A valid copy in `~/.config/polykey/packs/emoji/emoji.data` is used instead.
 
+The picker's kaomoji are `packs/emoji/kaomoji.data`, and a valid copy in `~/.config/polykey/packs/emoji/kaomoji.data` is used instead. It is JSON, with the categories in the order their tabs show:
+
+```json
+{"categories": [{"id": "smiling", "en": "Smiling", "ja": "笑顔", "faces": [
+  {"text": "(^_^)", "reading": ["にこにこ", "えがお"], "tags": ["笑顔", "シンプル"]},
+  {"text": ":-)"}
+]}]}
+```
+
+- Up to 64 categories and 2000 faces in all. An `id` is lowercase letters, digits and `-`.
+- `ja` names the category on a Japanese keyboard, `en` on any other.
+- A face is an object. Its `text` is what the picker shows and types: up to 64 characters on one line.
+- `reading` (words in hiragana that could call the face up) and `tags` (Japanese words that describe it) are optional: up to 16 of each, 32 characters a word. Nothing uses them yet; they are kept for suggesting faces as you type.
+- A copy that is not valid is reported in settings, and without any valid data the picker has no kaomoji key.
+
 ## Adding a pack to polykey
 
 To offer a pack to everyone, put it in `packs/` and open a pull request, as [CONTRIBUTING.md](CONTRIBUTING.md) describes. Each bundled layout has its own checks: `npm run test:layout -- <id>` runs them.

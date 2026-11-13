@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NO_EMOJI_STATE, type EmojiState } from '../src/core/emoji.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
-import { STEAM_LOADING_NOTE } from '../src/ui/emoji.js';
+import { KAOMOJI_RECENT_NOTE, STEAM_LOADING_NOTE } from '../src/ui/emoji.js';
 import { bundledBoot } from './boot.js';
 import { MINIMAL, fakeItemStore, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
@@ -619,7 +620,7 @@ describe('emoji', () => {
   it('😀 opens the picker over a key row; a tap types the emoji, updates Recent and is saved; ABC returns', async () => {
     const boot = bundledBoot();
     boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀', '😃'] }] };
-    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    boot.emojiState = { ...NO_EMOJI_STATE };
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
@@ -640,7 +641,7 @@ describe('emoji', () => {
     smile.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(2000);
     expect(manager.calls).toEqual([['😃', false]]);
-    expect(saved).toEqual([{ recent: ['😃'], favorites: [], tone: '' }]);
+    expect(saved).toEqual([{ ...NO_EMOJI_STATE, recent: ['😃'] }]);
     await vi.advanceTimersByTimeAsync(CHECK_MS * 2); // the periodic check keeps the row a row
     const row = shadowOf(popup)!.querySelector<HTMLElement>('.kb')!;
     expect(row.style.height).toBe('44px');
@@ -658,7 +659,7 @@ describe('Steam items in the emoji picker', () => {
   const setupEmoji = (itemStore?: object) => {
     const boot = bundledBoot();
     boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀'] }] };
-    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    boot.emojiState = { ...NO_EMOJI_STATE };
     const popup = fakePopupWindow();
     const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true, ...(itemStore ? { itemStore } : {}) });
     steam.g[BOOT_GLOBAL] = boot;
@@ -856,7 +857,7 @@ describe('emoji row on a Japanese keyboard', () => {
   it('its back key reads あいう from kana mode and ABC from 英数 mode', async () => {
     const boot = bundledBoot();
     boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀'] }] };
-    boot.emojiState = { recent: [], favorites: [], tone: '' };
+    boot.emojiState = { ...NO_EMOJI_STATE };
     const popup = fakePopupWindow();
     const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
     steam.g[BOOT_GLOBAL] = boot;
@@ -869,6 +870,106 @@ describe('emoji row on a Japanese keyboard', () => {
     await tap(popup, 'eisu');
     await tap(popup, 'emoji');
     expect(key(popup, 'abc').querySelector('.lbl')!.textContent).toBe('ABC');
+  });
+});
+
+describe('kaomoji mode', () => {
+  const categories = [
+    { id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)'] },
+    { id: 'classic', en: 'Classic', ja: 'クラシック', faces: [':-)', ';-)'] },
+  ];
+  /** polykey with emoji data and (unless `kaomoji` is null) kaomoji; `saved` is what the sidecar was asked to save. */
+  const setupKaomoji = (state: Partial<EmojiState> = {}, kaomoji: { categories: typeof categories } | null = { categories }, old = false) => {
+    const boot = bundledBoot();
+    boot.emoji = { groups: [{ id: 'smileys', name: 'Smileys & Emotion', items: ['😀'] }] };
+    boot.kaomoji = kaomoji;
+    boot.emojiState = old ? { recent: ['😀'], favorites: [], tone: '' } as unknown as EmojiState : { ...NO_EMOJI_STATE, ...state };
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const saved: EmojiState[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = request(payload);
+      if (req.op === 'emoji.save') saved.push(req.state as EmojiState);
+      const reply = req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : { ok: true };
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+    };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    return { popup, manager, saved, api };
+  };
+  const faces = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.strip .cell.face')];
+  const tabs = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll('.tab')].map((t) => t.textContent);
+  const press = async (el: HTMLElement) => {
+    el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(2000);
+  };
+
+  it('the mode key reads :-) over emoji and shows the emoji icon over kaomoji; each switch is saved', async () => {
+    const { popup, saved } = setupKaomoji();
+    await tap(popup, 'emoji');
+    expect(key(popup, 'kaomoji').querySelector('.lbl')!.textContent).toBe(':-)');
+    expect(faces(popup)).toHaveLength(0);
+    await tap(popup, 'kaomoji');
+    expect(key(popup, 'kaomoji').querySelector('.lbl svg')).not.toBeNull();
+    expect(faces(popup).map((c) => c.textContent)).toEqual(['(^_^)', '(≧▽≦)', ':-)', ';-)']);
+    expect(tabs(popup)).toEqual(['', 'Smiling', 'Classic']); // Recent's tab is its icon
+    expect(saved.at(-1)).toMatchObject({ mode: 'kaomoji' });
+    await tap(popup, 'kaomoji');
+    expect(key(popup, 'kaomoji').querySelector('.lbl')!.textContent).toBe(':-)');
+    expect(faces(popup)).toHaveLength(0);
+    expect(shadowOf(popup)!.querySelector('.strip .cell')!.textContent).toBe('😀');
+    expect(saved.at(-1)).toMatchObject({ mode: 'emoji' });
+  });
+
+  it('the picker opens in the saved mode, and stays in it after a visit to the keys', async () => {
+    const { popup } = setupKaomoji({ mode: 'kaomoji', kaomojiRecent: [';-)'] });
+    await tap(popup, 'emoji');
+    expect(faces(popup).map((c) => c.textContent)).toEqual([';-)', '(^_^)', '(≧▽≦)', ':-)', ';-)']);
+    await tap(popup, 'abc');
+    await tap(popup, 'emoji');
+    expect(faces(popup)).toHaveLength(5);
+  });
+
+  it('a tapped face is typed as text, goes to the front of its own Recent and is saved; nothing is logged', async () => {
+    const { popup, manager, saved } = setupKaomoji({ mode: 'kaomoji', recent: ['😀'] });
+    await tap(popup, 'emoji');
+    await press(faces(popup).find((c) => c.textContent === '(≧▽≦)')!);
+    await press(faces(popup).find((c) => c.textContent === ':-)')!);
+    const typed = () => manager.calls.map(([text]) => text).join(''); // ASCII goes a character per call
+    expect(typed()).toBe('(≧▽≦):-)');
+    expect(saved.at(-1)).toEqual({ ...NO_EMOJI_STATE, mode: 'kaomoji', recent: ['😀'], kaomojiRecent: [':-)', '(≧▽≦)'] });
+    expect(faces(popup).slice(0, 2).map((c) => c.textContent)).toEqual([':-)', '(≧▽≦)']);
+    await press(faces(popup)[1]!); // from Recent: typed, and Recent keeps its order under the laser
+    expect(typed()).toBe('(≧▽≦):-)(≧▽≦)');
+    expect(saved.at(-1)!.kaomojiRecent).toEqual([':-)', '(≧▽≦)']);
+    expect(logged.join('\n')).not.toMatch(/≧|:-\)/);
+  });
+
+  it('a Japanese keyboard names the tabs in Japanese', async () => {
+    const { popup, api } = setupKaomoji({ mode: 'kaomoji' });
+    api.debug.use('ja/12key');
+    await tap(popup, 'emoji');
+    expect(tabs(popup)).toEqual(['', '笑顔', 'クラシック']);
+  });
+
+  it('without kaomoji data there is no mode key, and a saved kaomoji mode shows emoji', async () => {
+    const { popup } = setupKaomoji({ mode: 'kaomoji' }, null);
+    await tap(popup, 'emoji');
+    expect(key(popup, 'kaomoji')).toBeUndefined();
+    expect(key(popup, 'abc')).toBeDefined();
+    expect(shadowOf(popup)!.querySelector('.strip .cell')!.textContent).toBe('😀');
+  });
+
+  it('a state from before kaomoji opens on emoji, and kaomoji with an empty Recent', async () => {
+    const { popup, saved } = setupKaomoji({}, { categories }, true);
+    await tap(popup, 'emoji');
+    expect(shadowOf(popup)!.querySelector('.strip .cell')!.textContent).toBe('😀');
+    await tap(popup, 'kaomoji');
+    expect(shadowOf(popup)!.querySelector('.note')!.textContent).toBe(KAOMOJI_RECENT_NOTE);
+    expect(saved.at(-1)).toEqual({ ...NO_EMOJI_STATE, recent: ['😀'], mode: 'kaomoji' });
   });
 });
 

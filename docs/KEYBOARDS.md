@@ -51,6 +51,8 @@ Settings (theme, haptics, suggestions, updates and the keyboard's own options; k
 
 Recent, Favorites (drag and drop), skin tones, and your Steam emoticons, stickers and room effects.
 
+The `:-)` key on the picker's bottom row switches to kaomoji, text faces like (＾▽＾), in categories with their own Recent; the same key switches back. The picker opens in the mode you used last.
+
 ## Switching keyboards
 
 🌐 switches between polykey's keyboards; hold it to jump to one. Settings → Keyboards picks them and their order. **Steam keyboard** in settings hands over to Steam's own keyboard.
