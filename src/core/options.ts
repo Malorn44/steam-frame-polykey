@@ -3,7 +3,7 @@
 // the current keyboard has.
 
 import type { KeyboardDef, KeyboardOptions } from './catalog.js';
-import { composerOf } from './composers/index.js';
+import { takesDictation } from './composers/index.js';
 
 export type OptionName = keyof KeyboardOptions;
 
@@ -26,24 +26,24 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
   dictationCommit: { name: 'Dictation', off: 'Candidates', on: 'Type at once' },
 };
 
-/** A keyboard whose composer takes dictated text (into a reading, for its candidates) offers dictationCommit; packs do not list it. */
-const hasReading = (keyboard: KeyboardDef | undefined): boolean => composerOf(keyboard)?.insert !== undefined;
-
-/** The keyboard's options with the user's choices applied (only options the keyboard has). */
+/**
+ * The keyboard's options with the user's choices applied (only options the keyboard has). A keyboard
+ * whose composer takes dictated text offers dictationCommit; packs do not list it.
+ */
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
   const own = keyboard?.options ?? {};
   const pick = (name: OptionName): boolean =>
     name in own ? (typeof saved?.[name] === 'boolean' ? saved[name] : own[name]!) : false;
   return {
     tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
-    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: hasReading(keyboard) && saved?.dictationCommit === true,
+    qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: takesDictation(keyboard) && saved?.dictationCommit === true,
   };
 };
 
 /** The options a keyboard offers, in a stable order. */
 export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
   (Object.keys(OPTIONS) as OptionName[]).filter((name) =>
-    (name === 'dictationCommit' ? hasReading(keyboard) : name in (keyboard?.options ?? {})));
+    (name === 'dictationCommit' ? takesDictation(keyboard) : name in (keyboard?.options ?? {})));
 
 /** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
 export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>
