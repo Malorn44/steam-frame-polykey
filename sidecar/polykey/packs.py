@@ -1,4 +1,4 @@
-"""Load and validate packs (layouts, keyboards, themes, picker sets) and the user's settings.
+"""Load and validate packs (layouts, keyboards, themes, tables, picker sets, languages) and the user's settings.
 
 Bundled packs come first; a user pack in ~/.config/polykey/packs/ replaces the bundled item with the
 same id. Files are validated against packs/pack.schema.json with a small stdlib validator for the
@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILES_PER_DIR = 256
-KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables"}
+KINDS = {"layout": "layouts", "keyboard": "keyboards", "theme": "themes", "table": "tables", "language": "languages"}
 DEFAULT_SETTINGS = {
     "keyboards": ["en/english"],
     "theme": "themes/steam",
@@ -214,7 +214,9 @@ def _scan(directory: Path, schema: dict, errors: list[str]) -> dict[str, dict]:
             continue
         problems = validate(data, schema, schema)
         if not problems and data["id"].split("/")[0] != file.parent.name:
-            problems = [f"/id: must start with {file.parent.name}/ (the folder name)"]
+            # A language's id is its code alone: the folder is named after it.
+            wanted = f"start with {file.parent.name}/" if "/" in data["id"] else f"be {file.parent.name}"
+            problems = [f"/id: must {wanted} (the folder name)"]
         if not problems and data["id"] in items:
             problems = [f"/id: {data['id']} is defined twice"]
         if problems:

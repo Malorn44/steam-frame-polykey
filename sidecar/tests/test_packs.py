@@ -515,3 +515,42 @@ def test_a_layout_without_a_globe_has_no_alone_rows(tmp_path):
     a = {"type": "char", "char": "a"}
     write(tmp_path / "packs", "mine/none.json", layout("mine/none", rows=[[a]]))
     assert "aloneRows" not in packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["mine/none"]
+
+
+def language(code: str, **fields) -> dict:
+    return {"schemaVersion": 1, "kind": "language", "id": code, "name": code, **fields}
+
+
+def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == []
+    ja = boot["catalog"]["languages"]["ja"]
+    assert (ja["letters"], ja["labels"]["convert"], ja["idleHint"]) == (
+        "あいう",
+        "変換",
+        "入力すると、ここに変換候補が出ます",
+    )
+    write(tmp_path / "packs", "de/german.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de"))
+    write(tmp_path / "packs", "mine/french.json", language("fr"))
+    write(tmp_path / "packs", "es/spanish.json", language("es", labels={"Convert!": "x"}))
+    write(tmp_path / "packs", "pt/portuguese.json", language("pt", letters="abcdefghi"))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["catalog"]["languages"]["de"]["labels"] == {"confirm": "OK"}
+    assert boot["errors"] == [
+        "es/spanish.json: /labels: unknown field Convert!",
+        "mine/french.json: /id: must be mine (the folder name)",
+        "pt/portuguese.json: /letters: too long",
+    ]
+    assert sorted(boot["catalog"]["languages"]) == ["de", "ja"]
+
+
+def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
+    write(tmp_path / "packs", "ja/mine.json", language("ja", letters="かな", labels={"convert": "Convert"}))
+    ja = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["languages"]["ja"]
+    assert (ja["letters"], ja["labels"], "idleHint" in ja) == ("かな", {"convert": "Convert"}, False)
+
+
+def test_a_mode_takes_its_letters_from_the_language_unless_it_names_them(tmp_path):
+    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
+    assert keyboards["ja/12key"]["modes"] == [{"id": "kana"}, {"id": "latin", "letters": "ABC", "latin": True}]
+    assert "strings" not in keyboards["ja/jis"]  # the idle hint is the language's
