@@ -26,7 +26,7 @@ const char = (c: string): KeyDef => ({ type: 'char', char: c });
 const typeAll = (keys: string, romaji = true): Ime => {
   let ime = NO_IME;
   for (const c of Array.from(keys)) {
-    ime = pressIme(ime, char(c), { typed: c }, { tapCycle: false }, { modify: new Map(), ...(romaji ? { romaji: table } : {}) })!.ime;
+    ime = pressIme(ime, char(c), { typed: c }, { tapCycle: false }, { modify: new Map(), ...(romaji ? { romaji: table } : {}) })!.state;
   }
   return ime;
 };

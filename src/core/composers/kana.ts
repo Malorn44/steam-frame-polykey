@@ -21,19 +21,16 @@ import type { FlickKey, KeyDef, Layout } from '../catalog.js';
 import { inForm, nextForm, toKatakana, type Form } from '../forms.js';
 import { modifyTable } from '../kana.js';
 import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
-import { UNDO, type Effect } from '../keyboard.js';
+import { UNDO } from '../keyboard.js';
 import {
-  builtOnce, type Composer, type ComposerContext, type ComposerResult, type ConverterRequest, type Learned as ConverterLearned, type LiveSource,
+  builtOnce, type Composer, type ComposerContext, type ComposerInput, type ComposerResult, type Converted, type Learned, type LiveSource,
 } from './composer.js';
 
 /** The longest reading the sidecar converts. */
 export const MAX_READING = 64;
 
-export interface Segment {
-  readonly reading: string;
-  readonly candidates: readonly string[];
-  readonly index: number;
-}
+/** A segment of a conversion, with the candidate picked for it. */
+export interface Segment extends Converted { readonly index: number }
 
 export interface Ime {
   /** The reading, one kana per entry; not sent yet. */
@@ -49,23 +46,8 @@ export interface Ime {
 }
 export const NO_IME: Ime = { chars: [], caret: 0, cycle: null, segments: null, focus: 0, form: 'hiragana' };
 
-/** What the caller should ask the converter for after a press. */
-export type ImeRequest = ConverterRequest;
-
-/** A sent conversion, for the converter to learn (picked candidates come first next time). */
-export interface Learned {
-  readonly reading: string;
-  readonly lengths: readonly number[];
-  readonly choices: readonly number[];
-  readonly texts: readonly string[];
-}
-
-export interface ImeResult {
-  readonly ime: Ime;
-  readonly effects: Effect[];
-  readonly request?: ImeRequest;
-  readonly learned?: Learned;
-}
+/** A press's outcome: the new reading, what is sent now, what to ask the converter, what it learns. */
+export type Result = ComposerResult<Ime>;
 
 export const reading = (ime: Ime): string => ime.chars.join('');
 export const composing = (ime: Ime): boolean => ime.chars.length > 0;
@@ -74,8 +56,8 @@ export const converted = (ime: Ime): string =>
   (ime.segments ? ime.segments.map((s) => s.candidates[s.index] ?? s.reading).join('') : inForm(reading(ime), ime.form));
 
 
-const commit = (ime: Ime): ImeResult => ({
-  ime: NO_IME,
+const commit = (ime: Ime): Result => ({
+  state: NO_IME,
   effects: composing(ime) ? [{ kind: 'text', text: converted(ime) }] : [],
   request: { kind: 'live' },
   ...(ime.segments ? { learned: {
@@ -97,19 +79,19 @@ const replaceBefore = (ime: Ime, text: string, cycle: Ime['cycle'] = null): Ime 
   chars[ime.caret - 1] = text;
   return { ...ime, chars, cycle, form: 'hiragana' };
 };
-const step = (ime: Ime, by: 1 | -1): ImeResult => {
+const step = (ime: Ime, by: 1 | -1): Result => {
   const cycle = ime.cycle!;
   const index = (cycle.index + by + cycle.chars.length) % cycle.chars.length;
-  return { ime: replaceBefore(ime, cycle.chars[index]!, { ...cycle, index }), effects: [], request: { kind: 'live' } };
+  return { state: replaceBefore(ime, cycle.chars[index]!, { ...cycle, index }), effects: [], request: { kind: 'live' } };
 };
 
-const typeFlick = (ime: Ime, key: FlickKey, flicked: string | undefined, tapCycle: boolean): ImeResult => {
-  if (flicked !== undefined) return { ime: insert(ime, flicked), effects: [], request: { kind: 'live' } };
+const typeFlick = (ime: Ime, key: FlickKey, flicked: string | undefined, tapCycle: boolean): Result => {
+  if (flicked !== undefined) return { state: insert(ime, flicked), effects: [], request: { kind: 'live' } };
   const id = key.flick[0];
   if (tapCycle && ime.cycle?.key === id) return step(ime, 1);
   const chars = key.cycle ?? key.flick.filter(Boolean);
   const cycle = tapCycle && chars.length > 1 ? { key: id, chars, index: 0 } : null;
-  return { ime: insert(ime, id, cycle), effects: [], request: { kind: 'live' } };
+  return { state: insert(ime, id, cycle), effects: [], request: { kind: 'live' } };
 };
 
 /** ゛ and ゜ typed after a kana join it (か゛ → が); otherwise they stay as typed. */
@@ -162,8 +144,6 @@ const isKey = (key: KeyDef, name: string): boolean => key.type === 'key' && key.
 const isAction = (key: KeyDef, name: string): boolean => key.type === 'action' && key.action === name;
 const isSpace = (key: KeyDef): boolean => key.type === 'char' && key.char === ' ';
 
-/** What a press carries: the kana a flick chose, or the text a typed key makes (Shift applied). */
-export interface ImeInput { readonly flicked?: string; readonly typed?: string }
 /** The keyboard's tables: ゛゜小's cycles, and romaji (the romaji keyboard). */
 export interface ImeTables { readonly modify: ReadonlyMap<string, string>; readonly romaji?: RomajiTable }
 
@@ -171,10 +151,10 @@ export interface ImeTables { readonly modify: ReadonlyMap<string, string>; reado
 export const pressIme = (
   ime: Ime,
   key: KeyDef,
-  input: ImeInput,
+  input: ComposerInput,
   options: { tapCycle: boolean },
   tables: ImeTables,
-): ImeResult | null => {
+): Result | null => {
   const { flicked, typed } = input;
   const { modify, romaji } = tables;
   const typing = typed !== undefined && key.type === 'char' && !isSpace(key);
@@ -188,52 +168,52 @@ export const pressIme = (
     if (isSpace(key)) {
       const segments = ime.segments.map((s, i) =>
         (i === ime.focus && s.candidates.length ? { ...s, index: (s.index + 1) % s.candidates.length } : s));
-      return { ime: { ...ime, segments }, effects: [] };
+      return { state: { ...ime, segments }, effects: [] };
     }
     if (isKey(key, 'ArrowLeft') || isKey(key, 'ArrowRight')) {
       const lengths = ime.segments.map((s) => Array.from(s.reading).length);
-      return { ime, effects: [], request: { kind: 'convert', lengths, resize: [ime.focus, isKey(key, 'ArrowLeft') ? -1 : 1] } };
+      return { state: ime, effects: [], request: { kind: 'convert', lengths, resize: [ime.focus, isKey(key, 'ArrowLeft') ? -1 : 1] } };
     }
     // 確定 confirms the focused segment as it is and moves on; after the last, everything is sent.
-    if (isKey(key, 'Enter')) return ime.focus + 1 < ime.segments.length ? { ime: { ...ime, focus: ime.focus + 1 }, effects: [] } : commit(ime);
+    if (isKey(key, 'Enter')) return ime.focus + 1 < ime.segments.length ? { state: { ...ime, focus: ime.focus + 1 }, effects: [] } : commit(ime);
     if (isKey(key, 'Backspace') || isAction(key, 'undo')) {
-      return { ime: { ...ime, segments: null, focus: 0 }, effects: [], request: { kind: 'live' } };
+      return { state: { ...ime, segments: null, focus: 0 }, effects: [], request: { kind: 'live' } };
     }
-    if (isAction(key, 'kana')) return { ime: { ...ime, segments: null, focus: 0, form: 'katakana' }, effects: [], request: { kind: 'live' } };
+    if (isAction(key, 'kana')) return { state: { ...ime, segments: null, focus: 0, form: 'katakana' }, effects: [], request: { kind: 'live' } };
     return null;
   }
 
   if (key.type === 'flick') return typeFlick(ime, key, flicked, options.tapCycle);
-  if (typing) return { ime: insertTyped({ ...ime, cycle: null }, typed, romaji), effects: [], request: { kind: 'live' } };
+  if (typing) return { state: insertTyped({ ...ime, cycle: null }, typed, romaji), effects: [], request: { kind: 'live' } };
   if (!composing(ime)) {
-    if (isAction(key, 'modify')) return { ime, effects: [] };
-    if (isAction(key, 'undo')) return { ime, effects: [UNDO] };
-    if (isAction(key, 'kana')) return { ime, effects: [] };
+    if (isAction(key, 'modify')) return { state: ime, effects: [] };
+    if (isAction(key, 'undo')) return { state: ime, effects: [UNDO] };
+    if (isAction(key, 'kana')) return { state: ime, effects: [] };
     return null;
   }
   if (isAction(key, 'modify')) {
     const next = modify.get(ime.chars[ime.caret - 1] ?? '');
-    return next ? { ime: replaceBefore(ime, next), effects: [], request: { kind: 'live' } } : { ime, effects: [] };
+    return next ? { state: replaceBefore(ime, next), effects: [], request: { kind: 'live' } } : { state: ime, effects: [] };
   }
-  if (isAction(key, 'undo')) return ime.cycle ? step(ime, -1) : { ime, effects: [] };
-  if (isAction(key, 'kana')) return { ime: { ...settleRomaji(ime, romaji), cycle: null, form: nextForm(ime.form) }, effects: [] };
+  if (isAction(key, 'undo')) return ime.cycle ? step(ime, -1) : { state: ime, effects: [] };
+  if (isAction(key, 'kana')) return { state: { ...settleRomaji(ime, romaji), cycle: null, form: nextForm(ime.form) }, effects: [] };
   if (isKey(key, 'Backspace')) {
-    if (ime.caret === 0) return { ime, effects: [] };
+    if (ime.caret === 0) return { state: ime, effects: [] };
     const chars = [...ime.chars.slice(0, ime.caret - 1), ...ime.chars.slice(ime.caret)];
-    return { ime: chars.length ? { ...ime, chars, caret: ime.caret - 1, cycle: null, form: 'hiragana' } : NO_IME, effects: [], request: { kind: 'live' } };
+    return { state: chars.length ? { ...ime, chars, caret: ime.caret - 1, cycle: null, form: 'hiragana' } : NO_IME, effects: [], request: { kind: 'live' } };
   }
   if (isKey(key, 'ArrowRight')) {
-    if (ime.cycle) return { ime: { ...ime, cycle: null }, effects: [] };
-    return { ime: { ...ime, caret: Math.min(ime.chars.length, ime.caret + 1) }, effects: [] };
+    if (ime.cycle) return { state: { ...ime, cycle: null }, effects: [] };
+    return { state: { ...ime, caret: Math.min(ime.chars.length, ime.caret + 1) }, effects: [] };
   }
-  if (isKey(key, 'ArrowLeft')) return { ime: { ...ime, caret: Math.max(0, ime.caret - 1), cycle: null }, effects: [] };
-  if (isSpace(key)) return { ime: { ...settleRomaji(ime, romaji), cycle: null, form: 'hiragana' }, effects: [], request: { kind: 'convert' } };
+  if (isKey(key, 'ArrowLeft')) return { state: { ...ime, caret: Math.max(0, ime.caret - 1), cycle: null }, effects: [] };
+  if (isSpace(key)) return { state: { ...settleRomaji(ime, romaji), cycle: null, form: 'hiragana' }, effects: [], request: { kind: 'convert' } };
   if (isKey(key, 'Enter')) return commit(settleRomaji(ime, romaji));
   return null;
 };
 
 /** Everything in the buffer, sent as it stands (another key, switching keyboards). */
-export const flush = (ime: Ime, romaji?: RomajiTable): ImeResult => commit(settleRomaji(ime, romaji));
+export const flush = (ime: Ime, romaji?: RomajiTable): Result => commit(settleRomaji(ime, romaji));
 
 /** Dictated text into the reading at the caret, for conversion like typed kana; null while converting or if it does not fit. */
 export const insertText = (ime: Ime, text: string): Ime | null => {
@@ -243,7 +223,7 @@ export const insertText = (ime: Ime, text: string): Ime | null => {
 };
 
 /** Start converting, or show a resized conversion; ignored if the reading changed meanwhile. */
-export const withConversion = (ime: Ime, forReading: string, segments: readonly Omit<Segment, 'index'>[]): Ime => {
+export const withConversion = (ime: Ime, forReading: string, segments: readonly Converted[]): Ime => {
   if (reading(ime) !== forReading || !segments.length || segments.map((s) => s.reading).join('') !== forReading) return ime;
   return { ...ime, cycle: null, form: 'hiragana', segments: segments.map((s) => ({ ...s, index: 0 })), focus: Math.min(ime.focus, segments.length - 1) };
 };
@@ -252,15 +232,15 @@ export const withConversion = (ime: Ime, forReading: string, segments: readonly 
  * A candidate picked in the bar. Converting: it becomes the focused segment's choice and the next
  * segment is focused; after the last one, everything is sent. Typing: a live candidate is sent at once.
  */
-export const pickCandidate = (ime: Ime, text: string, index: number): ImeResult => {
-  if (!ime.segments) return { ime: NO_IME, effects: [{ kind: 'text', text }], request: { kind: 'live' } };
+export const pickCandidate = (ime: Ime, text: string, index: number): Result => {
+  if (!ime.segments) return { state: NO_IME, effects: [{ kind: 'text', text }], request: { kind: 'live' } };
   const segments = ime.segments.map((s, i) => (i === ime.focus ? { ...s, index } : s));
   const next = { ...ime, segments, focus: ime.focus + 1 };
-  return next.focus >= segments.length ? commit(next) : { ime: next, effects: [] };
+  return next.focus >= segments.length ? commit(next) : { state: next, effects: [] };
 };
 
 /** The bar's live candidates while typing: the best conversion, predictions, then the reading as hiragana and katakana. */
-export const liveCandidates = (forReading: string, segments: readonly Omit<Segment, 'index'>[], predictions: readonly string[]): string[] => {
+export const liveCandidates = (forReading: string, segments: readonly Converted[], predictions: readonly string[]): string[] => {
   const best = segments.length ? segments.map((s) => s.candidates[0] ?? s.reading).join('') : '';
   return [...new Set([best, ...predictions, forReading, toKatakana(forReading)].filter(Boolean))];
 };
@@ -273,11 +253,6 @@ const NO_MODIFY: ReadonlyMap<string, string> = new Map();
 
 /** The layout's ゛゜小 table, built once per layout. */
 const modifyOf = ({ layout }: ComposerContext): ReadonlyMap<string, string> => (layout ? modifyTables(layout) : NO_MODIFY);
-
-const asResult = (result: ImeResult): ComposerResult<Ime> => ({
-  state: result.ime, effects: result.effects,
-  ...(result.request ? { request: result.request } : {}), ...(result.learned ? { learned: result.learned } : {}),
-});
 
 /** What the bar shows: the reading in its form with the caret, or the segments with the focused one's candidates. */
 const show: Composer<Ime>['show'] = (ime) => {
@@ -293,7 +268,7 @@ const show: Composer<Ime>['show'] = (ime) => {
 };
 
 /** A live candidate that was the best conversion or a prediction: what the converter learns from the pick. */
-const learnedFrom = (ime: Ime, text: string, live: LiveSource | null): ConverterLearned | undefined => {
+const learnedFrom = (ime: Ime, text: string, live: LiveSource | null): Learned | undefined => {
   const source = !ime.segments && live?.reading === reading(ime) ? live : null;
   if (source && source.segments.length && text === source.segments.map((s) => s.candidates[0] ?? s.reading).join('')) {
     return { reading: source.reading, lengths: source.segments.map((s) => Array.from(s.reading).length),
@@ -313,16 +288,15 @@ export const readingComposer = (typesRomaji: (ctx: ComposerContext) => boolean):
     latinKeys: (ctx) => romajiOf(ctx) !== undefined,
     press: (ime, key, input, ctx) => {
       const romaji = romajiOf(ctx);
-      const result = pressIme(ime, key, input, ctx.options, { modify: modifyOf(ctx), ...(romaji ? { romaji } : {}) });
-      return result && asResult(result);
+      return pressIme(ime, key, input, ctx.options, { modify: modifyOf(ctx), ...(romaji ? { romaji } : {}) });
     },
-    flush: (ime, ctx) => asResult(flush(ime, romajiOf(ctx))),
+    flush: (ime, ctx) => flush(ime, romajiOf(ctx)),
     show,
     pause: (ime) => ({ ...ime, cycle: null }),
     insert: (ime, text, ctx) => {
       const romaji = romajiOf(ctx);
       const sent = ime.segments ? flush(ime, romaji) : null; // a conversion under way is sent first
-      const into = insertText(sent ? sent.ime : settleRomaji(ime, romaji), text);
+      const into = insertText(sent ? sent.state : settleRomaji(ime, romaji), text);
       return into
         ? { state: into, effects: sent?.effects ?? [], request: { kind: 'live' }, ...(sent?.learned ? { learned: sent.learned } : {}) }
         : null;
@@ -333,7 +307,7 @@ export const readingComposer = (typesRomaji: (ctx: ComposerContext) => boolean):
       converted: withConversion,
       live: liveCandidates,
       pick: (ime, text, index, live) => {
-        const picked = asResult(pickCandidate(ime, text, index));
+        const picked = pickCandidate(ime, text, index);
         const learned = learnedFrom(ime, text, live);
         return learned ? { ...picked, learned } : picked;
       },
