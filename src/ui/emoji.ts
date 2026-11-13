@@ -48,7 +48,7 @@ const CSS = `
 .cell img { max-width: 80%; max-height: 80%; pointer-events: none; }
 .cell.effect { font-size: var(--ui-tiny); text-align: center; color: var(--legend); }
 .cell.hover { background: var(--hover); }
-.cell.face { font-size: ${FACE_PX}px; overflow: hidden; white-space: nowrap; background: none; }
+.cell.face { font-size: ${FACE_PX}px; font-family: var(--font-kaomoji); overflow: hidden; white-space: nowrap; background: none; }
 .cell.face::before { content: ""; position: absolute; inset: 2px; border-radius: var(--radius); background: var(--key); }
 .cell.face.hover::before { background: var(--hover); }
 .cell.face span { position: relative; display: inline-block; }
@@ -340,7 +340,8 @@ export const createEmojiView = (
       tabStrip.append(tab);
       tabs.set(s.id, tab);
     }
-    // Fit the faces: every width not yet known is read in one layout, then the styles are written.
+    // Fit the faces: every width not yet known is read in one layout, then the styles are written. What is
+    // measured is the drawn text itself, so in the cells' own font (--font-kaomoji).
     for (const [el, face] of drawn) {
       const measured = faceWidths.has(face) ? 0 : el.offsetWidth;
       if (measured > 0) faceWidths.set(face, measured);

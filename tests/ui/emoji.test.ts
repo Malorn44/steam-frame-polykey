@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, toneTable, type EmojiData, type EmojiState } from '../../src/core/emoji.js';
 import { HOLD_MS, RELEASE_LOST_MS } from '../../src/core/interaction.js';
 import { KAOMOJI_RECENT_NOTE, STEAM_LOADING_NOTE, createEmojiView, type EmojiPickerInput } from '../../src/ui/emoji.js';
+import { KAOMOJI_FONT } from '../../src/ui/theme.js';
 import { bundledBoot } from '../boot.js';
 
 const data: EmojiData = { groups: [
@@ -419,6 +420,24 @@ describe('kaomoji mode', () => {
     view.update({ ...NO_EMOJI_STATE, mode: 'kaomoji', kaomojiRecent: ['(^_^)'] });
     expect(widths).toHaveLength(8);
     expect(text('(╯°□°)╯︵ ┻━┻').style.fontSize).toBe('11.25px');
+  });
+
+  it('faces draw in the kaomoji fonts, not the theme\'s, and are measured as drawn', () => {
+    const measuredIn: (string | undefined)[] = [];
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      // What is measured is the text inside its cell in the picker: it has the cell's font.
+      if (this.parentElement?.classList.contains('face')) measuredIn.push(this.isConnected ? this.parentElement.className : undefined);
+      return 50;
+    });
+    const { shadow } = kaomoji();
+    const css = shadow.querySelector('style')!.textContent;
+    expect(/\.cell\.face \{[^}]*font-family: var\(--font-kaomoji\)/.test(css)).toBe(true);
+    expect(css.match(/--font-kaomoji/g)).toHaveLength(1); // nothing else uses it: emoji mode keeps the theme's font
+    expect(/\.emoji \{[^}]*var\(--font\)/.test(css)).toBe(true);
+    expect(shadow.querySelector<HTMLElement>('.emoji')!.style.getPropertyValue('--font-kaomoji')).toBe(KAOMOJI_FONT);
+    expect(KAOMOJI_FONT.startsWith('"Noto Sans CJK JP", "Noto Sans", ')).toBe(true);
+    expect(measuredIn).toHaveLength(8);
+    expect(new Set(measuredIn)).toEqual(new Set(['cell face']));
   });
 
   it('a tab jumps to its section, showing its divider and label; scrolling marks the tab', () => {
