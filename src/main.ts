@@ -780,7 +780,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         steamAvailable: steamItemsAvailable(g),
         steamLoading,
         tones,
-        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, japanese: keyboard?.language === 'ja' } : null,
+        kaomoji: boot.kaomoji ? { categories: boot.kaomoji.categories, language: keyboard?.language } : null,
       }, emoji, { onEmoji: typeEmoji, onTone, onSteam, onFavorites, onClearRecent, onKaomoji: typeKaomoji });
       if (steamLoading) {
         const until = Date.now() + STEAM_ITEMS_WAIT_MS;

@@ -3,8 +3,10 @@
  "categories": [
   {
    "id": "smiling",
-   "en": "Smiling",
-   "ja": "笑顔",
+   "name": {
+    "en": "Smiling",
+    "ja": "笑顔"
+   },
    "faces": [
     {
      "text": "(^_^)",
@@ -416,8 +418,10 @@
   },
   {
    "id": "love",
-   "en": "Love",
-   "ja": "ハート",
+   "name": {
+    "en": "Love",
+    "ja": "ハート"
+   },
    "faces": [
     {
      "text": "(｡♡‿♡｡)",
@@ -657,8 +661,10 @@
   },
   {
    "id": "hugging",
-   "en": "Hugging",
-   "ja": "ハグ",
+   "name": {
+    "en": "Hugging",
+    "ja": "ハグ"
+   },
    "faces": [
     {
      "text": "⊂ʕ•ᴥ•⊂ʔ",
@@ -901,8 +907,10 @@
   },
   {
    "id": "waving",
-   "en": "Waving",
-   "ja": "あいさつ",
+   "name": {
+    "en": "Waving",
+    "ja": "あいさつ"
+   },
    "faces": [
     {
      "text": "(^o^)ﾉ",
@@ -1087,8 +1095,10 @@
   },
   {
    "id": "excited",
-   "en": "Excited",
-   "ja": "わくわく",
+   "name": {
+    "en": "Excited",
+    "ja": "わくわく"
+   },
    "faces": [
     {
      "text": "(`ω´)",
@@ -1425,8 +1435,10 @@
   },
   {
    "id": "surprise",
-   "en": "Surprise",
-   "ja": "びっくり",
+   "name": {
+    "en": "Surprise",
+    "ja": "びっくり"
+   },
    "faces": [
     {
      "text": "(゜ロ゜)",
@@ -1741,8 +1753,10 @@
   },
   {
    "id": "teehee",
-   "en": "Teehee",
-   "ja": "てへっ",
+   "name": {
+    "en": "Teehee",
+    "ja": "てへっ"
+   },
    "faces": [
     {
      "text": "( ͡° ͜ʖ ͡°)",
@@ -1957,8 +1971,10 @@
   },
   {
    "id": "nervous",
-   "en": "Nervous",
-   "ja": "緊張",
+   "name": {
+    "en": "Nervous",
+    "ja": "緊張"
+   },
    "faces": [
     {
      "text": "(゜Д゜;)",
@@ -2275,8 +2291,10 @@
   },
   {
    "id": "shy",
-   "en": "Shy",
-   "ja": "照れ",
+   "name": {
+    "en": "Shy",
+    "ja": "照れ"
+   },
    "faces": [
     {
      "text": "(⁄ ⁄•⁄ω⁄•⁄ ⁄)",
@@ -2548,8 +2566,10 @@
   },
   {
    "id": "dancing",
-   "en": "Dancing",
-   "ja": "ダンス",
+   "name": {
+    "en": "Dancing",
+    "ja": "ダンス"
+   },
    "faces": [
     {
      "text": "d(´∀`)b",
@@ -2794,8 +2814,10 @@
   },
   {
    "id": "cheering",
-   "en": "Cheering",
-   "ja": "応援",
+   "name": {
+    "en": "Cheering",
+    "ja": "応援"
+   },
    "faces": [
     {
      "text": "(`･ω･´)ゝ",
@@ -2888,8 +2910,10 @@
   },
   {
    "id": "flexing",
-   "en": "Flexing",
-   "ja": "ガッツ",
+   "name": {
+    "en": "Flexing",
+    "ja": "ガッツ"
+   },
    "faces": [
     {
      "text": "(๑•̀ㅂ•́)و✧",
@@ -2988,8 +3012,10 @@
   },
   {
    "id": "peeking",
-   "en": "Peeking",
-   "ja": "チラッ",
+   "name": {
+    "en": "Peeking",
+    "ja": "チラッ"
+   },
    "faces": [
     {
      "text": "|ω・)",
@@ -3216,8 +3242,10 @@
   },
   {
    "id": "eating",
-   "en": "Eating",
-   "ja": "もぐもぐ",
+   "name": {
+    "en": "Eating",
+    "ja": "もぐもぐ"
+   },
    "faces": [
     {
      "text": "(´ڡ`)",
@@ -3314,8 +3342,10 @@
   },
   {
    "id": "sleepy",
-   "en": "Sleepy",
-   "ja": "眠い",
+   "name": {
+    "en": "Sleepy",
+    "ja": "眠い"
+   },
    "faces": [
     {
      "text": "_(:3」∠)_",
@@ -3455,8 +3485,10 @@
   },
   {
    "id": "animals",
-   "en": "Animals",
-   "ja": "動物",
+   "name": {
+    "en": "Animals",
+    "ja": "動物"
+   },
    "faces": [
     {
      "text": "(=^･ｪ･^=)",
@@ -3842,8 +3874,10 @@
   },
   {
    "id": "shrug",
-   "en": "Shruggie",
-   "ja": "肩すくむ",
+   "name": {
+    "en": "Shruggie",
+    "ja": "肩すくむ"
+   },
    "faces": [
     {
      "text": "¯\\_(ツ)_/¯",
@@ -3941,8 +3975,10 @@
   },
   {
    "id": "angry",
-   "en": "Angry",
-   "ja": "怒り",
+   "name": {
+    "en": "Angry",
+    "ja": "怒り"
+   },
    "faces": [
     {
      "text": "(¬_¬)",
@@ -4255,8 +4291,10 @@
   },
   {
    "id": "crying",
-   "en": "Crying",
-   "ja": "泣き",
+   "name": {
+    "en": "Crying",
+    "ja": "泣き"
+   },
    "faces": [
     {
      "text": "(个_个)",
@@ -4619,8 +4657,10 @@
   },
   {
    "id": "tableflip",
-   "en": "Table flip",
-   "ja": "ちゃぶ台返し",
+   "name": {
+    "en": "Table flip",
+    "ja": "ちゃぶ台返し"
+   },
    "faces": [
     {
      "text": "╯‵Д′)╯彡┻━┻",
@@ -4785,8 +4825,10 @@
   },
   {
    "id": "classic",
-   "en": "Classic",
-   "ja": "クラシック",
+   "name": {
+    "en": "Classic",
+    "ja": "クラシック"
+   },
    "faces": [
     {
      "text": ":-)"

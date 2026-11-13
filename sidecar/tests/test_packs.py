@@ -499,7 +499,7 @@ def kaomoji(*categories) -> dict:
     faces = lambda items: [{"text": f} if isinstance(f, str) else f for f in items]
     return {
         "source": "test",
-        "categories": [{"id": i, "en": i.title(), "ja": "顔", "faces": faces(f)} for i, f in categories],
+        "categories": [{"id": i, "name": {"en": i.title(), "ja": "顔"}, "faces": faces(f)} for i, f in categories],
     }
 
 
@@ -509,9 +509,10 @@ def test_bundled_kaomoji_load_in_order_and_the_page_gets_only_their_texts(tmp_pa
     bundled = json.loads((BUNDLED / "emoji" / "kaomoji.data").read_text(encoding="utf-8"))["categories"]
     assert boot["errors"] == []
     assert set(boot["kaomoji"]) == {"categories"}  # the source note stays behind
-    assert len(categories) > 1 and all(set(c) == {"id", "en", "ja", "faces"} for c in categories)
+    assert len(categories) > 1 and all(set(c) == {"id", "name", "faces"} for c in categories)
     # Every category and face, in the file's order; a face is its text alone.
-    assert [(c["id"], c["en"], c["ja"]) for c in categories] == [(c["id"], c["en"], c["ja"]) for c in bundled]
+    assert [(c["id"], c["name"]) for c in categories] == [(c["id"], c["name"]) for c in bundled]
+    assert all(list(c["name"]) == ["en", "ja"] for c in categories)  # each named in English and Japanese
     assert [c["faces"] for c in categories] == [[f["text"] for f in c["faces"]] for c in bundled]
     assert all(isinstance(face, str) for c in categories for face in c["faces"])
     # The sidecar keeps the readings and tags (some faces have none).
@@ -528,7 +529,7 @@ def test_a_users_kaomoji_replace_the_bundled_ones(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
     assert boot["kaomoji"] == {
-        "categories": [{"id": "mine", "en": "Mine", "ja": "顔", "faces": ["(o_o)", "\\(^o^)/", ":)"]}]
+        "categories": [{"id": "mine", "name": {"en": "Mine", "ja": "顔"}, "faces": ["(o_o)", "\\(^o^)/", ":)"]}]
     }
     assert packs.loaded_kaomoji()["categories"][0]["faces"] == [
         shy,
@@ -580,6 +581,37 @@ def test_a_bad_kaomoji_copy_is_reported_and_the_bundled_one_used(tmp_path):
     for data in (face(reading=["に" * 32] * 16, tags=["笑" * 32] * 16), face(reading=[], tags=None)):
         write(tmp_path / "packs", "emoji/kaomoji.data", data)
         assert packs.load(BUNDLED, SCHEMA, tmp_path)["errors"] == [], data
+
+
+def test_a_kaomoji_category_is_named_by_a_string_or_a_name_per_language(tmp_path):
+    named = lambda name: {"categories": [{"id": "mine", "name": name, "faces": [{"text": "ok"}]}]}
+    for name in ("Mine", {"ja": "顔"}, {"en": "Mine", "ja": "顔", "pt-BR": "Meu"}, {"en": "x" * 32}):
+        write(tmp_path / "packs", "emoji/kaomoji.data", named(name))
+        boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+        assert boot["errors"] == [], name
+        assert boot["kaomoji"] == {"categories": [{"id": "mine", "name": name, "faces": ["ok"]}]}
+    bad = [
+        named(None),
+        named(""),
+        named(5),
+        named(["Mine"]),
+        named("x" * 33),
+        named("two\nlines"),
+        named({}),
+        named({"en": ""}),
+        named({"en": 5}),
+        named({"en": "x" * 33}),
+        named({"EN": "Mine"}),
+        named({"english": "Mine"}),
+        named({"en\n": "Mine"}),
+        named({f"a{chr(97 + i // 26)}{chr(97 + i % 26)}": "Mine" for i in range(65)}),
+        {"categories": [{"id": "mine", "en": "Mine", "ja": "顔", "faces": [{"text": "ok"}]}]},  # the names as they were
+    ]
+    for data in bad:
+        write(tmp_path / "packs", "emoji/kaomoji.data", data)
+        boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+        assert boot["errors"] == ["emoji/kaomoji.data: not kaomoji categories"], data
+        assert boot["kaomoji"]["categories"][0]["id"] == "smiling"  # the bundled ones
 
 
 def test_missing_kaomoji_are_reported_and_none(tmp_path):

@@ -28,6 +28,8 @@ DEFAULT_SETTINGS = {
 }
 # The model dictation uses per language (settings.json "dictationModels": {language: model id}).
 DICTATION_LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
+# The language codes a name may be written in (pack.schema.json's "name" has the same pattern).
+LANGUAGE_CODE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\Z")
 DICTATION_MODEL = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 # Per-keyboard options the page may set (settings.json "keyboardOptions": {keyboard id: {option: bool}}).
 # dictationCommit, on a keyboard with a reading: dictated text is typed at once instead of going into the
@@ -275,11 +277,18 @@ MAX_KAOMOJI_FACES = 2000
 MAX_KAOMOJI_FACE = 64
 MAX_KAOMOJI_WORDS = 16
 MAX_KAOMOJI_WORD = 32
+MAX_KAOMOJI_NAMES = 64
 KAOMOJI_ID = re.compile(r"^[a-z0-9-]{1,32}$")
 
 
 def _kaomoji_name(value: object) -> bool:
-    return isinstance(value, str) and 0 < len(value) <= 32 and value.isprintable()
+    """A category's name: a short string, or one per language code (as a pack's name is)."""
+    one = lambda name: isinstance(name, str) and 0 < len(name) <= 32 and name.isprintable()
+    if isinstance(value, dict):
+        return 0 < len(value) <= MAX_KAOMOJI_NAMES and all(
+            isinstance(code, str) and LANGUAGE_CODE.match(code) and one(name) for code, name in value.items()
+        )
+    return one(value)
 
 
 def _kaomoji_words(value: object) -> Optional[list]:
@@ -317,7 +326,7 @@ def clean_kaomoji(data: object) -> Optional[dict]:
         item_id, faces = category.get("id"), category.get("faces")
         if not isinstance(item_id, str) or not KAOMOJI_ID.match(item_id) or item_id in ids or item_id == "recent":
             return None
-        if not _kaomoji_name(category.get("en")) or not _kaomoji_name(category.get("ja")):
+        if not _kaomoji_name(category.get("name")):
             return None
         if not isinstance(faces, list) or not faces:
             return None
@@ -325,7 +334,7 @@ def clean_kaomoji(data: object) -> Optional[dict]:
         if not all(faces):
             return None
         ids.add(item_id)
-        clean.append({"id": item_id, "en": category["en"], "ja": category["ja"], "faces": faces})
+        clean.append({"id": item_id, "name": category["name"], "faces": faces})
     if sum(len(category["faces"]) for category in clean) > MAX_KAOMOJI_FACES:
         return None
     return {"categories": clean}

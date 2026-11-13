@@ -875,8 +875,8 @@ describe('emoji row on a Japanese keyboard', () => {
 
 describe('kaomoji mode', () => {
   const categories = [
-    { id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)'] },
-    { id: 'classic', en: 'Classic', ja: 'クラシック', faces: [':-)', ';-)'] },
+    { id: 'smiling', name: { en: 'Smiling', ja: '笑顔' }, faces: ['(^_^)', '(≧▽≦)'] },
+    { id: 'classic', name: { en: 'Classic', ja: 'クラシック' }, faces: [':-)', ';-)'] },
   ];
   /** polykey with emoji data and (unless `kaomoji` is null) kaomoji; `saved` is what the sidecar was asked to save. */
   const setupKaomoji = (state: Partial<EmojiState> = {}, kaomoji: { categories: typeof categories } | null = { categories }, old = false) => {
