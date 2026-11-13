@@ -14,7 +14,8 @@ export type ActionName = 'hide' | 'next-keyboard' | 'copy' | 'cut' | 'paste' | '
 export type LegendSlot = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
 /**
  * A legend a pack puts in a slot (src/core/legends.ts): text, or null for none; or one of text, parts
- * (two halves, the second bold in 英数 mode: あ a) or marks (゛゜, side by side), with what is drawn
+ * (two halves, one per mode: the second bold in 英数 mode, あ a; on the mode key the current one marked
+ * with the indicator bar, 한/영) or marks (゛゜, side by side), with what is drawn
  * small beneath it (under), and its size, tone and box when not the slot's default.
  */
 export type LegendDef = string | null | {
