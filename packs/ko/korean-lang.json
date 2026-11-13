@@ -4,6 +4,7 @@
  "kind": "language",
  "id": "ko",
  "name": {"en": "Korean", "ko": "한국어"},
- "description": "What the Korean keyboards call their letters.",
- "letters": "한글"
+ "description": "What the Korean keyboards call their letters, and the CJK fonts for Hangul in the bar.",
+ "letters": "한글",
+ "cjk": true
 }
