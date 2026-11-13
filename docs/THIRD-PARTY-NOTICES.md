@@ -50,6 +50,7 @@ Each with its licence text next to it, in `packs/`:
 - The English word list, from AOSP: Apache License 2.0, `packs/en/LICENSE.words`.
 - The romaji table, Mozc's `romanji-hiragana.tsv`: BSD-3-Clause, `packs/ja/LICENSE.mozc`.
 - Emoji data, Unicode's `emoji-test.txt`: Unicode License v3, `packs/emoji/LICENSE.unicode`.
+- Kaomoji, chosen from [kaomojikan/kaomoji-data](https://github.com/kaomojikan/kaomoji-data): MIT, `packs/emoji/LICENSE.kaomoji`.
 
 ## Followed, not copied
 
