@@ -77,7 +77,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
     }
   };
 
-  /** Have the converter learn what was sent (anthy keeps it in ~/.anthy). */
+  /** Have the converter learn what was sent, so picked candidates come first next time. */
   const learn = (kb: BarKeyboard, learned: Learned): void => {
     if (available() && kb.converter) void call('learn', { converter: kb.converter, ...learned });
   };
