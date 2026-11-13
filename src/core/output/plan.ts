@@ -12,7 +12,16 @@ export type KeyboardMode = 'buffered' | 'minimal' | 'unknown';
 /** Gap between calls when Steam's buffer has to re-render in between (measured by fjk). */
 export const BUFFERED_GAP_MS = 40;
 
+/**
+ * In minimal mode gamescope types a non-ASCII call through a temporary keymap. The next call waits this
+ * long, so its own keys (or its own keymap) do not land before the target has read these: without it,
+ * a kaomoji's calls, or two tapped in quick succession, come out as stray or missing characters.
+ */
+export const KEYMAP_SETTLE_MS = 60;
+
 const PRINTABLE_ASCII = /^[\x20-\x7e]$/;
+/** Whether a call needs a temporary keymap in minimal mode: it has something other than printable ASCII. */
+export const swapsKeymap = (call: string): boolean => /[^\x20-\x7e]/.test(call);
 
 let segmenter: Intl.Segmenter | null | undefined;
 
@@ -57,6 +66,8 @@ export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string
 export interface Delivery {
   readonly policy: SplitPolicy;
   readonly gapMs: number;
+  /** After a call that swaps the keymap, the next call (of this send or the next) waits this long; 0: no wait. */
+  readonly settleMs: number;
 }
 
 /** `auto`: fjk's behaviour when the mode is known, one character per call otherwise. */
@@ -64,5 +75,5 @@ export const chooseDelivery = (mode: KeyboardMode, setting: SplitSetting, gapOve
   const policy: SplitPolicy = setting !== 'auto' ? setting : mode === 'minimal' ? 'run' : 'chars';
   const defaultGap = mode === 'minimal' ? 0 : BUFFERED_GAP_MS;
   const gapMs = gapOverrideMs !== undefined && Number.isFinite(gapOverrideMs) ? Math.max(0, gapOverrideMs) : defaultGap;
-  return { policy, gapMs };
+  return { policy, gapMs, settleMs: mode === 'minimal' ? KEYMAP_SETTLE_MS : 0 };
 };

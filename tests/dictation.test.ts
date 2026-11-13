@@ -359,6 +359,7 @@ describe('dictation on the page', () => {
     await tap(popup, 'dictate');
     await sidecar.phase({ phase: 'done', text: '今日は晴れ' });
     expect(pre(popup)).toBeNull();
+    await vi.advanceTimersByTimeAsync(100); // the text waits for the reading's keymap to settle
     expect(typed()).toBe('あ今日は晴れ');
   });
 

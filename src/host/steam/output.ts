@@ -1,7 +1,7 @@
 // Text and named keys through VirtualKeyboardManager.HandleVirtualKeyDown, the entry point Steam's own
 // keys use; Steam routes it to the target.
 
-import { planCalls, type Delivery, type OutputOp } from '../../core/output/plan.js';
+import { planCalls, swapsKeymap, type Delivery, type OutputOp } from '../../core/output/plan.js';
 import type { VirtualKeyboardManager } from './globals.js';
 
 export interface SendResult {
@@ -18,14 +18,17 @@ interface OutputDeps {
   readonly getManager: () => VirtualKeyboardManager | null;
   readonly getDelivery: () => Delivery;
   readonly sleep?: (ms: number) => Promise<void>;
+  readonly now?: () => number;
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
   ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 
 /** Create the sender. Sends run one after another, so spaced calls never interleave. */
-export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep }: OutputDeps) => {
+export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep, now = Date.now }: OutputDeps) => {
   let queue: Promise<unknown> = Promise.resolve();
+  /** When the last keymap swap has settled: no call goes before it, in this send or the next. */
+  let settledAt = 0;
 
   const deliver = async (ops: readonly OutputOp[]): Promise<SendResult> => {
     const delivery = getDelivery();
@@ -35,9 +38,11 @@ export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep }: 
     let made = 0;
     try {
       for (const call of calls) {
-        if (made > 0) await sleep(delivery.gapMs);
+        const settle = settledAt - now();
+        if (made > 0 || settle > 0) await sleep(Math.max(made > 0 ? delivery.gapMs : 0, settle));
         manager.HandleVirtualKeyDown(call, false);
         made += 1;
+        if (delivery.settleMs > 0 && swapsKeymap(call)) settledAt = now() + delivery.settleMs;
       }
       return { ok: true, calls: made, planned: calls.length, delivery };
     } catch (error) {

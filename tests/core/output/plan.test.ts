@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUFFERED_GAP_MS, chooseDelivery, graphemes, planCalls } from '../../../src/core/output/plan.js';
+import { BUFFERED_GAP_MS, KEYMAP_SETTLE_MS, chooseDelivery, swapsKeymap, graphemes, planCalls } from '../../../src/core/output/plan.js';
 
 describe('graphemes', () => {
   it('keeps combined characters together', () => {
@@ -28,17 +28,22 @@ describe('planCalls', () => {
 
 describe('chooseDelivery', () => {
   it('auto follows the mode: runs in minimal, characters with a gap in buffered', () => {
-    expect(chooseDelivery('minimal', 'auto')).toEqual({ policy: 'run', gapMs: 0 });
-    expect(chooseDelivery('buffered', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS });
+    expect(chooseDelivery('minimal', 'auto')).toEqual({ policy: 'run', gapMs: 0, settleMs: KEYMAP_SETTLE_MS });
+    expect(chooseDelivery('buffered', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settleMs: 0 });
   });
 
   it('auto with an unknown mode takes the safe choice', () => {
-    expect(chooseDelivery('unknown', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS });
+    expect(chooseDelivery('unknown', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settleMs: 0 });
   });
 
   it('an explicit setting wins over the mode', () => {
     expect(chooseDelivery('buffered', 'run').policy).toBe('run');
-    expect(chooseDelivery('minimal', 'chars')).toEqual({ policy: 'chars', gapMs: 0 });
+    expect(chooseDelivery('minimal', 'chars')).toEqual({ policy: 'chars', gapMs: 0, settleMs: KEYMAP_SETTLE_MS });
+  });
+
+  it('a call swaps the keymap when it has anything but printable ASCII; named keys do not', () => {
+    expect(['ω・', 'あ', '😀', 'é', '\n'].map(swapsKeymap)).toEqual([true, true, true, true, true]);
+    expect(['a', ' ', '~', '|', 'Backspace', 'Enter'].map(swapsKeymap)).toEqual([false, false, false, false, false, false]);
   });
 
   it('a gap override is used, and negative or invalid values are cleaned up', () => {
