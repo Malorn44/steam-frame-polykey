@@ -1,5 +1,6 @@
 // The emoji picker, drawn in the keyboard area above a row of keys: category tabs, then one
 // horizontally scrolling grid (filled down each column) with Recent (and its bin), Favorites, the
+// (the tabs scroll the same way when they are wider than the picker, and keep the current one in view)
 // Unicode groups and the user's Steam items, separated. Recent and Favorites hold emoji and Steam items.
 // Drag or the thumbstick (wheel events) scrolls; a quick drag glides. Holding a toned emoji offers its
 // skin tones (the shared hold popup); holding an entry in Recent or Favorites lifts it for drag and drop
@@ -31,7 +32,8 @@ const CSS = `
 .emoji { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; padding: 2px;
   background: var(--surface); color: var(--text); font: 400 var(--ui-control)/1 var(--font); overflow: hidden;
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
-.tabs { height: var(--bar-height); display: flex; flex: none; gap: 2px; overflow: hidden; }
+.tabs { height: var(--bar-height); flex: none; overflow: hidden; }
+.tabstrip { position: relative; display: flex; gap: 2px; width: max-content; height: 100%; will-change: transform; }
 .tab { flex: none; min-width: 30px; height: 100%; display: flex; align-items: center; justify-content: center;
   padding: 0 6px; box-sizing: border-box; border-radius: var(--radius); font-size: var(--ui-icon); color: var(--legend); }
 .tab.text { padding: 0 7px; font-size: var(--ui-control); white-space: nowrap; }
@@ -129,6 +131,9 @@ export const createEmojiView = (
   root.style.cssText = themeVars(theme) + sizeVars('normal');
   const tabsEl = doc.createElement('div');
   tabsEl.className = 'tabs';
+  const tabStrip = doc.createElement('div');
+  tabStrip.className = 'tabstrip';
+  tabsEl.append(tabStrip);
   const grid = doc.createElement('div');
   grid.className = 'grid';
   const strip = doc.createElement('div');
@@ -145,6 +150,14 @@ export const createEmojiView = (
   /** Each face's width at FACE_PX, measured once. */
   const faceWidths = new Map<string, number>();
   let shownTab: Section | undefined;
+  /** The tab strip's own scroll, and how far it can go (0 when the tabs fit). */
+  let tabOffset = 0;
+  let tabMax = 0;
+  const measureTabs = (): void => { tabMax = Math.max(0, tabStrip.offsetWidth - tabsEl.clientWidth); };
+  const setTabOffset = (x: number): void => {
+    tabOffset = Math.max(0, Math.min(x, tabMax));
+    tabStrip.style.transform = `translateX(${-tabOffset}px)`;
+  };
   const faces = (): EmojiPickerInput['kaomoji'] => (state.mode === 'kaomoji' ? input.kaomoji : null);
   let offset = 0;
   let width = 0;
@@ -175,14 +188,17 @@ export const createEmojiView = (
     for (const [id, tab] of tabs) tab.classList.toggle('on', id === current?.id);
     if (current === shownTab) return;
     shownTab = current;
-    // Text tabs are wider than the picker: keep the current one and its neighbours in view.
+    // Tabs wider than the picker scroll: bring the current one's neighbours into view, moving no more
+    // than that takes, and the current one fully whatever else fits.
     const at = sections.indexOf(current!);
+    const tab = tabs.get(current?.id ?? '');
     const first = tabs.get(sections[Math.max(0, at - 1)]?.id ?? '');
     const last = tabs.get(sections[Math.min(sections.length - 1, at + 1)]?.id ?? '');
-    if (!faces() || !first || !last) return;
-    const start = first.offsetLeft - tabsEl.offsetLeft;
-    const end = last.offsetLeft + last.offsetWidth - tabsEl.offsetLeft;
-    tabsEl.scrollLeft = Math.max(Math.min(tabsEl.scrollLeft, start), end - tabsEl.clientWidth);
+    if (!tab || !first || !last) return;
+    measureTabs();
+    const room = tabsEl.clientWidth;
+    const near = Math.max(Math.min(tabOffset, first.offsetLeft), last.offsetLeft + last.offsetWidth - room);
+    setTabOffset(Math.min(Math.max(near, tab.offsetLeft + tab.offsetWidth - room), tab.offsetLeft));
   };
 
   /** Lay out every section from scratch (on open, and when Favorites changes width or the tone changes). */
@@ -312,7 +328,7 @@ export const createEmojiView = (
     width = x;
     strip.style.width = `${width}px`;
 
-    tabsEl.textContent = '';
+    tabStrip.textContent = '';
     tabs.clear();
     for (const s of sections) {
       const tab = doc.createElement('div');
@@ -320,7 +336,7 @@ export const createEmojiView = (
       if (s.tab.startsWith('<svg')) tab.innerHTML = s.tab;
       else tab.textContent = s.tab;
       tab.dataset['section'] = s.id;
-      tabsEl.append(tab);
+      tabStrip.append(tab);
       tabs.set(s.id, tab);
     }
     // Fit the faces: every width not yet known is read in one layout, then the styles are written.
@@ -334,12 +350,20 @@ export const createEmojiView = (
       if (fit.scaleX < 1) el.style.transform = `scaleX(${fit.scaleX.toFixed(3)})`;
     }
     shownTab = undefined;
+    measureTabs();
+    setTabOffset(tabOffset);
     setOffset(offset);
   };
 
   // --- pointer handling --------------------------------------------------------------------------
 
-  type Mode = 'idle' | 'press' | 'scroll' | 'drag' | 'tones';
+  /** 'tabs' is a press on the tab bar (a tap on its tab when released), 'tabscroll' a drag of it. */
+  type Mode = 'idle' | 'press' | 'scroll' | 'drag' | 'tones' | 'tabs' | 'tabscroll';
+  let pressedTab: HTMLElement | null = null;
+  const jumpTo = (tab: HTMLElement | null): void => {
+    const section = sections.find((s) => s.id === tab?.dataset['section']);
+    if (section) setOffset(section.x - section.lead, section);
+  };
   let mode: Mode = 'idle';
   let start = { x: 0, y: 0, offset: 0 };
   let pressed: Cell | undefined;
@@ -476,11 +500,16 @@ export const createEmojiView = (
       handlers.onClearRecent();
       return;
     }
-    const tab = (e.target as HTMLElement | null)?.closest?.('.tab') as HTMLElement | null;
-    if (tab) {
-      const section = sections.find((s) => s.id === tab.dataset['section']);
-      if (section) setOffset(section.x - section.lead, section);
-      mode = 'idle';
+    if ((e.target as HTMLElement | null)?.closest?.('.tabs')) {
+      // The tab bar: a release where it was pressed jumps to the tab there; a drag scrolls the tabs.
+      pressedTab = (e.target as HTMLElement).closest('.tab');
+      pressed = undefined;
+      measureTabs();
+      start = { ...p, offset: tabOffset };
+      last = p;
+      lastTouchAt = now();
+      samples = [{ t: now(), x: p.x }];
+      mode = 'tabs';
       return;
     }
     pressed = cellAt(e.target);
@@ -519,7 +548,12 @@ export const createEmojiView = (
       clearHold();
       mode = 'scroll';
     }
-    if (mode === 'scroll') {
+    if (mode === 'tabs' && Math.hypot(p.x - start.x, p.y - start.y) > SLOP_PX.scroll) mode = 'tabscroll';
+    if (mode === 'tabscroll') {
+      setTabOffset(start.offset - (p.x - start.x));
+      samples.push({ t: now(), x: p.x });
+      samples = samples.filter((s) => s.t > now() - 100);
+    } else if (mode === 'scroll') {
       setOffset(start.offset - (p.x - start.x));
       samples.push({ t: now(), x: p.x });
       samples = samples.filter((s) => s.t > now() - 100);
@@ -537,13 +571,15 @@ export const createEmojiView = (
     clearHold();
     const was = mode;
     mode = 'idle';
-    if (was === 'press') tap(pressed);
+    if (was === 'tabs') jumpTo(pressedTab);
+    else if (was === 'tabscroll') startGlide(() => tabOffset, setTabOffset, () => tabMax);
+    else if (was === 'press') tap(pressed);
     else if (was === 'drag') drop();
     else if (was === 'tones' && toneBox && pressed?.base) {
       const pick = toneBox.pick;
       clearOverlays();
       if (pick >= 0) handlers.onTone(TONES[pick] ?? '', pressed.base);
-    } else if (was === 'scroll') startGlide();
+    } else if (was === 'scroll') startGlide(() => offset, setOffset, () => clamp(Infinity));
     if (was !== 'drag') clearOverlays();
     pressed = undefined;
     redrawIfStale();
@@ -572,7 +608,11 @@ export const createEmojiView = (
     e.preventDefault();
     if (mode === 'tones' || mode === 'drag') return; // the stick must not slide the grid under a popup
     stopGlide();
-    setOffset(offset + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
+    const by = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (tabsEl.contains(e.target as Node | null)) { // over the tabs, the stick scrolls them
+      measureTabs();
+      setTabOffset(tabOffset + by);
+    } else setOffset(offset + by);
   }, { passive: false });
   function onClick(e: MouseEvent): void {
     // Desktop fallback (mouse); touch already handled the press.
@@ -581,14 +621,12 @@ export const createEmojiView = (
       return;
     }
     const tab = (e.target as HTMLElement | null)?.closest?.('.tab') as HTMLElement | null;
-    if (tab) {
-      const section = sections.find((s) => s.id === tab.dataset['section']);
-      if (section) setOffset(section.x - section.lead, section);
-    } else if (mode === 'idle') tap(cellAt(e.target));
+    if (tab) jumpTo(tab);
+    else if (mode === 'idle') tap(cellAt(e.target));
   }
 
-  /** Keep moving after a quick drag, slowing like a phone list. */
-  const startGlide = (): void => {
+  /** Keep moving after a quick drag (of the grid, or of the tabs), slowing like a phone list. */
+  const startGlide = (where: () => number, move: (x: number) => void, max: () => number): void => {
     const first = samples[0];
     const lastSample = samples[samples.length - 1];
     if (!first || !lastSample || !win || lastSample.t - first.t < 10) return;
@@ -600,8 +638,8 @@ export const createEmojiView = (
       const dt = (t - at) / 1000;
       at = t;
       speed *= Math.exp(-dt / GLIDE_TAU_S);
-      setOffset(offset + speed * dt);
-      glide = Math.abs(speed) > 20 && offset > 0 && offset < clamp(Infinity) ? win.requestAnimationFrame(step) : null;
+      move(where() + speed * dt);
+      glide = Math.abs(speed) > 20 && where() > 0 && where() < max() ? win.requestAnimationFrame(step) : null;
     };
     glide = win.requestAnimationFrame(step);
   };
@@ -611,14 +649,14 @@ export const createEmojiView = (
       const rebuild = next.tone !== state.tone || next.favorites.length !== state.favorites.length
         || next.recent.join() !== state.recent.join() || next.favorites.join() !== state.favorites.join()
         || next.mode !== state.mode || next.kaomojiRecent.join('\n') !== state.kaomojiRecent.join('\n');
-      if (next.mode !== state.mode) offset = 0; // the other mode opens at its Recent
+      if (next.mode !== state.mode) offset = tabOffset = 0; // the other mode opens at its Recent
       state = next;
       if (rebuild) build();
     },
     hoverAt: (x, y) => {
       // While the trigger is held, the laser's moves come as touch moves too. The laser moving on with
       // no touch moves means the release was lost somewhere: end the gesture there and then.
-      if ((mode === 'drag' || mode === 'tones' || mode === 'scroll') && now() - lastTouchAt > RELEASE_LOST_MS
+      if ((mode === 'drag' || mode === 'tones' || mode === 'scroll' || mode === 'tabscroll') && now() - lastTouchAt > RELEASE_LOST_MS
         && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) finish();
       if (mode === 'tones') {
         pickTone(x, y);

@@ -242,6 +242,94 @@ describe('emoji picker', () => {
   });
 });
 
+describe('the tab strip', () => {
+  /** Seven tabs of 100 px in a 250 px bar, over a 300 px grid (jsdom lays nothing out). */
+  const laidOut = () => {
+    const is = (el: Element, name: string) => el.classList.contains(name);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return is(this, 'tab') ? 100 : is(this, 'tabstrip') ? this.children.length * 100 : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) {
+      return is(this, 'tab') ? [...this.parentElement!.children].indexOf(this) * 100 : 0;
+    });
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
+      return is(this, 'tabs') ? 250 : is(this, 'grid') ? 300 : 0;
+    });
+    const made = setup();
+    const { shadow } = made;
+    const tabs = shadow.querySelector<HTMLElement>('.tabstrip')!;
+    const grid = shadow.querySelector<HTMLElement>('.strip')!;
+    const tab = (id: string) => shadow.querySelector<HTMLElement>(`.tab[data-section="${id}"]`)!;
+    const on = () => shadow.querySelector<HTMLElement>('.tab.on')!.dataset['section'];
+    const wheel = (el: Element, by: number) => el.dispatchEvent(new WheelEvent('wheel', { deltaY: by, bubbles: true, cancelable: true }));
+    return { ...made, tabs, grid, tab, on, wheel };
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a drag scrolls the tabs, as far as they go, and is not a tap on a tab', () => {
+    const { tabs, grid, tab, on } = laidOut();
+    touch(tab('people'), 'touchstart', 220, 10);
+    touch(tab('people'), 'touchmove', 210, 10); // within the slop: nothing moves yet
+    expect(tabs.style.transform).toBe('translateX(0px)');
+    touch(tab('people'), 'touchmove', 120, 10);
+    expect(tabs.style.transform).toBe('translateX(-100px)');
+    touch(tab('people'), 'touchmove', -900, 10);
+    expect(tabs.style.transform).toBe('translateX(-450px)'); // 700 px of tabs in 250
+    touch(tab('people'), 'touchmove', 900, 10);
+    expect(tabs.style.transform).toBe('translateX(0px)');
+    touch(tab('people'), 'touchend', 900, 10);
+    expect(grid.style.transform).toBe('translateX(0px)'); // the grid did not jump to People
+    expect(on()).toBe('recent');
+  });
+
+  it('a quick drag glides on, slowing to a stop', () => {
+    const { tabs, tab } = laidOut();
+    const offset = () => -parseFloat(/-?[\d.]+/.exec(tabs.style.transform)![0]);
+    touch(tab('people'), 'touchstart', 240, 10);
+    vi.advanceTimersByTime(20);
+    touch(tab('people'), 'touchmove', 200, 10);
+    vi.advanceTimersByTime(20);
+    touch(tab('people'), 'touchmove', 160, 10);
+    touch(tab('people'), 'touchend', 160, 10);
+    expect(offset()).toBe(80);
+    vi.advanceTimersByTime(100);
+    const soon = offset();
+    expect(soon).toBeGreaterThan(80);
+    vi.advanceTimersByTime(5000);
+    expect(offset()).toBeGreaterThan(soon);
+    const rest = offset();
+    vi.advanceTimersByTime(1000);
+    expect(offset()).toBe(rest);
+  });
+
+  it('the wheel over the tabs scrolls them, not the grid', () => {
+    const { shadow, tabs, grid, tab, wheel } = laidOut();
+    wheel(tab('favorites'), 120);
+    expect(tabs.style.transform).toBe('translateX(-120px)');
+    expect(grid.style.transform).toBe('translateX(0px)');
+    wheel(shadow.querySelector('.tabs')!, 5000);
+    expect(tabs.style.transform).toBe('translateX(-450px)');
+    wheel(shadow.querySelector('.grid')!, 40);
+    expect(grid.style.transform).toBe('translateX(-40px)');
+  });
+
+  it('keeps the current tab in view, with its neighbours, as the grid scrolls or a tab is tapped', () => {
+    const { shadow, tabs, grid, tab, on, wheel } = laidOut();
+    wheel(tab('favorites'), 100); // People (300 to 400) is now at the bar's right edge
+    touch(tab('people'), 'touchstart', 240, 10);
+    touch(tab('people'), 'touchend', 240, 10);
+    expect(on()).toBe('people');
+    expect(grid.style.transform).toBe('translateX(-460px)');
+    expect(tabs.style.transform).toBe('translateX(-250px)'); // the tab after it has come into view
+    wheel(shadow.querySelector('.grid')!, -5000); // back to Recent: its tab was out of view
+    expect(on()).toBe('recent');
+    expect(tabs.style.transform).toBe('translateX(0px)');
+    wheel(shadow.querySelector('.grid')!, 5000); // the grid's end: the last tabs
+    expect(on()).toBe('steam-sticker');
+    expect(tabs.style.transform).toBe('translateX(-450px)');
+  });
+});
+
 describe('kaomoji mode', () => {
   const categories = [
     { id: 'smiling', en: 'Smiling', ja: '笑顔', faces: ['(^_^)', '(≧▽≦)', '(◕‿◕)', '(*^▽^*)', '(＾▽＾)', '(´▽`)'] },
@@ -338,12 +426,15 @@ describe('kaomoji mode', () => {
     Object.defineProperty(shadow.querySelector('.grid')!, 'clientWidth', { value: 300 });
     expect(tab('recent').classList.contains('on')).toBe(true);
     touch(tab('smiling'), 'touchstart');
+    expect(strip.style.transform).toBe('translateX(0px)'); // a tab is tapped when it is released
+    touch(tab('smiling'), 'touchend');
     expect(strip.style.transform).toBe('translateX(-200px)'); // 220, less the gap its label sits in
     expect(tab('smiling').classList.contains('on')).toBe(true);
     shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, cancelable: true }));
     expect(tab('recent').classList.contains('on')).toBe(true);
     // The last section cannot reach the left edge: its tab is marked all the same, until the grid moves.
     touch(tab('tableflip'), 'touchstart');
+    touch(tab('tableflip'), 'touchend');
     expect(strip.style.transform).toBe('translateX(-260px)'); // the strip is 560 wide, the grid 300
     expect(tab('tableflip').classList.contains('on')).toBe(true);
     shadow.querySelector('.emoji')!.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, cancelable: true }));
