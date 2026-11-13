@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://polykey/packs/pack.schema.json",
   "title": "polykey pack item",
-  "description": "One layout, keyboard, theme, table, picker set or language. Files live in packs/<namespace>/; ids are <namespace>/<name>, except a language's, which is its code (and its folder's name).",
+  "description": "One layout, keyboard, theme, table, picker set or language. Files live in packs/<namespace>/; ids are <namespace>/<name>, except a language's, which is its code (its file: packs/<code>/language.json).",
   "oneOf": [
     {
       "$ref": "#/$defs/layout"
@@ -1196,7 +1196,7 @@
         },
         "id": {
           "$ref": "#/$defs/languageCode",
-          "description": "The language's code (ja, ko); the file sits in the folder of that name."
+          "description": "The language's code (ja, ko); the file is language.json in the folder of that name."
         },
         "name": {
           "$ref": "#/$defs/name"
