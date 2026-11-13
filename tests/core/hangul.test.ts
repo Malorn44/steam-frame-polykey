@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyDef, TableDef } from '../../src/core/catalog.js';
 import type { ComposerContext } from '../../src/core/composers/composer.js';
-import { NO_SYLLABLE, hangul, hangulTable, syllableText, type Syllable } from '../../src/core/composers/hangul.js';
+import { FINALS, INITIALS, MEDIALS, NO_SYLLABLE, hangul, hangulTable, syllableText, type Syllable } from '../../src/core/composers/hangul.js';
 import { optionsFor } from '../../src/core/options.js';
 
 const def = JSON.parse(readFileSync('packs/ko/hangul.json', 'utf8')) as TableDef;
@@ -93,16 +93,24 @@ describe('the hangul composer', () => {
 
   it('makes every syllable with Unicode\'s formula, as the conjoining jamo compose', () => {
     const table = hangulTable(def.hangul!);
-    const initials = Array.from(def.hangul!.initials);
-    const medials = Array.from(def.hangul!.medials);
-    const finals = ['', ...Array.from(def.hangul!.finals)];
+    const finals = ['', ...Array.from(FINALS)];
     let count = 0;
-    initials.forEach((initial, l) => medials.forEach((medial, v) => finals.forEach((final, t) => {
+    Array.from(INITIALS).forEach((initial, l) => Array.from(MEDIALS).forEach((medial, v) => finals.forEach((final, t) => {
       const conjoining = String.fromCodePoint(0x1100 + l, 0x1161 + v, ...(t ? [0x11a7 + t] : [])).normalize('NFC');
       expect(syllableText(table, { initial, medial: [medial], final: final ? [final] : [] })).toBe(conjoining);
       count++;
     })));
     expect(count).toBe(11_172);
+  });
+
+  it('a table\'s pairs are checked against the same jamo: the schema\'s patterns take exactly its vowels and finals', () => {
+    const schema = JSON.parse(readFileSync('packs/pack.schema.json', 'utf8')) as {
+      $defs: { table: { properties: { hangul: { properties: Record<string, { items: { pattern: string } }> } } } };
+    };
+    const pattern = (field: string) => new RegExp(schema.$defs.table.properties.hangul.properties[field]!.items.pattern);
+    const jamo = Array.from({ length: 0x3163 - 0x3131 + 1 }, (_, i) => String.fromCodePoint(0x3131 + i)); // ㄱ to ㅣ
+    expect(jamo.filter((ch) => pattern('compoundMedials').test(ch.repeat(3))).join('')).toBe(MEDIALS);
+    expect(jamo.filter((ch) => pattern('compoundFinals').test(ch.repeat(3))).join('')).toBe(FINALS);
   });
 
   it('without its table the keys type as they are', () => {

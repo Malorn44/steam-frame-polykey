@@ -143,10 +143,10 @@ export interface ThemeColors {
   indicator?: string;
 }
 /**
- * Hangul composition (the hangul composer): the jamo in Unicode's order, a syllable's initial, medial and
- * final being its index in each, and the pairs typed one after the other that make one jamo ("ㅗㅏㅘ").
+ * Hangul composition (the hangul composer), what a layout varies: the vowels and the finals typed one after
+ * the other that make one ("ㅗㅏㅘ" is ㅗ then ㅏ, making ㅘ). The jamo themselves are Unicode's (hangul.ts).
  */
-export interface HangulTableDef { initials: string; medials: string; finals: string; compoundMedials?: string[]; compoundFinals?: string[] }
+export interface HangulTableDef { compoundMedials?: string[]; compoundFinals?: string[] }
 /**
  * A table: entries, romaji to kana ([input, output, pending letters?]); cycles, what ゛゜小 does (layouts
  * get theirs resolved into `modify`); or hangul, how jamo compose.

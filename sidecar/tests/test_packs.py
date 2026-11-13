@@ -566,7 +566,7 @@ def test_the_korean_packs_load():
     catalog = boot["catalog"]
     korean = catalog["keyboards"]["ko/korean"]
     assert (korean["composer"], korean["table"], korean["pages"]) == ("hangul", "ko/hangul", {"latin": "ko/qwerty"})
-    assert len(catalog["tables"]["ko/hangul"]["hangul"]["finals"]) == 27
+    assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
     assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["cjk"]) == ("한글", True)
     hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
     assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
@@ -582,15 +582,25 @@ def hangul_table(item_id: str, **fields) -> dict:
 
 
 def test_a_hangul_table_is_checked(tmp_path):
-    write(tmp_path / "packs", "mine/short.json", hangul_table("mine/short", initials="ㄱㄴ"))
-    write(tmp_path / "packs", "mine/pairs.json", hangul_table("mine/pairs", compoundFinals=["ㄱㅅㅘ"]))
+    # The jamo and their order are Unicode's, not a table's: a table only says which pairs make one.
+    write(
+        tmp_path / "packs",
+        "mine/order.json",
+        hangul_table("mine/order", initials="ㄲㄱㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"),
+    )
+    write(tmp_path / "packs", "mine/vowels.json", hangul_table("mine/vowels", compoundMedials=["ㅗㄱㅘ"]))
+    write(tmp_path / "packs", "mine/finals.json", hangul_table("mine/finals", compoundFinals=["ㄱㅅㅘ"]))
+    write(tmp_path / "packs", "mine/tense.json", hangul_table("mine/tense", compoundFinals=["ㄷㄷㄸ"]))  # ㄸ ends none
     write(tmp_path / "packs", "mine/both.json", {**hangul_table("mine/both"), "cycles": ["はばぱ"]})
     write(tmp_path / "packs", "mine/fine.json", hangul_table("mine/fine", compoundMedials=[]))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["errors"] == [
-        "mine/short.json: /hangul/initials: too short",
+    finals = "does not match ^[ㄱ-ㄷㄹ-ㅂㅄ-ㅈㅊ-ㅎ]{3}$"
+    assert sorted(boot["errors"]) == [
         "mine/both: needs entries, cycles or hangul (one of them)",
-        "mine/pairs: compoundFinals ㄱㅅㅘ: its jamo must all be in finals",
+        f"mine/finals.json: /hangul/compoundFinals/0: {finals}",
+        "mine/order.json: /hangul: unknown field initials",
+        f"mine/tense.json: /hangul/compoundFinals/0: {finals}",
+        "mine/vowels.json: /hangul/compoundMedials/0: does not match ^[ㅏ-ㅣ]{3}$",
     ]
     assert "mine/fine" in boot["catalog"]["tables"]
 
