@@ -360,6 +360,34 @@ def test_validator_messages_name_the_field():
         assert packs.validate(layout, schema, schema) == [message]
 
 
+def test_a_name_is_a_string_or_a_name_per_language(tmp_path):
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    named = lambda name: packs.validate({**theme("mine/dark"), "name": name}, schema, schema)
+    for good in ("Dark", {"en": "Dark"}, {"en": "Dark", "ja": "ダーク", "pt-BR": "Escuro", "zh-Hant": "深色"}):
+        assert named(good) == [], good
+    assert named({}) == ["/name: needs at least 1 entries (it has 0)"]
+    assert named("") == ["/name: too short"]
+    assert named({"en": ""}) == ["/name/en: too short"]
+    assert named({"en": "x" * 81}) == ["/name/en: too long"]
+    assert named({"en": 5}) == ["/name/en: must be a string"]
+    for key in ("EN", "english", "e", "en_US", "en-", ""):
+        assert named({"en": "Dark", key: "Dark"}) == [f"/name: unknown field {key}"], key
+    assert named(5) and named(["Dark"]) and named(None)
+    # Keyboards, layouts and tables take the same names, and load with them as written.
+    name = {"en": "Dark", "ja": "ダーク"}
+    write(tmp_path / "packs", "mine/dark.json", {**theme("mine/dark"), "name": name})
+    write(tmp_path / "packs", "mine/keys.json", layout("mine/keys", name=name, rows=[["a"]]))
+    write(tmp_path / "packs", "mine/board.json", keyboard("mine/board", name=name, layout="mine/keys"))
+    write(tmp_path / "packs", "mine/empty.json", {**theme("mine/empty"), "name": {}})
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == ["mine/empty.json: /name: needs at least 1 entries (it has 0)"]
+    catalog = boot["catalog"]
+    assert [
+        catalog[k][i]["name"]
+        for k, i in (("themes", "mine/dark"), ("layouts", "mine/keys"), ("keyboards", "mine/board"))
+    ] == [name] * 3
+
+
 def test_boot_script_sets_the_catalog_and_logs_pack_errors(tmp_path):
     write(tmp_path / "packs", "themes/broken.json", "{")
     out = io.StringIO()

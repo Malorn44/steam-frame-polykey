@@ -27,6 +27,16 @@ Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema
 - **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
 - **table:** a romaji table (ka → か), or the cycles of the ゛゜小 key.
 
+A `name` is a string, or one name per language:
+
+```json
+"name": {"en": "Midnight", "ja": "ミッドナイト", "pt-BR": "Meia-noite"}
+```
+
+- The keys are language codes (`en`, `ja`, `pt-BR`), and there is at least one.
+- polykey shows the name for the current keyboard's language: that code's, then its base language's (`pt-BR` falls back to `pt`), then `en`, then the first one written.
+- A list of keyboards (Settings → Keyboards, holding 🌐) names each keyboard in its own language.
+
 The bundled packs are the best examples: [`packs/themes/`](../packs/themes/), [`packs/en/`](../packs/en/) and [`packs/ja/`](../packs/ja/).
 
 ## A theme

@@ -152,6 +152,8 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
             for i, item in enumerate(value):
                 errors += validate(item, schema["items"], root, f"{path}/{i}")
     if isinstance(value, dict):
+        if len(value) < schema.get("minProperties", 0):
+            errors.append(f"{where}: needs at least {schema['minProperties']} entries (it has {len(value)})")
         for name in schema.get("required", []):
             if name not in value:
                 errors.append(f"{where}: missing {name}")

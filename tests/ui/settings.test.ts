@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { SLOP_PX } from '../../src/core/interaction.js';
+import { nameFor } from '../../src/core/names.js';
 import { createSettingsView, type SettingsInfo, type SettingsValues } from '../../src/ui/settings.js';
 import type { UpdateAction, UpdateStatus } from '../../src/updates.js';
 import { bundledBoot } from '../boot.js';
@@ -22,7 +23,7 @@ const setup = (extra = 0, update: UpdateStatus | null = null) => {
   document.body.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
   const themes: SettingsInfo['themes'] = ['themes/night-owl', 'themes/steam'].map((id) => boot.catalog.themes[id]!)
-    .map((t) => ({ id: t.id, name: t.name, swatch: [t.colors.surface, t.colors.key, t.colors.accent] }));
+    .map((t) => ({ id: t.id, name: nameFor(t.name, 'en'), swatch: [t.colors.surface, t.colors.key, t.colors.accent] }));
   for (let i = 1; i <= extra; i++) themes.push({ id: `themes/test-${i}`, name: `Test ${i}`, swatch: ['#000', '#111', '#f00'] });
   const changes: Partial<SettingsValues>[] = [];
   const asked: UpdateAction[] = [];

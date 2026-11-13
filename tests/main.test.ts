@@ -1065,6 +1065,62 @@ describe('settings → Keyboards', () => {
   });
 });
 
+describe('names in more than one language', () => {
+  /** polykey with names per language on a theme and two keyboards, the first of `keyboards` showing. */
+  const setupNames = (keyboards: string[]) => {
+    const boot = bundledBoot();
+    boot.catalog.themes['themes/steam']!.name = { en: 'Steam', ja: 'スチーム' };
+    boot.catalog.keyboards['en/english']!.name = { en: 'QWERTY', ja: 'クワーティ' };
+    boot.catalog.keyboards['ja/12key']!.name = { en: '12-key', ja: '12キー' };
+    boot.settings = { ...boot.settings, keyboards };
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    return popup;
+  };
+  const press = async (el: HTMLElement) => {
+    el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+  };
+  /** 🌐's menu, then settings: the theme's name, the keyboard's own name, and Keyboards' layouts and list. */
+  const shown = async (popup: FakePopupWindow) => {
+    const globe = key(popup, 'next-keyboard');
+    globe.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(500);
+    const menu = [...shadowOf(popup)!.querySelectorAll('.alts.menu .key')].map((c) => c.textContent);
+    globe.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(50);
+    await tap(popup, 'settings');
+    const panel = shadowOf(popup)!.querySelector('.panel')!;
+    const theme = panel.querySelector('.pick > .opt')!.textContent;
+    const general = panel.textContent;
+    await press([...panel.querySelectorAll<HTMLElement>('.opt.tab')].find((o) => o.textContent === 'Keyboards')!);
+    const names = (column: string) => [...shadowOf(popup)!.querySelectorAll(`.panel .${column} .item .nm`)].map((i) => i.textContent);
+    return { menu, theme, general, layouts: names('lays'), mine: names('mine') };
+  };
+
+  it('on an English keyboard the theme has its English name; each keyboard has its own language\'s', async () => {
+    const { menu, theme, general, layouts, mine } = await shown(setupNames(['en/english', 'ja/12key']));
+    expect(theme).toBe('Steam');
+    expect(general).toContain('English · QWERTY');
+    expect(menu).toEqual(['EnglishQWERTY', '日本語12キー']);
+    expect(layouts).toEqual(['QWERTY']);
+    expect(mine).toEqual(['English · QWERTY', '日本語 · 12キー']);
+  });
+
+  it('on a Japanese keyboard the theme has its Japanese name; each keyboard still has its own language\'s', async () => {
+    const { menu, theme, general, layouts, mine } = await shown(setupNames(['ja/12key', 'en/english']));
+    expect(theme).toBe('スチーム');
+    expect(general).toContain('日本語 · 12キー');
+    expect(menu).toEqual(['日本語12キー', 'EnglishQWERTY']);
+    expect(layouts).toContain('12キー');
+    expect(layouts).not.toContain('12-key');
+    expect(mine).toEqual(['日本語 · 12キー', 'English · QWERTY']);
+  });
+});
+
 describe('五十音', () => {
   it('kana keys go into the reading; ゛゜小 voices the one before; the two-row あa switches to letters', async () => {
     const { popup, manager, api } = setup();
