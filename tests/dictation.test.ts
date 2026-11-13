@@ -363,6 +363,19 @@ describe('dictation on the page', () => {
     expect(typed()).toBe('あ今日は晴れ');
   });
 
+  it('Korean: the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
+    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+    api.debug.use('ko/korean');
+    await tap(popup, 'ㄴ');
+    await tap(popup, 'ㅔ'); // 네, in the bar
+    await tap(popup, 'dictate');
+    expect(sidecar.asked.find((r) => r.op === 'dictation.start')).toMatchObject({ language: 'ko' });
+    await sidecar.phase({ phase: 'done', text: '좋아요' });
+    await vi.advanceTimersByTimeAsync(500); // each text waits for the keymap to settle
+    expect([pre(popup), typed()]).toEqual([null, '네 좋아요 ']);
+    expect(logged.join('\n')).not.toContain('좋아요');
+  });
+
   it('英数 mode on a Japanese keyboard dictates English after the English word', async () => {
     const { popup, api, sidecar, typed } = setup({ dictation: true });
     api.debug.use('ja/jis');
