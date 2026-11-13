@@ -11,7 +11,6 @@ import { optionsFor } from '../src/core/options.js';
 const shout: Composer<string> = {
   empty: '',
   composing: (s) => s !== '',
-  latinKeys: () => false,
   press: (s, key, { typed }) => {
     if (typed !== undefined && /^[a-z]$/.test(typed)) return { state: s + typed.toUpperCase(), effects: [], request: { kind: 'live' } };
     if (s && key.type === 'char' && key.char === ' ') return { state: '', effects: [{ kind: 'text', text: `${s} ` }] };

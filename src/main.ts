@@ -22,7 +22,7 @@ import { log, warn } from './log.js';
 import { NO_EMOJI_STATE, nextSet, setFor, steamItemEffects, steamKey, toneTable, useRecent, withTone, type EmojiState, type Tone } from './core/emoji.js';
 import { loadSteamItems, steamItemImage, steamItems, steamItemsAvailable } from './host/steam/items.js';
 import { createEmojiView, type EmojiView } from './ui/emoji.js';
-import { composerOf } from './core/composers/index.js';
+import { composerOf, takesDictation } from './core/composers/index.js';
 import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
 import { idleHint, languageOf, spelled } from './core/languages.js';
@@ -321,10 +321,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     return keyboard && composer ? { composer, ctx: contextOf(keyboard), converter: keyboard.converter } : null;
   };
   /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
-  const latinKeys = (keyboard: KeyboardDef | undefined): boolean => {
-    const composer = composerOf(keyboard);
-    return !!keyboard && !!composer && composer.latinKeys(contextOf(keyboard));
-  };
+  const latinKeys = (keyboard: KeyboardDef | undefined): boolean =>
+    !!keyboard && (composerOf(keyboard)?.latinKeys?.(contextOf(keyboard)) ?? false);
   // The bar: what the keyboard's composer has composed, with the converter's candidates (src/bar.ts).
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
@@ -333,7 +331,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
   const dictatesIntoBar = (keyboard: KeyboardDef | undefined): boolean =>
-    composerOf(keyboard)?.insert !== undefined && !(keyboard && latinMode.has(keyboard.id));
+    takesDictation(keyboard) && !(keyboard && latinMode.has(keyboard.id));
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
@@ -799,18 +797,19 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;
       const shown = settings.dictation ? { ...layout, rows }
         : { ...layout, rows, toolbar: (layout.toolbar ?? []).filter((k) => !(k.type === 'action' && k.action === 'dictate')) };
-      const hint = idleHint(keyboard, languageFor(keyboard));
+      const language = languageFor(keyboard);
+      const hint = idleHint(keyboard, language);
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
           onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
-          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), languageFor(keyboard)),
-          otherLetters: modeLetters(keyboard, !latinMode.has(id), languageFor(keyboard)),
+          latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), language),
+          otherLetters: modeLetters(keyboard, !latinMode.has(id), language),
           // Holding 🌐: each keyboard's language small above its layout.
           keyboardMenu: { ids: ring, names: ring.map((k) => {
             const def = boot.catalog.keyboards[k];
             return def ? `${def.language ? `${languageName(def.language)}\n` : ''}${ownName(def)}` : k;
           }) },
-          languageFont: languageFor(keyboard)?.font,
+          languageFont: language?.font,
           ...(hint ? { placeholder: hint } : {}) });
       view.update(mods);
       applyBounds();
