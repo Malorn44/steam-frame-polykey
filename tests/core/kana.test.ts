@@ -21,7 +21,7 @@ const run = (presses: [KeyDef, string?][], tapCycle: boolean): { buffer: string;
       sent += `<${(key as { key?: string }).key ?? '?'}>`;
       continue;
     }
-    ime = result.ime;
+    ime = result.state;
     for (const effect of result.effects) sent += effect.kind === 'text' ? effect.text : '<undo>';
   }
   return { buffer: reading(ime), sent };
@@ -88,10 +88,10 @@ describe('reading forms', () => {
   it('symbols typed in kana mode wait in the reading too (?123, the punctuation key)', () => {
     const at: KeyDef = { type: 'char', char: '@' };
     const punct: FlickKey = { type: 'flick', flick: ['、', '。', '？', '！', '…'] };
-    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.ime;
+    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.state;
     const typed = pressIme(ime, at, { typed: '@' }, { tapCycle: false }, { modify })!;
-    expect([reading(typed.ime), typed.effects]).toEqual(['は@', []]);
-    ime = pressIme(typed.ime, punct, { flicked: '？' }, { tapCycle: false }, { modify })!.ime;
+    expect([reading(typed.state), typed.effects]).toEqual(['は@', []]);
+    ime = pressIme(typed.state, punct, { flicked: '？' }, { tapCycle: false }, { modify })!.state;
     expect(reading(ime)).toBe('は@？');
   });
 
@@ -100,24 +100,24 @@ describe('reading forms', () => {
     const converting: Ime = { ...NO_IME, chars: Array.from('きょうははれ'), caret: 6,
       segments: [{ reading: 'きょうは', candidates: ['今日は'], index: 0 }, { reading: 'はれ', candidates: ['晴れ', '張れ'], index: 1 }], focus: 0 };
     const first = enter(converting);
-    expect([first.ime.focus, first.effects]).toEqual([1, []]); // nothing sent yet
-    const last = enter(first.ime);
+    expect([first.state.focus, first.effects]).toEqual([1, []]); // nothing sent yet
+    const last = enter(first.state);
     expect(last.effects).toEqual([{ kind: 'text', text: '今日は張れ' }]); // each segment as picked
-    expect(last.ime).toEqual(NO_IME);
+    expect(last.state).toEqual(NO_IME);
   });
 
   it('かな cycles the reading; editing goes back to ひらがな; while converting it returns to カタカナ', () => {
     const kana: KeyDef = { type: 'action', action: 'kana' };
-    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.ime;
-    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.ime;
+    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.state;
+    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.state;
     expect(ime.form).toBe('katakana');
-    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.ime;
+    ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.state;
     expect(ime.form).toBe('halfwidth');
     expect(pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!.effects).toEqual([{ kind: 'text', text: 'ﾊ' }]);
-    expect(pressIme(ime, ta, {}, { tapCycle: false }, { modify })!.ime.form).toBe('hiragana');
+    expect(pressIme(ime, ta, {}, { tapCycle: false }, { modify })!.state.form).toBe('hiragana');
     const converting: Ime = { ...ime, form: 'hiragana', segments: [{ reading: 'は', candidates: ['葉'], index: 0 }] };
     const back = pressIme(converting, kana, {}, { tapCycle: false }, { modify })!;
-    expect([back.ime.segments, back.ime.form]).toEqual([null, 'katakana']);
-    expect(pressIme(NO_IME, kana, {}, { tapCycle: false }, { modify })).toEqual({ ime: NO_IME, effects: [] });
+    expect([back.state.segments, back.state.form]).toEqual([null, 'katakana']);
+    expect(pressIme(NO_IME, kana, {}, { tapCycle: false }, { modify })).toEqual({ state: NO_IME, effects: [] });
   });
 });
