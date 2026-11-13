@@ -347,7 +347,7 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         desktop,
         Lexicons([cfg.user_dir / "packs", cfg.packs]),
         settings,
-        Converters(),
+        Converters(log=log),
         dictation=dictation,
         updates=updates,
     )

@@ -11,14 +11,19 @@ MAX_READING = 64
 
 
 class ConverterUnavailable(Exception):
-    """The engine cannot load (its library is missing): requests get `unavailable`, not an exception."""
+    """An engine says it cannot load (its library is missing). Any exception while loading counts the same."""
 
 
 class Converter:
-    """An engine, made by `factory` on the first request; `unavailable` when it cannot load."""
+    """An engine, made by `factory` on the first request. If that fails, for any reason (its library or
+    a dictionary missing), it is not tried again: every request gets `unavailable`, and the log says once
+    which converter and the exception's type, nothing of the request.
+    """
 
-    def __init__(self, factory) -> None:
+    def __init__(self, factory, name: str = "converter", log=None) -> None:
         self._factory = factory
+        self._name = name
+        self._log = log
         self._engine = None
         self._failed = False
 
@@ -26,8 +31,10 @@ class Converter:
         if self._engine is None and not self._failed:
             try:
                 self._engine = self._factory()
-            except ConverterUnavailable:
+            except Exception as error:  # whatever stops it loading, the page hears `unavailable`
                 self._failed = True
+                if self._log is not None:
+                    self._log.info(f"{self._name} did not load: {type(error).__name__}")
         return self._engine
 
     def handle(self, op: str, request: dict) -> dict:
