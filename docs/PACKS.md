@@ -148,6 +148,7 @@ A keyboard's `lexicon` names the word list its suggestions come from: `en/words`
 - A keyboard with `modes` names a `lexicon` on each mode instead, and a mode without one suggests nothing. The Japanese keyboards name `en/words` on 英数, so かな suggests nothing; the Korean keyboard names `ko/words` on 한글 and `en/words` on ABC. A keyboard with both modes and its own `lexicon` is refused.
 - In a mode that composes, the word being typed is what was sent since the last space or punctuation plus what is still composed, and a keyboard whose composer has a speller (`sidecar/polykey/spellers/`) matches it on the keys typed, as its table makes them: 하 (ㅎㅏ) completes to 한국 (ㅎㅏㄴㄱㅜㄱ). A table where ㅏ ㅏ makes ㅑ makes ㅏ complete to words with ㅑ.
 
+- A list is loaded and indexed when a keyboard whose mode suggests from it is drawn, so the first suggestion does not wait; a list no keyboard you show uses is never loaded.
 - A list in `~/.config/polykey/packs/<namespace>/` replaces the bundled one with the same name.
 - Words in `~/.config/polykey/packs/<namespace>/blocked.txt`, one per line, are never suggested from that namespace's lists.
 

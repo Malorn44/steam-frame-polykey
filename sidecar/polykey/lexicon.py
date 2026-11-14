@@ -5,8 +5,9 @@ one. Lookups are prefix completions ranked by count, and spelling corrections (`
 prefixes are never logged.
 
 Completions match on the keys typed: a speller (spellers/) spells the prefix and every word as their
-keys, and the words are indexed by them on first use. The default speller ignores case (ok completes to
-OK); the Hangul one completes 하 (ㅎㅏ) to 한국 (ㅎㅏㄴㄱㅜㄱ), which the text alone does not start with.
+keys, and the words are indexed by them on first use, or as a keyboard that suggests from the list is
+drawn (`prepare`), so the first suggestion does not wait. The default speller ignores case (ok completes
+to OK); the Hangul one completes 하 (ㅎㅏ) to 한국 (ㅎㅏㄴㄱㅜㄱ), which the text alone does not start with.
 
 Corrections follow frame-jp-keyboard's src/english.js (MIT, Copyright (c) 2026 sasaken1102r): words one
 edit away, scored by how likely the slip is (a doubled letter, two swapped letters, a neighbouring
@@ -133,6 +134,13 @@ class Lexicon:
             pairs = sorted((keys, w) for w in self._counts if (keys := speller.spell(w)))
             self._by_keys = (speller, [keys for keys, _ in pairs], [w for _, w in pairs])
         return self._by_keys[1], self._by_keys[2]
+
+    def prepare(self, speller: Speller = LOWERCASE) -> bool:
+        """Index the words for the speller now, not at the first completion; False if they already are."""
+        if self._by_keys is not None and self._by_keys[0] is speller:
+            return False
+        self._spelled(speller)
+        return True
 
     def complete(self, prefix: str, limit: int, speller: Speller = LOWERCASE) -> list[str]:
         """The most frequent words whose keys start with the prefix's, most frequent first (at a tie, a
