@@ -195,10 +195,10 @@ class Bridge:
         return {"ok": True}
 
     def _suggest(self, request: dict) -> dict:
-        """Words for a prefix, from the word list named; with `table` (the keyboard's, when its mode composes),
-        matched on the keys typed by that table's speller."""
+        """Words for a prefix, from the word list named; with `keyboard` (while its mode composes), matched on
+        the keys typed by its composer's speller."""
         prefix, lexicon_id, limit = request.get("prefix"), request.get("lexicon"), request.get("limit", 3)
-        table = request.get("table")
+        keyboard = request.get("keyboard")
         if not isinstance(prefix, str) or not prefix or len(prefix) > 40:
             return {"ok": False, "error": "bad-prefix"}
         if not isinstance(limit, int) or not 1 <= limit <= MAX_SUGGESTIONS:
@@ -206,5 +206,5 @@ class Bridge:
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        speller = self._spellers.get(table) if self._spellers and isinstance(table, str) else LOWERCASE
+        speller = self._spellers.get(keyboard) if self._spellers and isinstance(keyboard, str) else LOWERCASE
         return {"ok": True, "words": lexicon.suggest(prefix, limit, speller)}
