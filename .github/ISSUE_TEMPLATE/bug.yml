@@ -53,6 +53,18 @@ body:
         - Settings
     validations:
       required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of polykey it's about.
+      options:
+        - "Packs: keyboards and layouts, emoji, themes, languages"
+        - "Input: typing, Japanese or Korean input, suggestions, swipe, dictation"
+        - "Setup: settings, install, updates"
+        - Other
+    validations:
+      required: true
   - type: input
     id: keyboard
     attributes:

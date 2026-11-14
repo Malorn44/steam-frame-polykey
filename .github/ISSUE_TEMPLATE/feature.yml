@@ -20,14 +20,11 @@ body:
     id: area
     attributes:
       label: Area
+      description: Which part of polykey it's about.
       options:
-        - Keyboards and layouts
-        - Language support
-        - Suggestions and swipe
-        - Dictation
-        - Emoji
-        - Themes
-        - Updates and install
+        - "Packs: keyboards and layouts, emoji, themes, languages"
+        - "Input: typing, Japanese or Korean input, suggestions, swipe, dictation"
+        - "Setup: settings, install, updates"
         - Other
     validations:
       required: true
