@@ -13,9 +13,10 @@ export type KeyboardMode = 'buffered' | 'minimal' | 'unknown';
 export const BUFFERED_GAP_MS = 40;
 
 /**
- * In minimal mode gamescope types a non-ASCII call through a temporary keymap. The next call waits this
- * long, so its own keys (or its own keymap) do not land before the target has read these: without it,
- * a kaomoji's calls, or two tapped in quick succession, come out as stray or missing characters.
+ * In minimal mode gamescope types a non-ASCII call through a temporary keymap. The next call, or key
+ * chord, waits this long, so its own keys (or its own keymap) do not land before the target has read
+ * these: without it, a kaomoji's calls, or two tapped in quick succession, come out as stray or missing
+ * characters, and text sent just before a chord (Copy while composing) as number-row digits.
  */
 export const KEYMAP_SETTLE_MS = 60;
 
@@ -66,7 +67,7 @@ export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string
 export interface Delivery {
   readonly policy: SplitPolicy;
   readonly gapMs: number;
-  /** After a call that swaps the keymap, the next call (of this send or the next) waits this long; 0: no wait. */
+  /** After a call that swaps the keymap, the next call (of this send or the next) or chord waits this long; 0: no wait. */
   readonly settleMs: number;
 }
 

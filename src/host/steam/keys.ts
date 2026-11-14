@@ -3,6 +3,7 @@
 
 import type { KeyEvent } from '../../core/keycodes.js';
 import type { SteamGlobals } from './globals.js';
+import { createPacer, type Pacer } from './pace.js';
 
 export type SetKeyState = (code: number, down: boolean) => void;
 
@@ -24,13 +25,11 @@ export interface KeyResult {
 
 interface KeySenderDeps {
   readonly getSetKeyState: () => SetKeyState | null;
-  readonly sleep?: (ms: number) => Promise<void>;
+  /** Shared with the text sender: a chord goes after the text queued before it, once its keymap settled (pace.ts). */
+  readonly pacer?: Pacer;
 }
 
-const defaultSleep = (ms: number): Promise<void> =>
-  ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
-
-export const createKeySender = ({ getSetKeyState: lookup, sleep = defaultSleep }: KeySenderDeps) => {
+export const createKeySender = ({ getSetKeyState: lookup, pacer = createPacer() }: KeySenderDeps) => {
   const held = new Set<number>();
   let release: SetKeyState | null = null;
 
@@ -47,15 +46,18 @@ export const createKeySender = ({ getSetKeyState: lookup, sleep = defaultSleep }
     }
   };
 
-  /** Send key events in order, `gapMs` apart. Whatever happens, nothing stays pressed. */
-  const send = async (events: readonly KeyEvent[], gapMs: number): Promise<KeyResult> => {
+  /**
+   * Send key events in order, `gapMs` apart. Whatever happens, nothing stays pressed. A keymap still
+   * settling is waited out before the first press, never with a key held.
+   */
+  const send = (events: readonly KeyEvent[], gapMs: number): Promise<KeyResult> => pacer.run(async () => {
     const setKeyState = lookup();
     if (!setKeyState) return { ok: false, sent: 0, error: 'no-key-state-call' };
     release = setKeyState;
     let sent = 0;
     try {
       for (const [code, down] of events) {
-        if (sent > 0) await sleep(gapMs);
+        await pacer.ready(sent > 0 ? gapMs : 0);
         if (down) held.add(code);
         setKeyState(code, down);
         if (!down) held.delete(code);
@@ -67,7 +69,7 @@ export const createKeySender = ({ getSetKeyState: lookup, sleep = defaultSleep }
     } finally {
       releaseAll();
     }
-  };
+  });
 
   return { send, releaseAll };
 };

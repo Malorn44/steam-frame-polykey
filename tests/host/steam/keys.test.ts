@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createKeySender, getSetKeyState } from '../../../src/host/steam/keys.js';
+import { createPacer } from '../../../src/host/steam/pace.js';
 
 const recorder = () => {
   const events: [number, boolean][] = [];
@@ -28,7 +29,7 @@ describe('createKeySender', () => {
   it('sends events in order with the gap between them', async () => {
     const { events, setKeyState } = recorder();
     const sleeps: number[] = [];
-    const sender = createKeySender({ getSetKeyState: () => setKeyState, sleep: async (ms) => { sleeps.push(ms); } });
+    const sender = createKeySender({ getSetKeyState: () => setKeyState, pacer: createPacer({ sleep: async (ms) => { sleeps.push(ms); } }) });
     const result = await sender.send([[103, true], [24, true], [24, false], [103, false]], 8);
     expect(result).toEqual({ ok: true, sent: 4 });
     expect(events).toEqual([[103, true], [24, true], [24, false], [103, false]]);
@@ -48,7 +49,7 @@ describe('createKeySender', () => {
       if (calls === 3) throw new TypeError('Unknown method');
       setKeyState(code, down);
     };
-    const sender = createKeySender({ getSetKeyState: () => flaky, sleep: async () => {} });
+    const sender = createKeySender({ getSetKeyState: () => flaky, pacer: createPacer({ sleep: async () => {} }) });
     const result = await sender.send([[103, true], [101, true], [24, true], [24, false], [101, false], [103, false]], 0);
     expect(result).toEqual({ ok: false, sent: 2, error: 'TypeError' });
     expect(heldAfter(events)).toEqual([]);
@@ -60,7 +61,7 @@ describe('createKeySender', () => {
     let release: () => void = () => {};
     const sender = createKeySender({
       getSetKeyState: () => setKeyState,
-      sleep: async () => { release(); },
+      pacer: createPacer({ sleep: async () => { release(); } }),
     });
     release = sender.releaseAll;
     await sender.send([[103, true], [24, true], [24, false], [103, false]], 1);
