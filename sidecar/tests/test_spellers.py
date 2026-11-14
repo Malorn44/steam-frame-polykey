@@ -9,7 +9,7 @@ from polykey import packs
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.lexicon import Lexicon, Lexicons
-from polykey.spellers import SPELLERS, Spellers
+from polykey.spellers import LOWERCASE, SPELLERS, Spellers
 from polykey.spellers.hangul import HangulSpeller
 
 PACKS = Path(__file__).resolve().parents[2] / "packs"
@@ -53,8 +53,8 @@ def test_prefixes_complete_on_the_keys_typed():
     assert complete("고") == ["과일", "고기"]
     assert complete("ㄱ") == ["감사", "과일", "고기", "가방"]
     assert complete("한구") == ["한국"] and complete("한국어") == []
-    assert lexicon.complete("한", 5) == ["한국"]  # without a speller: the text
-    assert complete("hel") == ["hello"]  # text the speller does not spell: the text
+    assert lexicon.complete("한", 5) == ["한국"]  # the default speller: the text
+    assert complete("hel") == [] and lexicon.complete("hel", 5) == ["hello"]  # Latin is not Hangul
 
 
 def test_spellers_follow_the_schemas_table_formats_and_the_tables_loaded():
@@ -65,7 +65,7 @@ def test_spellers_follow_the_schemas_table_formats_and_the_tables_loaded():
     spellers = Spellers(lambda: tables)
     hangul = spellers.get("ko/hangul")
     assert isinstance(hangul, HangulSpeller) and spellers.get("ko/hangul") is hangul
-    assert spellers.get("ja/romaji-table") is None and spellers.get("nope/none") is None
+    assert spellers.get("ja/romaji-table") is LOWERCASE and spellers.get("nope/none") is LOWERCASE
     tables["ko/hangul"] = {**HANGUL, "hangul": {}}  # loaded anew (the next injection): spelled anew
     assert spellers.get("ko/hangul") is not hangul and spellers.get("ko/hangul").spell("과") == "ㄱㅘ"
 
