@@ -119,3 +119,29 @@ def test_suggest_names_the_keyboard_and_never_logs_the_prefix(tmp_path):
 
     asyncio.run(main())
     assert "한" not in out.getvalue()
+
+
+def test_a_keyboard_drawn_prepares_its_list_once_and_suggestions_reuse_it(tmp_path):
+    (tmp_path / "ko").mkdir()
+    (tmp_path / "ko" / "words.tsv").write_text(WORDS, encoding="utf-8")
+    out = io.StringIO()
+    lexicons = Lexicons([tmp_path])
+    catalog = {
+        "keyboards": {"ko/korean": {"composer": "hangul-2set", "table": "ko/hangul"}},
+        "tables": {"ko/hangul": HANGUL},
+    }
+    spellers = Spellers(lambda: catalog)
+    bridge = Bridge(Log(out), None, lexicons, spellers=spellers)
+
+    async def main():
+        ask = lambda **f: bridge.handle(json.dumps({"id": 1, "op": "suggest", "lexicon": "ko/words", **f}))
+        assert await ask(prepare=True, keyboard="ko/korean") == {"id": 1, "ok": True, "words": []}
+        assert (await ask(prepare=True, keyboard="ko/korean"))["ok"]  # built already: nothing to do
+        assert (await ask(prefix="한", keyboard="ko/korean", limit=3))["words"] == ["한국", "하나"]
+        assert not lexicons.get("ko/words").prepare(spellers.get("ko/korean"))  # the suggestion used that index
+        assert (await ask(prepare=True))["ok"]  # no keyboard: for LOWERCASE, as English is
+        assert (await ask(prepare=True, lexicon="ko/none"))["error"] == "no-lexicon"
+
+    asyncio.run(main())
+    ready = [line for line in out.getvalue().splitlines() if "suggest: ko/words ready in" in line]
+    assert len(ready) == 2 and "한" not in out.getvalue()  # once a speller; the list's id only

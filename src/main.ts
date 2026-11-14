@@ -273,6 +273,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const keyboard = currentKeyboard();
     return composes(keyboard) && !latinMode.has(keyboard!.id) && lexiconId() !== undefined;
   };
+  /** In a mode that composes, words match the keys typed, as the keyboard's composer spells them (하 → 한국): the keyboard to name. */
+  const spelledBy = (keyboard: KeyboardDef | undefined): { keyboard?: string } =>
+    (keyboard && composes(keyboard) && !latinMode.has(keyboard.id) ? { keyboard: keyboard.id } : {});
+  /**
+   * Have the sidecar load the word list the current mode suggests from, and index it for the keyboard's
+   * speller, as the keyboard is drawn: the first suggestion does not wait. It is a no-op once built.
+   */
+  const prepareSuggestions = (): void => {
+    const lexicon = lexiconId();
+    if (!lexicon || !settings.suggestions || !bridge.available()) return;
+    void bridge.call('suggest', { lexicon, prepare: true, ...spelledBy(currentKeyboard()) }, 10_000);
+  };
   /** The words suggested on a keyboard that composes (in 英数 mode, or 한글), best first (shown as candidates). */
   let suggested: string[] = [];
   /** The English word typed in a Japanese keyboard's 英数 mode, in the bar until sent (core/english.ts). */
@@ -307,9 +319,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       showWords([]);
       return;
     }
-    // In a mode that composes, words match the keys typed, as the keyboard's composer spells them (하 → 한국).
-    const composing = inBar && !english ? { keyboard: keyboard!.id } : {};
-    void bridge.call('suggest', { prefix, lexicon, limit: 8, ...composing }).then((reply) => {
+    void bridge.call('suggest', { prefix, lexicon, limit: 8, ...spelledBy(keyboard) }).then((reply) => {
       if (generation !== suggestGeneration) return;
       const words = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as string[]) : [];
       showWords(rank(words, session, inBar ? 8 : 3).map((w) => matchCase(w, prefix)));
@@ -385,6 +395,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     else {
       view?.setMode(latinMode.has(keyboard.id));
       view?.update(mods);
+      prepareSuggestions(); // the keys drawn anew, in a mode that may suggest from another list
     }
   };
 
@@ -831,6 +842,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
       const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
       prepareSwipe(swipes, layout);
+      prepareSuggestions();
       // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
       // With one keyboard in your list 🌐 has nowhere to go: the layout's rows without it.
       const rows = ring.length <= 1 && layout.aloneRows ? layout.aloneRows : layout.rows;

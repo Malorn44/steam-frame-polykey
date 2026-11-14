@@ -193,7 +193,7 @@ describe('suggestions', () => {
     const asked: string[] = [];
     g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
-      if (req.op === 'suggest') asked.push(req.prefix ?? '');
+      if (req.op === 'suggest' && !req.prepare) asked.push(req.prefix ?? '');
       const found = words.filter((w) => w.startsWith(String(req.prefix).toLowerCase()));
       setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words: found }), 1);
     };
@@ -484,7 +484,7 @@ describe('swipe typing', () => {
   it('the word list is loaded when the keyboard first shows, once', async () => {
     const { popup, requests } = setupSwipe([]);
     for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
-    expect(requests.filter((r) => r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
+    expect(requests.filter((r) => r['op'] === 'swipe' && r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
       keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
   });
 
@@ -1605,17 +1605,17 @@ describe('Korean', () => {
 
 describe('Korean word suggestions', () => {
   /** The Korean keyboard with a fake sidecar: suggest answers with `words` for the prefix (the sidecar matches on keys; test_spellers.py). */
-  const setupWords = (words: Record<string, string[]>) => {
+  const setupWords = (words: Record<string, string[]>, boot = bundledBoot()) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
-    const boot = bundledBoot();
     boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
     steam.g[BOOT_GLOBAL] = boot;
     const asked: SentRequest[] = [];
+    const prepared: SentRequest[] = [];
     steam.g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
-      if (req.op === 'suggest') asked.push(req);
+      if (req.op === 'suggest') (req.prepare ? prepared : asked).push(req);
       const reply = req.op === 'suggest' ? { ok: true, words: words[req.prefix ?? ''] ?? [] } : { ok: false, error: 'unknown-op' };
       setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
     };
@@ -1631,7 +1631,7 @@ describe('Korean word suggestions', () => {
       el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
       await vi.advanceTimersByTimeAsync(200);
     };
-    return { popup, api, asked, sent, pre, cands, typeAll, pick };
+    return { popup, api, asked, prepared, sent, pre, cands, typeAll, pick };
   };
   const WORDS = { 학교: ['학교', '학교에서', '학교를'], 학: ['하고', '학교', '학교에서'], 가: ['가장', '가지'] };
 
@@ -1669,6 +1669,29 @@ describe('Korean word suggestions', () => {
     expect([sent(), pre(), cands()]).toEqual([['학'], null, ['하고', '학교', '학교에서']]);
     await pick('학교');
     expect(sent()).toEqual(['학', 'Backspace', '학교', ' ']);
+  });
+
+  it('each draw of a keyboard asks the sidecar once to prepare the list its mode suggests from; typing asks for none', async () => {
+    const { popup, prepared, typeAll } = setupWords(WORDS);
+    const lists = () => prepared.map((r) => [r.lexicon, r.keyboard]);
+    expect(lists()).toEqual([['ko/words', 'ko/korean']]); // 한글: for the hangul-2set speller
+    await typeAll('ㅎㅏㄱ');
+    await tap(popup, 'mode'); // ABC, a page of its own
+    expect(lists()).toEqual([['ko/words', 'ko/korean'], ['en/words', undefined]]);
+    await tap(popup, 'next-keyboard'); // English
+    await tap(popup, 'next-keyboard'); // Japanese, in かな: no list
+    expect(lists()).toEqual([['ko/words', 'ko/korean'], ['en/words', undefined], ['en/words', undefined]]);
+    await tap(popup, 'eisu'); // 英数, the same keys drawn anew
+    expect(lists().at(-1)).toEqual(['en/words', undefined]);
+    expect(prepared).toHaveLength(4);
+    expect(prepared.every((r) => r.prefix === undefined)).toBe(true); // no typed text
+  });
+
+  it('with suggestions off, no list is prepared', async () => {
+    const boot = bundledBoot();
+    boot.settings.suggestions = false;
+    const { prepared } = setupWords(WORDS, boot);
+    expect(prepared).toEqual([]);
   });
 
   it('ABC suggests English as before, and neither it nor the English keyboard names a keyboard; Japanese かな asks for none', async () => {
