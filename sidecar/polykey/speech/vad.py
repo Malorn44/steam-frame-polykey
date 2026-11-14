@@ -103,6 +103,7 @@ class Segmenter:
         self._last = array("h")  # the frame before, for the voicing check's window
         self._voiced = False  # and whether it was loud and voiced
         self.level = ZERO_DB  # the last frame's, for the mic key's bars
+        self.speech = False  # whether the last frame counted as speech, for them too
 
     @property
     def floor(self) -> float:
@@ -126,6 +127,7 @@ class Segmenter:
         voiced = level >= self.gate() and voicing(window) >= VOICED
         # In a phrase, a voice goes on from frame to frame; a key's thump that looks voiced is one frame.
         speech, self._voiced = voiced and self._voiced, voiced
+        self.speech = False
         if self._phrase is None:
             if not voiced:
                 self._preroll.extend(f for f, _ in self._run)
@@ -135,6 +137,7 @@ class Segmenter:
             self._run.append((frame, level))
             if len(self._run) < START or self._run[-1][1] < self._run[-START][1] - FADE_DB:
                 return None
+            self.speech = True
             self._phrase = bytearray(b"".join(self._preroll) + b"".join(f for f, _ in self._run))
             self._phrase_levels = [lv for _, lv in self._run]
             self._speech, self._quiet, self._keep = len(self._run), 0, len(self._phrase)
@@ -142,6 +145,7 @@ class Segmenter:
             self._run = []
             return None
         self._phrase += frame
+        self.speech = speech
         if speech:
             self._phrase_levels.append(level)
             self._speech += 1

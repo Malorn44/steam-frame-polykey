@@ -104,6 +104,17 @@ def knocks(seconds: float, decay: float = 0.03, seed: int = 6) -> bytes:
     return pack(out)
 
 
+def clicks(seconds: float, seed: int = 9) -> bytes:
+    """A controller's trigger and buttons clicked every 0.15–0.6 s."""
+    r = random.Random(seed)
+    out = room(seconds, seed)
+    t = 0.0
+    while t < seconds - 0.2:
+        mix(out, click(r.uniform(3000, 9000), r.randrange(1 << 30)), int(t * RATE))
+        t += r.uniform(0.15, 0.6)
+    return pack(out)
+
+
 def hiss(seconds: float, seed: int = 7) -> bytes:
     """Breaths, rustles and bumps: bursts of noise, 30–120 ms each."""
     r = random.Random(seed)
@@ -115,9 +126,10 @@ def hiss(seconds: float, seed: int = 7) -> bytes:
     return pack(out)
 
 
-def voice(seconds: float, f0: float = 120.0, amplitude: float = 4000, seed: int = 8) -> bytes:
-    """A voiced vowel: a glottal pulse train (pitch falling 15% and jittered 1%) through formants at
-    730, 1090 and 2440 Hz (an "ah"), with a 25 ms rise and fall."""
+def voice(seconds: float, f0: float = 120.0, db: float = -24.0, seed: int = 8) -> bytes:
+    """A voiced vowel at `db` dBFS (RMS; speech at the Frame's mic is about -24): a glottal pulse train
+    (pitch falling 15% and jittered 1%) through formants at 730, 1090 and 2440 Hz (an "ah"), with a
+    25 ms rise and fall."""
     r = random.Random(seed)
     n = int(RATE * seconds)
     source = [0.0] * n
@@ -136,9 +148,11 @@ def voice(seconds: float, f0: float = 120.0, amplitude: float = 4000, seed: int 
             y1, y2 = (1 - radius) * s + a1 * y1 + a2 * y2, y1
             shaped.append(y1)
         out = shaped
-    peak = max(1e-9, *map(abs, out))
+    mean = sum(out) / n
+    out = [s - mean for s in out]
+    scale = 32768 * 10 ** (db / 20) / max(1e-9, math.sqrt(sum(s * s for s in out) / n))
     edge = int(RATE * 0.025)
-    return pack([amplitude * min(1.0, i / edge, (n - i) / edge) * s / peak for i, s in enumerate(out)])
+    return pack([scale * min(1.0, i / edge, (n - i) / edge) * s for i, s in enumerate(out)])
 
 
 def tool(directory: Path, name: str, body: str) -> Path:
