@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Delivery } from '../../../src/core/output/plan.js';
 import { createOutput } from '../../../src/host/steam/output.js';
+import { createPacer } from '../../../src/host/steam/pace.js';
 import { fakeManager } from '../../fake-steam.js';
 
 const run: Delivery = { policy: 'run', gapMs: 0, settleMs: 0 };
@@ -18,7 +19,7 @@ describe('createOutput', () => {
   it('waits the gap between calls, not before the first', async () => {
     const manager = fakeManager();
     const sleeps: number[] = [];
-    const send = createOutput({ getManager: () => manager, getDelivery: () => chars, sleep: async (ms) => { sleeps.push(ms); } });
+    const send = createOutput({ getManager: () => manager, getDelivery: () => chars, pacer: createPacer({ sleep: async (ms) => { sleeps.push(ms); } }) });
     await send([{ text: 'テスト' }]);
     expect(manager.calls.map(([k]) => k)).toEqual(['テ', 'ス', 'ト']);
     expect(sleeps).toEqual([40, 40]);
@@ -51,7 +52,7 @@ describe('createOutput', () => {
     const send = createOutput({
       getManager: () => manager,
       getDelivery: () => chars,
-      sleep: () => new Promise((resolve) => setTimeout(resolve, 1)),
+      pacer: createPacer({ sleep: () => new Promise((resolve) => setTimeout(resolve, 1)) }),
     });
     await Promise.all([send([{ text: 'ab' }]), send([{ text: 'cd' }])]);
     expect(manager.calls.map(([k]) => k).join('')).toBe('abcd');

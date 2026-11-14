@@ -3,6 +3,7 @@
 
 import { planCalls, swapsKeymap, type Delivery, type OutputOp } from '../../core/output/plan.js';
 import type { VirtualKeyboardManager } from './globals.js';
+import { createPacer, type Pacer } from './pace.js';
 
 export interface SendResult {
   readonly ok: boolean;
@@ -17,19 +18,12 @@ export interface SendResult {
 interface OutputDeps {
   readonly getManager: () => VirtualKeyboardManager | null;
   readonly getDelivery: () => Delivery;
-  readonly sleep?: (ms: number) => Promise<void>;
-  readonly now?: () => number;
+  /** The line its calls go out on, in order and paced (pace.ts); its own unless one is passed. */
+  readonly pacer?: Pacer;
 }
 
-const defaultSleep = (ms: number): Promise<void> =>
-  ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
-
 /** Create the sender. Sends run one after another, so spaced calls never interleave. */
-export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep, now = Date.now }: OutputDeps) => {
-  let queue: Promise<unknown> = Promise.resolve();
-  /** When the last keymap swap has settled: no call goes before it, in this send or the next. */
-  let settledAt = 0;
-
+export const createOutput = ({ getManager, getDelivery, pacer = createPacer() }: OutputDeps) => {
   const deliver = async (ops: readonly OutputOp[]): Promise<SendResult> => {
     const delivery = getDelivery();
     const calls = planCalls(ops, delivery.policy);
@@ -38,11 +32,10 @@ export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep, no
     let made = 0;
     try {
       for (const call of calls) {
-        const settle = settledAt - now();
-        if (made > 0 || settle > 0) await sleep(Math.max(made > 0 ? delivery.gapMs : 0, settle));
+        await pacer.ready(made > 0 ? delivery.gapMs : 0);
         manager.HandleVirtualKeyDown(call, false);
         made += 1;
-        if (delivery.settleMs > 0 && swapsKeymap(call)) settledAt = now() + delivery.settleMs;
+        if (delivery.settleMs > 0 && swapsKeymap(call)) pacer.swapped(delivery.settleMs);
       }
       return { ok: true, calls: made, planned: calls.length, delivery };
     } catch (error) {
@@ -51,9 +44,5 @@ export const createOutput = ({ getManager, getDelivery, sleep = defaultSleep, no
     }
   };
 
-  return (ops: readonly OutputOp[]): Promise<SendResult> => {
-    const result = queue.then(() => deliver(ops));
-    queue = result.catch(() => undefined);
-    return result;
-  };
+  return (ops: readonly OutputOp[]): Promise<SendResult> => pacer.run(() => deliver(ops));
 };
