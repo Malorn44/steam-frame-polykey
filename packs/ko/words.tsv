@@ -1,8 +1,8 @@
 # Korean word list for polykey suggestions: word<TAB>frequency (0-255), most frequent first.
 # Derived from the Leipzig Corpora Collection's Korean news 2022, web 2020 and newscrawl 2016 word lists
-# (https://wortschatz.uni-leipzig.de/en/download/kor), licensed CC BY 4.0; see packs/ko/LICENSE.words.
-# Modified: Hangul words of 1-10 syllables only (NFC), counts summed over the corpora, words in fewer than 2
-# of them dropped, counts scaled to 0-255, cut to the 60,000 most frequent.
+# (https://wortschatz.uni-leipzig.de/en/download/kor), licensed CC BY 4.0; see LICENSE.words beside it.
+# Modified: only whole words of 1 to 10 letters [가-힣] (NFC), counts summed over the corpora, words in
+# fewer than 2 of them dropped, counts scaled to 0-255, cut to the 60,000 most frequent.
 있다	255
 수	252
 등	248
