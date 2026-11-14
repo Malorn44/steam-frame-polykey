@@ -20,12 +20,13 @@ bridge (bridge.py routes `dictation.*` here):
                                 {session, phase: listening|transcribing|done|error|cancelled, text?, error?,
                                  seq?, bars?, texts?, recognizing?}
 
-A session takes one phrase: it ends after 0.6 s of quiet once speech has started, or with `no-speech`
-when none starts. A continuous session takes phrase after phrase: each pause ends one, which is
-recognized (in order, one at a time) while listening goes on, and its text handed out in `texts`. It
-ends when stopped (the phrase under way is still recognized), on an error, or after IDLE_STOP without a
-phrase starting (a forgotten mic); a phrase without words is dropped, and so is one that ends while
-recognition is MAX_BEHIND behind. Text is handed out once, and dropped anyway after UNCLAIMED seconds.
+A session takes one phrase: it ends 0.6 s after the voice stops once speech has started, or with
+`no-speech` when none starts (typing and other noise do not start one: vad.py). A continuous session
+takes phrase after phrase: each pause ends one, which is recognized (in order, one at a time) while
+listening goes on, and its text handed out in `texts`. It ends when stopped (the phrase under way is
+still recognized), on an error, or after IDLE_STOP without a phrase starting (a forgotten mic); a
+phrase without words is dropped, and so is one that ends while recognition is MAX_BEHIND behind. Text
+is handed out once, and dropped anyway after UNCLAIMED seconds.
 
 Audio and text are never logged or written; the log gets codes and durations only. The bars are five
 small numbers for the mic key, worked out from the frames already read; they are sent only while

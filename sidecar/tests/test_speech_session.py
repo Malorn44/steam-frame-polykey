@@ -11,7 +11,7 @@ import zipfile
 import pytest
 from aiohttp import web
 
-from fake_speech import PW_RECORD, TRANSCRIBE_CPP, fake_engine, noise, tone, tool, zeros
+from fake_speech import PW_RECORD, TRANSCRIBE_CPP, fake_engine, noise, tone, tool, typing, zeros
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.speech import session as session_module
@@ -239,7 +239,11 @@ def test_the_speech_level_reaches_the_page_while_listening_and_silence_sends_not
     assert len(updates) < 25  # the tone and its tail only: 0.6 s is 8 levels, then 5 to go flat
 
 
-@pytest.mark.parametrize("audio, code", [(noise(5.0), "no-speech"), (zeros(5.0), "mic-silent")])
+@pytest.mark.parametrize(
+    "audio, code",
+    [(noise(5.0), "no-speech"), (typing(5.0), "no-speech"), (zeros(5.0), "mic-silent")],
+    ids=["quiet", "typing", "zeros"],
+)
 def test_no_speech_ends_the_session(setup, monkeypatch, audio, code):
     make, _, pcm, *_ = setup
     pcm.write_bytes(audio)
@@ -607,6 +611,25 @@ def test_a_failing_helper_ends_a_continuous_session(continuous, monkeypatch):
     texts, seen = asyncio.run(main())
     assert texts == [] and seen[-1] == {"ok": True, "session": 1, "phase": "error", "error": "helper-failed"}
     assert "dictation 1: helper-failed (0 phrases, 0 dropped)" in out.getvalue()
+
+
+def test_typing_between_phrases_is_not_a_phrase_and_lets_a_forgotten_mic_stop(setup, monkeypatch):
+    make, out, pcm, *_ = setup
+    pcm.write_bytes(noise(0.3) + tone(0.5) + typing(2.5) + tone(0.5) + typing(3.0))
+    monkeypatch.setenv("FAKE_TEXTS", "alpha|bravo|charlie")
+    monkeypatch.setattr(session_module, "IDLE_STOP", 100)  # 2 s without speech, typing or not
+
+    async def main():
+        dictation = make()
+        try:
+            await ask(dictation, "dictation.start", language="en", continuous=True)
+            return await follow_continuous(dictation)
+        finally:
+            await dictation.close()
+
+    texts, seen = asyncio.run(main())
+    assert texts == ["alpha", "bravo"] and seen[-1]["phase"] == "done"
+    assert "dictation 1: idle-stop (2 phrases, 0 dropped)" in out.getvalue()
 
 
 def test_a_forgotten_mic_stops_by_itself(setup, monkeypatch):
