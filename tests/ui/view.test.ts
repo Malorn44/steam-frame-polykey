@@ -302,6 +302,51 @@ describe('hold to repeat', () => {
     vi.useRealTimers();
   });
 
+  /** A keyboard that draws its keys again after each key, as polykey does (main.ts): every icon is a new node. */
+  const redrawing = (layout = 'en/qwerty') => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const pressed: KeyDef[] = [];
+    const view = createView(document, shadow, boot.catalog.layouts[layout]!, boot.catalog.themes['themes/night-owl']!, (k) => {
+      pressed.push(k);
+      view.update(NO_MODS);
+    });
+    view.update(NO_MODS);
+    const icon = (id: string) => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!.querySelector('svg')!;
+    return { view, shadow, pressed, icon };
+  };
+
+  it('a held Backspace stops at its release, though the release goes to the icon the press started on, drawn again since', () => {
+    vi.useFakeTimers();
+    for (const layout of ['en/qwerty', 'ja/flick']) {
+      const { pressed, icon } = redrawing(layout);
+      const held = icon('Backspace');
+      touch(held, 'touchstart');
+      vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS * 2);
+      expect([pressed.length, held.isConnected]).toEqual([3, false]);
+      touch(held, 'touchend');
+      vi.advanceTimersByTime(REPEAT_MS * 20);
+      expect(pressed).toHaveLength(3);
+    }
+    vi.useRealTimers();
+  });
+
+  it('a tap stays a tap when the keys are drawn again during it (the converter answering)', () => {
+    vi.useFakeTimers();
+    const { view, shadow, pressed, icon } = redrawing('ja/flick');
+    const held = icon('Backspace');
+    touch(held, 'touchstart');
+    view.update(NO_MODS);
+    view.setComposition({ before: 'あ', after: '', candidates: ['亜'], selected: -1 });
+    touch(held, 'touchend');
+    vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_MS * 20);
+    expect(pressed.map((k) => (k.type === 'key' ? k.key : ''))).toEqual(['Backspace']);
+    expect(shadow.querySelector('.key.down')).toBeNull();
+    vi.useRealTimers();
+  });
+
   it('a quick tap types once; Space repeats; letters do not', () => {
     vi.useFakeTimers();
     const { keyIn, pressed } = setup();

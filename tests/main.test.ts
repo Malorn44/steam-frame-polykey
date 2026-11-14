@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, type EmojiState, type PickerSet } from '../src/core/emoji.js';
+import { REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
@@ -136,6 +137,26 @@ describe('installPolykey', () => {
     for (const label of ['s', 'e', 'c', 'r', 't']) await tap(popup, label);
     expect(logged.join('\n')).not.toMatch(/secrt|s\b.*e\b/);
     for (const line of logged) expect(line).not.toContain('secr');
+  });
+});
+
+describe('a held Backspace', () => {
+  const touch = (el: Element, type: string) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: 10, clientY: 10 }] });
+    el.dispatchEvent(e);
+  };
+  const backspaces = (manager: ReturnType<typeof fakeManager>) => manager.calls.filter(([k]) => k === 'Backspace').length;
+
+  it('stops at its release, though its icon was drawn again under the press (the release goes to the old one)', async () => {
+    const { popup, manager } = setup();
+    const icon = key(popup, 'Backspace').querySelector('svg')!;
+    touch(icon, 'touchstart');
+    await vi.advanceTimersByTimeAsync(REPEAT_DELAY_MS + REPEAT_MS * 2);
+    expect([backspaces(manager), icon.isConnected]).toEqual([3, false]);
+    touch(icon, 'touchend');
+    await vi.advanceTimersByTimeAsync(REPEAT_MS * 20);
+    expect(backspaces(manager)).toBe(3);
   });
 });
 
