@@ -18,6 +18,10 @@ def test_completes_by_count_case_insensitively():
     assert lexicon.complete("Hel", 5) == ["help", "hello", "Helsinki"]
     assert lexicon.complete("xyz", 3) == []
     assert lexicon.complete("", 3) == []
+    capitals = Lexicon.parse("OK\t400\nokay\t300\niPhone\t50\nMcDonald\t40\nUS\t30\nus\t30\nuse\t20\n")
+    assert capitals.complete("ok", 3) == capitals.complete("OK", 3) == ["OK", "okay"]  # whatever the case
+    assert capitals.complete("iph", 3) == ["iPhone"] and capitals.complete("mcd", 3) == ["McDonald"]
+    assert capitals.complete("us", 3) == ["us", "US", "use"]  # a tie: lower case first
 
 
 def test_corrects_likely_slips_ranked_with_completions():

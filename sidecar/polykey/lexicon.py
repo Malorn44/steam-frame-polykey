@@ -97,7 +97,9 @@ def word_hash(word: str) -> str:
 class Lexicon:
     def __init__(self, counts: dict[str, int], blocked: frozenset[str] = frozenset()) -> None:
         self._counts = {w: c for w, c in counts.items() if word_hash(w) not in blocked} if blocked else counts
-        self._keys = sorted(self._counts)
+        # The words sorted by their lower case, to complete whatever the case typed: (lower cases, words).
+        folded = sorted((w.lower(), w) for w in self._counts)
+        self._folded, self._words = [lower for lower, _ in folded], [w for _, w in folded]
         # Lower case -> the most frequent spelling, for corrections.
         self._lower: dict[str, str] = {}
         for w in sorted(self._counts, key=lambda w: -self._counts[w]):
@@ -123,7 +125,7 @@ class Lexicon:
         return cls(counts, blocked)
 
     def __len__(self) -> int:
-        return len(self._keys)
+        return len(self._words)
 
     def counts(self) -> Mapping[str, int]:
         """Every word with its count (read-only), for engines that rank whole words (swipe)."""
@@ -146,12 +148,9 @@ class Lexicon:
             start = bisect.bisect_left(spelled, keys)
             end = bisect.bisect_left(spelled, keys + "\U0010ffff")
             return heapq.nlargest(limit, words[start:end], key=self._counts.__getitem__)
-        candidates: list[str] = []
-        for variant in {prefix, prefix.lower(), prefix[:1].upper() + prefix[1:].lower()}:
-            start = bisect.bisect_left(self._keys, variant)
-            end = bisect.bisect_left(self._keys, variant + "\U0010ffff")
-            candidates.extend(self._keys[start:end])
-        return heapq.nlargest(limit, set(candidates), key=lambda w: (self._counts[w], w == w.lower()))
+        start = bisect.bisect_left(self._folded, prefix.lower())
+        end = bisect.bisect_left(self._folded, prefix.lower() + "\U0010ffff")
+        return heapq.nlargest(limit, self._words[start:end], key=lambda w: (self._counts[w], w == w.lower()))
 
     def _corrections(self, typed: str) -> list[tuple[float, str]]:
         """(score, word) for words the typed one is probably a misspelling of; lower is likelier."""
