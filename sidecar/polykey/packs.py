@@ -776,6 +776,9 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         elif composer and COMPOSER_TABLES[composer] not in catalog["tables"].get(keyboard.get("table"), {}):
             errors.append(f"{keyboard_id}: {composer} table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
+        elif "modes" in keyboard and "lexicon" in keyboard:  # extends can bring either
+            errors.append(f"{keyboard_id}: a keyboard with modes names a lexicon on each mode, not its own")
+            del catalog["keyboards"][keyboard_id]
         elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
             errors.append(f"{keyboard_id}: the swipe option needs features.swipe")  # the keyboard still types
             del keyboard["options"]["swipe"]

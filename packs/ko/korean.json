@@ -10,11 +10,10 @@
  "pages": {"latin": "ko/qwerty"},
  "composer": "hangul-2set",
  "table": "ko/hangul",
- "lexicon": "en/words",
  "features": {"swipe": {"lexicon": "en/words"}},
  "options": {"swipe": false},
  "modes": [
   {"id": "hangul", "lexicon": "ko/words"},
-  {"id": "latin", "letters": "ABC", "latin": true}
+  {"id": "latin", "letters": "ABC", "latin": true, "lexicon": "en/words"}
  ]
 }
