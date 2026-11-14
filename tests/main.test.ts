@@ -361,25 +361,25 @@ describe('settings', () => {
 describe('swipe typing', () => {
   /** polykey with a fake sidecar (there from the start, as the injector adds the binding first): `swipe`
    * answers with the next words from `replies`; every request is kept. */
-  const setupSwipe = (replies: string[][], on: string[] = ['en/english']) => {
+  const setupSwipe = (replies: string[][], on: string[] = ['en/english'], decodeMs = 5) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
     const boot = bundledBoot();
     boot.settings.keyboardOptions = Object.fromEntries(on.map((id) => [id, { swipe: true }])); // off by default
     steam.g[BOOT_GLOBAL] = boot;
-    const requests = withSwipe(steam.g, replies);
+    const requests = withSwipe(steam.g, replies, decodeMs);
     const api = installPolykey(steam.g);
     installed.push(api);
     return { popup, manager, requests, api };
   };
-  const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
+  const withSwipe = (g: Record<string, unknown>, replies: string[][], decodeMs = 5) => {
     const requests: Record<string, unknown>[] = [];
     g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
       requests.push(req);
       const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
-      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 5);
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), req.op === 'swipe' && !req.prepare ? decodeMs : 5);
     };
     return requests;
   };
@@ -433,6 +433,18 @@ describe('swipe typing', () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would ');
     expect(slots(popup)).toEqual(['', '', '']); // picked: the alternatives go
+  });
+
+  it('a held key repeating while the word decodes repeats nothing that would come after its release', async () => {
+    const { popup, manager } = setupSwipe([['hello']], ['en/english'], 1000);
+    layOut(popup);
+    await swipe(popup, 'h', 'o', 0);
+    const held = key(popup, 'Backspace');
+    held.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(REPEAT_DELAY_MS + REPEAT_MS * 5); // held while the word decodes
+    held.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(1000); // the word comes
+    expect(typed(manager)).toBe('hello');
   });
 
   it('a pick after a swipe adds a space and clears the bar; the next swipe adds no second space', async () => {
