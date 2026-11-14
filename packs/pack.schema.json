@@ -764,7 +764,7 @@
               },
               "lexicon": {
                 "$ref": "#/$defs/id",
-                "description": "The word list suggested from while typing in this mode (packs/<ns>/<name>.tsv). Default: the keyboard's lexicon, except in a mode that composes (かな)."
+                "description": "The word list suggested from while typing in this mode (packs/<ns>/<name>.tsv). A mode without one suggests nothing."
               }
             }
           },
@@ -821,7 +821,7 @@
         },
         "lexicon": {
           "$ref": "#/$defs/id",
-          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count), in every mode without its own lexicon except one that composes. On a Japanese keyboard, for its 英数 mode (shown as candidates)."
+          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count), for a keyboard without modes. A keyboard with modes names one on each mode instead, and may not have this."
         },
         "options": {
           "type": "object",

@@ -14,9 +14,8 @@
   "swipe": false
  },
  "features": {"swipe": {"lexicon": "en/words"}},
- "lexicon": "en/words",
  "modes": [
   {"id": "kana"},
-  {"id": "latin", "letters": "ABC", "latin": true}
+  {"id": "latin", "letters": "ABC", "latin": true, "lexicon": "en/words"}
  ]
 }

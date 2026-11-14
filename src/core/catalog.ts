@@ -109,7 +109,7 @@ export interface KeyboardDef {
   /**
    * The keyboard's modes, the first its default: what each one's letters are called (あいう, ABC; read
    * by the keys back to them; default: the language's for the first), which is its Latin mode (英数),
-   * and the word list suggested from in it (default: the keyboard's lexicon, except in a mode that composes).
+   * and the word list suggested from in it (none: no suggestions). A keyboard with modes has no lexicon of its own.
    */
   modes?: { id: string; letters?: string; latin?: boolean; lexicon?: string }[];
   /** Text the keyboard shows: idleHint, where candidates appear while there are none (default: the language's). */
