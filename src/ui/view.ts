@@ -901,7 +901,8 @@ export const createView = (
       };
       pre.classList.toggle('converting', 'segments' in c);
       if ('segments' in c) c.segments.forEach((text, i) => pre.append(span(text, i === c.focus ? 'seg focus' : 'seg')));
-      else pre.append(span(c.before, 'seg'), span('', 'caret'), span(c.after, 'seg'));
+      else if (c.before || c.after) pre.append(span(c.before, 'seg'), span('', 'caret'), span(c.after, 'seg'));
+      // else nothing is composed (words for what was already sent): candidates only, no reading or caret
       followReading(pre.querySelector<HTMLElement>('.focus, .caret'));
       c.candidates.forEach((text, index) => {
         const el = span(text, index === c.selected ? 'cand sel' : 'cand');

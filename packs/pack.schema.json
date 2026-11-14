@@ -761,6 +761,10 @@
               "latin": {
                 "type": "boolean",
                 "description": "This is the keyboard's Latin mode (英数)."
+              },
+              "lexicon": {
+                "$ref": "#/$defs/id",
+                "description": "The word list suggested from while typing in this mode (packs/<ns>/<name>.tsv). Default: the keyboard's lexicon, except in a mode that composes (かな)."
               }
             }
           },
@@ -817,7 +821,7 @@
         },
         "lexicon": {
           "$ref": "#/$defs/id",
-          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count). On a Japanese keyboard, for its 英数 mode (shown as candidates)."
+          "description": "Word list for suggestions: packs/<ns>/<name>.tsv (word<TAB>count), in every mode without its own lexicon except one that composes. On a Japanese keyboard, for its 英数 mode (shown as candidates)."
         },
         "options": {
           "type": "object",

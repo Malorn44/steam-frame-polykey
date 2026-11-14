@@ -383,6 +383,20 @@ describe('hold to repeat', () => {
     expect(got).toEqual([['か', 'く'], ['か', undefined]]);
   });
 
+  it('with nothing composed, the bar shows only the candidates: no reading, no caret', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
+    view.update(NO_MODS);
+    view.setComposition({ before: '교', after: '', candidates: ['학교'], selected: -1 });
+    expect(shadow.querySelector('.comp.on .pre .caret')).not.toBeNull();
+    view.setComposition({ before: '', after: '', candidates: ['학교', '학교에서'], selected: -1 });
+    expect(shadow.querySelector('.comp.on .pre')!.childElementCount).toBe(0); // hidden by .pre:empty
+    expect([...shadow.querySelectorAll('.comp.on .cand')].map((el) => el.textContent)).toEqual(['학교', '학교에서']);
+  });
+
   it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
     const boot = bundledBoot();
     const make = (side: boolean) => {
