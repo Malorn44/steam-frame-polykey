@@ -3,8 +3,8 @@
 
 Usage:
   python3 scripts/make-lexicon.py aosp en_US_wordlist.combined.gz packs/en/blocked.sha256 > packs/en/words.tsv
-  python3 -I scripts/make-lexicon.py leipzig ko kor_news_2022_1M-words.txt kor-kr_web_2020_1M-words.txt \\
-      kor_newscrawl_2016_1M-words.txt > packs/ko/words.tsv
+  python3 -I scripts/make-lexicon.py leipzig --name Korean --letters '[가-힣]' --max-length 10 --min-corpora 2 \\
+      --keep 60000 kor_news_2022_1M-words.txt kor-kr_web_2020_1M-words.txt kor_newscrawl_2016_1M-words.txt
 
 aosp: AOSP LatinIME's word list (Apache-2.0), from
 https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/dictionaries/.
@@ -12,48 +12,30 @@ Keeps the most frequent words (profanity included), drops blocked words and AOSP
 
 leipzig: the word lists (*-words.txt: id, word, count) of Leipzig Corpora Collection corpora in one
 language (CC BY 4.0), from https://wortschatz.uni-leipzig.de/en/download. They are downloaded data: run
-this with python3 -I. Words are taken in NFC, and only whole words of the language's letters (LEIPZIG)
-are kept, their counts summed over the corpora, and only those found in at least two of them. Counts
-are scaled to 0-255 as AOSP's are, and the most frequent words kept.
+this with python3 -I. Words are taken in NFC, and kept whole: 1 to --max-length of --letters (a regular
+expression for one letter), in at least --min-corpora of the corpora, their counts summed. Counts are
+scaled to 0-255 as AOSP's are, and the --keep most frequent words kept. The header is built from the
+arguments and the corpora's file names. DEVELOP.md has the command that builds packs/ko/words.tsv.
 """
 
 from __future__ import annotations
 
+import argparse
 import gzip
 import math
 import re
 import sys
+import textwrap
 import unicodedata
 from collections import Counter
-from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sidecar"))
 from polykey.lexicon import word_hash
 from polykey.swipe import FREQUENCY_SCALE
 
-KEEP = 60_000
+KEEP = 60_000  # aosp: the most frequent words kept
 HEADER = "# {name} word list for polykey suggestions: word<TAB>frequency (0-255), most frequent first."
-
-
-@dataclass(frozen=True)
-class Language:
-    """How the leipzig source reads one language's word lists."""
-
-    name: str
-    # Leipzig's code for it (ISO 639-3), as in its download page's address.
-    code: str
-    # A word kept whole, and how the header says so.
-    word: re.Pattern
-    kept: str
-
-
-LEIPZIG = {
-    # Hangul syllables only: no digits, Latin or punctuation stuck to a word (김종담)는), no lone jamo.
-    "ko": Language("Korean", "kor", re.compile(r"[가-힣]{1,10}"), "Hangul words of 1-10 syllables"),
-}
-# Words found in fewer corpora than this are dropped (one corpus's typos and names).
-MIN_CORPORA = 2
 
 
 def read_blocked(path: str) -> set[str]:
@@ -86,14 +68,24 @@ def aosp(source: str, blocked_path: str) -> tuple[list[str], list[tuple[str, int
     return header, entries[:KEEP]
 
 
-def corpus_name(path: str) -> str:
-    """kor_news_2022_1M-words.txt: news 2022."""
-    m = re.match(r"[a-z]{3}(?:-[a-z]{2})?_([a-z]+)_(\d{4})_", Path(path).name)
-    return f"{m.group(1)} {m.group(2)}" if m else Path(path).name
+CORPUS = re.compile(r"([a-z]{3})(?:-[a-z]{2})?_([a-z]+)_(\d{4})_")
 
 
-def leipzig(code: str, *sources: str) -> tuple[list[str], list[tuple[str, int]]]:
-    language = LEIPZIG[code]
+def corpus(path: str) -> tuple[str, str]:
+    """kor_news_2022_1M-words.txt: ("kor", "news 2022"), its language's code at Leipzig and its name."""
+    m = CORPUS.match(Path(path).name)
+    if not m:
+        raise SystemExit(f"{Path(path).name}: not a Leipzig corpus word list, like kor_news_2022_1M-words.txt")
+    return m.group(1), f"{m.group(2)} {m.group(3)}"
+
+
+def leipzig(
+    name: str, letters: str, max_length: int, min_corpora: int, keep: int, sources: list[str]
+) -> tuple[list[str], list[tuple[str, int]]]:
+    whole = re.compile(f"(?:{letters}){{1,{max_length}}}")
+    codes, names = zip(*map(corpus, sources))
+    if len(set(codes)) > 1:
+        raise SystemExit(f"corpora of more than one language: {', '.join(sorted(set(codes)))}")
     counts: Counter[str] = Counter()
     corpora: Counter[str] = Counter()  # how many corpora each word is in
     for source in sources:
@@ -104,33 +96,43 @@ def leipzig(code: str, *sources: str) -> tuple[list[str], list[tuple[str, int]]]
                 if len(parts) != 3 or not parts[2].isdigit():
                     continue
                 word = unicodedata.normalize("NFC", parts[1])
-                if language.word.fullmatch(word):
+                if whole.fullmatch(word):
                     mine[word] += int(parts[2])
         counts.update(mine)
         corpora.update(mine.keys())
-    kept = sorted((w for w in counts if corpora[w] >= MIN_CORPORA), key=lambda w: (-counts[w], w))[:KEEP]
+    kept = sorted((w for w in counts if corpora[w] >= min_corpora), key=lambda w: (-counts[w], w))[:keep]
     frequency = scaled({w: counts[w] for w in kept})
-    names = [corpus_name(s) for s in sources]
-    header = [
-        HEADER.format(name=language.name),
-        f"# Derived from the Leipzig Corpora Collection's {language.name} {', '.join(names[:-1])} and {names[-1]} word lists"
-        if len(names) > 1
-        else f"# Derived from the Leipzig Corpora Collection's {language.name} {names[0]} word list",
-        f"# (https://wortschatz.uni-leipzig.de/en/download/{language.code}), licensed CC BY 4.0; see packs/{code}/LICENSE.words.",
-        f"# Modified: {language.kept} only (NFC), counts summed over the corpora, words in fewer than {MIN_CORPORA}",
-        f"# of them dropped, counts scaled to 0-255, cut to the {KEEP:,} most frequent.",
+    listed = f"{', '.join(names[:-1])} and {names[-1]} word lists" if len(names) > 1 else f"{names[0]} word list"
+    notes = [
+        f"Derived from the Leipzig Corpora Collection's {name} {listed}"
+        f" (https://wortschatz.uni-leipzig.de/en/download/{codes[0]}), licensed CC BY 4.0; see LICENSE.words"
+        " beside it.",
+        f"Modified: only whole words of 1 to {max_length} letters {letters} (NFC), counts summed over the"
+        f" corpora, words in fewer than {min_corpora} of them dropped, counts scaled to 0-255, cut to the"
+        f" {keep:,} most frequent.",
     ]
+    header = [HEADER.format(name=name), *(f"# {line}" for note in notes for line in textwrap.wrap(note, 104))]
     return header, [(w, frequency[w]) for w in kept]
 
 
-SOURCES = {"aosp": aosp, "leipzig": leipzig}
-
-
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or argv[0] not in SOURCES:
-        print(__doc__, file=sys.stderr)
-        return 2
-    header, entries = SOURCES[argv[0]](*argv[1:])
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sources = parser.add_subparsers(dest="source", required=True)
+    aosp_args = sources.add_parser("aosp")
+    aosp_args.add_argument("wordlist", help="en_US_wordlist.combined.gz")
+    aosp_args.add_argument("blocked", help="packs/en/blocked.sha256")
+    leipzig_args = sources.add_parser("leipzig")
+    leipzig_args.add_argument("--name", required=True, help="the language, in English: Korean")
+    leipzig_args.add_argument("--letters", required=True, help="a regular expression for one letter: [가-힣]")
+    leipzig_args.add_argument("--max-length", type=int, required=True, help="the most letters a word kept has")
+    leipzig_args.add_argument("--min-corpora", type=int, required=True, help="the fewest corpora a word kept is in")
+    leipzig_args.add_argument("--keep", type=int, required=True, help="how many of the most frequent words to keep")
+    leipzig_args.add_argument("corpora", nargs="+", help="each corpus's *-words.txt")
+    args = parser.parse_args(argv)
+    if args.source == "aosp":
+        header, entries = aosp(args.wordlist, args.blocked)
+    else:
+        header, entries = leipzig(args.name, args.letters, args.max_length, args.min_corpora, args.keep, args.corpora)
     print("\n".join(header))
     for word, freq in entries:
         print(f"{word}\t{freq}")
