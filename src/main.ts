@@ -307,9 +307,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       showWords([]);
       return;
     }
-    // In a mode that composes, words match the keys typed, spelled with the keyboard's table (하 → 한국).
-    const table = inBar && !english ? keyboard!.table : undefined;
-    void bridge.call('suggest', { prefix, lexicon, limit: 8, ...(table ? { table } : {}) }).then((reply) => {
+    // In a mode that composes, words match the keys typed, as the keyboard's composer spells them (하 → 한국).
+    const composing = inBar && !english ? { keyboard: keyboard!.id } : {};
+    void bridge.call('suggest', { prefix, lexicon, limit: 8, ...composing }).then((reply) => {
       if (generation !== suggestGeneration) return;
       const words = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as string[]) : [];
       showWords(rank(words, session, inBar ? 8 : 3).map((w) => matchCase(w, prefix)));

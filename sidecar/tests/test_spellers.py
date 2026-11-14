@@ -9,6 +9,7 @@ from polykey import packs
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.lexicon import Lexicon, Lexicons
+from polykey.packs import COMPOSER_TABLES
 from polykey.spellers import LOWERCASE, SPELLERS, Spellers
 from polykey.spellers.hangul import HangulSpeller
 
@@ -57,36 +58,64 @@ def test_prefixes_complete_on_the_keys_typed():
     assert complete("hel") == [] and lexicon.complete("hel", 5) == ["hello"]  # Latin is not Hangul
 
 
-def test_spellers_follow_the_schemas_table_formats_and_the_tables_loaded():
-    schema = json.loads((PACKS / "pack.schema.json").read_text(encoding="utf-8"))["$defs"]["table"]
-    formats = [field for option in schema["oneOf"] for field in option["required"]]
-    assert set(SPELLERS) <= set(formats)
-    tables = {"ko/hangul": HANGUL, "ja/romaji-table": {"entries": [["ka", "か"]]}}
-    spellers = Spellers(lambda: tables)
-    hangul = spellers.get("ko/hangul")
-    assert isinstance(hangul, HangulSpeller) and spellers.get("ko/hangul") is hangul
-    assert spellers.get("ja/romaji-table") is LOWERCASE and spellers.get("nope/none") is LOWERCASE
-    tables["ko/hangul"] = {**HANGUL, "hangul": {}}  # loaded anew (the next injection): spelled anew
-    assert spellers.get("ko/hangul") is not hangul and spellers.get("ko/hangul").spell("과") == "ㄱㅘ"
+def test_spellers_are_by_composer_and_spell_with_the_keyboards_table():
+    schema = json.loads((PACKS / "pack.schema.json").read_text(encoding="utf-8"))["$defs"]["keyboard"]
+    assert set(SPELLERS) <= set(schema["properties"]["composer"]["enum"]) and set(SPELLERS) <= set(COMPOSER_TABLES)
+    hangul_2set = {"composer": "hangul-2set", "table": "ko/hangul"}
+    catalog = {
+        "keyboards": {"ko/korean": hangul_2set, "ko/other": hangul_2set, "ja/romaji": {"composer": "romaji"}},
+        "tables": {"ko/hangul": HANGUL},
+    }
+    spellers = Spellers(lambda: catalog)
+    hangul = spellers.get("ko/korean")
+    assert isinstance(hangul, HangulSpeller) and spellers.get("ko/korean") is hangul is spellers.get("ko/other")
+    assert spellers.get("ja/romaji") is LOWERCASE and spellers.get("nope/none") is LOWERCASE
+    catalog["tables"]["ko/hangul"] = {**HANGUL, "hangul": {}}  # loaded anew (the next injection): spelled anew
+    assert spellers.get("ko/korean") is not hangul and spellers.get("ko/korean").spell("과") == "ㄱㅘ"
 
 
-def test_the_bundled_tables_are_the_loaded_ones():
+def test_a_keyboard_whose_table_makes_more_jamo_of_two_spells_them_so(tmp_path):
+    # A single-vowel (단모음) keyboard of the user's: ㅏ ㅏ is ㅑ, ㅑ ㅣ is ㅒ, ㄱ ㄱ is ㄲ. No code knows it.
+    table = dict(HANGUL, id="mine/single-table", name="mine")
+    table["hangul"] = {
+        **HANGUL["hangul"],
+        "compoundMedials": [*HANGUL["hangul"]["compoundMedials"], "ㅏㅏㅑ", "ㅑㅣㅒ"],
+    }
+    table["hangul"]["compoundFinals"] = [*HANGUL["hangul"]["compoundFinals"], "ㄱㄱㄲ"]
+    keyboard = {"schemaVersion": 1, "kind": "keyboard", "id": "mine/single", "name": "mine", "extends": "ko/korean"}
+    (tmp_path / "packs" / "mine").mkdir(parents=True)
+    (tmp_path / "packs" / "mine" / "table.json").write_text(json.dumps(table), encoding="utf-8")
+    (tmp_path / "packs" / "mine" / "single.json").write_text(json.dumps({**keyboard, "table": "mine/single-table"}))
+    assert packs.load(PACKS, PACKS / "pack.schema.json", user=tmp_path)["errors"] == []
+    single = Spellers(packs.loaded_catalog).get("mine/single")
+    assert (single.spell("야"), single.spell("얘"), single.spell("까")) == ("ㅇㅏㅏ", "ㅇㅏㅏㅣ", "ㄱㄱㅏ")
+    lexicon = Lexicon.parse("야구\t90\n아이\t80\n까치\t10\n")
+    assert lexicon.complete("아", 5, single) == ["야구", "아이"] and lexicon.complete("ㄲ", 5, single) == ["까치"]
+    assert lexicon.complete("아", 5, Spellers(packs.loaded_catalog).get("ko/korean")) == ["아이"]  # 2-set: ㅑ is a key
+
+
+def test_the_loaded_catalog_is_the_boots():
     boot = packs.load(PACKS, PACKS / "pack.schema.json", user=Path("/nonexistent"))
-    assert packs.loaded_tables() is boot["catalog"]["tables"] and "ko/hangul" in packs.loaded_tables()
+    assert packs.loaded_catalog() is boot["catalog"]
+    assert isinstance(Spellers(packs.loaded_catalog).get("ko/korean"), HangulSpeller)
 
 
-def test_suggest_names_the_keyboards_table_and_never_logs_the_prefix(tmp_path):
+def test_suggest_names_the_keyboard_and_never_logs_the_prefix(tmp_path):
     (tmp_path / "ko").mkdir()
     (tmp_path / "ko" / "words.tsv").write_text(WORDS, encoding="utf-8")
     out = io.StringIO()
-    bridge = Bridge(Log(out), None, Lexicons([tmp_path]), spellers=Spellers(lambda: {"ko/hangul": HANGUL}))
+    catalog = {
+        "keyboards": {"ko/korean": {"composer": "hangul-2set", "table": "ko/hangul"}},
+        "tables": {"ko/hangul": HANGUL},
+    }
+    bridge = Bridge(Log(out), None, Lexicons([tmp_path]), spellers=Spellers(lambda: catalog))
 
     async def main():
         ask = lambda **f: bridge.handle(json.dumps({"id": 1, "op": "suggest", "lexicon": "ko/words", **f}))
-        assert (await ask(prefix="한", table="ko/hangul", limit=3))["words"] == ["한국", "하나"]
-        assert (await ask(prefix="한", limit=3))["words"] == ["한국"]  # no table: the text
-        assert (await ask(prefix="한", table="ko/none", limit=3))["words"] == ["한국"]
-        assert (await ask(prefix="한", table=["ko/hangul"], limit=3))["words"] == ["한국"]
+        assert (await ask(prefix="한", keyboard="ko/korean", limit=3))["words"] == ["한국", "하나"]
+        assert (await ask(prefix="한", limit=3))["words"] == ["한국"]  # no keyboard: the text
+        assert (await ask(prefix="한", keyboard="ko/none", limit=3))["words"] == ["한국"]
+        assert (await ask(prefix="한", keyboard=["ko/korean"], limit=3))["words"] == ["한국"]
 
     asyncio.run(main())
     assert "한" not in out.getvalue()

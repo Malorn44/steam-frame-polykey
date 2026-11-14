@@ -351,7 +351,7 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         Converters(log=log),
         dictation=dictation,
         updates=updates,
-        spellers=Spellers(pack_loader.loaded_tables),  # the tables of the boot the page has
+        spellers=Spellers(pack_loader.loaded_catalog),  # the keyboards and tables of the boot the page has
     )
     try:
         await _serve_forever(cfg, log, stop, bridge, page)

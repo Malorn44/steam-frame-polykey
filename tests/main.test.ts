@@ -18,7 +18,7 @@ type SentRequest = {
   id: number;
   prefix?: string;
   lexicon?: string;
-  table?: string;
+  keyboard?: string;
   settings?: unknown;
   state?: unknown;
   prepare?: unknown;
@@ -1635,11 +1635,11 @@ describe('Korean word suggestions', () => {
   };
   const WORDS = { 학교: ['학교', '학교에서', '학교를'], 학: ['하고', '학교', '학교에서'], 가: ['가장', '가지'] };
 
-  it('suggests for the syllables sent since the boundary and the one composing, on the keys of the keyboard\'s table', async () => {
+  it('suggests for the syllables sent since the boundary and the one composing, on the keys of the keyboard typed on', async () => {
     const { popup, asked, sent, pre, cands, typeAll } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
     expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 sent, then 교 composing
-    expect(asked.every((r) => r.lexicon === 'ko/words' && r.table === 'ko/hangul')).toBe(true);
+    expect(asked.every((r) => r.lexicon === 'ko/words' && r.keyboard === 'ko/korean')).toBe(true);
     expect([sent(), pre(), cands()]).toEqual([['학'], '교', ['학교', '학교에서', '학교를']]);
     await tap(popup, ' '); // the word ends: no suggestions until the next
     expect([sent(), cands()]).toEqual([['학', '교', ' '], []]);
@@ -1671,16 +1671,16 @@ describe('Korean word suggestions', () => {
     expect(sent()).toEqual(['학', 'Backspace', '학교', ' ']);
   });
 
-  it('ABC suggests English as before, and the English keyboard sends no table; Japanese かな asks for none', async () => {
+  it('ABC suggests English as before, and neither it nor the English keyboard names a keyboard; Japanese かな asks for none', async () => {
     const { popup, api, asked, typeAll } = setupWords({});
     await tap(popup, 'mode'); // ABC
     await tap(popup, 'h');
     expect(asked.at(-1)).toMatchObject({ prefix: 'h', lexicon: 'en/words' });
-    expect(asked.at(-1)!.table).toBeUndefined();
+    expect(asked.at(-1)!.keyboard).toBeUndefined();
     await tap(popup, 'next-keyboard'); // English
     await tap(popup, 'e');
     expect(asked.at(-1)).toMatchObject({ prefix: 'e', lexicon: 'en/words' });
-    expect(asked.at(-1)!.table).toBeUndefined();
+    expect(asked.at(-1)!.keyboard).toBeUndefined();
     const before = asked.length;
     api.debug.use('ja/romaji');
     await typeAll('ka');
