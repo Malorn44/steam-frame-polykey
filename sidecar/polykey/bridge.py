@@ -21,7 +21,7 @@ from .packs import (
     write_json,
 )
 from .speech.session import OPS as DICTATION_OPS, Dictation
-from .spellers import Spellers
+from .spellers import LOWERCASE, Spellers
 from .swipe import Swipe
 from .updates import OPS as UPDATE_OPS, Updater
 from .wayland import WaylandError
@@ -206,5 +206,5 @@ class Bridge:
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        speller = self._spellers.get(table) if self._spellers and isinstance(table, str) else None
+        speller = self._spellers.get(table) if self._spellers and isinstance(table, str) else LOWERCASE
         return {"ok": True, "words": lexicon.suggest(prefix, limit, speller)}

@@ -19,6 +19,16 @@ class Speller(Protocol):
         ...
 
 
+class LowercaseSpeller:
+    """The default: a word's keys are its letters, whatever their case (ok completes to OK)."""
+
+    def spell(self, text: str) -> Optional[str]:
+        return text.lower()
+
+
+LOWERCASE = LowercaseSpeller()
+
+
 # Each speller, by the table field it reads.
 SPELLERS: dict[str, Callable[[dict], Speller]] = {
     "hangul": HangulSpeller,
@@ -26,18 +36,19 @@ SPELLERS: dict[str, Callable[[dict], Speller]] = {
 
 
 class Spellers:
-    """A speller for each table that has one, made on first use from `tables()` (the tables the page has)."""
+    """A speller for each table that has one, made on first use from `tables()` (the tables the page has);
+    the default for any other."""
 
     def __init__(self, tables: Callable[[], Mapping[str, dict]]) -> None:
         self._tables = tables
         self._made: dict[str, tuple[dict, Optional[Speller]]] = {}
 
-    def get(self, table_id: str) -> Optional[Speller]:
+    def get(self, table_id: str) -> Speller:
         table = self._tables().get(table_id)
         if not isinstance(table, dict):
-            return None
+            return LOWERCASE
         made = self._made.get(table_id)
         if made is None or made[0] is not table:  # a table loaded anew is spelled anew
             speller = next((make(table[field]) for field, make in SPELLERS.items() if field in table), None)
             made = self._made[table_id] = (table, speller)
-        return made[1]
+        return made[1] or LOWERCASE
