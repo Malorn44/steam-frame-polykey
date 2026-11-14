@@ -158,6 +158,25 @@ describe('a held Backspace', () => {
     await vi.advanceTimersByTimeAsync(REPEAT_MS * 20);
     expect(backspaces(manager)).toBe(3);
   });
+
+  it('stops when the keyboard closes, though its release never comes', async () => {
+    const { popup, manager, state } = setup();
+    await vi.advanceTimersByTimeAsync(CHECK_MS); // seen open
+    const held = key(popup, 'Backspace');
+    /** Hold on for `ms`, the laser moving (as when the trigger is still down), and count what it sent. */
+    const keepHolding = async (ms: number) => {
+      for (let t = 0; t < ms; t += 100) {
+        touch(held, 'touchmove');
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      return backspaces(manager);
+    };
+    touch(held, 'touchstart');
+    expect(await keepHolding(1000)).toBeGreaterThan(5);
+    state.status = { ...MINIMAL, bIsOpen: false };
+    const closed = await keepHolding(CHECK_MS); // seen closed by now
+    expect(await keepHolding(CHECK_MS)).toBe(closed);
+  });
 });
 
 describe('suggestions', () => {

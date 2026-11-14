@@ -1044,6 +1044,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         live = [];
         showIme();
         keys.releaseAll(); // closing must never leave a key held
+        view?.cancel(); // nor one repeating
         dictation.cancel(); // nor the mic listening
         mods = { ...NO_MODS, caps: mods.caps };
         view?.update(mods);
