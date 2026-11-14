@@ -71,11 +71,11 @@ def test_the_bundled_korean_list():
     lines = path.read_text(encoding="utf-8").splitlines()
     header = [line for line in lines if line.startswith("#")]
     entries = [line.split("\t") for line in lines if line and not line.startswith("#")]
-    assert len(entries) == 60_000 and "Leipzig Corpora Collection" in header[1] and "CC BY 4.0" in header[2]
+    assert len(entries) == 150_000 and "Leipzig Corpora Collection" in header[1] and "CC BY 4.0" in header[2]
     assert all(re.fullmatch("[가-힣]{1,10}", w) and unicodedata.is_normalized("NFC", w) for w, _ in entries)
     frequencies = [int(f) for _, f in entries]
     assert frequencies == sorted(frequencies, reverse=True) and frequencies[0] == 255 and frequencies[-1] >= 0
     hangul = HangulSpeller(json.loads((REPO / "packs" / "ko" / "hangul.json").read_text(encoding="utf-8"))["hangul"])
     lexicon = Lexicons([REPO / "packs"]).get("ko/words")  # under the size cap
-    assert len(lexicon) == 60_000 and lexicon.suggest("한ㄱ", 1, hangul) == ["한국"]
+    assert len(lexicon) == 150_000 and lexicon.suggest("한ㄱ", 1, hangul) == ["한국"]
     assert {"학교에서", "학교를"} <= set(lexicon.suggest("학교", 8, hangul))

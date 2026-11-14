@@ -4,7 +4,7 @@
 Usage:
   python3 scripts/make-lexicon.py aosp en_US_wordlist.combined.gz packs/en/blocked.sha256 > packs/en/words.tsv
   python3 -I scripts/make-lexicon.py leipzig --name Korean --letters '[가-힣]' --max-length 10 --min-corpora 2 \\
-      --keep 60000 kor_news_2022_1M-words.txt kor-kr_web_2020_1M-words.txt kor_newscrawl_2016_1M-words.txt
+      --keep 150000 kor_news_2022_1M-words.txt kor-kr_web_2020_1M-words.txt kor_newscrawl_2016_1M-words.txt
 
 aosp: AOSP LatinIME's word list (Apache-2.0), from
 https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/dictionaries/.

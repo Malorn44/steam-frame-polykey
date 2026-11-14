@@ -74,7 +74,7 @@ What a language needs today; each step only if the language uses it.
    for c in kor_news_2022_1M kor-kr_web_2020_1M kor_newscrawl_2016_1M; do
      mkdir "$T/$c" && curl -fsSL "https://downloads.wortschatz-leipzig.de/corpora/$c.tar.gz" | tar -xz -C "$T/$c" "$c/$c-words.txt"
    done
-   python3 -I scripts/make-lexicon.py leipzig --name Korean --letters '[가-힣]' --max-length 10 --min-corpora 2 --keep 60000 \
+   python3 -I scripts/make-lexicon.py leipzig --name Korean --letters '[가-힣]' --max-length 10 --min-corpora 2 --keep 150000 \
      "$T/kor_news_2022_1M/kor_news_2022_1M/kor_news_2022_1M-words.txt" \
      "$T/kor-kr_web_2020_1M/kor-kr_web_2020_1M/kor-kr_web_2020_1M-words.txt" \
      "$T/kor_newscrawl_2016_1M/kor_newscrawl_2016_1M/kor_newscrawl_2016_1M-words.txt" > packs/ko/words.tsv
