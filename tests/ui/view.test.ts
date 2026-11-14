@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, Layout } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
-import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../../src/core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, REPEAT_QUIET_MS } from '../../src/core/interaction.js';
 import { createView } from '../../src/ui/view.js';
 import { bundledBoot } from '../boot.js';
 
@@ -284,7 +284,11 @@ describe('long press', () => {
 });
 
 describe('hold to repeat', () => {
-  const touch = (el: Element, type: string) => el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+  const touch = (el: Element, type: string, x = 0, y = 0) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+    el.dispatchEvent(e);
+  };
 
   it('a held Backspace repeats after a delay and does not type again on release', () => {
     vi.useFakeTimers();
@@ -345,6 +349,103 @@ describe('hold to repeat', () => {
     expect(pressed.map((k) => (k.type === 'key' ? k.key : ''))).toEqual(['Backspace']);
     expect(shadow.querySelector('.key.down')).toBeNull();
     vi.useRealTimers();
+  });
+
+  describe('a repeat never outlives its press', () => {
+    /** Hold Backspace (at 540, 15) until it has repeated once. */
+    const holding = (onRepeat?: (view: ReturnType<typeof createView>) => void) => {
+      vi.useFakeTimers();
+      const boot = bundledBoot();
+      const host = document.createElement('div');
+      document.body.append(host);
+      const shadow = host.attachShadow({ mode: 'open' });
+      Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
+      const pressed: KeyDef[] = [];
+      const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!, (k) => {
+        pressed.push(k);
+        onRepeat?.(view);
+      });
+      view.update(NO_MODS);
+      const keyOf = (id: string) => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+      const backspace = keyOf('Backspace');
+      touch(backspace, 'touchstart', 540, 15);
+      vi.advanceTimersByTime(REPEAT_DELAY_MS);
+      expect(pressed).toHaveLength(1);
+      /** How many more it types in `ms`. */
+      const more = (ms: number) => {
+        const was = pressed.length;
+        vi.advanceTimersByTime(ms);
+        return pressed.length - was;
+      };
+      return { view, shadow, pressed, backspace, keyOf, more };
+    };
+
+    it('the laser moving on without touch moves (a release lost) stops it; trembling on the key does not', () => {
+      const { view, backspace, more } = holding();
+      let typed = 0;
+      for (let t = 0; t < REPEAT_MS * 40; t += REPEAT_MS) {
+        view.hoverAt(540 + (t % (REPEAT_MS * 2) ? 6 : -6), 15); // resting on the key, no touch moves
+        typed += more(REPEAT_MS);
+      }
+      expect(typed).toBe(40); // well past RELEASE_LOST_MS and REPEAT_QUIET_MS, still repeating
+      touch(backspace, 'touchmove', 600, 15); // still held, moving: it goes on
+      vi.advanceTimersByTime(RELEASE_LOST_MS - 100);
+      view.hoverAt(640, 15);
+      expect(more(REPEAT_MS)).toBe(1);
+      vi.advanceTimersByTime(200);
+      view.hoverAt(700, 60); // past RELEASE_LOST_MS since the last touch move, far from it
+      expect(more(REPEAT_MS * 20)).toBe(0);
+      expect(backspace.classList.contains('down')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('the laser going quiet (off the popup) stops it after REPEAT_QUIET_MS', () => {
+      const { more } = holding();
+      expect(more(REPEAT_QUIET_MS - REPEAT_DELAY_MS)).toBeGreaterThan(0);
+      vi.advanceTimersByTime(REPEAT_MS);
+      expect(more(REPEAT_MS * 20)).toBe(0);
+      vi.useRealTimers();
+    });
+
+    it('cancel() (the keyboard closing), the popup losing focus or hiding: each stops it', () => {
+      const hidden = Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState')!;
+      const ends = [
+        (view: ReturnType<typeof createView>) => view.cancel(),
+        () => window.dispatchEvent(new Event('blur')),
+        () => {
+          Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+          document.dispatchEvent(new Event('visibilitychange'));
+          Object.defineProperty(document, 'visibilityState', hidden);
+        },
+      ];
+      for (const end of ends) {
+        const { view, backspace, more } = holding();
+        end(view);
+        expect(more(REPEAT_MS * 20)).toBe(0);
+        expect(backspace.classList.contains('down')).toBe(false);
+        view.destroy();
+      }
+      vi.useRealTimers();
+    });
+
+    it('a view gone while its key repeats (the key switched keyboards) leaves nothing repeating', () => {
+      const { pressed } = holding((view) => view.destroy());
+      vi.advanceTimersByTime(REPEAT_MS * 20);
+      expect(pressed).toHaveLength(1);
+      vi.useRealTimers();
+    });
+
+    it('a second press ends the first one\'s repeat: only one repeats at a time', () => {
+      const { pressed, keyOf, more } = holding();
+      const left = keyOf('ArrowLeft');
+      touch(left, 'touchstart', 300, 135);
+      expect(more(REPEAT_DELAY_MS - 1)).toBe(0);
+      expect(more(1 + REPEAT_MS * 4)).toBe(5);
+      expect(pressed.slice(1).every((k) => k.type === 'key' && k.key === 'ArrowLeft')).toBe(true);
+      touch(left, 'touchend', 300, 135);
+      expect(more(REPEAT_MS * 20)).toBe(0);
+      vi.useRealTimers();
+    });
   });
 
   it('a quick tap types once; Space repeats; letters do not', () => {

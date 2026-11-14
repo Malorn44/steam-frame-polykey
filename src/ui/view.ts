@@ -6,7 +6,7 @@
 import { normalizeKey, type KeyDef, type Layout, type Tall, type Theme } from '../core/catalog.js';
 import type { MicState } from '../core/dictation.js';
 import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
-import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
+import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, REPEAT_QUIET_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core/legends.js';
 import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, type Point } from '../core/swipe.js';
@@ -265,6 +265,8 @@ export interface View {
   setSuggestions(words: readonly (string | undefined)[]): void;
   /** Hover the key at popup coordinates (the laser); returns true when the hovered key changed. */
   hoverAt(x: number, y: number): boolean;
+  /** End the press in progress, typing nothing more: a held key's repeat, a hold, a swipe or a flick (the keyboard closed). */
+  cancel(): void;
   setBounds(rect: { top: number; left: number; width: number; height: number }): void;
   destroy(): void;
 }
@@ -440,10 +442,14 @@ export const createView = (
   let repeatTimer: ReturnType<typeof setInterval> | null = null;
   let repeated = false;
   let lastPoint: { x: number; y: number } | null = null;
+  // When the press last had a touch event, and when the laser was last heard from at all (a touch, or
+  // hoverAt): a press whose release may have been lost ends on what they say (repeat, hoverAt).
+  let touchAt = 0;
+  let heardAt = 0;
   let popup: { hold: HoldPopup; texts: string[]; key: KeyDef } | null = null;
   // A press on a letter that may become a swipe: where it started, the path so far, and (once it left
   // the key) its trail. Only a swipe that left its key is one; until then it is a tap or a hold.
-  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean; at: number } | null = null;
+  let swipe: { start: Point; points: Point[]; rect: DOMRect; on: boolean } | null = null;
   // The trail being drawn, or still ageing out after its release: its points (relative to the view) and
   // when the laser passed each.
   let trail: { svg: SVGSVGElement; quads: SVGGElement; head: SVGCircleElement; origin: DOMRect; pts: { x: number; y: number; t: number }[]; frame: number } | null = null;
@@ -597,6 +603,15 @@ export const createView = (
     if (repeatTimer !== null) clearInterval(repeatTimer);
     repeatTimer = null;
   };
+  /**
+   * A held key types again only while it is still known to be held: it is still the press (no release,
+   * cancel or newer press ended it) and the laser has not gone quiet, which means its release was lost.
+   */
+  const repeat = (held: Entry): void => {
+    if (pressed !== held) return clearHold();
+    if (Date.now() - heardAt > REPEAT_QUIET_MS) return onCancel();
+    onKey(held.key, undefined, true);
+  };
   const closePopup = (): void => {
     popup?.hold.close();
     popup = null;
@@ -652,12 +667,13 @@ export const createView = (
     clearHold();
     const held = pressed;
     lastPoint = start;
+    touchAt = heardAt = Date.now();
     repeated = false;
     endSwipe(false);
     // A letter may start a swipe; not while Ctrl, Alt, Super or Fn makes it a shortcut.
     if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char) && (canSwipe?.() ?? true)
       && mods.ctrl === 'off' && mods.alt === 'off' && mods.super === 'off' && mods.fn === 'off') {
-      swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false, at: Date.now() };
+      swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false };
     }
     if (held?.key.type === 'flick') {
       openFlick(held, lastPoint ?? { x: 0, y: 0 });
@@ -667,8 +683,9 @@ export const createView = (
       holdTimer = setTimeout(() => {
         holdTimer = null;
         repeated = true;
-        onKey(held.key, undefined, true);
-        repeatTimer = setInterval(() => onKey(held.key, undefined, true), REPEAT_MS);
+        // Set first, so a key that ends its own press (switching keyboards, the view gone) stops its repeat too.
+        repeatTimer = setInterval(() => repeat(held), REPEAT_MS);
+        repeat(held);
       }, REPEAT_DELAY_MS);
     } else if (held) holdTimer = setTimeout(() => {
       holdTimer = null;
@@ -679,6 +696,7 @@ export const createView = (
   const onMove = (touch: TouchPoint | null): void => {
     if (!touch) return;
     lastPoint = touch;
+    touchAt = heardAt = Date.now();
     if (listDrag) {
       listDrag.drag.move(touch);
       return;
@@ -689,7 +707,6 @@ export const createView = (
   };
   const moveSwipe = (touch: TouchPoint): void => {
     if (!swipe) return;
-    swipe.at = Date.now();
     if (swipe.points.length >= SWIPE_MAX_POINTS) {
       if (swipe.on) {
         endSwipe(false); // stuck, not a word: it types nothing
@@ -782,7 +799,11 @@ export const createView = (
     const hit = entryFor(e.target);
     if (hit && hit.key.type !== 'gap') onKey(hit.key);
   };
-  listenTouch(root, { start: onStart, move: onMove, end: onEnd, cancel: onCancel, click: onClick }, { guard });
+  const stopTouch = listenTouch(root, { start: onStart, move: onMove, end: onEnd, cancel: onCancel, click: onClick }, { guard });
+  // The popup losing focus or hiding ends a press: its release may never come.
+  const onHide = (): void => { if (doc.visibilityState === 'hidden') onCancel(); };
+  win?.addEventListener('blur', onCancel);
+  doc.addEventListener('visibilitychange', onHide);
 
   /** A legend's size and colour classes (its size role; text tone inherits the key's colour in the label). */
   const sizeClass = (legend: Legend): string => (legend.kind === 'text' && legend.size !== 'key' ? ` s-${legend.size}` : '');
@@ -911,13 +932,12 @@ export const createView = (
       if (hoveredSlot && !hoveredSlot.word) setSlotHover(undefined);
     },
     hoverAt: (x, y) => {
+      heardAt = Date.now();
+      // The laser moving on with no touch moves: the release was lost. A swipe then types nothing, and a
+      // held key's repeat stops.
+      if ((swipe?.on || (pressed && repeats(pressed.key))) && lastPoint && heardAt - touchAt > RELEASE_LOST_MS
+        && Math.hypot(x - lastPoint.x, y - lastPoint.y) > SLOP_PX.scroll) onCancel();
       if (flick) return false; // a flick follows the touch alone
-      // The laser moving on with no touch moves: the release was lost. A swipe then types nothing.
-      const last = swipe?.points[swipe.points.length - 1];
-      if (swipe?.on && last && Date.now() - swipe.at > RELEASE_LOST_MS && Math.hypot(x - last.x, y - last.y) > SLOP_PX.scroll) {
-        endSwipe(false);
-        pressed = undefined;
-      }
       if (popup) {
         pickAt(x, y);
         const moved = pickMoved;
@@ -932,8 +952,11 @@ export const createView = (
     setBounds: ({ top, left, width, height }) => {
       Object.assign(root.style, { top: `${top}px`, left: `${left}px`, width: `${width}px`, height: `${height}px` });
     },
+    cancel: onCancel,
     destroy: () => {
-      clearHold(); closePopup(); closeFlick(); endSwipe(false); closeTrail();
+      onCancel(); closeTrail(); stopTouch();
+      win?.removeEventListener('blur', onCancel);
+      doc.removeEventListener('visibilitychange', onHide);
       if (frame !== null) win?.cancelAnimationFrame(frame);
       style.remove(); root.remove();
     },
