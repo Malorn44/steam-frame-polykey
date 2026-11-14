@@ -15,6 +15,8 @@ type SentRequest = {
   op: string;
   id: number;
   prefix?: string;
+  lexicon?: string;
+  table?: string;
   settings?: unknown;
   state?: unknown;
   prepare?: unknown;
@@ -1502,6 +1504,91 @@ describe('Korean', () => {
     await tap(popup, 'next-keyboard');
     expect(sent()).toEqual(['닭']);
     expect(key(popup, 'q')).toBeDefined(); // English
+  });
+});
+
+describe('Korean word suggestions', () => {
+  /** The Korean keyboard with a fake sidecar: suggest answers with `words` for the prefix (the sidecar matches on keys; test_spellers.py). */
+  const setupWords = (words: Record<string, string[]>) => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked: SentRequest[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = request(payload);
+      if (req.op === 'suggest') asked.push(req);
+      const reply = req.op === 'suggest' ? { ok: true, words: words[req.prefix ?? ''] ?? [] } : { ok: false, error: 'unknown-op' };
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+    };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    const sent = () => manager.calls.map((c) => c[0]);
+    const pre = () => shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null;
+    const cands = () => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')].map((el) => el.textContent);
+    const typeAll = async (keys: string) => { for (const k of Array.from(keys)) await tap(popup, k); };
+    const pick = async (text: string) => {
+      const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(200);
+    };
+    return { popup, api, asked, sent, pre, cands, typeAll, pick };
+  };
+  const WORDS = { 학교: ['학교', '학교에서', '학교를'], 학: ['하고', '학교', '학교에서'], 가: ['가장', '가지'] };
+
+  it('suggests for the syllables sent since the boundary and the one composing, on the keys of the keyboard\'s table', async () => {
+    const { popup, asked, sent, pre, cands, typeAll } = setupWords(WORDS);
+    await typeAll('ㅎㅏㄱㄱㅛ');
+    expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 sent, then 교 composing
+    expect(asked.every((r) => r.lexicon === 'ko/words' && r.table === 'ko/hangul')).toBe(true);
+    expect([sent(), pre(), cands()]).toEqual([['학'], '교', ['학교', '학교에서', '학교를']]);
+    await tap(popup, ' '); // the word ends: no suggestions until the next
+    expect([sent(), cands()]).toEqual([['학', '교', ' '], []]);
+    await typeAll('ㄱㅏ');
+    expect(asked.at(-1)!.prefix).toBe('가');
+    expect(cands()).toEqual(['가장', '가지']);
+    expect(logged.join('\n')).not.toMatch(/학|교|가장/); // typed text and suggestions: never logged
+  });
+
+  it('a pick deletes the syllables sent, drops the one composing, and sends the word and a space', async () => {
+    const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
+    await typeAll('ㅎㅏㄱㄱㅛ');
+    await pick('학교에서');
+    expect(sent()).toEqual(['학', 'Backspace', '학교에서', ' ']); // one Backspace for 학; 교 never sent
+    expect([pre(), cands()]).toEqual([null, []]);
+    await tap(popup, '.'); // punctuation closes up to the picked word, as in English
+    expect(sent().slice(-2)).toEqual(['Backspace', '.']);
+    await typeAll('ㅎㅏㄱ'); // the picked word comes first for the rest of the session
+    expect(cands()).toEqual(['학교에서', '하고', '학교']);
+  });
+
+  it('with nothing composed, the syllables sent keep their suggestions, and a pick deletes them', async () => {
+    const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
+    await typeAll('ㅎㅏㄱㄱㅛ');
+    await tap(popup, 'Backspace'); // 교 → ㄱ
+    await tap(popup, 'Backspace'); // nothing composed: 학 is sent
+    expect([sent(), pre(), cands()]).toEqual([['학'], null, ['하고', '학교', '학교에서']]);
+    await pick('학교');
+    expect(sent()).toEqual(['학', 'Backspace', '학교', ' ']);
+  });
+
+  it('ABC suggests English as before, and the English keyboard sends no table; Japanese かな asks for none', async () => {
+    const { popup, api, asked, typeAll } = setupWords({});
+    await tap(popup, 'mode'); // ABC
+    await tap(popup, 'h');
+    expect(asked.at(-1)).toMatchObject({ prefix: 'h', lexicon: 'en/words' });
+    expect(asked.at(-1)!.table).toBeUndefined();
+    await tap(popup, 'next-keyboard'); // English
+    await tap(popup, 'e');
+    expect(asked.at(-1)).toMatchObject({ prefix: 'e', lexicon: 'en/words' });
+    expect(asked.at(-1)!.table).toBeUndefined();
+    const before = asked.length;
+    api.debug.use('ja/romaji');
+    await typeAll('ka');
+    expect(asked.length).toBe(before);
   });
 });
 

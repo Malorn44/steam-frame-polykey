@@ -605,6 +605,7 @@ def test_the_korean_packs_load():
         "ko/hangul",
         {"latin": "ko/qwerty"},
     )
+    assert [mode.get("lexicon", korean["lexicon"]) for mode in korean["modes"]] == ["ko/words", "en/words"]
     assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
     assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
         "한글",

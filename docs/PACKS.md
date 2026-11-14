@@ -145,7 +145,8 @@ The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layou
 
 A keyboard's `lexicon` names the word list its suggestions come from: `en/words` is `packs/en/words.tsv`, with a word, a tab and a count on each line (`#` starts a comment), up to 8 MiB.
 
-- A mode can name its own, as its `lexicon` in `modes`. A mode without one suggests from the keyboard's, except a mode that composes: the Japanese keyboards suggest from `en/words` only in 英数, and nothing in かな.
+- A mode can name its own, as its `lexicon` in `modes`. A mode without one suggests from the keyboard's, except a mode that composes: the Japanese keyboards suggest from `en/words` only in 英数, and nothing in かな. The Korean keyboard suggests from `ko/words` in 한글 and `en/words` in ABC.
+- In a mode that composes, the word being typed is what was sent since the last space or punctuation plus what is still composed, and a keyboard whose table has a speller (`sidecar/polykey/spellers/`) matches it on the keys typed: 하 (ㅎㅏ) completes to 한국 (ㅎㅏㄴㄱㅜㄱ).
 
 - A list in `~/.config/polykey/packs/<namespace>/` replaces the bundled one with the same name.
 - Words in `~/.config/polykey/packs/<namespace>/blocked.txt`, one per line, are never suggested from that namespace's lists.

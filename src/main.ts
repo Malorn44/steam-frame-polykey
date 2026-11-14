@@ -261,7 +261,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const keyboard = boot?.catalog.keyboards[ring[current] as string];
     return suggestLexicon(keyboard, !!keyboard && latinMode.has(keyboard.id));
   };
-  /** The words suggested on a Japanese keyboard in 英数 mode, best first (shown as candidates). */
+  /**
+   * A mode that composes and has a word list (한글): the word being typed is what was sent since the
+   * boundary and what is still composed, and its suggestions are the bar's candidates.
+   */
+  const suggestsWhileComposing = (): boolean => {
+    const keyboard = currentKeyboard();
+    return composes(keyboard) && !latinMode.has(keyboard!.id) && lexiconId() !== undefined;
+  };
+  /** The words suggested on a keyboard that composes (in 英数 mode, or 한글), best first (shown as candidates). */
   let suggested: string[] = [];
   /** The English word typed in a Japanese keyboard's 英数 mode, in the bar until sent (core/english.ts). */
   let en: EnglishWord = NO_ENGLISH;
@@ -286,14 +294,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       showWords(swiped.words); // the swiped word in the middle, its alternatives beside it
       return;
     }
-    const inBar = composes(boot?.catalog.keyboards[ring[current] as string]);
-    const prefix = inBar ? englishText(en) || null : suggestPrefix(word);
+    const keyboard = currentKeyboard();
+    const inBar = composes(keyboard);
+    const english = inBar && latinMode.has(keyboard!.id); // the English word waits in the bar
+    const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText());
     const lexicon = lexiconId();
     if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
       showWords([]);
       return;
     }
-    void bridge.call('suggest', { prefix, lexicon, limit: 8 }).then((reply) => {
+    // In a mode that composes, words match the keys typed, spelled with the keyboard's table (하 → 한국).
+    const table = inBar && !english ? keyboard!.table : undefined;
+    void bridge.call('suggest', { prefix, lexicon, limit: 8, ...(table ? { table } : {}) }).then((reply) => {
       if (generation !== suggestGeneration) return;
       const words = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as string[]) : [];
       showWords(rank(words, session, inBar ? 8 : 3).map((w) => matchCase(w, prefix)));
@@ -323,10 +335,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
   const latinKeys = (keyboard: KeyboardDef | undefined): boolean =>
     !!keyboard && (composerOf(keyboard)?.latinKeys?.(contextOf(keyboard)) ?? false);
+  /** Follow what is sent into the field: the word being typed, and the word a boundary ended (it counts as used). */
+  const track = (effects: readonly Effect[]): void => {
+    const tracked = trackWord(word, effects);
+    if (tracked.ended) boost(tracked.ended);
+    word = tracked.state;
+  };
   // The bar: what the keyboard's composer has composed, with the converter's candidates (src/bar.ts).
+  // What it sends is part of the word being typed, as typed letters are (학 sent as 교 begins).
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
-    enqueue: (effects) => enqueue(effects), show: () => showBar(), keyboard: barKeyboard,
+    enqueue: (effects) => { track(effects); enqueue(effects); }, show: () => showBar(), keyboard: barKeyboard,
   });
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
@@ -437,6 +456,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
           mods = pressText(mods, '').mods; // a one-shot Shift is used up
           view?.update(mods);
         }
+        if (suggestsWhileComposing()) refreshSuggestions(); // what is composed is part of the word
         return;
       }
       // Any other key sends what waits first (a modifier only arms, so it does not).
@@ -447,9 +467,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     mods = result.mods;
     view?.update(mods);
     const effects = pickSpace ? closeUp(result.effects) : result.effects;
-    const tracked = trackWord(word, effects);
-    if (tracked.ended) boost(tracked.ended);
-    setWord(tracked.state);
+    track(effects);
+    refreshSuggestions();
     enqueue(effects);
   };
 
@@ -461,9 +480,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (!view) return;
     const shown = bar.shown();
     const language = languageFor(currentKeyboard());
+    // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off).
+    const words = suggestsWhileComposing() && suggested.length ? suggested : null;
     if (shown) {
-      view.setComposition(shown.composition);
+      view.setComposition(words ? { ...shown.composition, candidates: words } : shown.composition);
       view.setLabels(spelled(shown.labels, language));
+    } else if (words) {
+      view.setComposition({ before: '', after: '', candidates: words, selected: -1 });
+      view.setLabels({});
     } else {
       // The Latin mode: English word suggestions where the candidates go; picking one replaces the word typed.
       view.setComposition(en.chars.length ? {
@@ -487,7 +511,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     if (surface) tick(surface.win, hand);
-    bar.pick(text, index);
+    if (suggestsWhileComposing()) pickWord(text);
+    else bar.pick(text, index);
   };
 
   /**
@@ -561,8 +586,17 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       pickSpace = true;
       return;
     }
+    pickWord(chosen);
+  };
+
+  /**
+   * A suggestion in place of the word being typed, then a space: what was sent of the word is deleted (a
+   * Backspace a letter or syllable), and what is still composed in the bar is dropped, never sent.
+   */
+  const pickWord = (chosen: string): void => {
     const typed = word.word;
     boost(chosen);
+    bar.drop();
     setWord(NO_WORD);
     enqueue(replaceWord(typed, chosen));
     pickSpace = true;

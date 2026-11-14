@@ -29,7 +29,7 @@ export interface Bar {
   flush(): void;
   /** Leaving the keyboard: what waits is sent as it stands, and the bar starts empty. */
   leave(): void;
-  /** The field closed: what waits is dropped, not typed elsewhere. */
+  /** Drop what waits, never sent: the field closed (it would be typed elsewhere), or a picked word replaces it. */
   drop(): void;
   /** An option changed: anything waiting on the next press (a tap cycle) ends. */
   pause(): void;
