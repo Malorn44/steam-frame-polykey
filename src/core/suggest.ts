@@ -49,8 +49,11 @@ export const trackWord = (state: WordState, effects: readonly Effect[]): { state
   return ended ? { state: { word, known }, ended } : { state: { word, known } };
 };
 
-/** The prefix to complete, or null when there is nothing to suggest for. */
-export const suggestPrefix = (state: WordState): string | null => state.word || null;
+/**
+ * The prefix to complete: the letters sent since the boundary, then what is still composed in the bar
+ * (a syllable: 학 sent and 교 composing is 학교); null when there is nothing to suggest for.
+ */
+export const suggestPrefix = (state: WordState, composed = ''): string | null => state.word + composed || null;
 
 /** Words used this session first (by use count), then the list's own order. */
 export const rank = (candidates: readonly string[], session: ReadonlyMap<string, number>, count = 3): string[] => {
