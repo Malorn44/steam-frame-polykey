@@ -22,8 +22,11 @@ type SentRequest = {
   resize?: number[];
   choices?: unknown;
   texts?: unknown;
+  text?: string;
 };
 const request = (payload: string) => JSON.parse(payload) as SentRequest;
+/** Key events as "103↓" / "103↑", to set them beside other things in one sequence. */
+const keyNames = (events: readonly (readonly [number, boolean])[]) => events.map(([code, down]) => `${code}${down ? '↓' : '↑'}`);
 
 let logged: string[];
 let installed: PolykeyApi[];
@@ -1284,6 +1287,26 @@ describe('Japanese romaji and JIS kana', () => {
     await tap(popup, 'Enter');
     await tap(popup, 'Escape');
     expect(state.keyEvents.slice(2)).toEqual([[41, true], [41, false]]);
+  });
+
+  it('in Desktop Mode the reading a clipboard key sends goes by paste, then the key acts', async () => {
+    const { popup, manager, g, api } = setup();
+    const seen: string[] = [];
+    (g['SteamClient'] as { Input: Record<string, unknown> }).Input['ControllerKeyboardSetKeyState'] =
+      (code: number, down: boolean) => { seen.push(...keyNames([[code, down]])); };
+    g['polykeyBridge'] = (payload: string) => {
+      const req = request(payload);
+      if (req.op === 'desktop.prepare') seen.push(`prepare ${req.text}`);
+      if (req.op === 'desktop.wait') seen.push('wait');
+      const reply = req.op === 'desktop.wait' ? { ok: true, pasted: true } : { ok: true };
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+    };
+    api.debug.use('ja/jis');
+    await tap(popup, 'q'); // た
+    await tap(popup, 'q');
+    await tap(popup, 'copy');
+    expect(manager.calls).toEqual([]); // nothing typed through the keymap Desktop Mode ignores
+    expect(seen).toEqual(['prepare たた', ...keyNames(CLIPBOARD_CHORDS.paste), 'wait', ...keyNames(CLIPBOARD_CHORDS.copy)]);
   });
 
   it('JIS: 英数 sends the reading and types the Latin legends; かな goes back to kana', async () => {
