@@ -1,7 +1,7 @@
 """Word lists for suggestions: `packs/<ns>/<name>.tsv` with `word<TAB>count` per line (# comments).
 
-Loaded on first use and kept in memory; a user list in ~/.config/polykey/packs/ replaces the bundled
-one. Lookups are prefix completions ranked by count, and spelling corrections (`suggest`). Typed
+Loaded on first use and kept in memory until no request has named it for UNUSED_S; a user list in
+~/.config/polykey/packs/ replaces the bundled one. Lookups are prefix completions ranked by count, and spelling corrections (`suggest`). Typed
 prefixes are never logged.
 
 Completions match on the keys typed: a speller (spellers/) spells the prefix and every word as their
@@ -24,16 +24,19 @@ import bisect
 import hashlib
 import heapq
 import re
+import time
 import unicodedata
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping, Optional
+from typing import Callable, Mapping, Optional
 
 from .spellers import LOWERCASE, Speller
 
 ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 MAX_WORD_CHARS = 40
 MAX_BYTES = 8 << 20
+# A word list no request has named for this long is dropped, with its index; the next request loads it.
+UNUSED_S = 10 * 60
 
 LETTERS = "abcdefghijklmnopqrstuvwxyz'"
 _ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
@@ -193,18 +196,33 @@ class Lexicon:
 
 
 class Lexicons:
-    """Lexicons by id, looked up in the user's packs first, then the bundled ones."""
+    """Lexicons by id, looked up in the user's packs first, then the bundled ones; each until it has gone
+    unused for UNUSED_S (unload_unused)."""
 
-    def __init__(self, dirs: list[Path]) -> None:
+    def __init__(self, dirs: list[Path], clock: Callable[[], float] = time.monotonic) -> None:
         self._dirs = dirs
+        self._clock = clock
         self._loaded: dict[str, Optional[Lexicon]] = {}
+        self._used: dict[str, float] = {}  # when each was last asked for
 
     def get(self, lexicon_id: str) -> Optional[Lexicon]:
         if not ID_PATTERN.match(lexicon_id):
             return None
         if lexicon_id not in self._loaded:
             self._loaded[lexicon_id] = self._load(lexicon_id)
+        self._used[lexicon_id] = self._clock()
         return self._loaded[lexicon_id]
+
+    def unload_unused(self) -> dict[str, float]:
+        """Drop the lists not asked for in UNUSED_S: the seconds each list dropped went unused, by id."""
+        now = self._clock()
+        dropped: dict[str, float] = {}
+        for lexicon_id, used in list(self._used.items()):
+            if now - used >= UNUSED_S:
+                del self._used[lexicon_id]
+                if self._loaded.pop(lexicon_id) is not None:  # one not found was nothing to drop
+                    dropped[lexicon_id] = now - used
+        return dropped
 
     def _blocked(self, namespace: str) -> frozenset[str]:
         hashes: set[str] = set()

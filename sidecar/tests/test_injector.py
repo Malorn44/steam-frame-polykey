@@ -383,3 +383,23 @@ def test_a_non_loopback_debugger_ends_the_sidecar_with_exit_2(command, tmp_path,
 def test_accepts_loopback_debuggers():
     for endpoint in ("http://127.0.0.1:8080", "http://localhost:8080", "http://[::1]:8080"):
         check_loopback(endpoint)
+
+
+def test_word_lists_are_checked_for_going_unused_every_minute_until_stop(monkeypatch):
+    monkeypatch.setattr(injector, "UNUSED_CHECK_S", 0.01)
+
+    class Bridge:
+        checks = 0
+
+        def unload_unused(self) -> None:
+            self.checks += 1
+
+    async def main() -> int:
+        stop, bridge = asyncio.Event(), Bridge()
+        task = asyncio.ensure_future(injector.unload_unused(bridge, stop))
+        await asyncio.sleep(0.1)
+        stop.set()
+        await asyncio.wait_for(task, 1)
+        return bridge.checks
+
+    assert asyncio.run(main()) >= 3

@@ -195,6 +195,13 @@ class Bridge:
             return {"ok": False, "error": "not-saved"}
         return {"ok": True}
 
+    def unload_unused(self) -> None:
+        """Drop the word lists no request has named for UNUSED_S (lexicon.py), and what swipe built from them."""
+        for lexicon_id, unused in (self._lexicons.unload_unused() if self._lexicons else {}).items():
+            if self._swipe:
+                self._swipe.forget(lexicon_id)
+            self._log.info(f"suggest: {lexicon_id} unloaded after {unused / 60:.0f} min unused")
+
     def _suggest(self, request: dict) -> dict:
         """Words for a prefix, from the word list named; with `keyboard` (while its mode composes), matched on
         the keys typed by its composer's speller. With `prepare` (a keyboard drawn), the list is loaded and

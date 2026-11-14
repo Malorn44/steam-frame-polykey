@@ -128,6 +128,17 @@ async def wait_any(*awaitables: Awaitable, timeout: float) -> None:
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
+# How often word lists are checked for having gone unused (lexicon.UNUSED_S).
+UNUSED_CHECK_S = 60
+
+
+async def unload_unused(bridge: Bridge, stop: asyncio.Event) -> None:
+    """Every UNUSED_CHECK_S, the word lists unused for UNUSED_S are dropped, in this event loop."""
+    while not stop.is_set():
+        await sleep_unless(stop, UNUSED_CHECK_S)
+        bridge.unload_unused()
+
+
 async def sleep_unless(stop: asyncio.Event, seconds: float) -> None:
     try:
         await asyncio.wait_for(stop.wait(), seconds)
@@ -353,10 +364,12 @@ async def run_service(cfg: Config, log: Log, stop: asyncio.Event) -> None:
         updates=updates,
         spellers=Spellers(pack_loader.loaded_catalog),  # the keyboards and tables of the boot the page has
     )
+    unloads = asyncio.ensure_future(unload_unused(bridge, stop))
     try:
         await _serve_forever(cfg, log, stop, bridge, page)
     finally:
         checks.cancel()
+        unloads.cancel()
         await updates.close()
         await dictation.close()  # stops the recorder and the speech helper
         if desktop is not None:
