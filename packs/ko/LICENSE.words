@@ -18,7 +18,6 @@ Licence
 Changes made for polykey (scripts/make-lexicon.py, source leipzig)
   - Words taken in Unicode NFC, and only whole Hangul words of 1 to 10 syllables kept.
   - Each word's counts summed over the three corpora, and words found in fewer than two of them dropped.
-  - Blocked words (slurs) removed, with the words that start with them.
   - Counts scaled to frequencies from 0 to 255 on a logarithmic scale.
   - Cut to the 60,000 most frequent words.
 
