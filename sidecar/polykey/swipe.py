@@ -207,6 +207,11 @@ class GeometricDecoder:
         """Build the word list's index ahead of the first swipe."""
         self._index(lexicon_id, counts, letters)
 
+    def forget(self, lexicon_id: str) -> None:
+        """Drop the indexes of a word list no longer loaded."""
+        for key in [key for key in self._indexes if key[0] == lexicon_id]:
+            del self._indexes[key]
+
     def decode(
         self,
         lexicon_id: str,
@@ -318,6 +323,12 @@ class Swipe:
         if elapsed > SLOW_MS:
             self._note(f"swipe: a decode took {elapsed:.0f} ms")
         return {"ok": True, "words": words, "engine": self._decoder.id}
+
+    def forget(self, lexicon_id: str) -> None:
+        """A word list unloaded (Lexicons.unload_unused): the decoder drops what it built from it."""
+        forget = getattr(self._decoder, "forget", None)
+        if forget:
+            forget(lexicon_id)
 
     def _note(self, message: str) -> None:
         """Timings only: never the path or the words."""
