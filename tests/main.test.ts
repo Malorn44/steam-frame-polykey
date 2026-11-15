@@ -240,6 +240,48 @@ describe('suggestions', () => {
     expect(manager.calls.map(([k]) => k).slice(-2)).toEqual(['Backspace', '.']);
   });
 
+  it('a move to another text field, or a click in this one, starts a new word: a pick never deletes there', async () => {
+    const boot = bundledBoot();
+    boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked = withSidecar(steam.g);
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'h');
+    await tap(popup, 'e');
+    expect(slots(popup)).toEqual(['help', 'hello', 'held']);
+    manager.OnActiveElementChanged.Dispatch({}); // Steam's keyboard moved to another field
+    await vi.advanceTimersByTimeAsync(10);
+    expect(slots(popup)).toEqual(['', '', '']);
+    await tap(popup, 'l');
+    expect(asked.at(-1)).toBe('l');
+    manager.OnActiveElementClicked.Dispatch({}); // the same field clicked: its caret may have moved
+    await tap(popup, 'p');
+    expect(asked.at(-1)).toBe('p');
+    expect(manager.calls.map(([k]) => k)).toEqual(['h', 'e', 'l', 'p']);
+  });
+
+  it('watches each Steam window\'s keyboard as windows come and go, and lets go of every one when uninstalled', async () => {
+    const { manager, g, api } = setup();
+    const windows = (g['SteamUIStore'] as { WindowStore: { SteamUIWindows: unknown[] } }).WindowStore.SteamUIWindows;
+    const watching = (m: ReturnType<typeof fakeManager>) => [m.OnActiveElementChanged.m_vecCallbacks.length, m.OnActiveElementClicked.m_vecCallbacks.length];
+    expect(watching(manager)).toEqual([1, 1]);
+    const later = fakeManager(); // a window opened later (the bar's popup)
+    windows.push({ VirtualKeyboardManager: later });
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(watching(later)).toEqual([1, 1]);
+    windows.pop();
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(watching(later)).toEqual([0, 0]);
+    const bare: Record<string, unknown> = { HandleVirtualKeyDown: () => {} }; // a manager without the lists
+    windows.push({ VirtualKeyboardManager: bare });
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    api.uninstall();
+    expect(watching(manager)).toEqual([0, 0]);
+  });
+
   it('no lexicon or no sidecar: no suggestions, typing unaffected', async () => {
     const { popup, manager } = setup();
     await tap(popup, 'h');
