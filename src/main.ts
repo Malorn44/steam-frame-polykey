@@ -9,7 +9,7 @@ import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
 import { NO_WORD, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
-import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
+import { getKeyboardManagers, getKeyboardPopupWindow, onFieldChange, pickKeyboardManager, type SteamGlobals, type VirtualKeyboardManager } from './host/steam/globals.js';
 import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
 import { fjkActive, otherKeyboards } from './host/steam/others.js';
@@ -143,6 +143,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let swiped: { word: string; words: string[] } | null = null;
   let swipeWait: Promise<void> | null = null;
   const swipePrepared = new Set<string>();
+  /** Each Steam UI window's keyboard manager, and the way out of watching it for a new text field. */
+  const fieldWatches = new Map<VirtualKeyboardManager, () => void>();
   // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
   const settings: SettingsValues = {
     theme: boot?.settings.theme ?? '',
@@ -1020,14 +1022,40 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     log(`mounted in keyboard popup (${win.innerWidth}x${win.innerHeight}), keyboard ${ring[current]}`);
   };
 
+  /**
+   * The keyboard is on a new text field, or its caret may have moved: what is before the cursor is
+   * unknown, and we only ever replace letters typed after this.
+   */
+  const newField = (): void => {
+    swiped = null;
+    recent = null;
+    pickSpace = false;
+    setWord(NO_WORD);
+  };
+
+  /**
+   * Follow every Steam UI window's keyboard (windows come and go: the bar, its popups) for a move to
+   * another text field or a click in the same one, the dispatches Steam's own keyboard resets on.
+   */
+  const watchFields = (): void => {
+    const managers = new Set(getKeyboardManagers(g));
+    for (const [manager, stop] of fieldWatches) {
+      if (managers.has(manager)) continue;
+      stop();
+      fieldWatches.delete(manager);
+    }
+    for (const manager of managers) if (!fieldWatches.has(manager)) fieldWatches.set(manager, onFieldChange(manager, newField));
+  };
+  const unwatchFields = (): void => {
+    for (const stop of fieldWatches.values()) stop();
+    fieldWatches.clear();
+  };
+
   const onOpenChange = (): void => {
     const status = readStatus(statusStore);
     const open = status?.bIsOpen === true;
     if (open !== wasOpen) {
-      swiped = null;
-      recent = null; // a new field: what is before the cursor is unknown
-      pickSpace = false;
-      setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
+      newField();
       if (!open) {
         bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
         showBar();
@@ -1062,6 +1090,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       }
       if (!surface && win?.document?.body) mount(win);
       applyBounds();
+      watchFields();
       onOpenChange();
     } catch (error) {
       warn('check failed:', errorKind(error));
@@ -1111,6 +1140,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         void bridge.call('emoji.save', { state: emoji }); // a pending save is sent, not dropped
       }
       keys.releaseAll();
+      unwatchFields();
       bridge.close();
       unmount();
       api.state = 'uninstalled';

@@ -3,10 +3,29 @@ import { vi } from 'vitest';
 import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { KEYBOARD_OVERLAY_KEY } from '../src/host/steam/globals.js';
 
+/** Steam's callback list (library.js), as its keyboard manager's OnActiveElementChanged and OnActiveElementClicked are. */
+export const fakeCallbackList = () => {
+  const list = {
+    m_vecCallbacks: [] as ((...args: unknown[]) => void)[],
+    Register(fn: (...args: unknown[]) => void) {
+      list.m_vecCallbacks.push(fn);
+      return { Unregister: () => { list.m_vecCallbacks = list.m_vecCallbacks.filter((f) => f !== fn); } };
+    },
+    Dispatch(...args: unknown[]) {
+      for (const fn of [...list.m_vecCallbacks]) fn(...args);
+    },
+  };
+  return list;
+};
+
 export interface FakeManager {
   calls: [string, boolean][];
   HandleVirtualKeyDown(key: string, shift: boolean): void;
   m_fnVROnTextEnteredOverride?: () => void;
+  /** Its keyboard went to another text field (null: none). */
+  OnActiveElementChanged: ReturnType<typeof fakeCallbackList>;
+  /** Its text field was clicked again. */
+  OnActiveElementClicked: ReturnType<typeof fakeCallbackList>;
 }
 
 export const fakeManager = (override = false): FakeManager => {
@@ -15,6 +34,8 @@ export const fakeManager = (override = false): FakeManager => {
     HandleVirtualKeyDown(key, shift) {
       manager.calls.push([key, shift]);
     },
+    OnActiveElementChanged: fakeCallbackList(),
+    OnActiveElementClicked: fakeCallbackList(),
   };
   if (override) manager.m_fnVROnTextEnteredOverride = () => {};
   return manager;
