@@ -47,9 +47,10 @@ In 英数 (ABC) mode the word waits in the bar like a kana reading, with up to e
 
 The standard 2-set (두벌식) layout: consonants on the left, vowels on the right, at the QWERTY positions. Shift gives the tense consonants ㅃ ㅉ ㄸ ㄲ ㅆ and ㅒ ㅖ.
 
-- **Composing:** the syllable you are typing waits in the bar, and is sent once the next jamo cannot join it (한 + ㄱ sends 한). Vowels and finals that combine do (ㅗ + ㅏ → ㅘ, ㄹ + ㄱ → ㄺ), and a vowel after a final takes that consonant into the next syllable (한 + ㅏ → 하 나).
-- **Word suggestions:** whole words with their particles and endings, from a Korean word list, where the candidates go. They match the keys you type, so 하 already offers 한국, and 학교 offers 학교에서 and 학교를. Picking one replaces the word: the syllables already sent are deleted, the one in the bar is dropped, and the word goes in with a space. Words you use come first for the rest of the session.
-- **⌫** takes the last jamo off (닭 → 달 → 다 → ㄷ); with nothing in the bar it deletes in the field.
+- **Composing in the field:** in Steam and in games, the syllable you are typing goes into the text field and changes there with each jamo (ㅎ, 하, 한), as on Steam's own keyboard; the bar shows only suggestions. Once the next jamo cannot join it, it stays, and the next syllable begins (한 + ㄱ → 한ㄱ). Vowels and finals that combine do (ㅗ + ㅏ → ㅘ, ㄹ + ㄱ → ㄺ), and a vowel after a final takes that consonant into the next syllable (한 + ㅏ → 하나). polykey only ever retypes the syllable it is composing: Space, any other key, a click in the field, another field and closing the keyboard all leave it as it is.
+- **Composing in the bar:** in Desktop Mode, where polykey types by pasting, and when streaming, the syllable waits in the bar and is sent once the next jamo cannot join it. Settings → Compose in the field, turned off, does this everywhere.
+- **Word suggestions:** whole words with their particles and endings, from a Korean word list, where the candidates go. They match the keys you type, so 하 already offers 한국, and 학교 offers 학교에서 and 학교를. Picking one replaces the word: the syllables already typed are deleted (one waiting in the bar is dropped), and the word goes in with a space. Words you use come first for the rest of the session.
+- **⌫** takes the last jamo off (닭 → 달 → 다 → ㄷ); with nothing being composed it deletes in the field.
 - **Space, Enter and punctuation** send the syllable first, as do 한/영, 🌐 and dictation.
 - **한/영**, right of Space, switches to ABC: the English layout, where words wait in the bar with suggestions and swipe typing works, as in the Japanese keyboards' 英数 mode. 한/영 again goes back. The bar under 한 or 영 shows which mode you are in, as 英数 and かな do.
 
@@ -57,7 +58,7 @@ There is no Hanja conversion or Hangul swipe typing yet.
 
 ## Toolbar
 
-Settings (theme, haptics, suggestions, updates and the keyboard's own options; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste, menu (the context menu, as Shift+F10) and ✕, which closes the keyboard.
+Settings (theme, haptics, suggestions, composing in the field, updates and the keyboard's own options; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste, menu (the context menu, as Shift+F10) and ✕, which closes the keyboard.
 
 ## Emoji
 

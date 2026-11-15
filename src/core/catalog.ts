@@ -177,6 +177,8 @@ export interface Boot {
     dictation?: boolean; dictationContinuous?: boolean;
     /** Install newer releases when found (on by default). */
     autoUpdate?: boolean;
+    /** Compose in the text field where it is safe (on by default; off: always in the bar). */
+    composeInField?: boolean;
     /** The user's choices, by keyboard id. */
     keyboardOptions?: Record<string, KeyboardOptions>;
   };

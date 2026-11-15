@@ -48,9 +48,9 @@ export interface Bar {
   /**
    * The field may have changed (another field, a moved caret, a send that failed): what of the
    * composition is in the field is forgotten, without a Backspace, and sends of it still queued are
-   * skipped. A composition waiting in the bar stays.
+   * skipped. A composition waiting in the bar stays. True when something in the field was forgotten.
    */
-  lose(): void;
+  lose(): boolean;
   /** Whether part of the composition is in the text field now (it is retyped as it changes). */
   inField(): boolean;
   /** An option changed: anything waiting on the next press (a tap cycle) ends. */
@@ -178,9 +178,11 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     generation++;
   };
 
-  const lose = (): void => {
+  const lose = (): boolean => {
     epoch++;
-    if (tail) clear();
+    const had = tail !== '';
+    if (had) clear();
+    return had;
   };
 
   /**

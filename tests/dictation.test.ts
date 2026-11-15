@@ -364,7 +364,7 @@ describe('dictation on the page', () => {
   });
 
   it('Korean: the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
-    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'], composeInField: false });
     api.debug.use('ko/korean');
     await tap(popup, 'ㄴ');
     await tap(popup, 'ㅔ'); // 네, in the bar
@@ -374,6 +374,19 @@ describe('dictation on the page', () => {
     await vi.advanceTimersByTimeAsync(500); // each text waits for the keymap to settle
     expect([pre(popup), typed()]).toEqual([null, '네 좋아요 ']);
     expect(logged.join('\n')).not.toContain('좋아요');
+  });
+
+  it('Korean composed in the field: the syllable stays as it is, and the phrase follows it with no Backspace', async () => {
+    const { popup, api, sidecar, manager } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+    api.debug.use('ko/korean');
+    await vi.advanceTimersByTimeAsync(10); // the sidecar has said the desktop is not focused
+    await tap(popup, 'ㄴ');
+    await tap(popup, 'ㅔ'); // 네, in the field
+    await tap(popup, 'dictate');
+    await sidecar.phase({ phase: 'done', text: '좋아요' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(manager.calls.map(([k]) => k)).toEqual(['ㄴ', 'Backspace', '네', ' ', '좋아요', ' ']); // ASCII a call of its own
+    expect(pre(popup)).toBeNull();
   });
 
   it('英数 mode on a Japanese keyboard dictates English after the English word', async () => {

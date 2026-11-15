@@ -155,7 +155,8 @@ class Bridge:
     def _save_settings(self, request: dict) -> dict:
         """Save the settings the page may change: theme id, haptics, suggestions, dictation (on/off, the
         model per language, continuous or not), keyboard options, the keyboards 🌐 goes through (ids,
-        in order; unknown ones are dropped at the next load), and automatic updates."""
+        in order; unknown ones are dropped at the next load), automatic updates, and composing in the
+        text field."""
         changes = request.get("settings")
         if self._settings_path is None or not isinstance(changes, dict):
             return {"ok": False, "error": "bad-settings"}
@@ -169,6 +170,7 @@ class Bridge:
             "dictationModels": dict,
             "dictationContinuous": bool,
             "autoUpdate": bool,
+            "composeInField": bool,
         }
         clean = {k: v for k, v in changes.items() if k in allowed and isinstance(v, allowed[k])}
         if "keyboardOptions" in clean:
