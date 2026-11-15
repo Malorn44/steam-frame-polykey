@@ -8,7 +8,7 @@
  "language": "ko",
  "layout": "ko/dubeolsik",
  "pages": {"latin": "ko/qwerty"},
- "composer": "hangul",
+ "composer": "hangul-2set",
  "table": "ko/hangul",
  "lexicon": "en/words",
  "features": {"swipe": {"lexicon": "en/words"}},

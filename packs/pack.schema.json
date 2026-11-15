@@ -811,9 +811,9 @@
             "direct",
             "kana",
             "romaji",
-            "hangul"
+            "hangul-2set"
           ],
-          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul: jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table."
+          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul-2set: 2-set (두벌식) Hangul, jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table."
         },
         "lexicon": {
           "$ref": "#/$defs/id",
@@ -1150,7 +1150,7 @@
         "hangul": {
           "type": "object",
           "additionalProperties": false,
-          "description": "How jamo compose (composer hangul), what a layout varies: the jamo typed one after the other that make one. The jamo themselves, and their order in Unicode's syllable formula, are Unicode's (src/core/composers/hangul.ts).",
+          "description": "How jamo compose (composer hangul-2set), what a layout varies: the jamo typed one after the other that make one. The jamo themselves, and their order in Unicode's syllable formula, are Unicode's (src/core/composers/hangul.ts).",
           "properties": {
             "compoundMedials": {
               "type": "array",

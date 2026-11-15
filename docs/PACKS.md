@@ -128,7 +128,7 @@ A language of yours replaces the bundled one with its code: to change the Japane
 
 ## A Hangul table
 
-The Korean keyboard's composer (`"composer": "hangul"`) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layout) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
 
 ```json
 "hangul": {

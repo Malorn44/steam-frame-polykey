@@ -39,6 +39,9 @@ export type ConverterRequest =
   | { readonly kind: 'live' }
   | { readonly kind: 'convert'; readonly lengths?: readonly number[]; readonly resize?: readonly [number, number] };
 
+/** The longest reading a converter is asked about, in characters; the sidecar refuses longer (converters/engine.py). */
+export const MAX_READING = 64;
+
 /** A sent conversion or prediction, for the converter to learn (picked candidates come first next time). */
 export type Learned =
   | { readonly reading: string; readonly lengths: readonly number[]; readonly choices: readonly number[]; readonly texts: readonly string[] }
@@ -92,8 +95,8 @@ export interface Composer<S> {
   /** The state with nothing composed. */
   readonly empty: S;
   composing(state: S): boolean;
-  /** Whether a key with two sets of legends (JIS) types its Latin ones: romaji input. */
-  latinKeys(ctx: ComposerContext): boolean;
+  /** Whether a key with two sets of legends (JIS) types its Latin ones (romaji input); none: it types its own. */
+  latinKeys?(ctx: ComposerContext): boolean;
   /** A press; null: not for the composer (the bar sends what waits first, then the key acts as usual). */
   press(state: S, key: KeyDef, input: ComposerInput, ctx: ComposerContext): ComposerResult<S> | null;
   /** Send everything that waits, as it stands. */
