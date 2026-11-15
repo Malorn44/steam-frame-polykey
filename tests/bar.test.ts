@@ -140,3 +140,146 @@ describe('the bar controller', () => {
     expect(bar.composedText()).toBe('H!');
   });
 });
+
+describe('composing in the text field', () => {
+  /** shout, opted in; a conversion (?) shows in the bar as segments. */
+  const inline: Composer<string> = {
+    ...shout,
+    inline: true,
+    show: (s) => (s.endsWith('?')
+      ? { preedit: { segments: [`<${s.slice(0, -1)}>`], focus: 0, candidates: [], selected: 0 }, labels: {} }
+      : { preedit: { before: s, after: '' }, labels: {} }),
+    press: (s, key, input, c) => (key.type === 'char' && key.char === '?' && s ? { state: `${s}?`, effects: [] } : shout.press(s, key, input, c)),
+  };
+  /** A field: text at its end, a Backspace takes its last character; the sends as they were made. */
+  const setupField = (composer: Composer<string> = inline, start = 'mine ') => {
+    let field = start;
+    let retyping = true;
+    let where = 'app';
+    const queued: { effects: readonly Effect[]; live: () => boolean }[] = [];
+    const sent: Effect[][] = [];
+    const bar = createBar({
+      call: () => new Promise(() => {}),
+      available: () => true,
+      enqueue: (effects, send) => queued.push({ effects, live: send?.live ?? (() => true) }),
+      show: () => {},
+      warn: () => {},
+      keyboard: () => ({ composer, ctx, converter: undefined }),
+      retype: () => retyping,
+      target: () => where,
+    });
+    /** Make the queued sends, as the page's queue does: a send no longer live is skipped. */
+    const run = () => {
+      for (const { effects, live } of queued.splice(0)) {
+        if (!live()) continue;
+        sent.push([...effects]);
+        for (const e of effects) {
+          if (e.kind === 'text') field += e.text;
+          else if (e.kind === 'key' && e.key === 'Backspace') field = field.slice(0, -1);
+        }
+      }
+      return field;
+    };
+    const backspaces = () => sent.flat().filter((e) => e.kind === 'key').length;
+    const typeAll = (keys: string) => { for (const k of Array.from(keys)) bar.press(char(k), { typed: k }); };
+    return {
+      bar, run, sent, backspaces, typeAll, queued,
+      setRetype: (on: boolean) => { retyping = on; }, moveTo: (to: string) => { where = to; },
+    };
+  };
+  const BS: KeyDef = { type: 'key', key: 'Backspace' };
+
+  it('types each change into the field, deleting only what differs; the bar shows only the candidates', () => {
+    const { bar, run, sent, typeAll } = setupField();
+    typeAll('hi');
+    expect(run()).toBe('mine HI');
+    expect(sent).toEqual([[{ kind: 'text', text: 'H' }], [{ kind: 'text', text: 'I' }]]);
+    expect(bar.inField()).toBe(true);
+    expect(bar.shown()?.composition).toEqual({ before: '', after: '', candidates: ['HI'], selected: -1 });
+    expect(bar.composedText()).toBe(''); // it is in the field, part of what was typed
+    bar.press(BS, {});
+    expect(run()).toBe('mine H');
+    bar.press(char(' '), {}); // the composer sends 'H ': the H is already there
+    expect(run()).toBe('mine H ');
+    expect(sent.at(-1)).toEqual([{ kind: 'text', text: ' ' }]);
+    expect([bar.inField(), bar.composing()]).toEqual([false, false]);
+  });
+
+  it('a key it does not take, leaving, or a pick replacing the word leaves what is in the field as it is', () => {
+    for (const end of ['flush', 'leave', 'drop'] as const) {
+      const { bar, run, backspaces, typeAll } = setupField();
+      typeAll('ok');
+      bar[end]();
+      expect(run()).toBe('mine OK');
+      expect([backspaces(), bar.inField(), bar.composing()]).toEqual([0, false, false]);
+      typeAll('a');
+      expect(run()).toBe('mine OKA'); // a new composition, typed after it
+    }
+  });
+
+  it('when the field may have changed, its tail is forgotten without a Backspace, and sends still queued are skipped', () => {
+    const { bar, run, backspaces, typeAll, queued } = setupField();
+    typeAll('ab');
+    expect(run()).toBe('mine AB');
+    typeAll('c'); // queued, not made yet
+    bar.lose();
+    expect(queued).toHaveLength(1);
+    expect(run()).toBe('mine AB'); // skipped: the field it was planned for may be gone
+    expect([bar.inField(), bar.composing()]).toEqual([false, false]);
+    expect(bar.press(BS, {})).toBe(false); // nothing composed: ⌫ is the field's own
+    typeAll('d');
+    expect(run()).toBe('mine ABD');
+    expect(backspaces()).toBe(0);
+  });
+
+  it('typing that now goes to another target forgets the tail first, without a Backspace', () => {
+    const { bar, run, backspaces, typeAll, moveTo } = setupField();
+    typeAll('ab');
+    run();
+    moveTo('elsewhere');
+    expect(bar.press(BS, {})).toBe(false); // not the composer's any more
+    typeAll('c');
+    expect(run()).toBe('mine ABC');
+    expect(backspaces()).toBe(0);
+  });
+
+  it('once it may no longer retype, the composition stays in the field as it is and the next waits in the bar', () => {
+    const { bar, run, backspaces, typeAll, setRetype } = setupField();
+    typeAll('ab');
+    setRetype(false); // Desktop Mode got the focus, or the setting went off
+    typeAll('c');
+    expect(run()).toBe('mine AB');
+    expect(bar.shown()?.composition).toMatchObject({ before: 'C' });
+    bar.flush();
+    expect(run()).toBe('mine ABC');
+    expect(backspaces()).toBe(0);
+  });
+
+  it('a composition waiting in the bar moves into the field as soon as it may', () => {
+    const { bar, run, typeAll, setRetype } = setupField();
+    setRetype(false);
+    typeAll('ab');
+    expect(run()).toBe('mine ');
+    setRetype(true);
+    typeAll('c');
+    expect(run()).toBe('mine ABC');
+    expect(bar.shown()?.composition).toMatchObject({ before: '' });
+  });
+
+  it('a conversion shows in the bar while the reading stays in the field; the pick replaces the reading', () => {
+    const { bar, run, typeAll } = setupField();
+    typeAll('ab?');
+    expect(run()).toBe('mine AB');
+    expect(bar.shown()?.composition).toMatchObject({ segments: ['<AB>'] });
+    bar.pick('αβ', 0);
+    expect(run()).toBe('mine αβ');
+  });
+
+  it('a composer that does not opt in keeps the bar', () => {
+    const { bar, run, typeAll } = setupField(shout);
+    typeAll('hi');
+    expect([run(), bar.inField(), bar.composedText()]).toEqual(['mine ', false, 'HI']);
+    bar.flush();
+    expect(run()).toBe('mine HI');
+  });
+});
