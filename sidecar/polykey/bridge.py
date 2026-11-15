@@ -6,6 +6,7 @@ Requests may carry typed text: never logged or echoed. Errors are short log-safe
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,7 @@ from .packs import (
     write_json,
 )
 from .speech.session import OPS as DICTATION_OPS, Dictation
+from .spellers import LOWERCASE, Spellers
 from .swipe import Swipe
 from .updates import OPS as UPDATE_OPS, Updater
 from .wayland import WaylandError
@@ -62,8 +64,10 @@ class Bridge:
         swipe: Optional[Swipe] = None,
         dictation: Optional[Dictation] = None,
         updates: Optional[Updater] = None,
+        spellers: Optional[Spellers] = None,
     ) -> None:
         self._log = log
+        self._spellers = spellers
         self._updates = updates
         self._swipe = swipe or (Swipe(lexicons, log=log) if lexicons else None)
         self._dictation = dictation
@@ -191,13 +195,30 @@ class Bridge:
             return {"ok": False, "error": "not-saved"}
         return {"ok": True}
 
+    def unload_unused(self) -> None:
+        """Drop the word lists no request has named for UNUSED_S (lexicon.py), and what swipe built from them."""
+        for lexicon_id, unused in (self._lexicons.unload_unused() if self._lexicons else {}).items():
+            if self._swipe:
+                self._swipe.forget(lexicon_id)
+            self._log.info(f"suggest: {lexicon_id} unloaded after {unused / 60:.0f} min unused")
+
     def _suggest(self, request: dict) -> dict:
+        """Words for a prefix, from the word list named; with `keyboard` (while its mode composes), matched on
+        the keys typed by its composer's speller. With `prepare` (a keyboard drawn), the list is loaded and
+        indexed for that speller instead, if it is not yet."""
         prefix, lexicon_id, limit = request.get("prefix"), request.get("lexicon"), request.get("limit", 3)
-        if not isinstance(prefix, str) or not prefix or len(prefix) > 40:
+        keyboard, prepare = request.get("keyboard"), request.get("prepare") is True
+        if not prepare and (not isinstance(prefix, str) or not prefix or len(prefix) > 40):
             return {"ok": False, "error": "bad-prefix"}
-        if not isinstance(limit, int) or not 1 <= limit <= MAX_SUGGESTIONS:
+        if not prepare and (not isinstance(limit, int) or not 1 <= limit <= MAX_SUGGESTIONS):
             return {"ok": False, "error": "bad-limit"}
+        started = time.perf_counter()  # loading the word list counts too
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        return {"ok": True, "words": lexicon.suggest(prefix, limit)}
+        speller = self._spellers.get(keyboard) if self._spellers and isinstance(keyboard, str) else LOWERCASE
+        if prepare:
+            if lexicon.prepare(speller):  # the list's id only: never typed text
+                self._log.info(f"suggest: {lexicon_id} ready in {(time.perf_counter() - started) * 1000:.0f} ms")
+            return {"ok": True, "words": []}
+        return {"ok": True, "words": lexicon.suggest(prefix, limit, speller)}

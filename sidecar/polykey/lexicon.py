@@ -1,8 +1,13 @@
 """Word lists for suggestions: `packs/<ns>/<name>.tsv` with `word<TAB>count` per line (# comments).
 
-Loaded on first use and kept in memory; a user list in ~/.config/polykey/packs/ replaces the bundled
-one. Lookups are prefix completions ranked by count, and spelling corrections (`suggest`). Typed
+Loaded on first use and kept in memory until no request has named it for UNUSED_S; a user list in
+~/.config/polykey/packs/ replaces the bundled one. Lookups are prefix completions ranked by count, and spelling corrections (`suggest`). Typed
 prefixes are never logged.
+
+Completions match on the keys typed: a speller (spellers/) spells the prefix and every word as their
+keys, and the words are indexed by them on first use, or as a keyboard that suggests from the list is
+drawn (`prepare`), so the first suggestion does not wait. The default speller ignores case (ok completes
+to OK); the Hangul one completes 하 (ㅎㅏ) to 한국 (ㅎㅏㄴㄱㅜㄱ), which the text alone does not start with.
 
 Corrections follow frame-jp-keyboard's src/english.js (MIT, Copyright (c) 2026 sasaken1102r): words one
 edit away, scored by how likely the slip is (a doubled letter, two swapped letters, a neighbouring
@@ -19,14 +24,19 @@ import bisect
 import hashlib
 import heapq
 import re
+import time
 import unicodedata
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping, Optional
+from typing import Callable, Mapping, Optional
+
+from .spellers import LOWERCASE, Speller
 
 ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 MAX_WORD_CHARS = 40
 MAX_BYTES = 8 << 20
+# A word list no request has named for this long is dropped, with its index; the next request loads it.
+UNUSED_S = 10 * 60
 
 LETTERS = "abcdefghijklmnopqrstuvwxyz'"
 _ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
@@ -90,11 +100,12 @@ def word_hash(word: str) -> str:
 class Lexicon:
     def __init__(self, counts: dict[str, int], blocked: frozenset[str] = frozenset()) -> None:
         self._counts = {w: c for w, c in counts.items() if word_hash(w) not in blocked} if blocked else counts
-        self._keys = sorted(self._counts)
         # Lower case -> the most frequent spelling, for corrections.
         self._lower: dict[str, str] = {}
         for w in sorted(self._counts, key=lambda w: -self._counts[w]):
             self._lower.setdefault(w.lower(), w)
+        # The words the last speller asked spells, sorted by their keys: (that speller, the keys, the words).
+        self._by_keys: Optional[tuple[Speller, list[str], list[str]]] = None
 
     @classmethod
     def parse(cls, text: str, blocked: frozenset[str] = frozenset()) -> "Lexicon":
@@ -114,22 +125,36 @@ class Lexicon:
         return cls(counts, blocked)
 
     def __len__(self) -> int:
-        return len(self._keys)
+        return len(self._counts)
 
     def counts(self) -> Mapping[str, int]:
         """Every word with its count (read-only), for engines that rank whole words (swipe)."""
         return MappingProxyType(self._counts)
 
-    def complete(self, prefix: str, limit: int) -> list[str]:
-        """The most frequent words starting with prefix (case-insensitive), most frequent first."""
-        if not prefix:
+    def _spelled(self, speller: Speller) -> tuple[list[str], list[str]]:
+        """Every word the speller spells, as (keys, words) sorted by keys; built once for a speller."""
+        if self._by_keys is None or self._by_keys[0] is not speller:
+            pairs = sorted((keys, w) for w in self._counts if (keys := speller.spell(w)))
+            self._by_keys = (speller, [keys for keys, _ in pairs], [w for _, w in pairs])
+        return self._by_keys[1], self._by_keys[2]
+
+    def prepare(self, speller: Speller = LOWERCASE) -> bool:
+        """Index the words for the speller now, not at the first completion; False if they already are."""
+        if self._by_keys is not None and self._by_keys[0] is speller:
+            return False
+        self._spelled(speller)
+        return True
+
+    def complete(self, prefix: str, limit: int, speller: Speller = LOWERCASE) -> list[str]:
+        """The most frequent words whose keys start with the prefix's, most frequent first (at a tie, a
+        word in lower case first); none for a prefix the speller does not spell."""
+        keys = speller.spell(prefix)
+        if not keys:
             return []
-        candidates: list[str] = []
-        for variant in {prefix, prefix.lower(), prefix[:1].upper() + prefix[1:].lower()}:
-            start = bisect.bisect_left(self._keys, variant)
-            end = bisect.bisect_left(self._keys, variant + "\U0010ffff")
-            candidates.extend(self._keys[start:end])
-        return heapq.nlargest(limit, set(candidates), key=lambda w: (self._counts[w], w == w.lower()))
+        spelled, words = self._spelled(speller)
+        start = bisect.bisect_left(spelled, keys)
+        end = bisect.bisect_left(spelled, keys + "\U0010ffff")
+        return heapq.nlargest(limit, words[start:end], key=lambda w: (self._counts[w], w == w.lower()))
 
     def _corrections(self, typed: str) -> list[tuple[float, str]]:
         """(score, word) for words the typed one is probably a misspelling of; lower is likelier."""
@@ -156,10 +181,10 @@ class Lexicon:
         """Words the typed one is probably a misspelling of, likeliest first."""
         return [w for _, w in self._corrections(typed)[:limit]]
 
-    def suggest(self, prefix: str, limit: int) -> list[str]:
-        """Completions; with few of them, the likeliest corrections too, ranked together by score (a
-        completion scores its frequency, a correction its frequency less the cost of the slip)."""
-        words = self.complete(prefix, limit)
+    def suggest(self, prefix: str, limit: int, speller: Speller = LOWERCASE) -> list[str]:
+        """Completions on the keys typed; with few of them, the likeliest corrections too, ranked together
+        by score (a completion scores its frequency, a correction its frequency less the cost of the slip)."""
+        words = self.complete(prefix, limit, speller)
         if len(words) >= FEW_COMPLETIONS:
             return words
         scores = {w: float(-self._counts[w]) for w in words}
@@ -171,18 +196,33 @@ class Lexicon:
 
 
 class Lexicons:
-    """Lexicons by id, looked up in the user's packs first, then the bundled ones."""
+    """Lexicons by id, looked up in the user's packs first, then the bundled ones; each until it has gone
+    unused for UNUSED_S (unload_unused)."""
 
-    def __init__(self, dirs: list[Path]) -> None:
+    def __init__(self, dirs: list[Path], clock: Callable[[], float] = time.monotonic) -> None:
         self._dirs = dirs
+        self._clock = clock
         self._loaded: dict[str, Optional[Lexicon]] = {}
+        self._used: dict[str, float] = {}  # when each was last asked for
 
     def get(self, lexicon_id: str) -> Optional[Lexicon]:
         if not ID_PATTERN.match(lexicon_id):
             return None
         if lexicon_id not in self._loaded:
             self._loaded[lexicon_id] = self._load(lexicon_id)
+        self._used[lexicon_id] = self._clock()
         return self._loaded[lexicon_id]
+
+    def unload_unused(self) -> dict[str, float]:
+        """Drop the lists not asked for in UNUSED_S: the seconds each list dropped went unused, by id."""
+        now = self._clock()
+        dropped: dict[str, float] = {}
+        for lexicon_id, used in list(self._used.items()):
+            if now - used >= UNUSED_S:
+                del self._used[lexicon_id]
+                if self._loaded.pop(lexicon_id) is not None:  # one not found was nothing to drop
+                    dropped[lexicon_id] = now - used
+        return dropped
 
     def _blocked(self, namespace: str) -> frozenset[str]:
         hashes: set[str] = set()

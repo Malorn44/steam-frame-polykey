@@ -572,8 +572,31 @@ def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
 
 def test_a_mode_takes_its_letters_from_the_language_unless_it_names_them(tmp_path):
     keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    assert keyboards["ja/12key"]["modes"] == [{"id": "kana"}, {"id": "latin", "letters": "ABC", "latin": True}]
+    assert [mode.get("letters") for mode in keyboards["ja/12key"]["modes"]] == [None, "ABC"]
     assert "strings" not in keyboards["ja/jis"]  # the idle hint is the language's
+
+
+def test_each_mode_names_its_word_list_and_a_keyboard_with_modes_has_none(tmp_path):
+    keyboard = lambda item_id, **fields: {
+        "schemaVersion": 1,
+        "kind": "keyboard",
+        "id": item_id,
+        "name": item_id,
+        **fields,
+    }
+    hangul = lambda lexicon: [{"id": "hangul", "lexicon": lexicon}, {"id": "latin", "latin": True}]
+    write(tmp_path / "packs", "mine/good.json", keyboard("mine/good", extends="ko/korean", modes=hangul("mine/words")))
+    write(tmp_path / "packs", "mine/bad.json", keyboard("mine/bad", extends="ko/korean", modes=hangul("../words")))
+    write(tmp_path / "packs", "mine/both.json", keyboard("mine/both", extends="ja/romaji", lexicon="en/words"))
+    write(tmp_path / "packs", "mine/moded.json", keyboard("mine/moded", extends="en/english", modes=[{"id": "one"}]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    keyboards = boot["catalog"]["keyboards"]
+    assert keyboards["mine/good"]["modes"][0] == {"id": "hangul", "lexicon": "mine/words"}
+    assert any(error.startswith("mine/bad.json: /modes/0/lexicon") for error in boot["errors"])
+    refused = ": a keyboard with modes names a lexicon on each mode, not its own"
+    assert f"mine/both{refused}" in boot["errors"] and f"mine/moded{refused}" in boot["errors"]
+    assert not {"mine/bad", "mine/both", "mine/moded"} & set(keyboards)
+    assert not any("modes" in k and "lexicon" in k for k in keyboards.values()) and "lexicon" in keyboards["en/english"]
 
 
 def test_the_korean_packs_load():
@@ -586,6 +609,7 @@ def test_the_korean_packs_load():
         "ko/hangul",
         {"latin": "ko/qwerty"},
     )
+    assert [mode.get("lexicon") for mode in korean["modes"]] == ["ko/words", "en/words"] and "lexicon" not in korean
     assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
     assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
         "한글",

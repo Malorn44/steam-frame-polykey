@@ -18,14 +18,19 @@ export const pageLayout = (keyboard: KeyboardDef, state: PageState): string => {
   return (state.latin && latinPage(keyboard, state.qwerty)) || keyboard.layout;
 };
 
+/** The keyboard's current mode (latin: its Latin mode, 英数), else its first; none for a keyboard without modes. */
+export const modeOf = (keyboard: KeyboardDef | undefined, latin: boolean): NonNullable<KeyboardDef['modes']>[number] | undefined => {
+  const modes = keyboard?.modes ?? [];
+  return modes.find((m) => !!m.latin === latin) ?? modes[0];
+};
+
 /**
  * What the current mode's letters are called: the mode's own (ABC), else for the keyboard's own letters
  * its language's (あいう, 한글); otherwise none, and the back key has its own name. latin: in the
  * keyboard's Latin mode (英数).
  */
 export const modeLetters = (keyboard: KeyboardDef | undefined, latin: boolean, language?: LanguageDef): string | undefined => {
-  const modes = keyboard?.modes ?? [];
-  const mode = modes.find((m) => !!m.latin === latin) ?? modes[0];
+  const mode = modeOf(keyboard, latin);
   if (mode?.letters) return mode.letters;
   return (mode ? !mode.latin : !latin) ? language?.letters : undefined;
 };

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import itertools
 import json
 import math
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from polykey.bridge import Bridge
 from polykey.injector import Log
-from polykey.lexicon import Lexicon, Lexicons
+from polykey.lexicon import UNUSED_S, Lexicon, Lexicons
 from polykey.swipe import GeometricDecoder, Swipe, fold, resample
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -217,3 +218,17 @@ def test_the_bridge_answers_swipe_and_never_logs_the_path_or_words(capsys):
     assert any(line.startswith("swipe: en/words ready in ") for line in lines)  # a timing, nothing typed
     assert not any("hello" in line for line in lines)
     assert "hello" not in capsys.readouterr().out
+
+
+def test_a_list_unloaded_takes_the_swipe_index_built_from_it_along():
+    now = [0.0]
+    lexicons = Lexicons([ROOT / "packs"], clock=lambda: now[0])
+    decoder = GeometricDecoder()
+    bridge = Bridge(Log(io.StringIO()), lexicons=lexicons, swipe=Swipe(lexicons, decoder))
+    swipe = lambda **f: asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "swipe", **request(**f)})))
+    assert swipe(prepare=True)["ok"]
+    decoder.prepare("mine/words", {"ab": 1}, frozenset("ab"))  # a list Lexicons never loaded
+    now[0] = UNUSED_S
+    bridge.unload_unused()
+    assert [key[0] for key in decoder._indexes] == ["mine/words"]
+    assert swipe()["words"][0] == "hello"  # loaded and indexed again

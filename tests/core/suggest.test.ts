@@ -31,6 +31,9 @@ describe('trackWord', () => {
     expect(suggestPrefix({ word: 'he', known: false })).toBe('he'); // typed after a Backspace past the word
     expect(suggestPrefix(UNKNOWN)).toBeNull();
     expect(suggestPrefix(NO_WORD)).toBeNull();
+    expect(suggestPrefix({ word: '학', known: true }, '교')).toBe('학교'); // sent, then what is composed
+    expect(suggestPrefix(NO_WORD, '하')).toBe('하');
+    expect(suggestPrefix(NO_WORD, '')).toBeNull();
   });
 });
 

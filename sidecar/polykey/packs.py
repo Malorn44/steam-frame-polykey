@@ -426,6 +426,15 @@ def loaded_pickers() -> list[dict]:
     return _pickers
 
 
+# The keyboards and tables as last loaded, as the page has them: the spellers read them too.
+_catalog: dict[str, dict] = {}
+
+
+def loaded_catalog() -> dict[str, dict]:
+    """The catalog from the last load(): its keyboards and tables, by id."""
+    return _catalog
+
+
 MAX_STATE_ENTRY = 96
 EMOJI_SET, KAOMOJI_SET = "emoji/emoji", "emoji/kaomoji"
 
@@ -765,10 +774,15 @@ def load(bundled: Path, schema_path: Path, user: Optional[Path] = None) -> dict:
         elif composer and COMPOSER_TABLES[composer] not in catalog["tables"].get(keyboard.get("table"), {}):
             errors.append(f"{keyboard_id}: {composer} table {keyboard.get('table')} not found")
             del catalog["keyboards"][keyboard_id]
+        elif "modes" in keyboard and "lexicon" in keyboard:  # extends can bring either
+            errors.append(f"{keyboard_id}: a keyboard with modes names a lexicon on each mode, not its own")
+            del catalog["keyboards"][keyboard_id]
         elif "swipe" in keyboard.get("options", {}) and "swipe" not in keyboard.get("features", {}):
             errors.append(f"{keyboard_id}: the swipe option needs features.swipe")  # the keyboard still types
             del keyboard["options"]["swipe"]
 
+    global _catalog
+    _catalog = catalog
     settings = load_settings(user / "settings.json", errors)
     unknown = [k for k in settings["keyboards"] if k not in catalog["keyboards"]]
     if unknown:
