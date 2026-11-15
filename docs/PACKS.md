@@ -6,7 +6,7 @@ polykey's layouts, keyboards, themes and picker sets are JSON files called packs
 
 - polykey's own packs are in [`packs/`](../packs/), one folder per namespace: `en`, `ja`, `themes` and so on.
 - Yours go on the Frame in `~/.config/polykey/packs/<namespace>/`, in a namespace of your own (`mine` in the examples below).
-- Each file holds one item. Its `id` is `<namespace>/<name>`, in lower-case letters, digits and `-`, and starts with its folder's name. A language's `id` is its code alone (`ja`), and its folder has that name.
+- Each file holds one item. Its `id` is `<namespace>/<name>`, in lower-case letters, digits and `-`, and starts with its folder's name. A language's `id` is its code alone (`ja`), and it is `language.json` in the folder of that name.
 - An item with the same id as a bundled one replaces it. Any other id adds a new one.
 - New keyboards show up in Settings → Keyboards, under their language. New themes show up in the theme picker. New picker sets show up in the emoji picker.
 
@@ -24,8 +24,8 @@ Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema
 
 - **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme.
 - **layout:** the keys, row by row, and the toolbar above them. A layout can `extends` another and replace only some of its rows.
-- **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
-- **table:** a romaji table (ka → か), or the cycles of the ゛゜小 key.
+- **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, if it composes in the bar, its composer, the table that composer reads and its converter. A keyboard can `extends` another too.
+- **table:** a romaji table (ka → か), the cycles of the ゛゜小 key, or how Hangul jamo compose.
 - **picker:** a set the emoji picker shows: categories of things to tap and type. Emoji and kaomoji are two of them.
 - **language:** what the keyboards in one language call their letters, and the words their bar shows while you compose (変換, 確定).
 
@@ -104,7 +104,7 @@ Restart polykey, then add QWERTZ in Settings → Keyboards.
 
 ## A language
 
-A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack with that code fills in what the keyboard leaves out. Its `id` is the code, and its file sits in the folder of that name. This is polykey's Japanese, [`packs/ja/japanese.json`](../packs/ja/japanese.json):
+A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack with that code fills in what the keyboard leaves out. Its `id` is the code, and its file is `language.json` in the folder of that name. This is polykey's Japanese, [`packs/ja/language.json`](../packs/ja/language.json):
 
 ```json
 {
@@ -122,8 +122,24 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 - `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. A key whose name is left out keeps its own label.
 - `idleHint`: shown where candidates appear while there are none. A keyboard's `strings.idleHint` wins.
 - `dictation`: the language dictation listens for, if it is not the `id`.
+- `font`: the fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font. Korean's is `"Noto Sans CJK KR", "Noto Sans CJK JP"`: the Frame's system font has no Hangul.
 
-A language of yours replaces the bundled one with its code: to change the Japanese words, copy the file to `~/.config/polykey/packs/ja/` and edit it there.
+A language of yours replaces the bundled one with its code: to change the Japanese words, copy it to `~/.config/polykey/packs/ja/language.json` and edit it there.
+
+## A Hangul table
+
+The Korean keyboard's composer (`"composer": "hangul"`) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+
+```json
+"hangul": {
+ "compoundMedials": ["ㅗㅏㅘ", "ㅗㅐㅙ", "ㅗㅣㅚ", "ㅜㅓㅝ", "ㅜㅔㅞ", "ㅜㅣㅟ", "ㅡㅣㅢ"],
+ "compoundFinals": ["ㄱㅅㄳ", "ㄴㅈㄵ", "ㄴㅎㄶ", "ㄹㄱㄺ", "ㄹㅁㄻ", "ㄹㅂㄼ", "ㄹㅅㄽ", "ㄹㅌㄾ", "ㄹㅍㄿ", "ㄹㅎㅀ", "ㅂㅅㅄ"]
+}
+```
+
+- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). A pair's jamo are three vowels, or three consonants that can end a syllable.
+- The jamo themselves are Unicode's, not the table's: a syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each its jamo's place in Unicode's lists (in `src/core/composers/hangul.ts`). ㄸ, ㅃ and ㅉ end no syllable, so they always start a new one.
+- Another Hangul layout is its own layout pack, with this table or one of its own.
 
 ## Word lists
 

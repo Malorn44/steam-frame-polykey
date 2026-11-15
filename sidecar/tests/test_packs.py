@@ -48,8 +48,10 @@ def test_bundled_packs_are_valid(tmp_path):
         "ja/gojuon",
         "ja/kana-jis",
         "ja/qwerty-romaji",
+        "ko/dubeolsik",
+        "ko/qwerty",
     }
-    assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table"}
+    assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table", "ko/hangul"}
     assert boot["settings"] == {
         "keyboards": ["en/english"],
         "theme": "themes/steam",
@@ -223,12 +225,26 @@ def test_a_two_row_key_needs_room_below(tmp_path):
     assert "mine/full: row 0: Enter is 2 rows high but row 1 has no room for it" in errors
 
 
-def test_a_table_has_entries_or_cycles(tmp_path):
+def test_a_table_holds_one_of_its_formats(tmp_path):
     table = {"schemaVersion": 1, "kind": "table", "id": "mine/empty", "name": "empty"}
     write(tmp_path / "packs", "mine/empty.json", table)
+    write(
+        tmp_path / "packs", "mine/two.json", {**table, "id": "mine/two", "cycles": ["はばぱ"], "entries": [["a", "あ"]]}
+    )
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert "mine/empty" not in boot["catalog"]["tables"]
-    assert "mine/empty: needs entries or cycles (one of them)" in boot["errors"]
+    assert "mine/empty" not in boot["catalog"]["tables"] and "mine/two" not in boot["catalog"]["tables"]
+    assert "mine/empty.json: /: needs entries, cycles or hangul (one of them)" in boot["errors"]
+    assert "mine/two.json: /: needs entries, cycles or hangul (one of them)" in boot["errors"]
+
+
+def test_the_schema_lists_each_table_format_once():
+    """A format is a table field and one oneOf option (exactly one of them); a composer reads one of them."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]
+    formats = [option["required"][0] for option in schema["table"]["oneOf"]]
+    common = {"$schema", "schemaVersion", "kind", "id", "name", "description"}
+    assert formats == [field for field in schema["table"]["properties"] if field not in common]
+    assert set(packs.COMPOSER_TABLES) <= set(schema["keyboard"]["properties"]["composer"]["enum"])
+    assert set(packs.COMPOSER_TABLES.values()) <= set(formats)
 
 
 def test_a_user_item_replaces_the_bundled_one(tmp_path):
@@ -530,22 +546,26 @@ def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
         "変換",
         "入力すると、ここに変換候補が出ます",
     )
-    write(tmp_path / "packs", "de/german.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de"))
-    write(tmp_path / "packs", "mine/french.json", language("fr"))
-    write(tmp_path / "packs", "es/spanish.json", language("es", labels={"Convert!": "x"}))
-    write(tmp_path / "packs", "pt/portuguese.json", language("pt", letters="abcdefghi"))
+    write(
+        tmp_path / "packs", "de/language.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de")
+    )
+    write(tmp_path / "packs", "mine/language.json", language("fr"))
+    write(tmp_path / "packs", "es/language.json", language("es", labels={"Convert!": "x"}))
+    write(tmp_path / "packs", "pt/language.json", language("pt", letters="abcdefghi"))
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["catalog"]["languages"]["de"]["labels"] == {"confirm": "OK"}
     assert boot["errors"] == [
-        "es/spanish.json: /labels: unknown field Convert!",
-        "mine/french.json: /id: must be mine (the folder name)",
-        "pt/portuguese.json: /letters: too long",
+        "es/language.json: /labels: unknown field Convert!",
+        "mine/language.json: /id: must be mine (the folder name)",
+        "pt/language.json: /letters: too long",
     ]
-    assert sorted(boot["catalog"]["languages"]) == ["de", "ja"]
+    assert {"de", "ja"} <= set(boot["catalog"]["languages"]) and not {"es", "fr", "pt"} & set(
+        boot["catalog"]["languages"]
+    )
 
 
 def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
-    write(tmp_path / "packs", "ja/mine.json", language("ja", letters="かな", labels={"convert": "Convert"}))
+    write(tmp_path / "packs", "ja/language.json", language("ja", letters="かな", labels={"convert": "Convert"}))
     ja = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["languages"]["ja"]
     assert (ja["letters"], ja["labels"], "idleHint" in ja) == ("かな", {"convert": "Convert"}, False)
 
@@ -554,3 +574,62 @@ def test_a_mode_takes_its_letters_from_the_language_unless_it_names_them(tmp_pat
     keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
     assert keyboards["ja/12key"]["modes"] == [{"id": "kana"}, {"id": "latin", "letters": "ABC", "latin": True}]
     assert "strings" not in keyboards["ja/jis"]  # the idle hint is the language's
+
+
+def test_the_korean_packs_load():
+    boot = packs.load(BUNDLED, SCHEMA, None)
+    assert boot["errors"] == []
+    catalog = boot["catalog"]
+    korean = catalog["keyboards"]["ko/korean"]
+    assert (korean["composer"], korean["table"], korean["pages"]) == ("hangul", "ko/hangul", {"latin": "ko/qwerty"})
+    assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
+    assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
+        "한글",
+        '"Noto Sans CJK KR", "Noto Sans CJK JP"',
+    )
+    hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
+    assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
+    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한/영
+    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.5} in hangul["rows"][
+        4
+    ]
+
+
+def hangul_table(item_id: str, **fields) -> dict:
+    base = packs.read_json((BUNDLED / "ko" / "hangul.json").read_text(encoding="utf-8"))["hangul"]
+    return {"schemaVersion": 1, "kind": "table", "id": item_id, "name": item_id, "hangul": {**base, **fields}}
+
+
+def test_a_hangul_table_is_checked(tmp_path):
+    # The jamo and their order are Unicode's, not a table's: a table only says which pairs make one.
+    write(
+        tmp_path / "packs",
+        "mine/order.json",
+        hangul_table("mine/order", initials="ㄲㄱㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"),
+    )
+    write(tmp_path / "packs", "mine/vowels.json", hangul_table("mine/vowels", compoundMedials=["ㅗㄱㅘ"]))
+    write(tmp_path / "packs", "mine/finals.json", hangul_table("mine/finals", compoundFinals=["ㄱㅅㅘ"]))
+    write(tmp_path / "packs", "mine/tense.json", hangul_table("mine/tense", compoundFinals=["ㄷㄷㄸ"]))  # ㄸ ends none
+    write(tmp_path / "packs", "mine/both.json", {**hangul_table("mine/both"), "cycles": ["はばぱ"]})
+    write(tmp_path / "packs", "mine/fine.json", hangul_table("mine/fine", compoundMedials=[]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    finals = "does not match ^[ㄱ-ㄷㄹ-ㅂㅄ-ㅈㅊ-ㅎ]{3}$"
+    assert sorted(boot["errors"]) == [
+        "mine/both.json: /: needs entries, cycles or hangul (one of them)",
+        f"mine/finals.json: /hangul/compoundFinals/0: {finals}",
+        "mine/order.json: /hangul: unknown field initials",
+        f"mine/tense.json: /hangul/compoundFinals/0: {finals}",
+        "mine/vowels.json: /hangul/compoundMedials/0: does not match ^[ㅏ-ㅣ]{3}$",
+    ]
+    assert "mine/fine" in boot["catalog"]["tables"]
+
+
+def test_a_hangul_keyboard_needs_its_hangul_table(tmp_path):
+    write(tmp_path / "packs", "mine/ko.json", keyboard("mine/ko", extends="ko/korean", table="ja/romaji-table"))
+    write(tmp_path / "packs", "mine/ko2.json", keyboard("mine/ko2", extends="ko/korean", table="mine/nope"))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    assert boot["errors"] == [
+        "mine/ko: hangul table ja/romaji-table not found",
+        "mine/ko2: hangul table mine/nope not found",
+    ]
+    assert "ko/korean" in boot["catalog"]["keyboards"] and "mine/ko" not in boot["catalog"]["keyboards"]

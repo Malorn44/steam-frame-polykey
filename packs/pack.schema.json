@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://polykey/packs/pack.schema.json",
   "title": "polykey pack item",
-  "description": "One layout, keyboard, theme, table, picker set or language. Files live in packs/<namespace>/; ids are <namespace>/<name>, except a language's, which is its code (and its folder's name).",
+  "description": "One layout, keyboard, theme, table, picker set or language. Files live in packs/<namespace>/; ids are <namespace>/<name>, except a language's, which is its code (its file: packs/<code>/language.json).",
   "oneOf": [
     {
       "$ref": "#/$defs/layout"
@@ -144,7 +144,7 @@
                 "type": "string",
                 "maxLength": 8
               },
-              "description": "Two halves side by side, the second bold in 英数 mode (the 12-key's あ a)."
+              "description": "Two halves side by side, one per mode, the keyboard's own first: on the mode key the current mode's is marked with the indicator bar (한/영); elsewhere the second is bold in 英数 mode (the 12-key's あ a)."
             },
             "marks": {
               "type": "array",
@@ -810,9 +810,10 @@
           "enum": [
             "direct",
             "kana",
-            "romaji"
+            "romaji",
+            "hangul"
           ],
-          "description": "direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table."
+          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul: jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table."
         },
         "lexicon": {
           "$ref": "#/$defs/id",
@@ -878,7 +879,7 @@
         },
         "table": {
           "$ref": "#/$defs/id",
-          "description": "The table (kind table) for composer romaji."
+          "description": "The table (kind table) the composer reads, or a kana keyboard's romajiInput option: it must hold the field that composer reads (COMPOSER_TABLES, sidecar/polykey/packs.py)."
         }
       }
     },
@@ -1090,7 +1091,24 @@
         "name"
       ],
       "additionalProperties": false,
-      "description": "A conversion table: entries (romaji to kana) or cycles (゛゜小).",
+      "description": "A table: entries (romaji to kana), cycles (゛゜小), or hangul (how jamo compose); one of them.",
+      "oneOf": [
+        {
+          "required": [
+            "entries"
+          ]
+        },
+        {
+          "required": [
+            "cycles"
+          ]
+        },
+        {
+          "required": [
+            "hangul"
+          ]
+        }
+      ],
       "properties": {
         "$schema": {
           "type": "string"
@@ -1128,6 +1146,31 @@
         },
         "cycles": {
           "$ref": "#/$defs/cycles"
+        },
+        "hangul": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How jamo compose (composer hangul), what a layout varies: the jamo typed one after the other that make one. The jamo themselves, and their order in Unicode's syllable formula, are Unicode's (src/core/composers/hangul.ts).",
+          "properties": {
+            "compoundMedials": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "pattern": "^[ㅏ-ㅣ]{3}$"
+              },
+              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial). Three vowels (ㅏ to ㅣ)."
+            },
+            "compoundFinals": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "pattern": "^[ㄱ-ㄷㄹ-ㅂㅄ-ㅈㅊ-ㅎ]{3}$"
+              },
+              "description": "Final consonants typed one after the other that make one: \"ㄱㅅㄳ\" is ㄱ then ㅅ, making ㄳ (a final). A vowel after it takes the second (닭 + ㅏ → 달 가). Three consonants that can end a syllable (not ㄸ, ㅃ or ㅉ)."
+            }
+          }
         }
       }
     },
@@ -1153,7 +1196,7 @@
         },
         "id": {
           "$ref": "#/$defs/languageCode",
-          "description": "The language's code (ja, ko); the file sits in the folder of that name."
+          "description": "The language's code (ja, ko); the file is language.json in the folder of that name."
         },
         "name": {
           "$ref": "#/$defs/name"
@@ -1188,6 +1231,12 @@
         "dictation": {
           "$ref": "#/$defs/languageCode",
           "description": "The language dictation listens for (default: the id)."
+        },
+        "font": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font: Korean's is \"Noto Sans CJK KR\", \"Noto Sans CJK JP\" (the Frame's system font has no Hangul)."
         }
       }
     },
