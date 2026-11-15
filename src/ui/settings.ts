@@ -1,5 +1,5 @@
 // The settings page, drawn in the keyboard area instead of the keys while open. Three tabs: Settings has
-// General (theme, haptics, suggestions, automatic updates) on the left, the current keyboard's own
+// General (theme, haptics, suggestions, composing in the field, automatic updates) on the left, the current keyboard's own
 // options on the right, and the version, its update line (src/updates.ts) and any pack errors at the
 // bottom; Keyboards picks and orders the keyboards 🌐 goes
 // through (ui/keyboards-page.ts); Dictation turns it on and picks its models (ui/dictation-page.ts).
@@ -30,6 +30,8 @@ export interface SettingsValues {
   dictationContinuous: boolean;
   /** Install a newer release when one is found (off: checks only report). */
   autoUpdate: boolean;
+  /** Compose in the text field where it is safe (off: in the bar). */
+  composeInField: boolean;
 }
 
 export interface SettingsInfo {
@@ -38,6 +40,8 @@ export interface SettingsInfo {
   errors: string[];
   /** Whether the current keyboard has word suggestions (a word list); without, that row is hidden. */
   suggestions: boolean;
+  /** Whether the current keyboard's composer can compose in the text field; without, that row is hidden. */
+  inline?: boolean;
   /** The current keyboard's name, heading its options. */
   keyboardName: string;
   /** The current keyboard's options: a name and its two choices. */
@@ -169,7 +173,7 @@ export const createSettingsView = (
     option('Steam keyboard', false, onStock, ' stock'));
 
   /** A general on/off setting as a switch. */
-  const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous' | 'autoUpdate'): HTMLElement => {
+  const onOff = (name: string, key: 'haptics' | 'suggestions' | 'dictation' | 'dictationContinuous' | 'autoUpdate' | 'composeInField'): HTMLElement => {
     const sw = doc.createElement('div');
     sw.className = `switch${values[key] ? ' on' : ''}`;
     actions.set(sw, () => onChange({ [key]: !values[key] }));
@@ -223,6 +227,8 @@ export const createSettingsView = (
     row('Theme', themes.el),
     onOff('Haptics', 'haptics'),
     ...(info.suggestions ? [onOff('Suggestions', 'suggestions')] : []),
+    ...(info.inline ? [explained(onOff('Compose in the field', 'composeInField'), 'Compose in the field',
+      'Each syllable is typed into the text field as you build it, in Steam and in games. Off, or in Desktop Mode, it waits in the bar until done.')] : []),
     explained(onOff('Update automatically', 'autoUpdate'), 'Automatic updates', 'Checks at start and hourly; installs when the keyboard closes.'));
   pageColumn(cols, 'options', info.keyboardName).list.append(
     ...(info.options.length

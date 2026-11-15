@@ -25,6 +25,7 @@ DEFAULT_SETTINGS = {
     "dictationModels": {},
     "dictationContinuous": False,
     "autoUpdate": True,
+    "composeInField": True,
 }
 # The model dictation uses per language (settings.json "dictationModels": {language: model id}).
 DICTATION_LANGUAGE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
@@ -252,7 +253,7 @@ def load_settings(path: Path, errors: list[str]) -> dict:
             settings["keyboards"] = data["keyboards"]
         if isinstance(data.get("theme"), str):
             settings["theme"] = data["theme"]
-        for flag in ("haptics", "suggestions", "dictation", "dictationContinuous", "autoUpdate"):
+        for flag in ("haptics", "suggestions", "dictation", "dictationContinuous", "autoUpdate", "composeInField"):
             if isinstance(data.get(flag), bool):
                 settings[flag] = data[flag]
         options = clean_keyboard_options(data.get("keyboardOptions"))
