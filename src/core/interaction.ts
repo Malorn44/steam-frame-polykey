@@ -7,6 +7,11 @@ export const REPEAT_DELAY_MS = 450;
 export const REPEAT_MS = 60;
 /** The laser moving this long without a touch move means the trigger was released unseen. */
 export const RELEASE_LOST_MS = 600;
+/**
+ * A held key repeats only while the laser is heard from (a touch move, or it moving at all): quiet this
+ * long, it has left the popup or the popup is gone, and the release may never come.
+ */
+export const REPEAT_QUIET_MS = 1000;
 
 /** How far a press may move before it becomes something else, in CSS px. */
 export const SLOP_PX = {

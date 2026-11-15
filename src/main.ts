@@ -347,6 +347,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
+    if (repeat && swipeWait) return; // a repeat waiting for the word would come after its key's release
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     if (!dictates(key)) dictatedTail = null; // typed in between: the next phrase joins what is known now
@@ -1044,6 +1045,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         live = [];
         showIme();
         keys.releaseAll(); // closing must never leave a key held
+        view?.cancel(); // nor one repeating
         dictation.cancel(); // nor the mic listening
         mods = { ...NO_MODS, caps: mods.caps };
         view?.update(mods);

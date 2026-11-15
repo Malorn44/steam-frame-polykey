@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_EMOJI_STATE, type EmojiState, type PickerSet } from '../src/core/emoji.js';
+import { REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
@@ -136,6 +137,45 @@ describe('installPolykey', () => {
     for (const label of ['s', 'e', 'c', 'r', 't']) await tap(popup, label);
     expect(logged.join('\n')).not.toMatch(/secrt|s\b.*e\b/);
     for (const line of logged) expect(line).not.toContain('secr');
+  });
+});
+
+describe('a held Backspace', () => {
+  const touch = (el: Element, type: string) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: 10, clientY: 10 }] });
+    el.dispatchEvent(e);
+  };
+  const backspaces = (manager: ReturnType<typeof fakeManager>) => manager.calls.filter(([k]) => k === 'Backspace').length;
+
+  it('stops at its release, though its icon was drawn again under the press (the release goes to the old one)', async () => {
+    const { popup, manager } = setup();
+    const icon = key(popup, 'Backspace').querySelector('svg')!;
+    touch(icon, 'touchstart');
+    await vi.advanceTimersByTimeAsync(REPEAT_DELAY_MS + REPEAT_MS * 2);
+    expect([backspaces(manager), icon.isConnected]).toEqual([3, false]);
+    touch(icon, 'touchend');
+    await vi.advanceTimersByTimeAsync(REPEAT_MS * 20);
+    expect(backspaces(manager)).toBe(3);
+  });
+
+  it('stops when the keyboard closes, though its release never comes', async () => {
+    const { popup, manager, state } = setup();
+    await vi.advanceTimersByTimeAsync(CHECK_MS); // seen open
+    const held = key(popup, 'Backspace');
+    /** Hold on for `ms`, the laser moving (as when the trigger is still down), and count what it sent. */
+    const keepHolding = async (ms: number) => {
+      for (let t = 0; t < ms; t += 100) {
+        touch(held, 'touchmove');
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      return backspaces(manager);
+    };
+    touch(held, 'touchstart');
+    expect(await keepHolding(1000)).toBeGreaterThan(5);
+    state.status = { ...MINIMAL, bIsOpen: false };
+    const closed = await keepHolding(CHECK_MS); // seen closed by now
+    expect(await keepHolding(CHECK_MS)).toBe(closed);
   });
 });
 
@@ -321,25 +361,25 @@ describe('settings', () => {
 describe('swipe typing', () => {
   /** polykey with a fake sidecar (there from the start, as the injector adds the binding first): `swipe`
    * answers with the next words from `replies`; every request is kept. */
-  const setupSwipe = (replies: string[][], on: string[] = ['en/english']) => {
+  const setupSwipe = (replies: string[][], on: string[] = ['en/english'], decodeMs = 5) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
     const boot = bundledBoot();
     boot.settings.keyboardOptions = Object.fromEntries(on.map((id) => [id, { swipe: true }])); // off by default
     steam.g[BOOT_GLOBAL] = boot;
-    const requests = withSwipe(steam.g, replies);
+    const requests = withSwipe(steam.g, replies, decodeMs);
     const api = installPolykey(steam.g);
     installed.push(api);
     return { popup, manager, requests, api };
   };
-  const withSwipe = (g: Record<string, unknown>, replies: string[][]) => {
+  const withSwipe = (g: Record<string, unknown>, replies: string[][], decodeMs = 5) => {
     const requests: Record<string, unknown>[] = [];
     g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
       requests.push(req);
       const words = req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [];
-      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), 5);
+      setTimeout(() => (g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ok: true, words }), req.op === 'swipe' && !req.prepare ? decodeMs : 5);
     };
     return requests;
   };
@@ -393,6 +433,18 @@ describe('swipe typing', () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would ');
     expect(slots(popup)).toEqual(['', '', '']); // picked: the alternatives go
+  });
+
+  it('a held key repeating while the word decodes repeats nothing that would come after its release', async () => {
+    const { popup, manager } = setupSwipe([['hello']], ['en/english'], 1000);
+    layOut(popup);
+    await swipe(popup, 'h', 'o', 0);
+    const held = key(popup, 'Backspace');
+    held.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(REPEAT_DELAY_MS + REPEAT_MS * 5); // held while the word decodes
+    held.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(1000); // the word comes
+    expect(typed(manager)).toBe('hello');
   });
 
   it('a pick after a swipe adds a space and clears the bar; the next swipe adds no second space', async () => {
