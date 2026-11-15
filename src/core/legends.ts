@@ -50,6 +50,8 @@ export interface LegendContext {
   readonly symbols?: 0 | 1 | 2;
   /** What the current mode's letters are called (あいう, ABC), for the keys back to them. */
   readonly letters?: string | undefined;
+  /** What the other mode's letters are called (ABC, 한글), for the mode key that switches to it. */
+  readonly other?: string | undefined;
   /** Flick hints (the option) for every flick key. */
   readonly hints: boolean;
   /** Characters drawn in a dotted box (the layout's dotted). */
@@ -152,7 +154,7 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     if (ctx.label !== undefined) return text(ctx.label, 'key', 'text');
     if (key.type === 'flick' && (ctx.hints || key.hints)) return text(flickText(key.flick[0], mods), 'key', 'text');
     if (ctx.icon) return { kind: 'icon', icon: ctx.icon };
-    return text(pageLabel(key, { letters: ctx.letters, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
+    return text(pageLabel(key, { letters: ctx.letters, other: ctx.other, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
   })();
   // The ABC keys: the label with its digit small beneath (not with hints, which show the rest).
   const shown: Legend = key.type === 'flick' && key.sub && !(ctx.hints || key.hints) && label.kind === 'text'
