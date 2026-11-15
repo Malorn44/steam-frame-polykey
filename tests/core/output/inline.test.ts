@@ -111,15 +111,11 @@ describe('Korean typed into a field by retyping', () => {
 
 describe('chooseInline', () => {
   it('retypes in Steam and in games, keeps the bar in Desktop Mode and when streaming', () => {
-    expect(chooseInline('steam-ui', undefined, true)).toBe('retype');
-    expect(chooseInline('local-app', false, true)).toBe('retype'); // a game, or an app on gamescope
-    expect(chooseInline('local-app', true, true)).toBe('bar'); // Desktop Mode has the focus
-    expect(chooseInline('local-app', undefined, true)).toBe('bar'); // not known yet
-    expect(chooseInline('streamed', false, true)).toBe('bar');
-    expect(chooseInline('unknown', false, true)).toBe('bar');
-  });
-
-  it('off, the bar everywhere', () => {
-    for (const target of ['steam-ui', 'local-app', 'streamed', 'unknown'] as const) expect(chooseInline(target, false, false)).toBe('bar');
+    expect(chooseInline('steam-ui', undefined)).toBe('retype');
+    expect(chooseInline('local-app', false)).toBe('retype'); // a game, or an app on gamescope
+    expect(chooseInline('local-app', true)).toBe('bar'); // Desktop Mode has the focus
+    expect(chooseInline('local-app', undefined)).toBe('bar'); // not known yet
+    expect(chooseInline('streamed', false)).toBe('bar');
+    expect(chooseInline('unknown', false)).toBe('bar');
   });
 });

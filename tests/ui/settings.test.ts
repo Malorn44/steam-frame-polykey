@@ -17,7 +17,7 @@ const tap = (el: Element) => {
 };
 
 /** Settings with two bundled themes (Night Owl, Steam), plus `extra` made-up ones (to fill the list past what fits). */
-const setup = (extra = 0, update: UpdateStatus | null = null, inline = false) => {
+const setup = (extra = 0, update: UpdateStatus | null = null) => {
   const boot = bundledBoot();
   const host = document.createElement('div');
   document.body.append(host);
@@ -28,8 +28,8 @@ const setup = (extra = 0, update: UpdateStatus | null = null, inline = false) =>
   const changes: Partial<SettingsValues>[] = [];
   const asked: UpdateAction[] = [];
   const view = createSettingsView(document, shadow, boot.catalog.themes['themes/steam']!,
-    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false, autoUpdate: true, composeInField: true }, {
-      themes, version: 'test', errors: [], suggestions: false, inline, keyboardName: 'English', options: [], tab: 'general',
+    { theme: 'themes/steam', haptics: true, suggestions: true, dictation: false, dictationContinuous: false, autoUpdate: true }, {
+      themes, version: 'test', errors: [], suggestions: false, keyboardName: 'English', options: [], tab: 'general',
       keyboards: { all: [], ring: [], language: 'en' }, update,
     }, {
       onTab: () => {}, onChange: (c) => changes.push(c), onOption: () => {}, onStock: () => {}, onClose: () => {},
@@ -47,19 +47,6 @@ const setup = (extra = 0, update: UpdateStatus | null = null, inline = false) =>
 };
 
 const STATUS: UpdateStatus = { rev: 1, dev: false, state: 'idle', latest: null, available: false, skipped: false };
-
-describe('settings: composing in the field', () => {
-  const row = (shadow: ShadowRoot) => [...shadow.querySelectorAll<HTMLElement>('.row')].find((r) => r.textContent === 'Compose in the field');
-
-  it('shows only for a keyboard whose composer can compose in the field; its switch turns it off', () => {
-    expect(row(setup().shadow)).toBeUndefined();
-    const { shadow, changes } = setup(0, null, true);
-    expect(row(shadow)!.querySelector('.switch.on')).not.toBeNull();
-    tap(row(shadow)!.querySelector('.switch')!);
-    expect(changes).toEqual([{ composeInField: false }]);
-    expect(row(shadow)!.querySelector('.ic.i')).not.toBeNull(); // ⓘ says what it does
-  });
-});
 
 describe('settings: updates', () => {
   it('a switch turns automatic updates off', () => {

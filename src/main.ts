@@ -167,7 +167,6 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     dictation: boot?.settings.dictation === true, // off until turned on
     dictationContinuous: boot?.settings.dictationContinuous === true,
     autoUpdate: boot?.settings.autoUpdate !== false, // on unless turned off
-    composeInField: boot?.settings.composeInField !== false, // on unless turned off
   };
   const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
@@ -260,14 +259,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * Whether a composer that can compose in the text field does so now: retyped in Steam and in games,
-   * in the bar in Desktop Mode (until the sidecar says, too), when streaming, and with the setting off.
+   * Whether a composer that can compose in the text field does so now: retyped in Steam and in games;
+   * in the bar in Desktop Mode (and until the sidecar says it is not), and when streaming.
    */
   const composeInField = (): boolean => {
     const status = readStatus(statusStore);
     const target = classifyTarget(status);
-    const desktop = settings.composeInField && target === 'local-app' ? desktopFocus(status) : undefined;
-    return chooseInline(target, desktop, settings.composeInField) === 'retype';
+    return chooseInline(target, target === 'local-app' ? desktopFocus(status) : undefined) === 'retype';
   };
   /** Where typing goes now ('' while the keyboard is closed): what polykey typed belongs to one. */
   const targetOf = (status: VRKeyboardStatus | null): string =>
@@ -877,7 +875,6 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         version: VERSION,
         errors: boot.errors,
         suggestions: suggests(keyboard),
-        inline: composerOf(keyboard)?.inline === true,
         keyboardName: keyboard ? fullName(keyboard) : id,
         // The dictation row only while dictation is on.
         options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
@@ -1174,7 +1171,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (open !== wasOpen) {
       newField();
       // Whether Desktop Mode has the focus, asked again for the window it opened on (the last answer stands meanwhile).
-      if (open && classifyTarget(status) === 'local-app' && settings.composeInField && bridge.available()) askDesktop(overlayOf(status));
+      if (open && classifyTarget(status) === 'local-app' && bridge.available()) askDesktop(overlayOf(status));
       if (!open) {
         bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
         showBar();

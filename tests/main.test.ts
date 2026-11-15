@@ -1551,15 +1551,14 @@ describe('the mode key', () => {
   });
 });
 
-// With Compose in the field off, Korean composes in the bar everywhere, as before it existed.
+// Where it cannot compose in the field (here streamed, as through Steam Link), Korean composes in the bar.
 describe('Korean', () => {
   const setupKo = () => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
-    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const steam = fakeSteam({ popup, managers: [manager], status: STREAMED, keyState: true });
     const boot = bundledBoot();
     boot.settings.keyboards = ['ko/korean', 'en/english'];
-    boot.settings.composeInField = false;
     steam.g[BOOT_GLOBAL] = boot;
     installed.push(installPolykey(steam.g));
     const sent = () => manager.calls.map((c) => c[0]);
@@ -1651,14 +1650,14 @@ describe('Korean', () => {
 describe('Korean word suggestions', () => {
   /**
    * The Korean keyboard with a fake sidecar: suggest answers with `words` for the prefix (the sidecar
-   * matches on keys; test_spellers.py). Composed in the bar, as with Compose in the field off.
+   * matches on keys; test_spellers.py). Composed in the bar, as where it cannot compose in the field
+   * (streamed).
    */
   const setupWords = (words: Record<string, string[]>, boot = bundledBoot()) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
-    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const steam = fakeSteam({ popup, managers: [manager], status: STREAMED, keyState: true });
     boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
-    boot.settings.composeInField ??= false;
     steam.g[BOOT_GLOBAL] = boot;
     const asked: SentRequest[] = [];
     const prepared: SentRequest[] = [];
@@ -1765,9 +1764,9 @@ describe('Korean composed in the text field', () => {
   const fieldOf = (calls: readonly string[], start = '') => calls.reduce((field, k) => (k === 'Backspace' ? graphemes(field).slice(0, -1).join('')
     : /^[A-Z][A-Za-z]+$/.test(k) ? `${field}<${k}>` : field + k), start);
   /**
-   * The Korean keyboard, Compose in the field on (the default), in a game (minimal) unless `status`
-   * says otherwise. With no `sidecar` there is no bridge, so no paste route; with one, it answers the
-   * requests it knows (an unknown op gets unknown-op, so desktop.prepare finds no desktop).
+   * The Korean keyboard in a game (minimal) unless `status` says otherwise. With no `sidecar` there is
+   * no bridge, so no paste route; with one, it answers the requests it knows (an unknown op gets
+   * unknown-op, so desktop.prepare finds no desktop).
    */
   const setupField = ({ status = MINIMAL, sidecar }: { status?: VRKeyboardStatus; sidecar?: (req: SentRequest) => Record<string, unknown> | undefined } = {}) => {
     const popup = fakePopupWindow();
@@ -1978,23 +1977,6 @@ describe('Korean composed in the text field', () => {
 
   it('streamed (Steam Link), the bar as before', async () => {
     const { sent, pre, typeAll } = setupField({ status: STREAMED });
-    await typeAll('ㅎㅏㄴ');
-    expect([sent(), pre()]).toEqual([[], '한']);
-  });
-
-  it('Settings → Compose in the field off: the bar everywhere, saved', async () => {
-    const saved: unknown[] = [];
-    const { popup, sent, pre, typeAll } = setupField({ sidecar: notDesktop((req) => (req.op === 'settings.save' ? (saved.push(req.settings), { ok: true }) : undefined)) });
-    await tap(popup, 'settings');
-    const sw = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.panel .row')].find((r) => r.textContent === 'Compose in the field')!
-      .querySelector<HTMLElement>('.switch.on')!;
-    sw.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-    sw.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
-    await vi.advanceTimersByTimeAsync(50);
-    expect(saved).toEqual([{ composeInField: false }]);
-    const close = shadowOf(popup)!.querySelector<HTMLElement>('.panel .opt.close')!;
-    close.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-    close.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await typeAll('ㅎㅏㄴ');
     expect([sent(), pre()]).toEqual([[], '한']);
   });
