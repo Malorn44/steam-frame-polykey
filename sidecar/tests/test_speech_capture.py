@@ -5,10 +5,10 @@ import json
 
 import pytest
 
-from fake_speech import PW_DUMP, PW_LINK, PW_RECORD, noise, tone, tool, zeros
+from fake_speech import PW_DUMP, PW_LINK, PW_RECORD, hiss, knocks, noise, tone, tool, typing, voice, zeros
 from polykey.speech import SpeechError, capture, vad
 from polykey.speech.capture import Recorder, Tools, parse_rules, raw_microphone
-from polykey.speech.vad import FRAME_BYTES, Segmenter, level_db
+from polykey.speech.vad import FRAME_BYTES, Segmenter, level_db, samples_of, voicing
 
 
 def frames(pcm: bytes):
@@ -25,14 +25,63 @@ def test_levels():
     assert -22 < level_db(tone(0.02, 4000)) < -15
 
 
+def seconds(phrase: bytes) -> float:
+    return len(phrase) / 2 / vad.RATE
+
+
 def test_a_phrase_ends_after_its_pause_with_pre_roll_and_tail():
     seg = Segmenter()
     phrases = feed(seg, noise(1.0) + tone(1.0) + noise(1.0))
     assert len(phrases) == 1
-    seconds = len(phrases[0]) / 2 / vad.RATE
-    # 0.3 s before the speech, 1 s of it, 0.2 s after.
-    assert seconds == pytest.approx(0.3 + 1.0 + 0.2, abs=0.03)
+    # 0.3 s before the speech, 1 s of it, 0.3 s after.
+    assert seconds(phrases[0]) == pytest.approx(0.3 + 1.0 + 0.3, abs=0.03)
     assert not seg.in_phrase
+
+
+def voiced_share(pcm: bytes) -> float:
+    """The share of a sound's loud frames that are voiced, each with the frame before it."""
+    seg, loud, voiced = Segmenter(), 0, 0
+    for i, frame in enumerate(frames(pcm)):
+        seg.feed(frame)
+        if i and seg.level >= seg.gate():
+            loud += 1
+            voiced += voicing(samples_of(pcm[(i - 1) * FRAME_BYTES : (i + 1) * FRAME_BYTES])) >= vad.VOICED
+    return voiced / loud
+
+
+def test_voicing_tells_a_voice_from_typing_and_hiss():
+    for f0 in (90, 220, 330):  # a low voice, a high one, a child's
+        assert voiced_share(noise(0.5) + voice(1.0, f0) + noise(0.5)) > 0.9
+    assert voiced_share(noise(0.5) + tone(1.0) + noise(0.5)) > 0.9  # a steady tone repeats itself too
+    assert voiced_share(noise(1.0) + typing(6.0)) < 0.1  # a key's thump, now and then
+    assert voiced_share(noise(1.0) + hiss(6.0)) < 0.02
+    assert voicing(samples_of(zeros(0.04))) == 0.0
+
+
+@pytest.mark.parametrize(
+    "sound",
+    [typing(6.0), typing(6.0, 10, 12000), typing(6.0, buzz=True), knocks(4.0), knocks(4.0, 0.01), hiss(4.0)],
+    ids=["typing", "fast-loud-typing", "typing-with-haptics", "knocks", "short-knocks", "hiss"],
+)
+def test_typing_knocks_and_hiss_are_not_phrases(sound):
+    seg = Segmenter()
+    assert feed(seg, noise(1.0) + sound + noise(1.0)) == []
+    assert not seg.in_phrase and seg.finish() is None
+
+
+def test_typing_neither_keeps_a_phrase_going_nor_joins_one():
+    seg = Segmenter()
+    # It ends 0.6 s after the voice, typing or not: 0.3 s before the voice, the voice, 0.3 s after.
+    phrases = feed(seg, noise(1.0) + voice(1.0) + typing(3.0, 10, 12000) + noise(1.0))
+    assert len(phrases) == 1 and seconds(phrases[0]) == pytest.approx(0.3 + 1.0 + 0.3, abs=0.05)
+    phrases = feed(seg, typing(3.0) + voice(1.0) + noise(1.0))
+    assert len(phrases) == 1 and seconds(phrases[0]) == pytest.approx(0.3 + 1.0 + 0.3, abs=0.05)
+
+
+def test_a_short_word_is_heard_and_a_blip_is_not():
+    for f0 in (90, 220):
+        assert len(feed(Segmenter(), noise(1.0) + voice(0.16, f0) + noise(1.0))) == 1
+        assert feed(Segmenter(), noise(1.0) + voice(0.08, f0) + noise(1.0)) == []
 
 
 def test_pause_shorter_than_the_end_keeps_one_phrase():
