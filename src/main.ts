@@ -220,11 +220,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /**
    * Non-ASCII into KDE Desktop Mode goes by paste; the sidecar refuses unless the desktop has focus, and
-   * its answer is kept for the window (desktopFocus). True when the text was sent (or pasted).
+   * its answer is kept for the window (desktopFocus). A window it has said is not the desktop (a game)
+   * is typed into at once, without asking again for each text: it is asked at each open. True when the
+   * text was sent (or pasted).
    */
   const sendText = async (text: string): Promise<boolean> => {
     const status = readStatus(statusStore);
-    if (NON_ASCII.test(text) && classifyTarget(status) === 'local-app' && bridge.available()) {
+    if (NON_ASCII.test(text) && classifyTarget(status) === 'local-app' && bridge.available() && desktopAt.get(overlayOf(status)) !== false) {
       const prepared = await bridge.call('desktop.prepare', { text });
       desktopAt.set(overlayOf(status), prepared.ok);
       if (prepared.ok) {
@@ -1170,8 +1172,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const target = targetOf(status);
     if (open !== wasOpen) {
       newField();
-      // Whether Desktop Mode has the focus, asked again for the window it opened on (the last answer stands meanwhile).
-      if (open && classifyTarget(status) === 'local-app' && bridge.available()) askDesktop(overlayOf(status));
+      // Whether Desktop Mode has the focus, asked again for the window it opened on: until it answers, the
+      // paste route checks for itself and a composition waits in the bar.
+      if (open && classifyTarget(status) === 'local-app' && bridge.available()) {
+        desktopAt.delete(overlayOf(status));
+        askDesktop(overlayOf(status));
+      }
       if (!open) {
         bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
         showBar();
