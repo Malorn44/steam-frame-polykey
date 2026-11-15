@@ -13,6 +13,7 @@ import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStat
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
 import { fjkActive, otherKeyboards } from './host/steam/others.js';
 import { createOutput } from './host/steam/output.js';
+import { createPacer } from './host/steam/pace.js';
 import { mountSurface, overlayRect, type Surface } from './host/steam/popup.js';
 import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
@@ -162,11 +163,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
   const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
+  // One line for text and chords: a chord waits for the text before it and its keymap (host/steam/pace.ts).
+  const pacer = createPacer();
   const output = createOutput({
     getManager: () => pickKeyboardManager(g),
     getDelivery: () => chooseDelivery(keyboardMode(readStatus(statusStore)), 'auto'),
+    pacer,
   });
-  const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g) });
+  const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g), pacer });
   const bridge = createBridge(g);
   const dictation = createDictation({
     call: bridge.call, onState: (state) => view?.setMic(state), onText: (text) => placeDictated(text), log,
