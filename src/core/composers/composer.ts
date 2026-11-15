@@ -94,6 +94,12 @@ export interface Converting<S> {
 export interface Composer<S> {
   /** The state with nothing composed. */
   readonly empty: S;
+  /**
+   * What it composes may be typed into the text field as it changes, where retyping is safe (the bar
+   * controller, src/core/output/inline.ts), the bar then showing only candidates. Without it, what is
+   * composed waits in the bar. A conversion (segments) is shown in the bar either way.
+   */
+  readonly inline?: boolean;
   composing(state: S): boolean;
   /** Whether a key with two sets of legends (JIS) types its Latin ones (romaji input); none: it types its own. */
   latinKeys?(ctx: ComposerContext): boolean;
