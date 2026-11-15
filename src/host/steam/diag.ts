@@ -1,7 +1,7 @@
 // Read-only VR keyboard status (open, buffered/minimal, target overlay). Optional: without the store,
 // diagnostics are off and nothing else changes.
 
-import type { KeyboardMode } from '../../core/output/plan.js';
+import type { KeyboardMode, TargetKind } from '../../core/output/plan.js';
 import type { SteamGlobals } from './globals.js';
 
 /** Fields seen on the status object by fjk and TaiKeid. */
@@ -16,8 +16,6 @@ export interface VRKeyboardStatus {
 export interface StatusStore {
   readonly VRKeyboardStatus: VRKeyboardStatus;
 }
-
-type TargetKind = 'streamed' | 'local-app' | 'steam-ui' | 'unknown';
 
 type WebpackRequire = ((id: string) => unknown) & { m: Record<string, unknown> };
 
