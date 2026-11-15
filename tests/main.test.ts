@@ -1954,6 +1954,21 @@ describe('Korean composed in the text field', () => {
     expect([pasted, sent()]).toEqual([['한'], [' ']]);
   });
 
+  it('in a game, once the sidecar has said so, Hangul goes straight in: no paste check before each text; a reopen asks again', async () => {
+    const t = setupField({ sidecar: notDesktop() });
+    await t.opened();
+    await t.typeAll('ㅎㅏㄴ');
+    expect(t.sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한']);
+    const desktopOps = () => t.asked.map((r) => r.op).filter((op) => op.startsWith('desktop.'));
+    expect(desktopOps()).toEqual(['desktop.focus']);
+    t.state.status = { ...MINIMAL, bIsOpen: false };
+    await t.typeAll('ㄱ'); // sees the close
+    t.state.status = MINIMAL;
+    await t.typeAll('ㄱ'); // and the reopen, which asks where the focus is again; until it answers, the paste route checks
+    await t.typeAll('ㅏ');
+    expect(desktopOps()).toEqual(['desktop.focus', 'desktop.focus', 'desktop.prepare']);
+  });
+
   it('until the sidecar says where the focus is, the syllable waits in the bar, then moves into the field', async () => {
     let answer: (() => void) | null = null;
     const t = setupField({ sidecar: () => undefined });
