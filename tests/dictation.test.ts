@@ -3,11 +3,12 @@
 // settings through installPolykey with a fake sidecar.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeReply } from '../src/bridge/client.js';
+import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { ERROR_MS, MAX_SESSION_MS, createDictation } from '../src/dictation.js';
 import { BOOT_GLOBAL, GLOBAL, installPolykey, type PolykeyApi } from '../src/main.js';
 import { bundledBoot } from './boot.js';
-import { MINIMAL, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
+import { MINIMAL, STREAMED, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
 let logged: string[];
 let installed: PolykeyApi[];
@@ -101,10 +102,10 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
   };
 };
 
-const setup = (settings: Record<string, unknown> = {}, status: Record<string, unknown> = {}) => {
+const setup = (settings: Record<string, unknown> = {}, status: Record<string, unknown> = {}, keyboard: VRKeyboardStatus = MINIMAL) => {
   const popup = fakePopupWindow();
   const manager = fakeManager(true);
-  const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+  const steam = fakeSteam({ popup, managers: [manager], status: keyboard, keyState: true });
   const boot = bundledBoot();
   Object.assign(boot.settings, settings);
   steam.g[BOOT_GLOBAL] = boot;
@@ -363,8 +364,8 @@ describe('dictation on the page', () => {
     expect(typed()).toBe('あ今日は晴れ');
   });
 
-  it('Korean: the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
-    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'], composeInField: false });
+  it('Korean in the bar (streamed): the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
+    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] }, {}, STREAMED);
     api.debug.use('ko/korean');
     await tap(popup, 'ㄴ');
     await tap(popup, 'ㅔ'); // 네, in the bar

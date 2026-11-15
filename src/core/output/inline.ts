@@ -59,10 +59,9 @@ export type InlineMethod = 'retype' | 'bar';
  * Steam's own UI and apps on gamescope (games) are retyped into, as Steam's keyboard does; Desktop Mode
  * is typed into by pasting (sidecar/polykey/desktop.py), a paste for each jamo, and streamed targets are
  * unmeasured, so both keep the bar. `desktop`: whether the desktop has gamescope's focus, as the sidecar
- * last said for this target (undefined: not known yet, so the bar until it is). Off: the bar everywhere.
+ * last said for this target (undefined: not known yet, so the bar until it is).
  */
-export const chooseInline = (target: TargetKind, desktop: boolean | undefined, on: boolean): InlineMethod => {
-  if (!on) return 'bar';
+export const chooseInline = (target: TargetKind, desktop: boolean | undefined): InlineMethod => {
   if (target === 'steam-ui') return 'retype';
   return target === 'local-app' && desktop === false ? 'retype' : 'bar';
 };

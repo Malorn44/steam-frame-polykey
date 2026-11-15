@@ -61,7 +61,6 @@ def test_bundled_packs_are_valid(tmp_path):
         "dictationModels": {},
         "dictationContinuous": False,
         "autoUpdate": True,
-        "composeInField": True,
     }
     assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
 
@@ -335,7 +334,6 @@ def test_settings_are_read_and_checked(tmp_path):
         "dictationModels": {},
         "dictationContinuous": False,
         "autoUpdate": True,
-        "composeInField": True,
     }
     assert "settings.json: unknown keyboards xx/nope" in boot["errors"]
     assert "settings.json: unknown theme themes/nope" in boot["errors"]
@@ -355,14 +353,6 @@ def test_continuous_dictation_is_a_flag(tmp_path):
     assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationContinuous"] is True
     write(tmp_path, "settings.json", {"dictationContinuous": "yes"})
     assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["dictationContinuous"] is False
-
-
-def test_composing_in_the_field_is_a_flag_on_by_default(tmp_path):
-    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["composeInField"] is True
-    write(tmp_path, "settings.json", {"composeInField": False})
-    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["composeInField"] is False
-    write(tmp_path, "settings.json", {"composeInField": "no"})
-    assert packs.load(BUNDLED, SCHEMA, tmp_path)["settings"]["composeInField"] is True
 
 
 def test_broken_settings_fall_back_to_defaults(tmp_path):
@@ -436,7 +426,6 @@ def test_settings_flags_and_saving(tmp_path):
         "dictationModels": {},
         "dictationContinuous": False,
         "autoUpdate": True,
-        "composeInField": True,
     }
     write(tmp_path, "settings.json", {"keyboards": ["en/english"], "custom": 1})
     packs.save_settings(tmp_path / "settings.json", {"suggestions": False})
@@ -461,10 +450,7 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert ask({"keyboards": ["ja/jis", "ja/jis"]})["error"] == "bad-settings"
     assert ask({"keyboards": ["../etc"]})["error"] == "bad-settings"
     assert ask({"dictationContinuous": 1})["error"] == "bad-settings"
-    assert ask({"composeInField": "off"})["error"] == "bad-settings"
     assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False}
-    assert ask({"composeInField": False}) == {"id": 1, "ok": True}
-    assert json.loads((tmp_path / "settings.json").read_text()) == {"haptics": False, "composeInField": False}
     assert ask({"keyboardOptions": {"ja/jis": {"dictationCommit": True}}}) == {"id": 1, "ok": True}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": True}}}) == {"id": 1, "ok": True}
     assert ask({"keyboardOptions": {"ja/12key": {"tapCycle": "yes"}}})["error"] == "bad-settings"
