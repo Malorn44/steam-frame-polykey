@@ -4,7 +4,7 @@ import type { KeyDef } from '../src/core/catalog.js';
 import { NO_EMOJI_STATE, type EmojiState, type PickerSet } from '../src/core/emoji.js';
 import { REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
-import { BUFFERED_GAP_MS, KEYMAP_SETTLE_MS, graphemes } from '../src/core/output/plan.js';
+import { BUFFERED_GAP_MS, KEYMAP_SETTLE_KEY_MS, KEYMAP_SETTLE_MS, graphemes } from '../src/core/output/plan.js';
 import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { BOOT_GLOBAL, CHECK_MS, FIELD_CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
@@ -1850,9 +1850,9 @@ describe('Korean composed in the text field', () => {
     for (const k of ['ㅎ', 'ㅏ', 'ㄴ']) press(k);
     await vi.advanceTimersByTimeAsync(1000);
     expect(sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한']);
-    expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_MS); // after ㅎ's keymap
-    expect(at[3]! - at[2]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_MS); // after 하's
-    expect(at[2]! - at[1]!).toBeLessThan(KEYMAP_SETTLE_MS); // a Backspace swaps no keymap
+    expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_KEY_MS); // after ㅎ's keymap
+    expect(at[3]! - at[2]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_KEY_MS); // after 하's
+    expect(at[2]! - at[1]!).toBe(0); // the syllable after a Backspace goes at once
   });
 
   it('in Steam\'s own UI the same, one character per call, the buffer\'s gap between a text\'s characters', async () => {

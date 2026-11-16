@@ -15,12 +15,27 @@ export type TargetKind = 'streamed' | 'local-app' | 'steam-ui' | 'unknown';
 export const BUFFERED_GAP_MS = 40;
 
 /**
- * In minimal mode gamescope types a non-ASCII call through a temporary keymap. The next call, or key
- * chord, waits this long, so its own keys (or its own keymap) do not land before the target has read
- * these: without it, a kaomoji's calls, or two tapped in quick succession, come out as stray or missing
- * characters, and text sent just before a chord (Copy while composing) as number-row digits.
+ * In minimal mode gamescope types a non-ASCII call through a temporary keymap, and what is sent next
+ * must not change it before the target has read that call's keys, or they come out as number-row
+ * digits. Each kind waits as long as it needs, from the end of that call:
+ * - a key chord, KEYMAP_SETTLE_MS: text sent just before one (Copy while composing) came out as digits.
+ *   The measurement below sent no chords, so this stays as it was.
+ * - a named key (⌫, Enter), KEYMAP_SETTLE_KEY_MS. gamescope performs each as an action, as it does ⌫.
+ * - text, KEYMAP_SETTLE_TEXT_MS.
+ * Measured on a Frame (2026-11-15), with fixed test lines sent through Steam's keyboard manager into
+ * Konsole in game mode: 120 trials per pattern at gaps of 0, 10, 20 and 30 ms. Wrong lines: retype
+ * (ㅎ, ⌫하, ⌫한, ㄱ, ⌫그, ⌫글, the gap before each step, a ⌫ and its syllable back to back) 120, 30, 8,
+ * 0, the wrong ones with digits (36, 3글, 한6); swap (가 나 다 라) and ascii (가 a 나 b) none at any
+ * gap. Text after text needs no wait, and the ⌫ after a syllable does; the syllable after a ⌫ went
+ * with none in every trial.
  */
 export const KEYMAP_SETTLE_MS = 60;
+export const KEYMAP_SETTLE_KEY_MS = 30;
+export const KEYMAP_SETTLE_TEXT_MS = 0;
+
+/** How long each kind of call waits after one that swapped the keymap (pace.ts). */
+export type Settle = Readonly<Record<'text' | 'key' | 'chord', number>>;
+export const KEYMAP_SETTLE: Settle = { text: KEYMAP_SETTLE_TEXT_MS, key: KEYMAP_SETTLE_KEY_MS, chord: KEYMAP_SETTLE_MS };
 
 const PRINTABLE_ASCII = /^[\x20-\x7e]$/;
 /** Whether a call needs a temporary keymap in minimal mode: it has something other than printable ASCII. */
@@ -69,8 +84,8 @@ export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string
 export interface Delivery {
   readonly policy: SplitPolicy;
   readonly gapMs: number;
-  /** After a call that swaps the keymap, the next call (of this send or the next) or chord waits this long; 0: no wait. */
-  readonly settleMs: number;
+  /** After a call that swaps the keymap, what is sent next (of this send or the next, or a chord) waits this long, by its kind; null: no wait. */
+  readonly settle: Settle | null;
 }
 
 /** `auto`: fjk's behaviour when the mode is known, one character per call otherwise. */
@@ -78,5 +93,5 @@ export const chooseDelivery = (mode: KeyboardMode, setting: SplitSetting, gapOve
   const policy: SplitPolicy = setting !== 'auto' ? setting : mode === 'minimal' ? 'run' : 'chars';
   const defaultGap = mode === 'minimal' ? 0 : BUFFERED_GAP_MS;
   const gapMs = gapOverrideMs !== undefined && Number.isFinite(gapOverrideMs) ? Math.max(0, gapOverrideMs) : defaultGap;
-  return { policy, gapMs, settleMs: mode === 'minimal' ? KEYMAP_SETTLE_MS : 0 };
+  return { policy, gapMs, settle: mode === 'minimal' ? KEYMAP_SETTLE : null };
 };

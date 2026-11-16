@@ -26,16 +26,16 @@ interface OutputDeps {
 export const createOutput = ({ getManager, getDelivery, pacer = createPacer() }: OutputDeps) => {
   const deliver = async (ops: readonly OutputOp[]): Promise<SendResult> => {
     const delivery = getDelivery();
-    const calls = planCalls(ops, delivery.policy);
+    const calls = ops.flatMap((op) => planCalls([op], delivery.policy).map((call) => ({ call, kind: 'key' in op ? 'key' as const : 'text' as const })));
     const manager = getManager();
     if (!manager) return { ok: false, calls: 0, planned: calls.length, delivery, error: 'no-keyboard-manager' };
     let made = 0;
     try {
-      for (const call of calls) {
-        await pacer.ready(made > 0 ? delivery.gapMs : 0);
+      for (const { call, kind } of calls) {
+        await pacer.ready(made > 0 ? delivery.gapMs : 0, kind);
         manager.HandleVirtualKeyDown(call, false);
         made += 1;
-        if (delivery.settleMs > 0 && swapsKeymap(call)) pacer.swapped(delivery.settleMs);
+        if (delivery.settle && swapsKeymap(call)) pacer.swapped(delivery.settle);
       }
       return { ok: true, calls: made, planned: calls.length, delivery };
     } catch (error) {
