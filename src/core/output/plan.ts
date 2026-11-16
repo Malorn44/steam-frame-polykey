@@ -14,28 +14,19 @@ export type TargetKind = 'streamed' | 'local-app' | 'steam-ui' | 'unknown';
 /** Gap between calls when Steam's buffer has to re-render in between (measured by fjk). */
 export const BUFFERED_GAP_MS = 40;
 
-/**
- * In minimal mode gamescope types a non-ASCII call through a temporary keymap, and what is sent next
- * must not change it before the target has read that call's keys, or they come out as number-row
- * digits. Each kind waits as long as it needs, from the end of that call:
- * - a key chord, KEYMAP_SETTLE_MS: text sent just before one (Copy while composing) came out as digits.
- *   The measurement below sent no chords, so this stays as it was.
- * - a named key (⌫, Enter), KEYMAP_SETTLE_KEY_MS. gamescope performs each as an action, as it does ⌫.
- * - text, KEYMAP_SETTLE_TEXT_MS.
- * Measured on a Frame (2026-11-15), with fixed test lines sent through Steam's keyboard manager into
- * Konsole in game mode: 120 trials per pattern at gaps of 0, 10, 20 and 30 ms. Wrong lines: retype
- * (ㅎ, ⌫하, ⌫한, ㄱ, ⌫그, ⌫글, the gap before each step, a ⌫ and its syllable back to back) 120, 30, 8,
- * 0, the wrong ones with digits (36, 3글, 한6); swap (가 나 다 라) and ascii (가 a 나 b) none at any
- * gap. Text after text needs no wait, and the ⌫ after a syllable does; the syllable after a ⌫ went
- * with none in every trial.
- */
-export const KEYMAP_SETTLE_MS = 60;
-export const KEYMAP_SETTLE_KEY_MS = 30;
-export const KEYMAP_SETTLE_TEXT_MS = 0;
-
 /** How long each kind of call waits after one that swapped the keymap (pace.ts). */
 export type Settle = Readonly<Record<'text' | 'key' | 'chord', number>>;
-export const KEYMAP_SETTLE: Settle = { text: KEYMAP_SETTLE_TEXT_MS, key: KEYMAP_SETTLE_KEY_MS, chord: KEYMAP_SETTLE_MS };
+
+/**
+ * In minimal mode gamescope types a non-ASCII call through a temporary keymap. What is sent next must
+ * not change it before the target has read that call's keys, or they come out as number-row digits, so
+ * each kind waits as long as it needs, from the end of that call:
+ * - text: none; text straight after text comes out right.
+ * - a named key (⌫, Enter, the arrows), which gamescope performs as an action: a ⌫ straight after a
+ *   syllable (Hangul retyped in the field) turns that syllable into digits.
+ * - a key chord: text sent just before one (Copy while composing) comes out as digits.
+ */
+export const KEYMAP_SETTLE: Settle = { text: 0, key: 30, chord: 60 };
 
 const PRINTABLE_ASCII = /^[\x20-\x7e]$/;
 /** Whether a call needs a temporary keymap in minimal mode: it has something other than printable ASCII. */
