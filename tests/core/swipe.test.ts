@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SWIPE_POINTS, leftKey, recentAfter, resample, spaceBefore, swipeCase, swipeLetter } from '../../src/core/swipe.js';
+import { SWIPE_POINTS, leftKey, recentAfter, resample, spaceBefore, swipeCase, swipeLetter, swipeShifts } from '../../src/core/swipe.js';
 import type { KeyboardDef } from '../../src/core/catalog.js';
 import { offered, swipeLexicon } from '../../src/core/options.js';
 
@@ -94,5 +94,11 @@ describe('swipe on a keyboard', () => {
     expect([swipeLexicon(korean, undefined, false), swipeLexicon(korean, undefined, true)]).toEqual(['ko/words', 'en/words']);
     // An older pack's list here is not read: the keyboard's own is.
     expect(swipeLexicon({ ...keyboard, features: { swipe: { lexicon: 'mine/words' } } }, undefined, false)).toBe('en/words');
+  });
+
+  it('a letter typed with Shift swipes through its key; the Latin letters, whose Shift is their capital, name none', () => {
+    expect(swipeShifts([{ type: 'char', char: 'ㅂ', shift: 'ㅃ' }, { type: 'char', char: 'ㅛ' }, { type: 'char', char: '[', shift: '{' },
+      { type: 'char', char: 'ㅐ', shift: 'ㅒ' }, { type: 'key', key: 'Tab' }])).toEqual({ 'ㅃ': 'ㅂ', 'ㅒ': 'ㅐ' });
+    expect(swipeShifts([{ type: 'char', char: 'q' }, { type: 'char', char: '1', shift: '!' }])).toBeUndefined();
   });
 });
