@@ -938,11 +938,11 @@
             },
             "accentText": {
               "$ref": "#/$defs/color",
-              "description": "Text on the accent (a selected candidate, a locked key); default surface."
+              "description": "Text on the accent (a selected candidate, a locked key); default surface. Where it would not read (4.5:1), another of the theme's text colours, or white or black."
             },
             "fnText": {
               "$ref": "#/$defs/color",
-              "description": "Text on the Fn colour (Fn locked); default surface."
+              "description": "Text on the Fn colour (Fn locked); default surface. Where it would not read (4.5:1), another of the theme's text colours, or white or black."
             },
             "error": {
               "$ref": "#/$defs/color",

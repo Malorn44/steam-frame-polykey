@@ -65,7 +65,7 @@ const CSS = `
   font-size: var(--size-suggestion); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--radius); }
 .sugg:not(:empty) + .sugg:not(:empty) { border-left: 1px solid var(--divider); }
 .sugg.best { color: var(--accent); font-weight: 600; }
-.sugg.hover { background-color: var(--hover); }
+.sugg.hover { background-color: var(--hover); color: var(--hover-text); }
 /* The reading buffer (12-key): underlined, with a caret; while converting, the focused segment is
    marked. Then the candidates, the picked one in the accent colour. A long reading scrolls (followReading);
    positioned, so its pieces' offsets are within it. */
@@ -84,7 +84,7 @@ const CSS = `
 .cand + .cand { border-left: 1px solid var(--divider); }
 .cand.sel { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
-.cand.hover { background-color: var(--hover); }
+.cand.hover { background-color: var(--hover); color: var(--hover-text); }
 .keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .row { flex: 1; display: flex; min-height: 0; }
 /* Candidates on the left (fjk): a panel with the reading, a wrapping list that scrolls down, the toolbar. */
@@ -135,12 +135,16 @@ const CSS = `
 .key[data-k="fn"] { color: var(--fn); }
 .key[data-k="fn"].on { box-shadow: inset 0 0 0 2px var(--fn); }
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
-.key.hover { background-color: var(--hover); }
+.key.hover { background-color: var(--hover); color: var(--hover-text); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
 .key.action.on { box-shadow: inset 0 -3px 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
-.key.down { filter: var(--pressed); }
+/* Pressed, the tone's filter shifts the whole key, text too: each background's own pressed text (theme.ts). */
+.key.down { filter: var(--pressed); color: var(--text-down); }
+.key.hover.down { color: var(--hover-text-down); }
+.key.locked.down { color: var(--accent-text-down); }
+.key[data-k="fn"].locked.down { color: var(--fn-text-down); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: var(--size-flick); }
 .kb.large .key.named, .kb.large .key.action, .kb.large .key.char, .kb.large .key.mod { font-size: var(--size-label); }
