@@ -1119,7 +1119,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /** Forget what of a composition is in the field (it stays as it is), saying why when there was some: never what. */
   const lose = (why: string): void => {
-    if (bar.lose()) log(`composing in the field: ${why}; the syllable stays as it is`);
+    if (bar.lose()) log(`composing in the field: ${why}; what was composed stays as it is`);
   };
 
   /** A send into the field failed: what it holds is unknown, so nothing typed before is replaced or retyped. */
