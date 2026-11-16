@@ -29,6 +29,12 @@ export interface ComposerContext {
   readonly table: TableDef | undefined;
   /** The keyboard's main layout (its ゛゜小 cycles, for one). */
   readonly layout: Layout | undefined;
+  /**
+   * With a press: the word being typed, before what is composed, as far as polykey typed it (sent into
+   * the field since the word began, then waiting in the bar). A conversion may replace it, with a
+   * Backspace a character; '' when nothing is known.
+   */
+  readonly before?: string;
 }
 
 /**
@@ -92,6 +98,11 @@ export interface Converting<S> {
   live(forReading: string, segments: readonly Converted[], predictions: readonly string[]): string[];
   /** A candidate picked in the bar; `source` is what the live candidates came from, if they are current. */
   pick(state: S, text: string, index: number, source: LiveSource | null): ComposerResult<S>;
+  /**
+   * End a conversion that would replace text typed before the composition (ctx.before), leaving it as it
+   * is: the field may have changed under it. What is composed stays.
+   */
+  cancel?(state: S): S;
 }
 
 /**
