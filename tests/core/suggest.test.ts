@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Effect } from '../../src/core/keyboard.js';
-import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
+import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceText, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
 
 const text = (t: string): Effect => ({ kind: 'text', text: t });
 const key = (k: 'Backspace' | 'Enter' | 'ArrowLeft'): Effect => ({ kind: 'key', key: k });
@@ -52,9 +52,29 @@ describe('ranking and replacing', () => {
     expect(matchCase('Helsinki', 'hel')).toBe('Helsinki');
   });
 
-  it('replaces exactly the typed letters, then adds a space', () => {
-    expect(replaceWord('Hel', 'hello')).toEqual([key('Backspace'), key('Backspace'), key('Backspace'), text('Hello ')]);
-    expect(replaceWord('café', 'cafés').filter((e) => e.kind === 'key')).toHaveLength(4); // é is one character
+  it('keeps what the typed letters and the suggestion start with, deletes the rest of them, then adds a space', () => {
+    expect(replaceWord('Hel', 'hello')).toEqual([text('lo ')]);
+    expect(replaceWord('teh', 'the')).toEqual([key('Backspace'), key('Backspace'), text('he ')]);
+    expect(replaceWord('café', 'cafés')).toEqual([text('s ')]); // é is one character
+    expect(replaceWord('cafe', 'café')).toEqual([key('Backspace'), text('é ')]);
+    expect(replaceWord('the', 'the')).toEqual([text(' ')]);
+    expect(replaceText('하', '한국 ')).toEqual([key('Backspace'), text('한국 ')]); // a syllable is one character
+  });
+
+  it('a pick in a field that completes inline (an address bar) leaves no letter of the typed word behind', () => {
+    // The field: typed letters, and the completion it selects after them, as a browser's address bar
+    // does. A Backspace with a selection deletes only the selection; typing replaces it.
+    const field = (effects: Effect[]) => effects.reduce(({ value, selected }, effect) => {
+      if (effect.kind === 'key') return selected ? { value, selected: '' } : { value: value.slice(0, -1), selected: '' };
+      if (effect.kind !== 'text') return { value, selected };
+      const typed = value + effect.text;
+      const site = ['telegram.org', 'television.example'].find((s) => s.startsWith(typed) && s !== typed);
+      return { value: typed, selected: site ? site.slice(typed.length) : '' };
+    }, { value: '', selected: '' });
+    expect(field([text('t'), text('e')])).toEqual({ value: 'te', selected: 'legram.org' });
+    const deletingAll: Effect[] = [key('Backspace'), key('Backspace'), text('television ')];
+    expect(field([text('t'), text('e'), ...deletingAll]).value).toBe('ttelevision '); // as reported: the selection took a Backspace
+    expect(field([text('t'), text('e'), ...replaceWord('te', 'television')])).toEqual({ value: 'television ', selected: '' });
   });
 
   it('closeUp: one punctuation mark deletes the space before it; anything else is left alone', () => {

@@ -9,7 +9,7 @@ import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { retypesInField } from './core/output/inline.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
-import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
+import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceText, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardManagers, getKeyboardPopupWindow, onFieldChange, pickKeyboardManager, type SteamGlobals, type VirtualKeyboardManager } from './host/steam/globals.js';
 import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore, type VRKeyboardStatus } from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
@@ -677,8 +677,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const before = swiped.word;
       swiped = null;
       boost(chosen);
-      sendEffects(chosen === before ? [{ kind: 'text', text: ' ' }]
-        : [...graphemes(before).map((): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text: `${chosen} ` }]);
+      sendEffects(replaceText(before, `${chosen} `));
       pickSpace = true;
       return;
     }
@@ -686,8 +685,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * A suggestion in place of the word being typed, then a space: what was sent of the word is deleted (a
-   * Backspace a letter or syllable), and what is still composed in the bar is dropped, never sent.
+   * A suggestion in place of the word being typed, then a space: what was sent of the word stays as far
+   * as the suggestion starts with it, the rest is deleted (a Backspace a letter or syllable), and what is
+   * still composed in the bar is dropped, never sent.
    */
   const pickWord = (chosen: string): void => {
     const typed = word.word;

@@ -218,7 +218,7 @@ describe('suggestions', () => {
     expect(slots(popup)).toEqual(['Help', 'Hello', 'Held']);
   });
 
-  it('picking one replaces the typed letters and adds a space; the next word starts clean', async () => {
+  it('picking one types the rest of the word and a space, deleting nothing it starts with; the next word starts clean', async () => {
     const boot = bundledBoot();
     boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
     const popup = fakePopupWindow();
@@ -234,8 +234,8 @@ describe('suggestions', () => {
     best.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
     const calls = manager.calls.map(([k]) => k);
-    expect(calls.slice(0, 4)).toEqual(['h', 'e', 'Backspace', 'Backspace']);
-    expect(calls.slice(4).join('')).toBe('hello '); // ASCII goes one character per call in minimal mode
+    expect(calls).not.toContain('Backspace'); // he is how hello starts: an address bar's completion takes no letter
+    expect(calls.join('')).toBe('hello '); // ASCII goes one character per call in minimal mode
     expect(slots(popup)).toEqual(['', '', '']);
     await tap(popup, '.'); // punctuation closes up to the picked word
     expect(manager.calls.map(([k]) => k).slice(-2)).toEqual(['Backspace', '.']);
@@ -481,7 +481,7 @@ describe('swipe typing', () => {
     would.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     would.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
-    expect(typed(manager)).toBe('hello world⌫⌫⌫⌫⌫would ');
+    expect(typed(manager)).toBe('hello world⌫⌫⌫uld '); // wo, which both start with, stays
     expect(slots(popup)).toEqual(['', '', '']); // picked: the alternatives go
   });
 
@@ -514,14 +514,14 @@ describe('swipe typing', () => {
     await swipe(popup, 'h', 'o');
     await pick(popup, 'help');
     await tap(popup, ',');
-    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫,');
+    expect(typed(manager)).toBe('hello⌫⌫p ⌫,');
     await tap(popup, ' ');
     await swipe(popup, 't', 'e');
     await pick(popup, 'there');
     await tap(popup, 'a');
     await tap(popup, ' ');
     await tap(popup, '.');
-    expect(typed(manager)).toBe('hello⌫⌫⌫⌫⌫help ⌫, there a .');
+    expect(typed(manager)).toBe('hello⌫⌫p ⌫, there a .');
   });
 
   it('the word list is loaded when the keyboard first shows, once', async () => {
@@ -1935,7 +1935,7 @@ describe('Korean composed in the text field', () => {
     expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣]/u);
   });
 
-  it('a picked word deletes the syllables sent and the one in the field, then sends the word and a space', async () => {
+  it('a picked word keeps the syllables in the field it starts with, then sends the rest and a space', async () => {
     const WORDS: Record<string, string[]> = { 학교: ['학교', '학교에서', '학교를'] };
     const t = setupField({ sidecar: notDesktop((req) => (req.op === 'suggest' ? { ok: true, words: WORDS[req.prefix ?? ''] ?? [] } : undefined)) });
     await t.opened();
@@ -1943,7 +1943,7 @@ describe('Korean composed in the text field', () => {
     expect(t.asked.filter((r) => r.op === 'suggest' && !r.prepare).map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']);
     expect([t.sent(), t.pre(), t.cands()]).toEqual([['ㅎ', 'Backspace', '하', 'Backspace', '학', 'ㄱ', 'Backspace', '교'], null, ['학교', '학교에서', '학교를']]);
     await t.pick('학교에서');
-    expect(t.sent().slice(8)).toEqual(['Backspace', 'Backspace', '학교에서', ' ']); // 학 and 교, both in the field
+    expect(t.sent().slice(8)).toEqual(['에서', ' ']); // 학 and 교, both in the field, stay
     expect(fieldOf(t.sent(), '내 ')).toBe('내 학교에서 ');
     expect(t.cands()).toEqual([]);
   });
