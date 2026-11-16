@@ -4,7 +4,7 @@ import type { KeyDef, TableDef } from '../../../src/core/catalog.js';
 import type { ComposerContext } from '../../../src/core/composers/composer.js';
 import { NO_SYLLABLE, hangul2Set } from '../../../src/core/composers/hangul.js';
 import type { Effect } from '../../../src/core/keyboard.js';
-import { chooseInline, planInline, retype } from '../../../src/core/output/inline.js';
+import { planInline, retype, retypesInField } from '../../../src/core/output/inline.js';
 import { graphemes } from '../../../src/core/output/plan.js';
 import { optionsFor } from '../../../src/core/options.js';
 
@@ -109,13 +109,13 @@ describe('Korean typed into a field by retyping', () => {
   });
 });
 
-describe('chooseInline', () => {
+describe('retypesInField', () => {
   it('retypes in Steam and in games, keeps the bar in Desktop Mode and when streaming', () => {
-    expect(chooseInline('steam-ui', undefined)).toBe('retype');
-    expect(chooseInline('local-app', false)).toBe('retype'); // a game, or an app on gamescope
-    expect(chooseInline('local-app', true)).toBe('bar'); // Desktop Mode has the focus
-    expect(chooseInline('local-app', undefined)).toBe('bar'); // not known yet
-    expect(chooseInline('streamed', false)).toBe('bar');
-    expect(chooseInline('unknown', false)).toBe('bar');
+    expect(retypesInField('steam-ui', undefined)).toBe(true);
+    expect(retypesInField('local-app', false)).toBe(true); // a game, or an app on gamescope
+    expect(retypesInField('local-app', true)).toBe(false); // Desktop Mode has the focus
+    expect(retypesInField('local-app', undefined)).toBe(false); // not known yet
+    expect(retypesInField('streamed', false)).toBe(false);
+    expect(retypesInField('unknown', false)).toBe(false);
   });
 });

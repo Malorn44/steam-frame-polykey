@@ -21,7 +21,7 @@ import type {
   Composer, ComposerContext, ComposerInput, ComposerResult, Converted, ConverterRequest, Learned, LiveSource,
 } from './core/composers/composer.js';
 import type { Effect } from './core/keyboard.js';
-import { retype as retypeStep } from './core/output/inline.js';
+import { retype } from './core/output/inline.js';
 import { graphemes } from './core/output/plan.js';
 import type { CompositionView } from './ui/view.js';
 
@@ -72,7 +72,7 @@ export interface Bar {
 const segmentsOf = (reply: BridgeReply): Converted[] =>
   (reply.ok && Array.isArray(reply['segments']) ? reply['segments'] as Converted[] : []);
 
-export const createBar = ({ call, available, enqueue, show, warn, keyboard, retype = () => false, target = () => '' }: {
+export const createBar = ({ call, available, enqueue, show, warn, keyboard, canRetype, target }: {
   call: Call;
   available: () => boolean;
   /** Send effects in order; a send into the field carries `inline`, and is skipped once it is no longer live. */
@@ -82,10 +82,10 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
   warn: (line: string) => void;
   /** The current keyboard, or null when its keys type at once. */
   keyboard: () => BarKeyboard | null;
-  /** Whether a composer that can compose in the field does so now (the target and the setting allow it). */
-  retype?: () => boolean;
+  /** Whether a composer that can compose in the field does so now (the target allows it). */
+  canRetype: () => boolean;
   /** Where typing goes now (the field's target, '' while closed): what is in the field belongs to one. */
-  target?: () => string;
+  target: () => string;
 }): Bar => {
   /** The composer's state, kept with the composer that made it. */
   let held: { composer: Composer<unknown>; state: unknown } | null = null;
@@ -160,9 +160,9 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     show();
   };
 
-  const retyping = (kb: BarKeyboard): boolean => kb.composer.inline === true && retype();
+  const retyping = (kb: BarKeyboard): boolean => kb.composer.inline === true && canRetype();
   /** A composer that composes in the field, where it cannot: what it commits waits in the bar. */
-  const holds = (kb: BarKeyboard): boolean => kb.composer.inline === true && !retype();
+  const holds = (kb: BarKeyboard): boolean => kb.composer.inline === true && !canRetype();
 
   const sendWord = (): void => {
     if (word) enqueue([{ kind: 'text', text: word }]);
@@ -181,7 +181,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
       return;
     }
     const { preedit } = kb.composer.show(stateOf(kb), kb.ctx);
-    const step = retypeStep(tail, effects, 'segments' in preedit ? null : preedit.before + preedit.after);
+    const step = retype(tail, effects, 'segments' in preedit ? null : preedit.before + preedit.after);
     tail = step.tail;
     tailTarget = target();
     const planned = epoch;
@@ -206,9 +206,9 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
 
   /**
    * Before acting: forget what is in the field when typing goes elsewhere now; when it may no longer be
-   * retyped there (Desktop Mode, the setting, another keyboard), it stays as it is and the composer starts afresh.
+   * retyped there (Desktop Mode, another keyboard), it stays as it is and the composer starts afresh.
    */
-  const settle = (kb: BarKeyboard | null): void => {
+  const checkField = (kb: BarKeyboard | null): void => {
     if (word && (!kb || !holds(kb))) sendWord(); // it may be composed in the field now: the word goes first
     if (!tail) return;
     if (target() !== tailTarget) lose();
@@ -225,7 +225,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
 
   const flush = (): void => {
     const kb = keyboard();
-    settle(kb);
+    checkField(kb);
     if (composing(kb)) apply(kb, kb.composer.flush(stateOf(kb), kb.ctx));
     if (word) {
       sendWord();
@@ -246,7 +246,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     composing: () => composing(keyboard()) || word !== '',
     press: (key, input) => {
       const kb = keyboard();
-      settle(kb);
+      checkField(kb);
       const result = kb && kb.composer.press(stateOf(kb), key, input, kb.ctx);
       if (kb && result) {
         apply(kb, result);
@@ -264,7 +264,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     flush,
     leave: () => {
       const kb = keyboard();
-      settle(kb);
+      checkField(kb);
       if (composing(kb)) {
         const flushed = kb.composer.flush(stateOf(kb), kb.ctx);
         set(kb, flushed.state);
@@ -282,12 +282,12 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     },
     pick: (text, index) => {
       const kb = keyboard();
-      settle(kb);
+      checkField(kb);
       if (kb?.composer.convert) apply(kb, kb.composer.convert.pick(stateOf(kb), text, index, liveSource));
     },
     dictate: (text) => {
       const kb = keyboard();
-      settle(kb);
+      checkField(kb);
       const into = kb && !kb.ctx.options.dictationCommit ? kb.composer.insert?.(stateOf(kb), text, kb.ctx) : null;
       if (kb && into) {
         apply(kb, into);

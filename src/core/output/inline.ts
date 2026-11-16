@@ -52,16 +52,12 @@ export const retype = (tail: string, effects: readonly Effect[], composed: strin
   };
 };
 
-/** How a composer that can compose in the field does so for a target: by retyping, or in the bar. */
-export type InlineMethod = 'retype' | 'bar';
-
 /**
- * Steam's own UI and apps on gamescope (games) are retyped into, as Steam's keyboard does; Desktop Mode
- * is typed into by pasting (sidecar/polykey/desktop.py), a paste for each jamo, and streamed targets are
- * unmeasured, so both keep the bar. `desktop`: whether the desktop has gamescope's focus, as the sidecar
- * last said for this target (undefined: not known yet, so the bar until it is).
+ * Whether a composer that can compose in the field retypes there for a target: in Steam's own UI and in
+ * apps on gamescope (games), as Steam's keyboard does. Desktop Mode is typed into by pasting
+ * (sidecar/polykey/desktop.py), a paste for each jamo, and streamed targets are unmeasured, so both keep
+ * the bar. `desktop`: whether the desktop has gamescope's focus, as the sidecar last said for this target
+ * (undefined: not known yet, so the bar until it is).
  */
-export const chooseInline = (target: TargetKind, desktop: boolean | undefined): InlineMethod => {
-  if (target === 'steam-ui') return 'retype';
-  return target === 'local-app' && desktop === false ? 'retype' : 'bar';
-};
+export const retypesInField = (target: TargetKind, desktop: boolean | undefined): boolean =>
+  target === 'steam-ui' || (target === 'local-app' && desktop === false);
