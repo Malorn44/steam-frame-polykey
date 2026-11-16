@@ -26,7 +26,8 @@ export const planInline = (tail: string, commit: string, preedit: string): Inlin
   return { erase: was.length - same, text: now.slice(same).join('') };
 };
 
-const planEffects = ({ erase, text }: InlinePlan): Effect[] => [
+/** A plan as effects: its Backspaces, then its text. */
+export const planEffects = ({ erase, text }: InlinePlan): Effect[] => [
   ...Array.from({ length: erase }, (): Effect => ({ kind: 'key', key: 'Backspace' })),
   ...(text ? [{ kind: 'text', text } as const] : []),
 ];
