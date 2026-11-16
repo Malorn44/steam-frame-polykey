@@ -150,7 +150,11 @@ const CSS = `
 .key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな, converting): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
-.key.down { filter: var(--pressed); }
+/* Pressed, the tone's filter shifts the whole key, text too: each background's own pressed text (theme.ts). */
+.key.down { filter: var(--pressed); color: var(--text-down); }
+.key.hover.down { color: var(--hover-text-down); }
+.key.locked.down { color: var(--accent-text-down); }
+.key[data-k="fn"].locked.down { color: var(--fn-text-down); }
 /* A large layout (the 12-key): fjk's sizes, for keys read through the headset. */
 .kb.large .key.flick { font-size: var(--size-flick); }
 .kb.large .key.named, .kb.large .key.action, .kb.large .key.char, .kb.large .key.mod { font-size: var(--size-label); }
