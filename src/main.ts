@@ -390,6 +390,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     }
     const keyboard = currentKeyboard();
     const inBar = composes(keyboard);
+    if (inBar && converting()) return; // the conversion's candidates show; the word's come back after it
     const english = inBar && latinMode.has(keyboard!.id); // the English word waits in the bar
     const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText());
     const lexicon = lexiconId();
@@ -438,8 +439,13 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
     enqueue: (effects, inline) => { track(effects); enqueue(effects, inline); }, show: () => showBar(), keyboard: barKeyboard,
-    canRetype, target: () => targetOf(readStatus(statusStore)),
+    canRetype, target: () => targetOf(readStatus(statusStore)), typed: () => word.word,
   });
+  /** The bar shows a conversion (segments): its candidates are the converter's, not word suggestions. */
+  const converting = (): boolean => {
+    const shown = bar.shown();
+    return !!shown && 'segments' in shown.composition;
+  };
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
   const dictatesIntoBar = (keyboard: KeyboardDef | undefined): boolean =>
@@ -581,8 +587,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (!view) return;
     const shown = bar.shown();
     const language = languageFor(currentKeyboard());
-    // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off).
-    const words = suggestsWhileComposing() && suggested.length ? suggested : null;
+    // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off);
+    // a conversion shows its own candidates.
+    const words = suggestsWhileComposing() && suggested.length && !converting() ? suggested : null;
     if (shown) {
       view.setComposition(words ? { ...shown.composition, candidates: words } : shown.composition);
       view.setLabels(spelled(shown.labels, language));
@@ -612,8 +619,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     if (surface) tick(surface.win, hand);
-    if (suggestsWhileComposing()) pickWord(text);
-    else bar.pick(text, index);
+    if (suggestsWhileComposing() && !converting()) pickWord(text);
+    else {
+      bar.pick(text, index);
+      if (suggestsWhileComposing()) refreshSuggestions(); // for the word as the pick left it
+    }
   };
 
   /**
