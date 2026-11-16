@@ -152,7 +152,7 @@ describe('composing in the text field', () => {
     press: (s, key, input, c) => (key.type === 'char' && key.char === '?' && s ? { state: `${s}?`, effects: [] } : shout.press(s, key, input, c)),
   };
   /** A field: text at its end, a Backspace takes its last character; the sends as they were made. */
-  const setupField = (composer: Composer<string> = inline, start = 'mine ', spaceInWord = false) => {
+  const setupField = (composer: Composer<string> = inline, start = 'mine ') => {
     let field = start;
     let retyping = true;
     let where = 'app';
@@ -167,7 +167,6 @@ describe('composing in the text field', () => {
       keyboard: () => ({ composer, ctx, converter: undefined }),
       retype: () => retyping,
       target: () => where,
-      spaceInWord,
     });
     /** Make the queued sends, as the page's queue does: a send no longer live is skipped. */
     const run = () => {
@@ -325,16 +324,14 @@ describe('composing in the text field', () => {
     expect(run()).toBe('mine ABCDEIJK');
   });
 
-  it('with spaceInWord, Space goes into the word; once it may compose in the field again, the word goes first', () => {
-    const { bar, run, typeAll, setRetype } = setupField(pairs, 'mine ', true);
+  it('once it may compose in the field again, the word waiting in the bar goes first', () => {
+    const { bar, run, typeAll, setRetype } = setupField(pairs);
     setRetype(false);
     typeAll('abc');
-    expect(bar.press(char(' '), { typed: ' ' })).toBe(true);
-    typeAll('d');
-    expect(bar.composedText()).toBe('ABC D');
+    expect([run(), bar.composedText()]).toEqual(['mine ', 'ABC']);
     setRetype(true);
-    typeAll('e');
-    expect(run()).toBe('mine ABC DE');
+    typeAll('d');
+    expect([run(), bar.inField()]).toEqual(['mine ABCD', true]);
   });
 
   it('a composer that does not opt in keeps the bar', () => {
