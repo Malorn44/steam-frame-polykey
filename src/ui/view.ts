@@ -88,9 +88,12 @@ const CSS = `
 .cand.sel { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
 .cand.hover { background-color: var(--hover); }
-/* A candidate with a note (a Hanja's meaning): the note small beneath it, cut off when too long. */
-.cand.noted { flex-direction: column; justify-content: center; line-height: 1.05; }
-.cand .note { max-width: 8em; overflow: hidden; text-overflow: ellipsis; font-size: var(--size-note); color: var(--legend); }
+/* A candidate with a note (a Hanja's meaning): the note small beneath it, cut off with … when too long.
+   Both lines fit the bar's height: the candidate's line is tight, and the note's is tall enough for its
+   glyphs (Noto Sans CJK, on the Frame), which is clipped only across. */
+.cand.noted { flex-direction: column; justify-content: center; line-height: 0.9; }
+.cand .note { max-width: 8em; overflow-x: clip; overflow-y: visible; text-overflow: ellipsis; line-height: 1.15;
+  font-size: var(--size-note); color: var(--legend); }
 .cand.sel .note { color: inherit; }
 .keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .row { flex: 1; display: flex; min-height: 0; }

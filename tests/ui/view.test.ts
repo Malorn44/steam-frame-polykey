@@ -577,7 +577,7 @@ describe('hold to repeat', () => {
     expect(cands.map((el) => el.classList.contains('noted'))).toEqual([false, true, true]);
     expect(cands[1]!.classList.contains('sel')).toBe(true);
     const css = shadow.querySelector('style')!.textContent;
-    expect(css).toContain('.cand .note { max-width: 8em; overflow: hidden; text-overflow: ellipsis;');
+    expect(css).toContain('.cand .note { max-width: 8em; overflow-x: clip; overflow-y: visible; text-overflow: ellipsis; line-height: 1.15;');
     tap(cands[1]!);
     expect(picked).toEqual([['韓國', 1]]); // the candidate, not its note
     // Without notes (anthy's), candidates are as before.
