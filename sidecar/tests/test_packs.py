@@ -370,10 +370,15 @@ def test_validator_messages_name_the_field():
         json.dumps({"type": "mod", "mod": "hyper"}): "/rows/1/0/mod: must be one of shift, caps, ctrl, alt, super, fn",
         json.dumps({"type": "char"}): "/rows/1/0: missing char",
         json.dumps({"type": "gap", "w": 99}): "/rows/1/0/w: must be at most 16",
+        # A convert key has no label of its own: its pack names it.
+        json.dumps({"type": "action", "action": "convert"}): "/rows/1/0: missing label",
     }
     for key, message in cases.items():
         layout["rows"][1][0] = json.loads(key)
         assert packs.validate(layout, schema, schema) == [message]
+    for key in ({"type": "action", "action": "convert", "label": "한자"}, {"type": "action", "action": "hide"}):
+        layout["rows"][1][0] = key
+        assert packs.validate(layout, schema, schema) == []
 
 
 def test_a_name_is_a_string_or_a_name_per_language(tmp_path):

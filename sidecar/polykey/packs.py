@@ -180,6 +180,9 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
                 errors.append(f"{where}: unknown field {name}")
     if "oneOf" in schema:
         errors += _one_of(value, schema["oneOf"], root, path)
+    # if/then: what a value must also have when it matches "if" (a convert key, a label).
+    if "if" in schema and not validate(value, schema["if"], root, path):
+        errors += validate(value, schema.get("then", {}), root, path)
     return errors
 
 

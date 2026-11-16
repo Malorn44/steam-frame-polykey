@@ -142,7 +142,8 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
   PageDown: 'PgDn', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
-const ACTION_LABELS: Record<ActionName, string> = {
+/** convert has none: what it is called is the language's, so its key names it (the schema requires a label). */
+const ACTION_LABELS: Partial<Record<ActionName, string>> = {
   hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', mode: 'ABC', symbols: '?123', 'more-symbols': '=\\<', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', 'next-set': '⇄', dictate: '🎤',
 };
 
@@ -153,7 +154,7 @@ export const keyLabel = (pressed: KeyDef, mods: Mods): string => {
     case 'gap': return '';
     case 'flick': return flickText(key.label ?? key.flick[0], mods);
     case 'mod': return key.label ?? MOD_LABELS[key.mod];
-    case 'action': return key.label ?? ACTION_LABELS[key.action];
+    case 'action': return key.label ?? ACTION_LABELS[key.action] ?? '';
     case 'key': return key.label ?? NAMED_LABELS[key.key] ?? key.key;
     case 'char': return key.label ?? charText(key, mods);
   }
