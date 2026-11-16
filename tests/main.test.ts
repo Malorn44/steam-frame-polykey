@@ -2159,22 +2159,26 @@ describe('Korean composed in the text field', () => {
       expect(fieldOf(t.sent())).toBe('오늘한局');
     });
 
-    it('⌫ or 한자 again ends it with the text as it was; typing ends it, then types', async () => {
+    it('while converting 한자 is marked and Space says 다음; 한자 again goes on; ⌫ ends it with the text as it was; typing ends it, then types', async () => {
       const t = setupField({ sidecar: notDesktop(hanja()) });
       await t.opened();
       await t.typeAll('ㅎㅏㄴㄱㅜㄱ');
       const mark = t.sent().length;
-      for (const end of ['Backspace', 'convert']) {
-        await tap(t.popup, 'convert');
-        expect(shown(t)).toHaveLength(2);
-        await tap(t.popup, end);
-        expect([t.sent().slice(mark), shown(t)]).toEqual([[], []]);
-      }
+      const marked = () => key(t.popup, 'convert').classList.contains('on');
+      const space = () => key(t.popup, ' ').querySelector('.lbl')!.textContent;
+      expect([marked(), space()]).toEqual([false, 'Space']);
+      await tap(t.popup, 'convert');
+      expect([marked(), space()]).toEqual([true, '다음']);
+      await tap(t.popup, 'convert');
+      expect(shadowOf(t.popup)!.querySelector('.cand.sel .text')!.textContent).toBe('韓國');
+      await tap(t.popup, 'Backspace');
+      expect([t.sent().slice(mark), shown(t), marked(), space()]).toEqual([[], [], false, 'Space']);
       await tap(t.popup, 'convert');
       await t.typeAll('ㅇ');
       expect(t.sent().slice(mark)).toEqual(['ㅇ']); // 국 stays, ㅇ starts the next syllable
-      expect(fieldOf(t.sent())).toBe('한국ㅇ');
+      expect([fieldOf(t.sent()), marked()]).toEqual(['한국ㅇ', false]);
       await tap(t.popup, 'convert'); // ㅇ has no Hanja: nothing shows
+      expect(marked()).toBe(false);
       await tap(t.popup, 'convert');
       expect(t.sent().slice(mark)).toEqual(['ㅇ']);
     });
