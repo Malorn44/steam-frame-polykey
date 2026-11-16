@@ -17,10 +17,10 @@
 // 한자 (the convert key) converts a word in the one before the caret to Hanja: its Hangul typed before the
 // syllable (ctx.before, what polykey typed of it) and the syllable. The keyboard's converter (hanja) picks
 // the longest word with Hanja in it (학교 in 학교에서); the text stays as it is while the bar shows the
-// candidates, with their meanings, and 한자 shows the mode's mark. 한자 again or Space (labelled next) goes
-// on to the next candidate; ← and → go to the word with Hanja before or after it; Enter or a tap picks: a
-// Backspace for each syllable from the word's start to the composition, then the Hanja and what followed the
-// word (學校에서), the composition still being composed unless it was part of the word. ⌫ ends it, the text
+// candidates, with their meanings, and 한자 shows the mode's mark. Space (labelled next) goes on to the next
+// candidate; ← and → go to the word with Hanja before or after it; Enter or a tap picks: a Backspace for each
+// syllable from the word's start to the composition, then the Hanja and what followed the word (學校에서), the
+// composition still being composed unless it was part of the word. 한자 again ends it, as ⌫ does, the text
 // as it was; anything else ends it, then acts. Nothing but a picked candidate is ever sent as Hanja.
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
@@ -174,7 +174,7 @@ const pickHanja = (h: Hangul, text: string, index: number): ComposerResult<Hangu
 const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): ComposerResult<Hangul> | null => {
   const segments = conversion.segments!;
   const candidates = segments[conversion.focus]!.candidates;
-  if ((key.type === 'char' && key.char === ' ') || isConvert(key)) {
+  if (key.type === 'char' && key.char === ' ') {
     return { state: { ...h, conversion: { ...conversion, index: (conversion.index + 1) % candidates.length } }, effects: [] };
   }
   if (isKey(key, 'Enter')) return pickHanja(h, candidates[conversion.index]!, conversion.index);
@@ -183,7 +183,8 @@ const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): Compos
     const lengths = segments.map((s) => length(s.reading));
     return { state: h, effects: [], request: { kind: 'convert', lengths, resize: [conversion.focus, isKey(key, 'ArrowLeft') ? -1 : 1] } };
   }
-  return isKey(key, 'Backspace') ? { state: { ...h, conversion: null }, effects: [] } : null;
+  // 한자 opens a conversion and closes it again; ⌫ closes it too.
+  return isConvert(key) || isKey(key, 'Backspace') ? { state: { ...h, conversion: null }, effects: [] } : null;
 };
 
 export const hangul2Set: Composer<Hangul> = {
