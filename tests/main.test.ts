@@ -524,11 +524,12 @@ describe('swipe typing', () => {
     expect(typed(manager)).toBe('hello⌫⌫p ⌫, there a .');
   });
 
-  it('the word list is loaded when the keyboard first shows, once', async () => {
+  it('each time the keyboard shows, the sidecar is asked to prepare its word list (it builds it once)', async () => {
     const { popup, requests } = setupSwipe([]);
     for (let i = 0; i < 10; i++) await tap(popup, 'next-keyboard'); // round the five keyboards twice
-    expect(requests.filter((r) => r['op'] === 'swipe' && r['prepare'])).toEqual([{ op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
-      keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) }]);
+    const prepare = { op: 'swipe', lexicon: 'en/words', prepare: true, id: expect.any(Number) as unknown,
+      keys: Object.fromEntries([...'qwertyuiopasdfghjklzxcvbnm'].map((c) => [c, [0, 0]])) };
+    expect(requests.filter((r) => r['op'] === 'swipe' && r['prepare'])).toEqual([prepare, prepare, prepare]); // English, shown three times
   });
 
   it('Shift capitalises the word; Backspace right after a swipe takes the whole word back', async () => {
