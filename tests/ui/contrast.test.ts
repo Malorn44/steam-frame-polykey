@@ -107,21 +107,21 @@ const picker = (theme: Theme): ShadowRoot => {
 };
 
 const REST = [''];
-const STATES = [''];
+const STATES = ['', 'hover'];
 /** What is painted, where: a view, the element with the text, and the states it is seen in (classes added). */
 const CASES: { name: string; view: (t: Theme) => ShadowRoot; at: string; states: string[] }[] = [
   { name: 'a key', view: keyboard, at: '.key[data-k="g"] .lbl', states: STATES },
   { name: 'a modifier', view: keyboard, at: '.key[data-k="Tab"] .lbl', states: STATES },
-  { name: 'Fn', view: keyboard, at: '.key[data-k="fn"] .lbl', states: [] },
+  { name: 'Fn', view: keyboard, at: '.key[data-k="fn"] .lbl', states: ['hover'] },
   { name: 'Shift locked', view: (t) => keyboard(t, { shift: 'locked' }), at: '.key[data-k="shift"] .lbl', states: STATES },
   { name: 'Fn locked', view: (t) => keyboard(t, { fn: 'locked' }), at: '.key[data-k="fn"] .lbl', states: STATES },
-  { name: 'a candidate', view: keyboard, at: '.cand:not(.sel)', states: REST },
-  { name: 'the selected candidate', view: keyboard, at: '.cand.sel', states: REST },
+  { name: 'a candidate', view: keyboard, at: '.cand:not(.sel)', states: ['', 'hover'] },
+  { name: 'the selected candidate', view: keyboard, at: '.cand.sel', states: ['', 'hover'] },
   { name: 'the focused segment', view: keyboard, at: '.seg.focus', states: REST },
-  { name: 'a suggestion', view: keyboard, at: '.sugg:not(.best)', states: REST },
-  { name: 'the best suggestion', view: keyboard, at: '.sugg.best', states: [] },
+  { name: 'a suggestion', view: keyboard, at: '.sugg:not(.best)', states: ['', 'hover'] },
+  { name: 'the best suggestion', view: keyboard, at: '.sugg.best', states: ['hover'] },
   { name: 'the selected settings tab', view: settings, at: '.head .tab.on', states: REST },
-  { name: 'an emoji', view: picker, at: '.strip .cell', states: REST },
+  { name: 'an emoji', view: picker, at: '.strip .cell', states: ['', 'hover'] },
 ];
 
 describe('theme contrast', () => {
