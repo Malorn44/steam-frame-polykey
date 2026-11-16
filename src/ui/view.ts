@@ -88,6 +88,13 @@ const CSS = `
 .cand.sel { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
 .cand.hover { background-color: var(--hover); }
+/* A candidate with a note (a Hanja's meaning): the note small beneath it, cut off with … when too long.
+   Both lines fit the bar's height: the candidate's line is tight, and the note's is tall enough for its
+   glyphs (Noto Sans CJK, on the Frame), which is clipped only across. */
+.cand.noted { flex-direction: column; justify-content: center; line-height: 0.9; }
+.cand .note { max-width: 8em; overflow-x: clip; overflow-y: visible; text-overflow: ellipsis; line-height: 1.15;
+  font-size: var(--size-note); color: var(--legend); }
+.cand.sel .note { color: inherit; }
 .keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .row { flex: 1; display: flex; min-height: 0; }
 /* Candidates on the left (fjk): a panel with the reading, a wrapping list that scrolls down, the toolbar. */
@@ -140,7 +147,7 @@ const CSS = `
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
-.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
+.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな, converting): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
 .key.down { filter: var(--pressed); }
@@ -242,11 +249,14 @@ const scrollToShow = (scroll: number, size: number, start: number, end: number, 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
 const tallOf = (key: KeyDef): Tall | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
 
-/** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
+/**
+ * The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). A
+ * candidate's note, if it has one ('' for none), is drawn small beneath it, cut off when too long.
+ */
 export type CompositionView = (
   | { readonly before: string; readonly after: string }
   | { readonly segments: readonly string[]; readonly focus: number }
-) & { readonly candidates: readonly string[]; readonly selected: number };
+) & { readonly candidates: readonly string[]; readonly selected: number; readonly notes?: readonly string[] };
 
 /** A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup px. */
 export type SwipeHandler = (path: Point[], keys: Record<string, [number, number]>, keyWidth: number) => void;
@@ -259,6 +269,8 @@ export interface View {
   setComposition(composition: CompositionView | null): void;
   /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
   setLabels(labels: Readonly<Record<string, string>>): void;
+  /** Mark action keys as in their mode, by data-k id (英数 or かな, the convert key while converting); shown at the next update(). */
+  setActive(ids: readonly string[]): void;
   /** The mic key's dictation state: listening is lit like a locked key, with bars; recognizing, a circling arc (ui/mic.ts). */
   setMic(state: MicState): void;
   /** The speech level's last five steps on the mic key's bars, while listening. */
@@ -392,6 +404,8 @@ export const createView = (
   };
   let candidates: { el: HTMLElement; text: string; index: number }[] = [];
   let labels: Readonly<Record<string, string>> = {};
+  /** Action keys marked as in their mode (setActive), by data-k id. */
+  let active: ReadonlySet<string> = new Set();
   for (const key of toolbar.filter((k) => k.action === 'hide')) bar.append(makeKey(key)); // close sits at the right end
   const keysEl = doc.createElement('div');
   keysEl.className = 'keys';
@@ -884,9 +898,7 @@ export const createView = (
       mods = next;
       for (const entry of keys) {
         const { el, key } = entry;
-        if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana')) {
-          el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
-        }
+        if (key.type === 'action') el.classList.toggle('on', active.has(el.dataset['k'] ?? '')); // in its mode (英数, 한자 while converting)
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);
@@ -926,17 +938,33 @@ export const createView = (
       // else nothing is composed (words for what was already sent): candidates only, no reading or caret
       followReading(pre.querySelector<HTMLElement>('.focus, .caret'));
       c.candidates.forEach((text, index) => {
-        const el = span(text, index === c.selected ? 'cand sel' : 'cand');
+        const note = c.notes?.[index];
+        const el = span(note ? '' : text, index === c.selected ? 'cand sel' : 'cand');
+        if (note) el.append(span(text, 'text'), span(note, 'note'));
+        el.classList.toggle('noted', !!note);
         list.append(el);
         candidates.push({ el, text, index });
       });
-      // Keep the picked candidate in view; otherwise start from the top of the list.
+      // The picked candidate leads the list (at its left, or its top in the side panel), so the ones after
+      // it show, as on a phone's candidate bar; where the list can scroll no further, it moves on across
+      // the last screen. A wrap back to the first, or none picked, starts from the top. Measured against the
+      // list itself (its candidates' offsets are from the keyboard), in layout pixels.
+      list.scrollLeft = 0;
+      list.scrollTop = 0;
       const sel = candidates[c.selected]?.el;
-      list.scrollLeft = !side && sel && sel.offsetLeft + sel.offsetWidth > list.clientWidth ? sel.offsetLeft - 8 : 0;
-      list.scrollTop = side && sel && sel.offsetTop + sel.offsetHeight > list.clientHeight ? sel.offsetTop - 4 : 0;
+      if (sel) {
+        const box = list.getBoundingClientRect();
+        const at = sel.getBoundingClientRect();
+        const scale = list.offsetWidth ? box.width / list.offsetWidth : 1;
+        if (side) list.scrollTop = Math.max(0, Math.min((at.top - box.top) / scale, list.scrollHeight - list.clientHeight));
+        else list.scrollLeft = Math.max(0, Math.min((at.left - box.left) / scale, list.scrollWidth - list.clientWidth));
+      }
     },
     setLabels: (next) => {
       labels = next;
+    },
+    setActive: (ids) => {
+      active = new Set(ids);
     },
     setMic: (state) => { for (const m of mics()) m.setState(state); },
     setMicLevels: (levels) => { for (const m of mics()) m.setLevels(levels); },

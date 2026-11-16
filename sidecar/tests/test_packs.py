@@ -370,10 +370,15 @@ def test_validator_messages_name_the_field():
         json.dumps({"type": "mod", "mod": "hyper"}): "/rows/1/0/mod: must be one of shift, caps, ctrl, alt, super, fn",
         json.dumps({"type": "char"}): "/rows/1/0: missing char",
         json.dumps({"type": "gap", "w": 99}): "/rows/1/0/w: must be at most 16",
+        # A convert key has no label of its own: its pack names it.
+        json.dumps({"type": "action", "action": "convert"}): "/rows/1/0: missing label",
     }
     for key, message in cases.items():
         layout["rows"][1][0] = json.loads(key)
         assert packs.validate(layout, schema, schema) == [message]
+    for key in ({"type": "action", "action": "convert", "label": "한자"}, {"type": "action", "action": "hide"}):
+        layout["rows"][1][0] = key
+        assert packs.validate(layout, schema, schema) == []
 
 
 def test_a_name_is_a_string_or_a_name_per_language(tmp_path):
@@ -617,10 +622,11 @@ def test_the_korean_packs_load():
     )
     hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
     assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
-    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한/영
-    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.5} in hangul["rows"][
+    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한자 and 한/영 either side of Space
+    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.25} in hangul["rows"][
         4
     ]
+    assert {"type": "action", "action": "convert", "label": "한자", "w": 1.25} in hangul["rows"][4]
 
 
 def hangul_table(item_id: str, **fields) -> dict:

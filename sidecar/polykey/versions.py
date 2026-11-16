@@ -81,6 +81,8 @@ def app_dir() -> Path:
         return code.parent.parent
     if code.name == DEV and (code / "DEV").exists():
         return code.parent
+    # packs.data_dir(), written out: this module imports nothing of polykey's, so a release whose other
+    # code fails to import can still fall back (run.py).
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "polykey"
 

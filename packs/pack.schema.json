@@ -505,9 +505,10 @@
             "kana",
             "mode",
             "symbols",
-            "more-symbols"
+            "more-symbols",
+            "convert"
           ],
-          "description": "What the key does. eisu and kana switch one way into and out of the Latin mode (かな while typing kana also cycles its forms); mode switches between the keyboard's first mode and its Latin mode, reading the letters it goes to."
+          "description": "What the key does. eisu and kana switch one way into and out of the Latin mode (かな while typing kana also cycles its forms); mode switches between the keyboard's first mode and its Latin mode, reading the letters it goes to. convert is for the keyboard's composer, to convert what is before the caret; where its composer does not take it (a Latin mode), it does nothing. A convert key has no label of its own, so it must have a label (the Korean keyboard's 한자)."
         },
         "label": {
           "$ref": "#/$defs/label"
@@ -537,6 +538,21 @@
         "alone": {
           "$ref": "#/$defs/aloneTall"
         }
+      },
+      "if": {
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "const": "convert"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "label"
+        ]
       }
     },
     "gap": {
@@ -877,9 +893,10 @@
         },
         "converter": {
           "enum": [
-            "anthy"
+            "anthy",
+            "hanja"
           ],
-          "description": "The engine that converts the reading (with composer kana): anthy, from the system's libanthy."
+          "description": "The engine that converts what is composed: anthy (kana to kanji, with composer kana or romaji), from the system's libanthy; hanja (Hangul to Hanja, with composer hangul-2set), from the system's libhangul dictionary."
         },
         "table": {
           "$ref": "#/$defs/id",

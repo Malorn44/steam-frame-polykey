@@ -29,10 +29,27 @@ export interface ComposerContext {
   readonly table: TableDef | undefined;
   /** The keyboard's main layout (its ゛゜小 cycles, for one). */
   readonly layout: Layout | undefined;
+  /**
+   * With a press: the word being typed, before what is composed, as far as polykey typed it (sent into
+   * the field since the word began, then waiting in the bar). A conversion may replace it, with a
+   * Backspace a character; '' when nothing is known.
+   */
+  readonly before?: string;
 }
 
-/** A segment of a conversion, as the converter gives it. */
-export interface Converted { readonly reading: string; readonly candidates: readonly string[] }
+/**
+ * A segment of a conversion, as the converter gives it; `notes`, if it has any, are one per candidate
+ * ('' for none): a line the bar draws beneath it (a Hanja's meaning).
+ */
+export interface Converted { readonly reading: string; readonly candidates: readonly string[]; readonly notes?: readonly string[] }
+
+/** A segment of a conversion, with the candidate picked for it (none: its reading). */
+export interface Segment extends Converted { readonly index: number }
+/** Each segment as picked so far: what the bar shows while converting, and what confirming sends. */
+export const picked = (segments: readonly Segment[]): string[] => segments.map((s) => s.candidates[s.index] ?? s.reading);
+/** The focused segment's next candidate picked, the first again after the last (Space while converting). */
+export const nextCandidate = (segments: readonly Segment[], focus: number): Segment[] =>
+  segments.map((s, i) => (i === focus && s.candidates.length ? { ...s, index: (s.index + 1) % s.candidates.length } : s));
 
 /** What the bar asks the converter for after a press: live candidates, or a conversion (re-cut, resized). */
 export type ConverterRequest =
@@ -60,11 +77,15 @@ export interface ComposerResult<S> {
 
 /**
  * What the bar shows: while typing, the text before and after the caret (the converter's live
- * candidates beside it); while converting, the segments with one focused and its candidates.
+ * candidates beside it); while converting, the segments with one focused and its candidates, with
+ * their notes if they have any.
  */
 export type Preedit =
   | { readonly before: string; readonly after: string }
-  | { readonly segments: readonly string[]; readonly focus: number; readonly candidates: readonly string[]; readonly selected: number };
+  | {
+    readonly segments: readonly string[]; readonly focus: number; readonly candidates: readonly string[]; readonly selected: number;
+    readonly notes?: readonly string[];
+  };
 
 export interface Shown {
   readonly preedit: Preedit;
@@ -73,6 +94,11 @@ export interface Shown {
    * confirm). The keyboard's language pack spells them; a name it does not spell leaves the key as it is.
    */
   readonly labels: Readonly<Record<string, string>>;
+  /**
+   * Keys marked as in their mode now, with the indicator bar 英数, かな and 한/영 have, by key id: the
+   * convert key while a conversion is open.
+   */
+  readonly active?: readonly string[];
 }
 
 /** The converter side of a composer that has one: what to convert, and what to do with the answer. */
@@ -85,6 +111,11 @@ export interface Converting<S> {
   live(forReading: string, segments: readonly Converted[], predictions: readonly string[]): string[];
   /** A candidate picked in the bar; `source` is what the live candidates came from, if they are current. */
   pick(state: S, text: string, index: number, source: LiveSource | null): ComposerResult<S>;
+  /**
+   * End a conversion that would replace text typed before the composition (ctx.before), leaving it as it
+   * is: the field may have changed under it. What is composed stays.
+   */
+  cancel?(state: S): S;
 }
 
 /**
@@ -100,6 +131,11 @@ export interface Composer<S> {
    * composed waits in the bar. A conversion (segments) is shown in the bar either way.
    */
   readonly inline?: boolean;
+  /**
+   * Which characters make up the words it types (Hangul: a Hanja or a Latin letter ends one), for the word
+   * suggestions complete, a pick replaces and a conversion reaches back over; none: every letter.
+   */
+  readonly wordChar?: (ch: string) => boolean;
   composing(state: S): boolean;
   /** Whether a key with two sets of legends (JIS) types its Latin ones (romaji input); none: it types its own. */
   latinKeys?(ctx: ComposerContext): boolean;

@@ -543,6 +543,48 @@ describe('hold to repeat', () => {
     expect([...shadow.querySelectorAll('.comp.on .cand')].map((el) => el.textContent)).toEqual(['학교', '학교에서']);
   });
 
+  it('an action key the composer marks as in its mode shows the indicator, as 한/영 and 英数 do; the mark goes with it', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
+    const convert = () => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'convert')!;
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(false);
+    view.setActive(['convert']);
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(true);
+    expect(shadow.querySelector('style')!.textContent).toContain('.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); }');
+    view.setActive([]);
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(false);
+  });
+
+  it('a candidate with a note shows it small beneath, cut off when long; one without has none, and a pick gives the candidate', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const picked: [string, number][] = [];
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {}, () => {},
+      (text, index) => picked.push([text, index]));
+    view.update(NO_MODS);
+    view.setComposition({ segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國', '漢'], selected: 1, notes: ['', '대한민국', '한수 한'] });
+    const cands = [...shadow.querySelectorAll<HTMLElement>('.comp.on .cand')];
+    expect(cands.map((el) => [el.querySelector('.text')?.textContent ?? el.textContent, el.querySelector('.note')?.textContent ?? null]))
+      .toEqual([['寒國', null], ['韓國', '대한민국'], ['漢', '한수 한']]);
+    expect(cands.map((el) => el.classList.contains('noted'))).toEqual([false, true, true]);
+    expect(cands[1]!.classList.contains('sel')).toBe(true);
+    const css = shadow.querySelector('style')!.textContent;
+    expect(css).toContain('.cand .note { max-width: 8em; overflow-x: clip; overflow-y: visible; text-overflow: ellipsis; line-height: 1.15;');
+    tap(cands[1]!);
+    expect(picked).toEqual([['韓國', 1]]); // the candidate, not its note
+    // Without notes (anthy's), candidates are as before.
+    view.setComposition({ segments: ['かんじ'], focus: 0, candidates: ['漢字'], selected: 0 });
+    expect(shadow.querySelector('.cand')!.outerHTML).toBe('<span class="cand sel">漢字</span>');
+  });
+
   it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
     const boot = bundledBoot();
     const make = (side: boolean) => {
@@ -591,6 +633,66 @@ describe('hold to repeat', () => {
     expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
+
+  /**
+   * The bar with more candidates than fit, as a browser lays it out (jsdom lays nothing out): across, the
+   * list 200px wide and 245px from the keyboard's left (after the toolbar and the reading), each candidate
+   * 60px wide; in the side panel, the list 100px high and 50px down, a candidate a row of 36px. Each moves
+   * with the list's scroll, which stops at the end.
+   */
+  const longList = (side: boolean) => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {},
+      () => {}, () => {}, { side });
+    view.update(NO_MODS);
+    const list = shadow.querySelector<HTMLElement>('.comp .list')!;
+    const count = 16;
+    const [start, size, step] = side ? [50, 100, 36] : [245, 200, 60];
+    Object.defineProperties(list, side
+      ? { clientHeight: { value: size }, scrollHeight: { value: count * step } }
+      : { clientWidth: { value: size }, scrollWidth: { value: count * step } });
+    const scroll = (): number => (side ? list.scrollTop : list.scrollLeft);
+    const rect = (at: number, length: number) => (side
+      ? { left: 0, right: 300, width: 300, top: at, bottom: at + length, height: length, x: 0, y: at, toJSON: () => ({}) }
+      : { left: at, right: at + length, width: length, top: 0, bottom: 26, height: 26, x: at, y: 0, toJSON: () => ({}) });
+    const layout = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this === list) return rect(start, size);
+      const index = this.classList.contains('cand') ? [...list.children].indexOf(this) : -1;
+      return index >= 0 ? rect(start + index * step - scroll(), step) : rect(0, 0);
+    });
+    const candidates = Array.from({ length: count }, (_, i) => `漢${i}`);
+    const pick = (selected: number) => view.setComposition({ segments: ['한'], focus: 0, candidates, selected });
+    /** Where the picked candidate starts in the list's box, and whether it is all in it. */
+    const picked = () => {
+      const at = shadow.querySelector<HTMLElement>('.cand.sel')!.getBoundingClientRect();
+      const [from, to] = side ? [at.top, at.bottom] : [at.left, at.right];
+      return { offset: from - start, whole: from >= start && to <= start + size };
+    };
+    return { view, scroll, pick, picked, count, step, end: count * step - size, restore: () => layout.mockRestore() };
+  };
+
+  for (const side of [false, true]) {
+    it(`more candidates than fit${side ? ', in the side panel' : ''}: the picked one leads the list, so the ones after it show; at the end it moves on; a wrap goes back to the start`, () => {
+      const { view, scroll, pick, picked, count, step, end, restore } = longList(side);
+      try {
+        for (let selected = 0; selected < count; selected++) {
+          pick(selected);
+          if (selected * step <= end) expect([selected, picked().offset, scroll()]).toEqual([selected, 0, selected * step]); // at the start, from the first step
+          else expect([selected, picked().whole, scroll()]).toEqual([selected, true, end]); // the list's end: it moves on across the last screen
+        }
+        pick(0); // wrapped back to the first
+        expect([picked().offset, scroll()]).toEqual([0, 0]);
+        pick(9);
+        view.setComposition({ before: 'か', after: '', candidates: [], selected: -1 }); // none picked: from the start
+        expect(scroll()).toBe(0);
+      } finally {
+        restore();
+      }
+    });
+  }
 
   it('a reading longer than the bar scrolls to keep the caret, or the focused segment, in view', async () => {
     const boot = bundledBoot();

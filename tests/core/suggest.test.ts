@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Effect } from '../../src/core/keyboard.js';
-import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceText, replaceWord, slotOrder, suggestPrefix, trackWord } from '../../src/core/suggest.js';
+import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceText, replaceWord, slotOrder, suggestPrefix, trackWord, wordEnd } from '../../src/core/suggest.js';
 
 const text = (t: string): Effect => ({ kind: 'text', text: t });
 const key = (k: 'Backspace' | 'Enter' | 'ArrowLeft'): Effect => ({ kind: 'key', key: k });
@@ -80,5 +80,22 @@ describe('ranking and replacing', () => {
   it('closeUp: one punctuation mark deletes the space before it; anything else is left alone', () => {
     for (const mark of '.,!?;:') expect(closeUp([text(mark)])).toEqual([key('Backspace'), text(mark)]);
     for (const effects of [[text('a')], [text(' ')], [text('('), text(')')], [key('Enter')], []]) expect(closeUp(effects)).toBe(effects);
+  });
+});
+
+describe('a composer\'s own word characters (Hangul\'s: a Hanja ends the word)', () => {
+  const hangul = (ch: string) => /^[가-힣ㄱ-ㅣ]$/u.test(ch);
+
+  it('the word is the last run of them: what goes before it, a Hanja, is not part of it', () => {
+    expect([wordEnd('學校에', hangul), wordEnd('學校', hangul), wordEnd('abc한국', hangul), wordEnd('學校에')]).toEqual(['에', '', '한국', '學校에']);
+    expect(trackWord(NO_WORD, [text('學校'), text('에')], hangul).state).toEqual({ word: '에', known: true });
+    expect(suggestPrefix({ word: '', known: true }, '學校에', hangul)).toBe('에'); // waiting in the bar
+    expect(suggestPrefix({ word: '', known: true }, '學校', hangul)).toBeNull();
+  });
+
+  it('a pick replaces only that word: a Hanja before it stays, in the field or in the bar', () => {
+    expect(replaceWord('에', '에서', hangul)).toEqual([text('서 ')]);
+    expect(replaceWord('', '에서', hangul, '學校에')).toEqual([text('學校에서 ')]); // the bar's word, sent with it
+    expect(replaceWord('오늘', '에서', hangul, '學校에')).toEqual([text('學校에서 ')]); // what was sent before stays
   });
 });
