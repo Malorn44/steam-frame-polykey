@@ -446,6 +446,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     takesDictation(keyboard) && !(keyboard && latinMode.has(keyboard.id));
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
+  /** convert is the composer's (한자): where the composer does not take it (a Latin mode), it does nothing. */
+  const converts = (key: KeyDef): boolean => key.type === 'action' && key.action === 'convert';
+  /** A key that leaves what waits (the composition, the English word) as it is: a modifier only arms; the mic joins it. */
+  const keepsWaiting = (key: KeyDef): boolean => key.type === 'mod' || dictates(key) || converts(key);
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
   const fnKey = (key: KeyDef): boolean => mods.fn !== 'off' && (key.type === 'char' || key.type === 'key') && !!key.fn;
 
@@ -539,7 +543,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         showBar();
         return;
       }
-      if (key.type !== 'mod' && !dictates(key)) sendEnglish(); // any other key sends the word first
+      if (!keepsWaiting(key)) sendEnglish(); // any other key sends the word first
     }
     if (keyboard && composes(keyboard) && page === 'keys' && !latin) {
       // A typed key goes to the composer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
@@ -556,8 +560,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         return;
       }
       // Any other key sends what waits first (a modifier only arms, so it does not).
-      if (key.type !== 'mod' && !dictates(key)) bar.flush();
+      if (!keepsWaiting(key)) bar.flush();
     }
+    if (converts(key)) return;
     const result = alternate === undefined ? press(mods, key)
       : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
     mods = result.mods;

@@ -1551,6 +1551,31 @@ describe('the mode key', () => {
   });
 });
 
+describe('the convert key', () => {
+  it('does nothing where no composer takes it: nothing is sent, and the word being typed goes on', async () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    // The English keyboard with a convert key in place of its Alt.
+    const qwerty = boot.catalog.layouts['en/qwerty']!;
+    const rows = qwerty.rows.map((row) => row.map((k): string | KeyDef => (typeof k !== 'string' && k.type === 'mod' && k.mod === 'alt'
+      ? { type: 'action', action: 'convert', label: 'Conv' } : k)));
+    boot.catalog.layouts['mine/convert'] = { ...qwerty, id: 'mine/convert', rows };
+    boot.catalog.keyboards['mine/convert'] = { ...boot.catalog.keyboards['en/english']!, id: 'mine/convert', layout: 'mine/convert' };
+    boot.settings.keyboards = ['en/english', 'mine/convert'];
+    steam.g[BOOT_GLOBAL] = boot;
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    api.debug.use('mine/convert');
+    await tap(popup, 'h');
+    await tap(popup, 'convert');
+    await tap(popup, 'i');
+    expect(manager.calls.map((c) => c[0])).toEqual(['h', 'i']);
+    expect(logged.join('\n')).not.toContain('not available'); // not an action the page runs
+  });
+});
+
 // Where it cannot compose in the field (here streamed, as through Steam Link), Korean builds the word in the bar.
 describe('Korean', () => {
   const setupKo = () => {
