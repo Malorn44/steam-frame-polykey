@@ -38,14 +38,13 @@ from __future__ import annotations
 
 import asyncio
 import math
-import os
 import re
 from collections import deque
 from pathlib import Path
 from typing import Optional
 
 from ..changes import MAX_WAIT
-from ..packs import read_settings
+from ..packs import data_dir, read_settings
 from . import SpeechError
 from .capture import Recorder, Tools
 from .catalog import ANY, Catalog, Model, load as load_catalog
@@ -74,10 +73,9 @@ LEVEL_MAX = 8
 LEVEL_STEP_DB = 5.5  # speech at the Frame's mic (about -24 dBFS) is 6 of 8, a soft voice 4, a loud one 8
 
 
-def data_dir() -> Path:
+def speech_dir() -> Path:
     """~/.local/share/polykey/speech: the engine in engine/, models in models/ (never in the repo)."""
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "polykey" / "speech"
+    return data_dir() / "speech"
 
 
 def bar_level(level_db: float, gate_db: float, speech: bool) -> int:
@@ -136,7 +134,7 @@ class Dictation:
         catalog = catalog or load_catalog()
         if catalog is None:
             log.info("dictation: catalog.json did not load; nothing can be downloaded")
-        self.library = Library(home or data_dir(), catalog, log, download_options)
+        self.library = Library(home or speech_dir(), catalog, log, download_options)
         self.tools = tools or Tools()
         self.engine = engine or Engine(self.library.home, catalog.engine.version if catalog else "0", log)
         self._session = 0

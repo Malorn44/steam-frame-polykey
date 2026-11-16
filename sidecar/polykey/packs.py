@@ -96,6 +96,12 @@ def user_dir() -> Path:
     return Path(base) / "polykey"
 
 
+def data_dir() -> Path:
+    """~/.local/share/polykey: what polykey keeps besides its settings (dictation's files, learned Hanja; versions.py has its own copy)."""
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "polykey"
+
+
 # --- validator -----------------------------------------------------------------------------------
 
 _TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}

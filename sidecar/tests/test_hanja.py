@@ -113,6 +113,14 @@ def test_a_pick_comes_first_for_its_word_and_is_kept_in_the_learned_file(tmp_pat
     assert candidates(again, "한국") == [("한국", ["寒菊", "韓國", "寒國"])]
 
 
+def test_picks_are_kept_in_polykey_s_data_folder_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    assert Hanja(dictionary(tmp_path)).learn("한국", [2], [2], ["韓國"]) is True
+    saved = tmp_path / "data" / "polykey" / "hanja-learned.json"
+    assert json.loads(saved.read_text(encoding="utf-8")) == {"한국": ["韓國"]}
+    assert candidates(Hanja(dictionary(tmp_path)), "한국")[0][1][0] == "韓國"  # read back from there
+
+
 def test_only_a_hanja_of_the_word_is_learned(tmp_path):
     engine = make(tmp_path)
     assert engine.learn("한국", [2], [0], ["韓"]) is False  # not one of 한국's
