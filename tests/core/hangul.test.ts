@@ -162,12 +162,12 @@ describe('한자: converting the word before the caret', () => {
   it('shows the word\'s candidates and meanings while the text stays as it is; Space (next) goes on, and wraps', () => {
     const shown = answer(convertAfter('오늘한', 'ㄱㅜㄱ').state, '한국', ['寒國', '韓國'], ['', '대한민국']);
     expect(hangul2Set.show(shown, ctx)).toEqual({
-      preedit: { segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國'], selected: 0, notes: ['', '대한민국'] },
+      preedit: { segments: ['오늘', '寒國'], focus: 1, candidates: ['寒國', '韓國'], selected: 0, notes: ['', '대한민국'] }, // the word as picked
       labels: { ' ': 'next' }, active: ['convert'], // Space says next, 한자 shows the mode's mark
     });
     const next = hangul2Set.press(shown, SPACE, { typed: ' ' }, ctx)!;
     expect(next.effects).toEqual([]);
-    expect(hangul2Set.show(next.state, ctx).preedit).toMatchObject({ selected: 1 });
+    expect(hangul2Set.show(next.state, ctx).preedit).toMatchObject({ segments: ['오늘', '韓國'], focus: 1, selected: 1 });
     const wrapped = hangul2Set.press(next.state, SPACE, { typed: ' ' }, ctx)!;
     expect(wrapped.effects).toEqual([]);
     expect(hangul2Set.show(wrapped.state, ctx).preedit).toMatchObject({ selected: 0 });
@@ -204,7 +204,7 @@ describe('한자: converting the word before the caret', () => {
 
   it('a word inside the reading: the pick deletes back to its start and types the Hanja, then what followed it; the syllable stays', () => {
     const shown = cut(convertAfter('학교에', 'ㅅㅓ').state, '[학교]에서', ['學校', '學敎']);
-    expect(hangul2Set.show(shown, ctx).preedit).toEqual({ segments: ['학교', '에서'], focus: 0, candidates: ['學校', '學敎'], selected: 0 });
+    expect(hangul2Set.show(shown, ctx).preedit).toEqual({ segments: ['學校', '에서'], focus: 0, candidates: ['學校', '學敎'], selected: 0 });
     const picked = hangul2Set.convert!.pick(shown, '學校', 0, null);
     // 학교에 were typed before the composition (서): three Backspaces, then 學校 and 에. 서 is still being composed.
     expect([backspaces(picked.effects), texts(picked.effects)]).toEqual([3, ['學校에']]);
@@ -222,7 +222,7 @@ describe('한자: converting the word before the caret', () => {
       state: shown, effects: [], request: { kind: 'convert', lengths: [2, 2], resize: [0, 1] },
     });
     const next = cut(shown, '학교에[서]', ['西']);
-    expect(hangul2Set.show(next, ctx).preedit).toMatchObject({ segments: ['학교에', '서'], focus: 1, candidates: ['西'], selected: 0 });
+    expect(hangul2Set.show(next, ctx).preedit).toMatchObject({ segments: ['학교에', '西'], focus: 1, candidates: ['西'], selected: 0 });
     expect(hangul2Set.press(next, key('ArrowLeft'), {}, ctx)!.request).toEqual({ kind: 'convert', lengths: [3, 1], resize: [1, -1] });
     // The last syllable is the composition: picking it drops it, with no Backspace.
     const picked = hangul2Set.convert!.pick(next, '西', 0, null);
