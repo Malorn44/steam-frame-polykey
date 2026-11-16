@@ -9,8 +9,11 @@
 // and the bar shows only candidates. The tail is only ever what this controller typed of the composition.
 // It is forgotten without a Backspace whenever the field may have changed (lose), and typing into another
 // target than it was typed into first forgets it too; sends queued before that are skipped. A
-// composition that may no longer be retyped (Desktop Mode) stays in the field as it is. What is composed,
-// the tail included, is typed text: never logged.
+// composition that may no longer be retyped (Desktop Mode) stays in the field as it is. Where it cannot be
+// composed in the field (Desktop Mode, streaming), what such a composer commits waits in the bar instead,
+// the word before the composition, and goes out whole: ⌫ takes the composition, then the word, off; Enter
+// sends it alone; Space and any other key send it, then act. What is composed, the tail and the word
+// included, is typed text: never logged.
 
 import type { BridgeReply, Call } from './bridge/client.js';
 import type { KeyDef } from './core/catalog.js';
@@ -19,6 +22,7 @@ import type {
 } from './core/composers/composer.js';
 import type { Effect } from './core/keyboard.js';
 import { retype as retypeStep } from './core/output/inline.js';
+import { graphemes } from './core/output/plan.js';
 import type { CompositionView } from './ui/view.js';
 
 /** The current keyboard as the bar drives it. */
@@ -68,7 +72,7 @@ export interface Bar {
 const segmentsOf = (reply: BridgeReply): Converted[] =>
   (reply.ok && Array.isArray(reply['segments']) ? reply['segments'] as Converted[] : []);
 
-export const createBar = ({ call, available, enqueue, show, warn, keyboard, retype = () => false, target = () => '' }: {
+export const createBar = ({ call, available, enqueue, show, warn, keyboard, retype = () => false, target = () => '', spaceInWord = false }: {
   call: Call;
   available: () => boolean;
   /** Send effects in order; a send into the field carries `inline`, and is skipped once it is no longer live. */
@@ -82,6 +86,8 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
   retype?: () => boolean;
   /** Where typing goes now (the field's target, '' while closed): what is in the field belongs to one. */
   target?: () => string;
+  /** Space goes into the word waiting in the bar, instead of sending it. */
+  spaceInWord?: boolean;
 }): Bar => {
   /** The composer's state, kept with the composer that made it. */
   let held: { composer: Composer<unknown>; state: unknown } | null = null;
@@ -97,6 +103,8 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
   let tailTarget = '';
   /** Bumped when the field may no longer hold the tail: sends into it queued before are skipped. */
   let epoch = 0;
+  /** What a composer that composes in the field committed where it cannot: the word, waiting in the bar. */
+  let word = '';
 
   const stateOf = (kb: BarKeyboard): unknown => (held?.composer === kb.composer ? held.state : kb.composer.empty);
   const set = (kb: BarKeyboard, state: unknown): void => { held = { composer: kb.composer, state }; };
@@ -155,10 +163,22 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
   };
 
   const retyping = (kb: BarKeyboard): boolean => kb.composer.inline === true && retype();
+  /** A composer that composes in the field, where it cannot: what it commits waits in the bar. */
+  const holds = (kb: BarKeyboard): boolean => kb.composer.inline === true && !retype();
 
-  /** Send what the composer sends: as it is, or into the field, against the tail typed so far. */
+  const sendWord = (): void => {
+    if (word) enqueue([{ kind: 'text', text: word }]);
+    word = '';
+  };
+
+  /** Send what the composer sends: as it is, held in the bar's word, or into the field, against the tail typed so far. */
   const send = (kb: BarKeyboard, effects: readonly Effect[]): void => {
     if (!retyping(kb)) {
+      if (holds(kb) && effects.every((effect) => effect.kind === 'text')) {
+        word += effects.map((effect) => (effect.kind === 'text' ? effect.text : '')).join('');
+        return;
+      }
+      sendWord(); // a key: the word goes first
       if (effects.length) enqueue(effects);
       return;
     }
@@ -175,6 +195,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     held = null;
     live = [];
     tail = '';
+    word = '';
     generation++;
   };
 
@@ -190,6 +211,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
    * retyped there (Desktop Mode, the setting, another keyboard), it stays as it is and the composer starts afresh.
    */
   const settle = (kb: BarKeyboard | null): void => {
+    if (word && (!kb || !holds(kb))) sendWord(); // it may be composed in the field now: the word goes first
     if (!tail) return;
     if (target() !== tailTarget) lose();
     else if (!kb || held?.composer !== kb.composer || !retyping(kb)) clear();
@@ -207,25 +229,41 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
     const kb = keyboard();
     settle(kb);
     if (composing(kb)) apply(kb, kb.composer.flush(stateOf(kb), kb.ctx));
+    if (word) {
+      sendWord();
+      show();
+    }
   };
 
   const shown: Bar['shown'] = () => {
     const kb = keyboard();
-    if (!composing(kb)) return null;
+    if (!kb || (!composing(kb) && !word)) return null;
     const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
     if ('segments' in preedit) return { composition: preedit, labels };
     // In the field: the bar shows only the candidates.
-    return { composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, candidates: live, selected: -1 }, labels };
+    return { composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, before: word + preedit.before, candidates: live, selected: -1 }, labels };
   };
 
   return {
-    composing: () => composing(keyboard()),
+    composing: () => composing(keyboard()) || word !== '',
     press: (key, input) => {
       const kb = keyboard();
       settle(kb);
       const result = kb && kb.composer.press(stateOf(kb), key, input, kb.ctx);
-      if (!kb || !result) return false;
-      apply(kb, result);
+      if (kb && result) {
+        apply(kb, result);
+        return true;
+      }
+      if (!kb || !holds(kb) || (!word && !composing(kb))) return false;
+      // The word waiting in the bar: ⌫ takes it off a character at a time once the composition is gone, and
+      // Enter sends it without pressing Enter (a search starts only with nothing in the bar).
+      if (key.type === 'key' && key.key === 'Backspace' && word && !composing(kb)) word = graphemes(word).slice(0, -1).join('');
+      else if (key.type === 'key' && key.key === 'Enter') flush();
+      else if (spaceInWord && input.typed === ' ') {
+        if (composing(kb)) apply(kb, kb.composer.flush(stateOf(kb), kb.ctx));
+        word += ' ';
+      } else return false;
+      show();
       return true;
     },
     flush,
@@ -237,6 +275,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
         set(kb, flushed.state);
         send(kb, flushed.effects);
       }
+      sendWord();
       clear();
     },
     drop: clear,

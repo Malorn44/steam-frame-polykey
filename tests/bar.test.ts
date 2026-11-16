@@ -152,7 +152,7 @@ describe('composing in the text field', () => {
     press: (s, key, input, c) => (key.type === 'char' && key.char === '?' && s ? { state: `${s}?`, effects: [] } : shout.press(s, key, input, c)),
   };
   /** A field: text at its end, a Backspace takes its last character; the sends as they were made. */
-  const setupField = (composer: Composer<string> = inline, start = 'mine ') => {
+  const setupField = (composer: Composer<string> = inline, start = 'mine ', spaceInWord = false) => {
     let field = start;
     let retyping = true;
     let where = 'app';
@@ -167,6 +167,7 @@ describe('composing in the text field', () => {
       keyboard: () => ({ composer, ctx, converter: undefined }),
       retype: () => retyping,
       target: () => where,
+      spaceInWord,
     });
     /** Make the queued sends, as the page's queue does: a send no longer live is skipped. */
     const run = () => {
@@ -273,6 +274,67 @@ describe('composing in the text field', () => {
     expect(bar.shown()?.composition).toMatchObject({ segments: ['<AB>'] });
     bar.pick('αβ', 0);
     expect(run()).toBe('mine αβ');
+  });
+
+  /** Letters compose two at a time, in capitals; a third commits the pair, as a syllable is sent once the next jamo cannot join it. */
+  const pairs: Composer<string> = {
+    empty: '',
+    inline: true,
+    composing: (s) => s !== '',
+    press: (s, key, { typed }) => {
+      if (typed !== undefined && /^[a-z]$/.test(typed)) {
+        return s.length < 2 ? { state: s + typed.toUpperCase(), effects: [] } : { state: typed.toUpperCase(), effects: [{ kind: 'text', text: s }] };
+      }
+      return s && key.type === 'key' && key.key === 'Backspace' ? { state: s.slice(0, -1), effects: [] } : null;
+    },
+    flush: (s) => ({ state: '', effects: s ? [{ kind: 'text', text: s }] : [] }),
+    show: (s) => ({ preedit: { before: s, after: '' }, labels: {} }),
+  };
+  const ENTER: KeyDef = { type: 'key', key: 'Enter' };
+
+  it('where it cannot compose in the field, what it commits waits in the bar with the rest of the word, and nothing goes out', () => {
+    const { bar, run, typeAll, setRetype } = setupField(pairs);
+    setRetype(false);
+    typeAll('abcde');
+    expect([run(), bar.composedText(), bar.composing()]).toEqual(['mine ', 'ABCDE', true]);
+    expect(bar.shown()?.composition).toMatchObject({ before: 'ABCDE' });
+    for (const [left, taken] of [['ABCD', true], ['ABC', true], ['AB', true], ['A', true], ['', true], ['', false]] as const) {
+      expect(bar.press(BS, {})).toBe(taken); // the composition, then the word; then the field's
+      expect(bar.composedText()).toBe(left);
+    }
+    expect(run()).toBe('mine ');
+  });
+
+  it('Enter sends the word alone; Space and any other key leave it to the caller, which sends it first; a pick drops it', () => {
+    const { bar, run, sent, typeAll, setRetype } = setupField(pairs);
+    setRetype(false);
+    typeAll('abc');
+    expect(bar.press(ENTER, {})).toBe(true); // taken: Enter is not pressed
+    expect([run(), sent.at(-1)]).toEqual(['mine ABC', [{ kind: 'text', text: 'ABC' }]]);
+    expect(bar.press(ENTER, {})).toBe(false); // the bar is empty: Enter is the field's
+    typeAll('de');
+    expect(bar.press(char(' '), { typed: ' ' })).toBe(false);
+    bar.flush(); // what the caller does before any key acts
+    expect(run()).toBe('mine ABCDE');
+    typeAll('fgh');
+    bar.drop();
+    bar.leave();
+    expect([run(), bar.composing()]).toEqual(['mine ABCDE', false]);
+    typeAll('ijk');
+    bar.leave(); // another keyboard: the word goes out as it stands
+    expect(run()).toBe('mine ABCDEIJK');
+  });
+
+  it('with spaceInWord, Space goes into the word; once it may compose in the field again, the word goes first', () => {
+    const { bar, run, typeAll, setRetype } = setupField(pairs, 'mine ', true);
+    setRetype(false);
+    typeAll('abc');
+    expect(bar.press(char(' '), { typed: ' ' })).toBe(true);
+    typeAll('d');
+    expect(bar.composedText()).toBe('ABC D');
+    setRetype(true);
+    typeAll('e');
+    expect(run()).toBe('mine ABC DE');
   });
 
   it('a composer that does not opt in keeps the bar', () => {
