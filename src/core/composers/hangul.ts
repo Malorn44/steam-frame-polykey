@@ -17,10 +17,10 @@
 // 한자 (the convert key) converts the word before the caret to Hanja: its Hangul typed before the syllable
 // (ctx.before, what polykey typed of it) and the syllable. The keyboard's converter (hanja) finds the
 // longest word with Hanja that ends it; the text stays as it is while the bar shows the candidates, with
-// their meanings. Space goes on to the next candidate; ← and → move the word's start (longer, shorter);
-// Enter or a tap picks: a Backspace for each of the word's syllables typed before the composition, the
-// composition dropped, then the Hanja. ⌫ or 한자 again ends it, the text as it was; anything else ends it,
-// then acts. Nothing but a picked candidate is ever sent as Hanja.
+// their meanings, and 한자 shows the mode's mark. 한자 again or Space (labelled next) goes on to the next
+// candidate; ← and → move the word's start (longer, shorter); Enter or a tap picks: a Backspace for each of
+// the word's syllables typed before the composition, the composition dropped, then the Hanja. ⌫ ends it,
+// the text as it was; anything else ends it, then acts. Nothing but a picked candidate is ever sent as Hanja.
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
 import type { Effect } from '../keyboard.js';
@@ -161,7 +161,7 @@ const pickHanja = (h: Hangul, text: string, index: number): ComposerResult<Hangu
 const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): ComposerResult<Hangul> | null => {
   const segments = conversion.segments!;
   const candidates = segments.at(-1)!.candidates;
-  if (key.type === 'char' && key.char === ' ') {
+  if ((key.type === 'char' && key.char === ' ') || isConvert(key)) {
     return { state: { ...h, conversion: { ...conversion, index: (conversion.index + 1) % candidates.length } }, effects: [] };
   }
   if (isKey(key, 'Enter')) return pickHanja(h, candidates[conversion.index]!, conversion.index);
@@ -170,7 +170,7 @@ const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): Compos
     const lengths = segments.map((s) => Array.from(s.reading).length);
     return { state: h, effects: [], request: { kind: 'convert', lengths, resize: [segments.length - 1, isKey(key, 'ArrowLeft') ? 1 : -1] } };
   }
-  return isKey(key, 'Backspace') || isConvert(key) ? { state: { ...h, conversion: null }, effects: [] } : null;
+  return isKey(key, 'Backspace') ? { state: { ...h, conversion: null }, effects: [] } : null;
 };
 
 export const hangul2Set: Composer<Hangul> = {
@@ -214,7 +214,8 @@ export const hangul2Set: Composer<Hangul> = {
           segments: segments.map((s) => s.reading), focus: segments.length - 1, candidates: word.candidates, selected: index,
           ...(word.notes ? { notes: word.notes } : {}),
         },
-        labels: {},
+        labels: { ' ': 'next' },
+        active: ['convert'],
       };
     }
     const table = tableOf(ctx);

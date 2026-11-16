@@ -159,16 +159,20 @@ describe('한자: converting the word before the caret', () => {
     expect(convertAfter('abc', '').request).toBeUndefined();
   });
 
-  it('shows the word\'s candidates and meanings while the text stays as it is; Space goes on to the next', () => {
+  it('shows the word\'s candidates and meanings while the text stays as it is; 한자 again or Space (next) goes on', () => {
     const shown = answer(convertAfter('오늘한', 'ㄱㅜㄱ').state, '한국', ['寒國', '韓國'], ['', '대한민국']);
-    expect(hangul2Set.show(shown, ctx).preedit).toEqual({
-      segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國'], selected: 0, notes: ['', '대한민국'],
+    expect(hangul2Set.show(shown, ctx)).toEqual({
+      preedit: { segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國'], selected: 0, notes: ['', '대한민국'] },
+      labels: { ' ': 'next' }, active: ['convert'], // Space says next, 한자 shows the mode's mark
     });
     const next = hangul2Set.press(shown, SPACE, { typed: ' ' }, ctx)!;
     expect(next.effects).toEqual([]);
     expect(hangul2Set.show(next.state, ctx).preedit).toMatchObject({ selected: 1 });
-    const wrapped = hangul2Set.press(next.state, SPACE, { typed: ' ' }, ctx)!;
+    const wrapped = hangul2Set.press(next.state, CONVERT, {}, ctx)!;
+    expect(wrapped.effects).toEqual([]);
     expect(hangul2Set.show(wrapped.state, ctx).preedit).toMatchObject({ selected: 0 });
+    // Asked for, not answered yet: as before, nothing marked.
+    expect(hangul2Set.show(convertAfter('', 'ㄱㅜㄱ').state, ctx)).toEqual({ preedit: { before: '국', after: '' }, labels: {} });
     expect('notes' in hangul2Set.show(answer(convertAfter('', 'ㄱㅜㄱ').state, '국', ['國']), ctx).preedit).toBe(false);
   });
 
@@ -202,12 +206,10 @@ describe('한자: converting the word before the caret', () => {
     expect(hangul2Set.convert!.pick(shorter, '局', 1, null).effects).toEqual([{ kind: 'text', text: '局' }]);
   });
 
-  it('⌫ or 한자 ends it with the text as it was; typing ends it, then acts; nothing sends a Hanja that was not picked', () => {
+  it('⌫ ends it with the text as it was; typing ends it, then acts; nothing sends a Hanja that was not picked', () => {
     const shown = answer(convertAfter('한', 'ㄱㅜㄱ').state, '한국', ['韓國']);
-    for (const end of [BACKSPACE, CONVERT]) {
-      const ended = hangul2Set.press(shown, end, {}, ctx)!;
-      expect([ended.effects, hangul2Set.show(ended.state, ctx).preedit]).toEqual([[], { before: '국', after: '' }]);
-    }
+    const ended = hangul2Set.press(shown, BACKSPACE, {}, ctx)!;
+    expect([ended.effects, hangul2Set.show(ended.state, ctx)]).toEqual([[], { preedit: { before: '국', after: '' }, labels: {} }]);
     const typedOn = hangul2Set.press(shown, { type: 'char', char: 'ㅇ' }, { typed: 'ㅇ' }, ctx)!;
     expect([typedOn.effects, hangul2Set.show(typedOn.state, ctx).preedit]).toEqual([[{ kind: 'text', text: '국' }], { before: 'ㅇ', after: '' }]);
     expect(hangul2Set.press(shown, { type: 'char', char: '.' }, { typed: '.' }, ctx)).toBeNull(); // the bar sends what waits, then acts
