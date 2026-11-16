@@ -61,6 +61,7 @@ const ROLES: Record<SizePreset, Record<string, string>> = {
     '--size-bar-key': 'var(--text-xs)', // toolbar text
     '--size-suggestion': '15px', // word suggestions
     '--size-candidate': '16px', // conversion candidates and the reading, on top
+    '--size-note': 'var(--text-3xs)', // a candidate's note beneath it (a Hanja's meaning)
     '--size-side-reading': '18px', // the reading, in the side panel
     '--size-side-candidate': '19px', // candidates, in the side panel
     '--size-placeholder': 'var(--text-xs)', // the message where candidates appear

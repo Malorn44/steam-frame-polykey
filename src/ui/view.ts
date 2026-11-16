@@ -88,6 +88,10 @@ const CSS = `
 .cand.sel { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .cand.sel + .cand, .cand + .cand.sel { border-left-color: transparent; }
 .cand.hover { background-color: var(--hover); }
+/* A candidate with a note (a Hanja's meaning): the note small beneath it, cut off when too long. */
+.cand.noted { flex-direction: column; justify-content: center; line-height: 1.05; }
+.cand .note { max-width: 8em; overflow: hidden; text-overflow: ellipsis; font-size: var(--size-note); color: var(--legend); }
+.cand.sel .note { color: inherit; }
 .keys { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .row { flex: 1; display: flex; min-height: 0; }
 /* Candidates on the left (fjk): a panel with the reading, a wrapping list that scrolls down, the toolbar. */
@@ -242,11 +246,14 @@ const scrollToShow = (scroll: number, size: number, start: number, end: number, 
 /** Which half of a two-row key this is (the JIS Enter, the 50-sound keyboard's あa and Enter). */
 const tallOf = (key: KeyDef): Tall | undefined => ((key.type === 'key' || key.type === 'action') ? key.tall : undefined);
 
-/** The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). */
+/**
+ * The reading buffer for the bar: typing (with the caret) or converting (segments, one focused). A
+ * candidate's note, if it has one ('' for none), is drawn small beneath it, cut off when too long.
+ */
 export type CompositionView = (
   | { readonly before: string; readonly after: string }
   | { readonly segments: readonly string[]; readonly focus: number }
-) & { readonly candidates: readonly string[]; readonly selected: number };
+) & { readonly candidates: readonly string[]; readonly selected: number; readonly notes?: readonly string[] };
 
 /** A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup px. */
 export type SwipeHandler = (path: Point[], keys: Record<string, [number, number]>, keyWidth: number) => void;
@@ -926,7 +933,10 @@ export const createView = (
       // else nothing is composed (words for what was already sent): candidates only, no reading or caret
       followReading(pre.querySelector<HTMLElement>('.focus, .caret'));
       c.candidates.forEach((text, index) => {
-        const el = span(text, index === c.selected ? 'cand sel' : 'cand');
+        const note = c.notes?.[index];
+        const el = span(note ? '' : text, index === c.selected ? 'cand sel' : 'cand');
+        if (note) el.append(span(text, 'text'), span(note, 'note'));
+        el.classList.toggle('noted', !!note);
         list.append(el);
         candidates.push({ el, text, index });
       });

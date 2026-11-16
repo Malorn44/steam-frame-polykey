@@ -141,6 +141,16 @@ describe('the bar controller', () => {
     bar.press(char('h'), { typed: 'h' });
     expect(bar.composedText()).toBe('H!');
   });
+
+  it('a conversion\'s candidates keep their notes, as the composer shows them', () => {
+    const { bar, switchTo } = setup(null);
+    const noted: Composer<string> = {
+      ...shout, show: (s) => ({ preedit: { segments: [s], focus: 0, candidates: ['α', 'β'], selected: 0, notes: ['alpha', ''] }, labels: {} }),
+    };
+    switchTo({ composer: noted, ctx, converter: undefined });
+    bar.press(char('a'), { typed: 'a' });
+    expect(bar.shown()?.composition).toEqual({ segments: ['A'], focus: 0, candidates: ['α', 'β'], selected: 0, notes: ['alpha', ''] });
+  });
 });
 
 describe('composing in the text field', () => {
