@@ -140,8 +140,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let fieldWatch: ReturnType<typeof setInterval> | null = null;
   /**
    * Whether Desktop Mode has gamescope's focus where the keyboard types now (its text goes by paste), as
-   * the sidecar last said (undefined until it has), and whether it was asked. A new field or target starts
-   * afresh (newField): an answer still on its way is kept by the one it was asked for, not this one.
+   * the sidecar last said (undefined until it has), and whether it was asked. Only an answer that says
+   * decides: a failed one (the focus unknown, the paste route off) leaves it unknown, so a composition
+   * waits in the bar and text keeps going by the paste route, which checks for itself. A new field or
+   * target starts afresh (newField): an answer still on its way is kept by the one it was asked for.
    */
   let desktop: { focus: boolean | undefined; asked: boolean } = { focus: undefined, asked: false };
   let waitingSince = 0;
@@ -230,7 +232,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const at = desktop;
     if (NON_ASCII.test(text) && classifyTarget(readStatus(statusStore)) === 'local-app' && bridge.available() && at.focus !== false) {
       const prepared = await bridge.call('desktop.prepare', { text });
-      at.focus = prepared.ok;
+      at.focus = prepared.ok ? true : prepared.error === 'not-desktop' ? false : undefined;
       if (prepared.ok) {
         const pressed = await keys.send(CLIPBOARD_CHORDS.paste, KEY_GAP_MS);
         const waited = await bridge.call('desktop.wait', { timeoutMs: pressed.ok ? 2000 : 0 }, 4000);
@@ -257,7 +259,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (at.asked) return;
     at.asked = true;
     void bridge.call('desktop.focus', {}).then((reply) => {
-      at.focus = reply.ok && reply['desktop'] === true;
+      at.focus = reply.ok && typeof reply['desktop'] === 'boolean' ? reply['desktop'] : undefined;
     });
   };
 
