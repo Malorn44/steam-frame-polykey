@@ -2090,25 +2090,37 @@ describe('Korean composed in the text field', () => {
     expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣]/u);
   });
   describe('한자', () => {
-    /** A hanja converter on a tiny dictionary: the longest word with Hanja ending the reading, resized to the next length that has some. */
-    const DICTIONARY: Record<string, [string, string][]> = { 한국: [['寒國', ''], ['韓國', '대한민국']], 국: [['國', '나라 국'], ['局', '']] };
+    /**
+     * A hanja converter on a tiny dictionary, as the sidecar's: from each place the longest word with Hanja,
+     * not one inside a longer; the longest, nearest the caret; a resize goes to the word before or after.
+     */
+    const DICTIONARY: Record<string, [string, string][]> = {
+      한국: [['寒國', ''], ['韓國', '대한민국']], 국: [['國', '나라 국'], ['局', '']], 학교: [['學校', '']], 서: [['西', '서녘 서']],
+    };
     const hanja = (more: (req: SentRequest) => Record<string, unknown> | undefined = () => undefined) => (req: SentRequest) => {
       if (req.op === 'learn') return { ok: true };
       if (req.op !== 'convert') return more(req);
       const reading = req.reading!;
-      const spans = Array.from({ length: reading.length }, (_, i) => i + 1).filter((n) => DICTIONARY[reading.slice(-n)]);
-      if (!spans.length) return { ok: true, segments: [] };
-      let span = Math.max(...spans);
-      if (req.lengths && req.resize) {
-        const now = req.lengths.at(-1)!;
-        const longer = req.resize[1]! > 0;
-        const next = spans.filter((n) => (longer ? n > now : n < now));
-        span = next.length ? (longer ? Math.min(...next) : Math.max(...next)) : now;
+      const spans: [number, number][] = [];
+      for (let start = 0; start < reading.length; start++) {
+        let end = 0;
+        for (let e = start + 1; e <= reading.length; e++) if (DICTIONARY[reading.slice(start, e)]) end = e;
+        if (end && !(spans.length && spans.at(-1)![1] >= end)) spans.push([start, end]);
       }
-      const word = reading.slice(-span);
-      const entries = DICTIONARY[word]!;
-      return { ok: true, segments: [...(span < reading.length ? [{ reading: reading.slice(0, -span), candidates: [] }] : []),
-        { reading: word, candidates: entries.map(([value]) => value), notes: entries.map(([, note]) => note) }] };
+      if (!spans.length) return { ok: true, segments: [] };
+      let [start, end] = spans.reduce((a, b) => (b[1] - b[0] >= a[1] - a[0] ? b : a));
+      if (req.lengths && req.resize) {
+        const { lengths, resize: [index = 0, by = 0] } = req;
+        const from = lengths.slice(0, index).reduce((a, b) => a + b, 0);
+        const at = spans.findIndex(([s, e]) => s === from && e === from + (lengths[index] ?? 0));
+        if (at >= 0) [start, end] = spans[at + by] ?? spans[at]!;
+      }
+      const entries = DICTIONARY[reading.slice(start, end)]!;
+      return { ok: true, segments: [
+        ...(start ? [{ reading: reading.slice(0, start), candidates: [] }] : []),
+        { reading: reading.slice(start, end), candidates: entries.map(([value]) => value), notes: entries.map(([, note]) => note) },
+        ...(end < reading.length ? [{ reading: reading.slice(end), candidates: [] }] : []),
+      ] };
     };
     const shown = (t: Field) => [...shadowOf(t.popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')]
       .map((el) => [el.querySelector('.text')?.textContent ?? el.textContent, el.querySelector('.note')?.textContent ?? '']);
@@ -2140,23 +2152,58 @@ describe('Korean composed in the text field', () => {
       expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣一-龥]/u); // nothing typed or picked is logged
     });
 
-    it('Space goes on to the next candidate, Enter picks it; ← and → move the word\'s start; the word before it stays', async () => {
+    it('converts the longest word anywhere in the word: 학교에서 gives 學校에서, deleting back to 학 and typing the rest again', async () => {
       const t = setupField({ sidecar: notDesktop(hanja()) });
       await t.opened();
-      await t.typeAll('ㅇㅗㄴㅡㄹㅎㅏㄴㄱㅜㄱ'); // 오늘한국, one word
+      await t.typeAll('ㅎㅏㄱㄱㅛㅇㅔㅅㅓ'); // 학교에서, 서 being composed
+      const mark = t.sent().length;
+      await tap(t.popup, 'convert');
+      expect(converts(t).at(-1)).toMatchObject({ reading: '학교에서' });
+      expect([segments(t), shown(t)]).toEqual([['학교', '에서'], [['學校', '']]]);
+      await tap(t.popup, 'Enter');
+      // 서 (the composition), then 에, 교 and 학; then 學校 and 에, and 서, still being composed.
+      expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', 'Backspace', 'Backspace', '學校에', '서']);
+      expect(fieldOf(t.sent())).toBe('學校에서');
+      await t.typeAll('ㄴ'); // 서 + ㄴ: 선
+      expect(fieldOf(t.sent())).toBe('學校에선');
+    });
+
+    it('← and → go to the word with Hanja before or after; Space goes on to the next candidate, Enter picks it', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄱㄱㅛㅇㅔㅅㅓ');
+      const mark = t.sent().length;
+      await tap(t.popup, 'convert');
+      await tap(t.popup, 'ArrowLeft'); // none before 학교
+      expect(converts(t).at(-1)).toMatchObject({ reading: '학교에서', lengths: [2, 2], resize: [0, -1] });
+      expect(segments(t)).toEqual(['학교', '에서']);
+      await tap(t.popup, 'ArrowRight');
+      expect([segments(t), shown(t)]).toEqual([['학교에', '서'], [['西', '서녘 서']]]);
+      await tap(t.popup, 'ArrowLeft');
+      expect(segments(t)).toEqual(['학교', '에서']);
+      await tap(t.popup, 'ArrowRight');
+      await tap(t.popup, 'Enter'); // 西 for 서, the composition: no Backspace but its own
+      expect(t.sent().slice(mark)).toEqual(['Backspace', '西']);
+      expect(fieldOf(t.sent())).toBe('학교에西');
+    });
+
+    it('of words as long, the one nearest the caret; 오늘한국 converts 한국, and Space goes on', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄱㄱㅛㅎㅏㄴㄱㅜㄱ'); // 학교한국
+      await tap(t.popup, 'convert');
+      expect(segments(t)).toEqual(['학교', '한국']);
+      await tap(t.popup, 'Backspace');
+      await tap(t.popup, ' ');
+      await t.typeAll('ㅇㅗㄴㅡㄹㅎㅏㄴㄱㅜㄱ'); // 오늘한국
       const mark = t.sent().length;
       await tap(t.popup, 'convert');
       expect(segments(t)).toEqual(['오늘', '한국']);
-      await tap(t.popup, 'ArrowLeft'); // nothing longer has Hanja
-      expect(converts(t).at(-1)).toMatchObject({ reading: '오늘한국', lengths: [2, 2], resize: [1, 1] });
-      expect(segments(t)).toEqual(['오늘', '한국']);
-      await tap(t.popup, 'ArrowRight');
-      expect([segments(t), shown(t)]).toEqual([['오늘한', '국'], [['國', '나라 국'], ['局', '']]]);
       await tap(t.popup, ' ');
-      expect(shadowOf(t.popup)!.querySelector('.cand.sel .text, .cand.sel')!.textContent).toBe('局');
+      expect(shadowOf(t.popup)!.querySelector('.cand.sel .text')!.textContent).toBe('韓國');
       await tap(t.popup, 'Enter');
-      expect(t.sent().slice(mark)).toEqual(['Backspace', '局']); // only the composition goes
-      expect(fieldOf(t.sent())).toBe('오늘한局');
+      expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', '韓國']); // 국, the composition, then 한
+      expect(fieldOf(t.sent())).toBe('학교한국 오늘韓國');
     });
 
     it('while converting 한자 is marked and Space says 다음; 한자 again goes on; ⌫ ends it with the text as it was; typing ends it, then types', async () => {
@@ -2177,10 +2224,14 @@ describe('Korean composed in the text field', () => {
       await t.typeAll('ㅇ');
       expect(t.sent().slice(mark)).toEqual(['ㅇ']); // 국 stays, ㅇ starts the next syllable
       expect([fieldOf(t.sent()), marked()]).toEqual(['한국ㅇ', false]);
-      await tap(t.popup, 'convert'); // ㅇ has no Hanja: nothing shows
-      expect(marked()).toBe(false);
+      await tap(t.popup, 'convert'); // 한국 is still in the word
+      expect(segments(t)).toEqual(['한국', 'ㅇ']);
+      await tap(t.popup, 'Backspace');
+      await tap(t.popup, ' ');
+      await t.typeAll('ㅇㅓ'); // 어: no word with Hanja, so 한자 does nothing
       await tap(t.popup, 'convert');
-      expect(t.sent().slice(mark)).toEqual(['ㅇ']);
+      await tap(t.popup, 'convert');
+      expect([marked(), shown(t), fieldOf(t.sent())]).toEqual([false, [], '한국ㅇ 어']);
     });
 
     for (const [name, change] of [
@@ -2222,6 +2273,15 @@ describe('Korean composed in the text field', () => {
       await tap(t.popup, ' ');
       expect(pasted).toEqual(['韓國']);
       expect(t.sent()).toEqual([' ']);
+      // A word inside: replaced in the bar, what follows it kept, and 서 still being composed.
+      await t.typeAll('ㅎㅏㄱㄱㅛㅇㅔㅅㅓ');
+      await tap(t.popup, 'convert');
+      await tap(t.popup, 'Enter');
+      expect([t.sent(), pasted, t.pre()]).toEqual([[' '], ['韓國'], '學校에서']);
+      await t.typeAll('ㄴ');
+      expect(t.pre()).toBe('學校에선');
+      await tap(t.popup, ' ');
+      expect(pasted).toEqual(['韓國', '學校에선']);
     });
 
     it('in ABC, 한자 does nothing: the English word stays in the bar', async () => {

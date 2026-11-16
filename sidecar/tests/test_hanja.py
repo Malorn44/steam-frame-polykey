@@ -17,11 +17,15 @@ from polykey.injector import Log
 
 HEADER = "# Copyright (c) 2005,2006 Choe Hwanjin\n# All rights reserved.\n# \n\n"
 LINES = [
+    "교:校:학교 교",
     "국:國:나라 국",
     "국:局:",
     "늘:",  # a word with no Hanja: skipped
     "대한민국:大韓民國:대한민국",  # a meaning that only repeats the word is no note
+    "서:西:서녘 서",
     "오늘:",
+    "학교:學校:",
+    "학교:學敎:",
     "한:韓:나라 이름 한, 한나라 한",
     "한:漢:한수 한",
     "한:寒:찰 한",
@@ -57,30 +61,42 @@ def test_lookups_find_each_word_and_only_it(tmp_path):
     assert engine.predict("한국") == []
 
 
-def test_the_longest_word_ending_the_reading_is_converted_and_what_goes_before_it_is_not(tmp_path):
+def test_the_longest_word_anywhere_in_the_reading_is_converted_and_what_goes_around_it_is_not(tmp_path):
     engine = make(tmp_path)
+    assert engine.convert("학교에서") == [
+        {"reading": "학교", "candidates": ["學校", "學敎"]},  # not 서, nor 교 (inside 학교)
+        {"reading": "에서", "candidates": []},
+    ]
     assert engine.convert("오늘한국") == [
         {"reading": "오늘", "candidates": []},
         {"reading": "한국", "candidates": ["寒國", "寒菊", "韓國"], "notes": ["", "", "대한민국"]},
     ]
-    assert candidates(engine, "한국어") == [("한국어", ["韓國語"])]
-    assert candidates(engine, "오늘") == []  # 오늘 and 늘 have no Hanja
+    assert candidates(engine, "한국어") == [("한국어", ["韓國語"])]  # 한국 and 국 are inside it
+    assert candidates(engine, "대한민국") == [("대한민국", ["大韓民國"])]
+    assert candidates(engine, "오늘") == candidates(engine, "에") == []  # 오늘, 늘 and 에 have no Hanja
+    assert engine.spans("학교에서") == [(0, 2), (3, 4)]
+    assert engine.spans("대한민국에서") == [(0, 4), (5, 6)]
 
 
-def test_resizing_moves_the_word_s_start_to_the_next_length_with_hanja(tmp_path):
+def test_of_words_as_long_the_one_nearest_the_caret_is_converted(tmp_path):
     engine = make(tmp_path)
-    assert candidates(engine, "대한국", lengths=[1, 2], resize=(1, -1)) == [("대한", []), ("국", ["國", "局"])]
-    assert candidates(engine, "대한국", lengths=[2, 1], resize=(1, 1)) == [
-        ("대", []),
-        ("한국", ["寒國", "寒菊", "韓國"]),
-    ]
-    # Nothing longer (대한국 has no Hanja) or shorter: it stays.
-    assert candidates(engine, "대한국", lengths=[1, 2], resize=(1, 1))[1][0] == "한국"
-    assert candidates(engine, "대한국", lengths=[2, 1], resize=(1, -1))[1][0] == "국"
-    # The lengths as they were, without a resize: the same word.
-    assert candidates(engine, "대한국", lengths=[2, 1])[1][0] == "국"
-    # Lengths that do not add up to the reading are ignored: the longest word.
-    assert candidates(engine, "대한국", lengths=[1, 1])[1][0] == "한국"
+    assert candidates(engine, "학교한국") == [("학교", []), ("한국", ["寒國", "寒菊", "韓國"])]
+    assert candidates(engine, "한국학교") == [("한국", []), ("학교", ["學校", "學敎"])]
+    assert candidates(engine, "서교")[0] == ("서", [])  # 서 and 교: the last
+
+
+def test_resizing_converts_the_word_before_or_after_by_place(tmp_path):
+    engine = make(tmp_path)
+    # 학교 · 에 · 서: the next word with Hanja is 서, and back.
+    assert candidates(engine, "학교에서", lengths=[2, 2], resize=(0, 1)) == [("학교에", []), ("서", ["西"])]
+    assert candidates(engine, "학교에서", lengths=[3, 1], resize=(1, -1)) == [("학교", ["學校", "學敎"]), ("에서", [])]
+    # None further that way: it stays.
+    assert candidates(engine, "학교에서", lengths=[2, 2], resize=(0, -1))[0][0] == "학교"
+    assert candidates(engine, "학교에서", lengths=[3, 1], resize=(1, 1))[1][0] == "서"
+    # A cut that is not one of the words, or does not add up to the reading: the default word.
+    assert candidates(engine, "학교에서", lengths=[1, 3], resize=(0, 1))[0][0] == "학교"
+    assert candidates(engine, "학교에서", lengths=[2, 1], resize=(0, 1))[0][0] == "학교"
+    assert candidates(engine, "학교에서", lengths=[2, 2], resize=(5, 1))[0][0] == "학교"
 
 
 def test_a_pick_comes_first_for_its_word_and_is_kept_in_the_learned_file(tmp_path):
