@@ -44,30 +44,37 @@ export const graphemes = (text: string): string[] => {
   return segmenter ? Array.from(segmenter.segment(text), (s) => s.segment) : Array.from(text);
 };
 
-/** Plan one string per call. Key names (e.g. "Backspace") pass through as they are. */
-export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string[] => {
-  const calls: string[] = [];
+/** One HandleVirtualKeyDown call: its string, and whether it is text or a key by name. */
+export interface PlannedCall {
+  readonly call: string;
+  readonly kind: 'text' | 'key';
+}
+
+/** Plan the calls, in order. Key names (e.g. "Backspace") pass through as they are. */
+export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): PlannedCall[] => {
+  const calls: PlannedCall[] = [];
+  const text = (call: string): void => { calls.push({ call, kind: 'text' }); };
   for (const op of ops) {
     if ('key' in op) {
-      calls.push(op.key);
+      calls.push({ call: op.key, kind: 'key' });
       continue;
     }
     const parts = graphemes(op.text);
     if (policy === 'chars') {
-      calls.push(...parts);
+      for (const part of parts) text(part);
       continue;
     }
     let run = '';
     for (const part of parts) {
       if (PRINTABLE_ASCII.test(part)) {
-        if (run) calls.push(run);
+        if (run) text(run);
         run = '';
-        calls.push(part);
+        text(part);
       } else {
         run += part;
       }
     }
-    if (run) calls.push(run);
+    if (run) text(run);
   }
   return calls;
 };
