@@ -711,6 +711,16 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     expect(sent(manager)).toBe('hello');
   });
 
+  it('かな, which has no word list, prepares none; 英数 prepares English for the same keys', async () => {
+    const { popup, requests } = setupJa('ja/romaji', [['hello']]);
+    const prepared = () => requests.filter((r) => r['op'] === 'swipe' && r['prepare']).map((r) => r['lexicon']);
+    expect(prepared()).toEqual([]);
+    await tap(popup, 'eisu');
+    expect(prepared()).toEqual(['en/words']);
+    await swipe(popup, 'h', 'o');
+    expect(swipeRequests(requests)).toHaveLength(1);
+  });
+
   it('off by default on the Japanese keyboards', async () => {
     const { popup, requests } = setupJa('ja/romaji', [['hello']], false);
     await tap(popup, 'eisu');

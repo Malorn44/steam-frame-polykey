@@ -300,12 +300,23 @@ def test_a_keyboard_extends_another(tmp_path):
 
 def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
     keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    for keyboard_id in ("en/english", "ja/12key", "ja/50on", "ja/romaji", "ja/jis"):  # 50on through extends
-        assert keyboards[keyboard_id]["features"] == {"swipe": {"lexicon": "en/words"}}, keyboard_id
+    for keyboard_id in (
+        "en/english",
+        "ja/12key",
+        "ja/50on",
+        "ja/romaji",
+        "ja/jis",
+        "ko/korean",
+    ):  # 50on through extends
+        assert keyboards[keyboard_id]["features"] == {"swipe": {}}, keyboard_id  # with the list of the mode it is in
         assert keyboards[keyboard_id]["options"]["swipe"] is False, keyboard_id  # off until turned on
     write(tmp_path / "packs", "mine/qwerty.json", keyboard("mine/qwerty", layout="en/qwerty", options={"swipe": True}))
+    # An older pack that names the swipe list still loads (the list is not read).
+    old = keyboard("mine/old", layout="en/qwerty", lexicon="en/words", features={"swipe": {"lexicon": "en/words"}})
+    write(tmp_path / "packs", "mine/old.json", old)
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == ["mine/qwerty: the swipe option needs features.swipe"]
+    assert boot["catalog"]["keyboards"]["mine/old"]["features"] == {"swipe": {"lexicon": "en/words"}}
     assert boot["catalog"]["keyboards"]["mine/qwerty"]["options"] == {}  # it still types
     assert packs.clean_keyboard_options({"en/english": {"swipe": False}}) == {"en/english": {"swipe": False}}
 
