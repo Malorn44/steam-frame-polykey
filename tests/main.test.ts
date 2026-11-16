@@ -1551,7 +1551,7 @@ describe('the mode key', () => {
   });
 });
 
-// Where it cannot compose in the field (here streamed, as through Steam Link), Korean composes in the bar.
+// Where it cannot compose in the field (here streamed, as through Steam Link), Korean builds the word in the bar.
 describe('Korean', () => {
   const setupKo = () => {
     const popup = fakePopupWindow();
@@ -1569,18 +1569,23 @@ describe('Korean', () => {
   /** The mode key's marked half (한 or 영), in this popup. */
   const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.part.now')?.textContent;
 
-  it('composes each syllable in the bar, in the language\'s fonts, and sends it as the next begins; Space sends the last', async () => {
+  it('builds the word in the bar, in the language\'s fonts; Space sends it and a space, Enter sends it alone', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
     const font = shadowOf(popup)!.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
     expect(font).toBe('"Noto Sans CJK KR", "Noto Sans CJK JP", var(--font)'); // then the theme's
     await typeAll('ㅎㅏㄴ');
     expect([sent(), pre()]).toEqual([[], '한']);
     await typeAll('ㄱㅡㄹ');
-    expect([sent(), pre()]).toEqual([['한'], '글']); // one text per syllable
+    expect([sent(), pre()]).toEqual([[], '한글']); // 한 waits with the word, before 글
     await tap(popup, ' ');
-    expect([sent(), pre()]).toEqual([['한', '글', ' '], null]);
+    expect([sent(), pre()]).toEqual([['한글', ' '], null]); // the word, whole
     await typeAll('ㅇㅓㅂㅅㅇㅓ.');
-    expect(sent().slice(3)).toEqual(['없', '어', '.']); // punctuation sends the syllable first
+    expect(sent().slice(2)).toEqual(['없어', '.']); // punctuation sends the word first
+    await typeAll('ㄴㅔ');
+    await tap(popup, 'Enter');
+    expect(sent().slice(4)).toEqual(['네']); // sent, and Enter not pressed: nothing is searched for yet
+    await tap(popup, 'Enter');
+    expect(sent().slice(5)).toEqual(['Enter']); // with the bar empty, Enter is Enter
   });
 
   it('Shift types the tense consonant once; ⌫ takes jamo off, then deletes in the field', async () => {
@@ -1597,7 +1602,13 @@ describe('Korean', () => {
       expect(pre()).toBe(shown);
     }
     expect(sent()).toEqual([]);
-    await tap(popup, 'Backspace'); // nothing composed: the field's
+    await tap(popup, 'Backspace'); // nothing in the bar: the field's
+    expect(sent()).toEqual(['Backspace']);
+    await typeAll('ㅎㅏㄴㄱㅡㄹ');
+    for (const shown of ['한그', '한ㄱ', '한', null]) { // the composition, then the word's syllables
+      await tap(popup, 'Backspace');
+      expect(pre()).toBe(shown);
+    }
     expect(sent()).toEqual(['Backspace']);
   });
 
@@ -1683,25 +1694,25 @@ describe('Korean word suggestions', () => {
   };
   const WORDS = { 학교: ['학교', '학교에서', '학교를'], 학: ['하고', '학교', '학교에서'], 가: ['가장', '가지'] };
 
-  it('suggests for the syllables sent since the boundary and the one composing, on the keys of the keyboard typed on', async () => {
+  it('suggests for the word in the bar and the syllable composing, on the keys of the keyboard typed on', async () => {
     const { popup, asked, sent, pre, cands, typeAll } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
-    expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 sent, then 교 composing
+    expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 in the word, then 교 composing
     expect(asked.every((r) => r.lexicon === 'ko/words' && r.keyboard === 'ko/korean')).toBe(true);
-    expect([sent(), pre(), cands()]).toEqual([['학'], '교', ['학교', '학교에서', '학교를']]);
+    expect([sent(), pre(), cands()]).toEqual([[], '학교', ['학교', '학교에서', '학교를']]);
     await tap(popup, ' '); // the word ends: no suggestions until the next
-    expect([sent(), cands()]).toEqual([['학', '교', ' '], []]);
+    expect([sent(), cands()]).toEqual([['학교', ' '], []]);
     await typeAll('ㄱㅏ');
     expect(asked.at(-1)!.prefix).toBe('가');
     expect(cands()).toEqual(['가장', '가지']);
     expect(logged.join('\n')).not.toMatch(/학|교|가장/); // typed text and suggestions: never logged
   });
 
-  it('a pick deletes the syllables sent, drops the one composing, and sends the word and a space', async () => {
+  it('a pick sends the word and a space in place of the bar\'s: nothing of it was sent, so nothing is deleted', async () => {
     const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
     await pick('학교에서');
-    expect(sent()).toEqual(['학', 'Backspace', '학교에서', ' ']); // one Backspace for 학; 교 never sent
+    expect(sent()).toEqual(['학교에서', ' ']);
     expect([pre(), cands()]).toEqual([null, []]);
     await tap(popup, '.'); // punctuation closes up to the picked word, as in English
     expect(sent().slice(-2)).toEqual(['Backspace', '.']);
@@ -1709,14 +1720,14 @@ describe('Korean word suggestions', () => {
     expect(cands()).toEqual(['학교에서', '하고', '학교']);
   });
 
-  it('with nothing composed, the syllables sent keep their suggestions, and a pick deletes them', async () => {
+  it('with nothing composed, the word in the bar keeps its suggestions, and a pick takes its place', async () => {
     const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
     await tap(popup, 'Backspace'); // 교 → ㄱ
-    await tap(popup, 'Backspace'); // nothing composed: 학 is sent
-    expect([sent(), pre(), cands()]).toEqual([['학'], null, ['하고', '학교', '학교에서']]);
+    await tap(popup, 'Backspace'); // nothing composed: 학 waits in the bar
+    expect([sent(), pre(), cands()]).toEqual([[], '학', ['하고', '학교', '학교에서']]);
     await pick('학교');
-    expect(sent()).toEqual(['학', 'Backspace', '학교', ' ']);
+    expect(sent()).toEqual(['학교', ' ']);
   });
 
   it('each draw of a keyboard asks the sidecar once to prepare the list its mode suggests from; typing asks for none', async () => {
@@ -1964,9 +1975,8 @@ describe('Korean composed in the text field', () => {
     t.state.status = { ...MINIMAL, bIsOpen: false };
     await t.typeAll('ㄱ'); // sees the close
     t.state.status = MINIMAL;
-    await t.typeAll('ㄱ'); // and the reopen, which asks where the focus is again; until it answers, the paste route checks
-    await t.typeAll('ㅏ');
-    expect(desktopOps()).toEqual(['desktop.focus', 'desktop.focus', 'desktop.prepare']);
+    await t.typeAll('ㄱ'); // and the reopen, which asks where the focus is again
+    expect(desktopOps()).toEqual(['desktop.focus', 'desktop.focus']);
   });
 
   it('until the sidecar says where the focus is, the syllable waits in the bar, then moves into the field', async () => {
