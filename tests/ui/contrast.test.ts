@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 // Text stays readable in every state, in every bundled theme: what the views' CSS paints, read back through
-// jsdom's cascade, held to WCAG AA (4.5:1) against what is painted behind it. Legends, the Fn colour on
-// the Fn key at rest and the best suggestion's accent are the theme's own colours for text, not a state's,
-// so they are not held to it here.
+// jsdom's cascade, held to WCAG AA (4.5:1) against what is painted behind it. Where a press's filter makes
+// 4.5 impossible (a light theme darkens the text with the key, so white can only reach #d9d9d9), the bar
+// is the most readable text there can be. Legends, the Fn colour on the Fn key at rest and the best
+// suggestion's accent are the theme's own colours for text, not a state's, so they are not held to it here.
 import { describe, expect, it } from 'vitest';
 import type { Theme } from '../../src/core/catalog.js';
 import { NO_EMOJI_STATE, toneTable } from '../../src/core/emoji.js';
@@ -54,7 +55,7 @@ const longhandBackgrounds = (shadow: ShadowRoot): void => {
  * background showing what is behind it, and a filter's brightness (a pressed key) shifting all it covers,
  * as CSS does, scaling sRGB channels.
  */
-const painted = (el: Element): { text: number[]; bg: number[] } => {
+const painted = (el: Element): { text: number[]; bg: number[]; best: number } => {
   const resolve = (at: Element, css: string): string =>
     css.replace(/var\((--[\w-]+)\)/g, (_, name: string) => getComputedStyle(at).getPropertyValue(name).trim());
   const chain: Element[] = [];
@@ -71,7 +72,10 @@ const painted = (el: Element): { text: number[]; bg: number[] } => {
   if (!layers.length || layers.at(-1)!.alpha < 1) throw new Error(`nothing opaque behind ${el.className}`);
   const bg = layers.reduceRight((under: number[] | null, layer) => over(layer, under ?? layer.rgb), null)!;
   const text = over(parse(resolve(el, getComputedStyle(el).color)), bg);
-  return { text: shift(text, 0), bg: shift(bg, layers[0]!.at) };
+  const behind = shift(bg, layers[0]!.at);
+  // The most readable text there can be, here: white or black, through the same filter.
+  const best = Math.max(...[[1, 1, 1], [0, 0, 0]].map((c) => ratio(shift(c, 0), behind)));
+  return { text: shift(text, 0), bg: behind, best };
 };
 
 /** The QWERTY keyboard in `theme` with `mods`, a reading being converted and suggestions. */
@@ -107,12 +111,12 @@ const picker = (theme: Theme): ShadowRoot => {
 };
 
 const REST = [''];
-const STATES = ['', 'hover'];
+const STATES = ['', 'hover', 'down', 'hover down'];
 /** What is painted, where: a view, the element with the text, and the states it is seen in (classes added). */
 const CASES: { name: string; view: (t: Theme) => ShadowRoot; at: string; states: string[] }[] = [
   { name: 'a key', view: keyboard, at: '.key[data-k="g"] .lbl', states: STATES },
   { name: 'a modifier', view: keyboard, at: '.key[data-k="Tab"] .lbl', states: STATES },
-  { name: 'Fn', view: keyboard, at: '.key[data-k="fn"] .lbl', states: ['hover'] },
+  { name: 'Fn', view: keyboard, at: '.key[data-k="fn"] .lbl', states: ['hover', 'down', 'hover down'] },
   { name: 'Shift locked', view: (t) => keyboard(t, { shift: 'locked' }), at: '.key[data-k="shift"] .lbl', states: STATES },
   { name: 'Fn locked', view: (t) => keyboard(t, { fn: 'locked' }), at: '.key[data-k="fn"] .lbl', states: STATES },
   { name: 'a candidate', view: keyboard, at: '.cand:not(.sel)', states: ['', 'hover'] },
@@ -130,7 +134,7 @@ describe('theme contrast', () => {
     expect(ratio(parse('#767676').rgb, [1, 1, 1])).toBeCloseTo(4.54, 2); // the lightest grey that passes AA on white
   });
 
-  it.each(themes.map((t) => [t.id, t] as const))('%s: text reads at 4.5:1 in every state', (_, theme) => {
+  it.each(themes.map((t) => [t.id, t] as const))('%s: text reads at 4.5:1 in every state, or as well as it can pressed', (_, theme) => {
     const low: string[] = [];
     for (const { name, view, at, states } of CASES) {
       for (const state of states) {
@@ -140,9 +144,9 @@ describe('theme contrast', () => {
         // The state's classes go on the element that takes them: the key, not its label.
         const target = el.closest('.key') ?? el;
         if (state) target.classList.add(...state.split(' '));
-        const { text, bg } = painted(el);
+        const { text, bg, best } = painted(el);
         const r = ratio(text, bg);
-        if (r < 4.5) low.push(`${name}${state ? ` (${state})` : ''}: ${hex(text)} on ${hex(bg)}, ${r.toFixed(2)}:1`);
+        if (r < Math.min(4.5, best) - 1e-9) low.push(`${name}${state ? ` (${state})` : ''}: ${hex(text)} on ${hex(bg)}, ${r.toFixed(2)}:1`);
         shadow.host.remove();
       }
     }
