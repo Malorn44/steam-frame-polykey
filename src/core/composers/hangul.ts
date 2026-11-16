@@ -24,7 +24,7 @@
 // as it was; anything else ends it, then acts. Nothing but a picked candidate is ever sent as Hanja.
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
-import { replaceText } from '../suggest.js';
+import { replaceText, wordEnd } from '../suggest.js';
 import { MAX_READING, builtOnce, nextCandidate, picked, type Composer, type ComposerContext, type ComposerResult, type Segment } from './composer.js';
 
 /** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in one or two parts each. */
@@ -129,13 +129,10 @@ export interface Conversion {
 export interface Hangul { readonly syllable: Syllable; readonly conversion: Conversion | null }
 export const NO_HANGUL: Hangul = { syllable: NO_SYLLABLE, conversion: null };
 
-const HANGUL = /^[\u3131-\u318e\uac00-\ud7a3]$/u;
-/** The end of the word before the syllable that is Hangul (jamo or syllables), at most `room` characters. */
-const hangulEnd = (before: string, room: number): string => {
-  const chars = Array.from(before);
-  let start = chars.length;
-  while (start > 0 && chars.length - start < room && HANGUL.test(chars[start - 1]!)) start--;
-  return chars.slice(start).join('');
+/** A character of a word typed in Hangul: a syllable, or a jamo this composer types. A Hanja or a Latin letter is not. */
+const isHangul = (ch: string): boolean => {
+  const syllable = (ch.codePointAt(0) ?? 0) - FIRST_SYLLABLE;
+  return (syllable >= 0 && syllable < initials.size * medials.size * (finals.size + 1)) || initials.has(ch) || medials.has(ch) || finals.has(ch);
 };
 
 const isConvert = (key: KeyDef): boolean => key.type === 'action' && key.action === 'convert';
@@ -189,6 +186,7 @@ const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): Compos
 export const hangul2Set: Composer<Hangul> = {
   empty: NO_HANGUL,
   inline: true,
+  wordChar: isHangul,
   // A conversion asked for counts too: sending what waits ends it.
   composing: (h) => composing(h.syllable) || h.conversion !== null,
   press: (h, key, input, ctx) => {
@@ -203,7 +201,7 @@ export const hangul2Set: Composer<Hangul> = {
     const { typed } = input;
     if (isConvert(key)) {
       const composed = composing(s) ? syllableText(table, s) : '';
-      const reading = hangulEnd(ctx.before ?? '', MAX_READING - Array.from(composed).length) + composed;
+      const reading = Array.from(wordEnd(ctx.before ?? '', isHangul) + composed).slice(-MAX_READING).join('');
       if (!reading) return { state: { syllable: s, conversion: null }, effects: [] };
       return { state: { syllable: s, conversion: { reading, composed, segments: null, focus: 0 } }, effects: [], request: { kind: 'convert' } };
     }
