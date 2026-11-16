@@ -269,7 +269,7 @@ export interface View {
   setComposition(composition: CompositionView | null): void;
   /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
   setLabels(labels: Readonly<Record<string, string>>): void;
-  /** Mark action keys as in their mode, by data-k id (the convert key while converting); shown at the next update(). */
+  /** Mark action keys as in their mode, by data-k id (英数 or かな, the convert key while converting); shown at the next update(). */
   setActive(ids: readonly string[]): void;
   /** The mic key's dictation state: listening is lit like a locked key, with bars; recognizing, a circling arc (ui/mic.ts). */
   setMic(state: MicState): void;
@@ -898,9 +898,7 @@ export const createView = (
       mods = next;
       for (const entry of keys) {
         const { el, key } = entry;
-        if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana')) {
-          el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
-        } else if (key.type === 'action') el.classList.toggle('on', active.has(el.dataset['k'] ?? ''));
+        if (key.type === 'action') el.classList.toggle('on', active.has(el.dataset['k'] ?? '')); // in its mode (英数, 한자 while converting)
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);

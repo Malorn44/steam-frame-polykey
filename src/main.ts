@@ -483,7 +483,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (keyboard.pages?.latin) render(); // a page of its own (the 12-key's ABC keys)
     else {
       view?.setMode(latinMode.has(keyboard.id));
-      view?.update(mods);
+      showBar(); // the keys too, and which mode key is marked
       prepareSuggestions(); // the keys drawn anew, in a mode that may suggest from another list
     }
   };
@@ -590,7 +590,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off);
     // a conversion shows its own candidates.
     const words = suggestsWhileComposing() && suggested.length && !converting() ? suggested : null;
-    view.setActive(shown?.active ?? []);
+    const keyboard = currentKeyboard();
+    view.setActive([keyboard && latinMode.has(keyboard.id) ? 'eisu' : 'kana', ...(shown?.active ?? [])]); // 英数 or かな: the mode it is in
     if (shown) {
       view.setComposition(words ? { ...shown.composition, candidates: words } : shown.composition);
       view.setLabels(spelled(shown.labels, language));
