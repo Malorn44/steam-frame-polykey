@@ -34,7 +34,7 @@ import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedTe
 import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
 import { OPTIONS, offered, optionsFor, suggestLexicon, suggests, swipeLexicon, type OptionName } from './core/options.js';
-import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
+import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter, swipeShifts } from './core/swipe.js';
 import { fullName, languageName, ownName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsScroll, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type SwipeHandler, type View } from './ui/view.js';
@@ -508,7 +508,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       swiped = null; // any other key ends the alternatives
       // Backspace straight after a swipe takes the whole word back, as phones do (in 英数 mode, out of the bar).
       if (key.type === 'key' && key.key === 'Backspace' && !repeat && mods.ctrl === 'off' && mods.alt === 'off') {
-        if (composes(currentKeyboard())) {
+        if (swipesIntoBar()) {
           en = NO_ENGLISH;
           refreshSuggestions();
         } else sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
@@ -726,14 +726,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * The word list a swipe decodes against now, the mode's, if the keyboard swipes: while its swipe option
-   * is on, and on a keyboard that composes only in its Latin mode on its letters (never in kana mode or on
-   * a symbols page).
+   * The word list a swipe decodes against now, if the keyboard swipes: while its swipe option is on, on
+   * its letters (not a symbols page), in a mode with a word list (한글 and ABC; never かな).
    */
   const swipeNow = (): string | undefined => {
     const keyboard = currentKeyboard();
-    if (!keyboard || page !== 'keys' || (composes(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
+    if (!keyboard || page !== 'keys' || symbolsOn.has(keyboard.id)) return undefined;
     return swipeLexicon(keyboard, keyboardOptions[keyboard.id], latinMode.has(keyboard.id));
+  };
+  /** In the Latin mode of a keyboard that composes (英数, ABC), a swiped word waits in the bar; elsewhere (한글 too) it is sent. */
+  const swipesIntoBar = (): boolean => {
+    const keyboard = currentKeyboard();
+    return composes(keyboard) && latinMode.has(keyboard!.id);
   };
 
   /**
@@ -752,9 +756,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     refreshSuggestions();
   };
 
-  /** A swipe on the letters: the sidecar decodes it; the best word is typed, the others offered. */
-  const onSwipe: SwipeHandler = (path, letters, keyWidth) => {
-    if (afterSwipe(() => onSwipe(path, letters, keyWidth))) return;
+  /**
+   * A swipe on the letters: the sidecar decodes it, spelling words as the mode's suggestions are (한글's
+   * keys); the best word is typed, the others offered.
+   */
+  const onSwipe: SwipeHandler = (path, letters, keyWidth, shifts) => {
+    if (afterSwipe(() => onSwipe(path, letters, keyWidth, shifts))) return;
     const lexicon = swipeNow();
     if (!lexicon || !bridge.available()) return;
     if (surface) tick(surface.win, hand);
@@ -766,7 +773,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     view?.update(mods);
     const round = (v: number): number => Math.round(v * 10) / 10;
     swipeWait = bridge.call('swipe', { lexicon, path: path.map((p) => [round(p.x), round(p.y)]), keys: letters, keyWidth: round(keyWidth),
-      limit: SWIPE_WORDS }, SWIPE_TIMEOUT_MS).then((reply) => {
+      limit: SWIPE_WORDS, shifts, ...spelledBy(currentKeyboard()) }, SWIPE_TIMEOUT_MS).then((reply) => {
       swipeWait = null;
       const found = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '') : [];
       if (!found.length) {
@@ -774,10 +781,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         return;
       }
       const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
-      if (composes(currentKeyboard())) {
+      if (swipesIntoBar()) {
         swipeIntoBar(words);
         return;
       }
+      bar.flush(); // what is being composed goes first (한글), as it does for any key the composer does not take
       const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
       boost(words[0]!);
       swiped = { word: words[0]!, words };
@@ -789,8 +797,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * Have the sidecar load the word list the current mode swipes with, and index it for the keys shown, as
-   * the keyboard is drawn: the first swipe does not wait. It is a no-op once built.
+   * Have the sidecar load the word list the current mode swipes with, and index it for the keys shown,
+   * spelled as its suggestions are, as the keyboard is drawn: the first swipe does not wait. It is a no-op
+   * once built.
    */
   const prepareSwipe = (): void => {
     const lexicon = swipeNow();
@@ -800,7 +809,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const keys = layout.rows.flat().map(normalizeKey);
     const letters = new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
-    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
+    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), shifts: swipeShifts(keys), prepare: true,
+      ...spelledBy(keyboard) }, 10_000);
   };
 
   const unmountView = (): void => {

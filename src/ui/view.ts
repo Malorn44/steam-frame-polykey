@@ -9,7 +9,7 @@ import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '.
 import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, REPEAT_QUIET_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
 import { DIRECTIONS, flickDirection } from '../core/kana.js';
 import { keyLegends, type KeyLegends, type Legend, type SlotName } from '../core/legends.js';
-import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, type Point } from '../core/swipe.js';
+import { SWIPE_MAX_POINTS, leftKey, resample, swipeLetter, swipeShifts, type Point } from '../core/swipe.js';
 import { HOLD_POPUP_CSS, openHoldPopup, type HoldPopup } from './hold-popup.js';
 import { ICONS, defaultIcon, type IconName, type IconSet } from './icons.js';
 import { dragScroll, listenTouch, type DragScroll, type TouchPoint } from './gesture.js';
@@ -258,8 +258,11 @@ export type CompositionView = (
   | { readonly segments: readonly string[]; readonly focus: number }
 ) & { readonly candidates: readonly string[]; readonly selected: number; readonly notes?: readonly string[] };
 
-/** A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup px. */
-export type SwipeHandler = (path: Point[], keys: Record<string, [number, number]>, keyWidth: number) => void;
+/**
+ * A finished swipe: the path (evenly resampled), each letter key's centre, and a key's width, all in popup
+ * px; and the letters typed with Shift, each with its key's (core/swipe.ts swipeShifts).
+ */
+export type SwipeHandler = (path: Point[], keys: Record<string, [number, number]>, keyWidth: number, shifts?: Record<string, string>) => void;
 
 export interface View {
   update(mods: Mods): void;
@@ -763,7 +766,7 @@ export const createView = (
       if (end) swipe.points.push(end);
       const { points, rect } = swipe;
       endSwipe(true);
-      onSwipe?.(resample(points), letterCentres(), rect.width);
+      onSwipe?.(resample(points), letterCentres(), rect.width, swipeShifts(keys.map((k) => k.key)));
       return;
     }
     swipe = null;

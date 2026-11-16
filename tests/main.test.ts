@@ -71,6 +71,29 @@ const tap = async (popup: FakePopupWindow, label: string) => {
   el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
   await vi.advanceTimersByTimeAsync(200);
 };
+/** Lay the keys out on a grid of 40×30 px cells (row, column), as jsdom draws nothing. */
+const layOut = (popup: FakePopupWindow) => {
+  [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
+    el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
+  }));
+};
+const touch = (el: Element, type: string, x: number, y: number) => {
+  const e = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+  el.dispatchEvent(e);
+};
+/** Swipe from the centre of one letter key to another's (the touches all go to the first key, as a laser's do). */
+const swipe = async (popup: FakePopupWindow, from: string, to: string, wait = 200) => {
+  layOut(popup);
+  const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
+  const a = centre(from);
+  const b = centre(to);
+  const el = key(popup, from);
+  touch(el, 'touchstart', a.x, a.y);
+  for (let i = 1; i <= 10; i++) touch(el, 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
+  touch(el, 'touchend', b.x, b.y);
+  await vi.advanceTimersByTimeAsync(wait);
+};
 
 describe('installPolykey', () => {
   it('draws the keyboard over the stock keys and hides them', () => {
@@ -433,28 +456,6 @@ describe('swipe typing', () => {
     };
     return requests;
   };
-  /** Lay the keys out on a grid of 40×30 px cells (row, column), as jsdom draws nothing. */
-  const layOut = (popup: FakePopupWindow) => {
-    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
-  };
-  const touch = (el: Element, type: string, x: number, y: number) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-    el.dispatchEvent(e);
-  };
-  /** Swipe from the centre of one letter key to another's (the touches all go to the first key, as a laser's do). */
-  const swipe = async (popup: FakePopupWindow, from: string, to: string, wait = 200) => {
-    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
-    const a = centre(from);
-    const b = centre(to);
-    const el = key(popup, from);
-    touch(el, 'touchstart', a.x, a.y);
-    for (let i = 1; i <= 10; i++) touch(el, 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
-    touch(el, 'touchend', b.x, b.y);
-    await vi.advanceTimersByTimeAsync(wait);
-  };
   const typed = (manager: ReturnType<typeof fakeManager>) => manager.calls.map(([k]) => (k === 'Backspace' ? '⌫' : k)).join('');
   const slots = (popup: FakePopupWindow) => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.sugg')].map((el) => el.textContent);
   const pick = async (popup: FakePopupWindow, word: string) => {
@@ -473,6 +474,7 @@ describe('swipe typing', () => {
     expect(sent['keyWidth']).toBe(40);
     expect((sent['path'] as number[][])[0]).toEqual([260, 75]); // h: row 2, column 6
     expect(Object.keys(sent['keys'] as object).sort().join('')).toBe('abcdefghijklmnopqrstuvwxyz');
+    expect(Object.keys(sent).sort()).toEqual(['id', 'keyWidth', 'keys', 'lexicon', 'limit', 'op', 'path']); // no keyboard, no shifts: spelled in lower case
     expect(typed(manager)).toBe('hello');
     expect(slots(popup)).toEqual(['hell', 'hello', 'help']); // the word typed in the middle
     await swipe(popup, 'w', 'd');
@@ -617,27 +619,6 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
   };
-  const layOut = (popup: FakePopupWindow) => {
-    [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
-      el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
-    }));
-  };
-  const touch = (el: Element, type: string, x: number, y: number) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-    el.dispatchEvent(e);
-  };
-  const swipe = async (popup: FakePopupWindow, from: string, to: string) => {
-    layOut(popup);
-    const centre = (id: string) => { const r = key(popup, id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 15 }; };
-    const a = centre(from);
-    const b = centre(to);
-    const el = key(popup, from);
-    touch(el, 'touchstart', a.x, a.y);
-    for (let i = 1; i <= 10; i++) touch(el, 'touchmove', a.x + ((b.x - a.x) * i) / 10, a.y + ((b.y - a.y) * i) / 10);
-    touch(el, 'touchend', b.x, b.y);
-    await vi.advanceTimersByTimeAsync(200);
-  };
   const setupJa = (keyboard: string, replies: string[][], on = true) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
@@ -727,6 +708,91 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     await swipe(popup, 'h', 'o');
     expect(swipeRequests(requests)).toEqual([]);
     expect(pre(popup)).toBe('h'); // the press typed its letter into the word
+  });
+});
+
+describe('swipe typing on the Korean keyboard', () => {
+  /**
+   * The Korean keyboard with swipe on, in a game (each syllable composed in the field) unless `status`
+   * says otherwise, and a fake sidecar: swipe answers with the next of `replies`, suggest with nothing.
+   */
+  const setupKo = (replies: string[][], status = MINIMAL) => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
+    boot.settings.keyboardOptions = { 'ko/korean': { swipe: true } };
+    steam.g[BOOT_GLOBAL] = boot;
+    const requests: (SentRequest & Record<string, unknown>)[] = [];
+    steam.g['polykeyBridge'] = (payload: string) => {
+      const req = request(payload);
+      requests.push(req);
+      const reply = req.op === 'swipe' || req.op === 'suggest' ? { ok: true, words: req.op === 'swipe' && !req.prepare ? replies.shift() ?? [] : [] }
+        : { ok: false, error: 'unknown-op' };
+      setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 5);
+    };
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    const sent = () => manager.calls.map((c) => c[0]);
+    const field = () => sent().reduce((text, k) => (k === 'Backspace' ? graphemes(text).slice(0, -1).join('') : text + k), '');
+    const cands = () => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')].map((el) => el.textContent);
+    const pick = async (text: string) => {
+      const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(200);
+    };
+    const typeAll = async (keys: string) => { for (const k of Array.from(keys)) await tap(popup, k); };
+    const swipes = () => requests.filter((r) => r.op === 'swipe' && !r.prepare);
+    const prepares = () => requests.filter((r) => r.op === 'swipe' && r.prepare);
+    return { popup, api, sent, field, cands, pick, typeAll, swipes, prepares };
+  };
+  const TENSE = { 'ㅃ': 'ㅂ', 'ㅉ': 'ㅈ', 'ㄸ': 'ㄷ', 'ㄲ': 'ㄱ', 'ㅆ': 'ㅅ', 'ㅒ': 'ㅐ', 'ㅖ': 'ㅔ' };
+
+  it('한글 swipes against the Korean list, spelled with the keyboard\'s keys: the word is typed, the others offered', async () => {
+    const { popup, sent, cands, swipes } = setupKo([['한국', '한국은', '한글']]);
+    await swipe(popup, 'ㅎ', 'ㄱ');
+    expect(swipes()).toHaveLength(1);
+    const asked = swipes()[0]!;
+    expect([asked.lexicon, asked.keyboard, asked['shifts']]).toEqual(['ko/words', 'ko/korean', TENSE]); // 빨리 through ㅂ, Shift or not
+    expect(Object.keys(asked['keys'] as object).sort().join('')).toBe('ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅐㅑㅓㅔㅕㅗㅛㅜㅠㅡㅣ');
+    expect(sent()).toEqual(['한국']);
+    expect(cands()).toEqual(['한국', '한국은', '한글']);
+    expect(logged.join('\n')).not.toMatch(/한국|한글/); // typed text: never logged
+  });
+
+  it('what is being composed is sent first; a pick replaces the swiped word, and Backspace right after one takes it back', async () => {
+    const { popup, field, cands, pick, typeAll } = setupKo([['한국', '한국은'], ['사람', '사랑']]);
+    await typeAll('ㄴㅏ'); // 나, composed in the field
+    await swipe(popup, 'ㅎ', 'ㄱ');
+    expect(field()).toBe('나 한국'); // 나 sent, then the word after a space, as after any word
+    await pick('한국은');
+    expect([field(), cands()]).toEqual(['나 한국은 ', []]); // only 은 typed, then a space
+    await swipe(popup, 'ㅅ', 'ㅁ');
+    expect(field()).toBe('나 한국은 사람');
+    await tap(popup, 'Backspace');
+    expect(field()).toBe('나 한국은 ');
+  });
+
+  it('where it cannot compose in the field, the word waiting in the bar goes first', async () => {
+    const { popup, sent, field, typeAll } = setupKo([['한국']], STREAMED);
+    await typeAll('ㅎㅏㄱㄱㅛ'); // 학 waits in the bar, 교 composing
+    expect(sent()).toEqual([]);
+    await swipe(popup, 'ㅎ', 'ㄱ');
+    expect(field()).toBe('학교 한국');
+  });
+
+  it('ABC swipes as English does, the word waiting in the bar; each draw prepares the list of the mode it shows', async () => {
+    const { popup, sent, swipes, prepares } = setupKo([['hello', 'help']]);
+    await tap(popup, 'mode'); // ABC, a page of its own
+    await swipe(popup, 'h', 'o');
+    expect(swipes().map((r) => [r.lexicon, r.keyboard, r['shifts']])).toEqual([['en/words', undefined, undefined]]);
+    expect(shadowOf(popup)!.querySelector('.pre')?.textContent).toBe('hello');
+    expect(sent()).toEqual([]);
+    await tap(popup, 'mode'); // 한글 again: the word goes, then the Korean list is asked for again (a no-op once built)
+    expect(prepares().map((r) => [r.lexicon, r.keyboard, r['shifts']])).toEqual([
+      ['ko/words', 'ko/korean', TENSE], ['en/words', undefined, undefined], ['ko/words', 'ko/korean', TENSE]]);
   });
 });
 
