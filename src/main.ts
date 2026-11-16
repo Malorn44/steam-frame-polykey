@@ -590,6 +590,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off);
     // a conversion shows its own candidates.
     const words = suggestsWhileComposing() && suggested.length && !converting() ? suggested : null;
+    view.setActive(shown?.active ?? []);
     if (shown) {
       view.setComposition(words ? { ...shown.composition, candidates: words } : shown.composition);
       view.setLabels(spelled(shown.labels, language));

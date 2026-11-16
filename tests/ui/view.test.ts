@@ -543,6 +543,24 @@ describe('hold to repeat', () => {
     expect([...shadow.querySelectorAll('.comp.on .cand')].map((el) => el.textContent)).toEqual(['학교', '학교에서']);
   });
 
+  it('an action key the composer marks as in its mode shows the indicator, as 한/영 and 英数 do; the mark goes with it', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
+    const convert = () => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'convert')!;
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(false);
+    view.setActive(['convert']);
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(true);
+    expect(shadow.querySelector('style')!.textContent).toContain('.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); }');
+    view.setActive([]);
+    view.update(NO_MODS);
+    expect(convert().classList.contains('on')).toBe(false);
+  });
+
   it('a candidate with a note shows it small beneath, cut off when long; one without has none, and a pick gives the candidate', () => {
     const boot = bundledBoot();
     const host = document.createElement('div');

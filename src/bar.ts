@@ -67,8 +67,11 @@ export interface Bar {
   pick(text: string, index: number): void;
   /** Dictated text into the composition, for its candidates; else sent at once, after what waits. */
   dictate(text: string): void;
-  /** What the bar shows of the composition, its key labels as names (convert, confirm); null when nothing is composed. */
-  shown(): { composition: CompositionView; labels: Readonly<Record<string, string>> } | null;
+  /**
+   * What the bar shows of the composition, its key labels as names (convert, confirm) and the keys marked
+   * as in their mode; null when nothing is composed.
+   */
+  shown(): { composition: CompositionView; labels: Readonly<Record<string, string>>; active: readonly string[] } | null;
   /** The text being composed, as the bar shows it ('' when nothing is): the word being typed, for dictation's spacing. */
   composedText(): string;
 }
@@ -267,10 +270,13 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
   const shown: Bar['shown'] = () => {
     const kb = keyboard();
     if (!kb || (!composing(kb) && !word)) return null;
-    const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
-    if ('segments' in preedit) return { composition: preedit, labels };
+    const { preedit, labels, active = [] } = kb.composer.show(stateOf(kb), kb.ctx);
+    if ('segments' in preedit) return { composition: preedit, labels, active };
     // In the field: the bar shows only the candidates.
-    return { composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, before: word + preedit.before, candidates: live, selected: -1 }, labels };
+    return {
+      composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, before: word + preedit.before, candidates: live, selected: -1 },
+      labels, active,
+    };
   };
 
   return {

@@ -86,6 +86,11 @@ export interface Shown {
    * confirm). The keyboard's language pack spells them; a name it does not spell leaves the key as it is.
    */
   readonly labels: Readonly<Record<string, string>>;
+  /**
+   * Keys marked as in their mode now, with the indicator bar 英数, かな and 한/영 have, by key id: the
+   * convert key while a conversion is open.
+   */
+  readonly active?: readonly string[];
 }
 
 /** The converter side of a composer that has one: what to convert, and what to do with the answer. */

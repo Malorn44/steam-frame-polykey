@@ -144,7 +144,7 @@ const CSS = `
 .key[data-k="fn"].locked { background-color: var(--fn); color: var(--fn-text); }
 .key.hover { background-color: var(--hover); }
 .key.on { box-shadow: inset 0 0 0 2px var(--ring); }
-.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな): a bar along its bottom, not Shift's ring */
+.key.action.on { box-shadow: inset 0 calc(-1 * var(--indicator-width)) 0 var(--indicator); } /* the current input mode (英数 / かな, converting): a bar along its bottom, not Shift's ring */
 .key.locked { background-color: var(--accent); color: var(--accent-text); }
 .key.err { color: var(--error); } /* the mic key after a failed dictation */
 .key.down { filter: var(--pressed); }
@@ -266,6 +266,8 @@ export interface View {
   setComposition(composition: CompositionView | null): void;
   /** Replace keys' labels by data-k id (空白 → 変換 while there is a reading); {} restores them. */
   setLabels(labels: Readonly<Record<string, string>>): void;
+  /** Mark action keys as in their mode, by data-k id (the convert key while converting); shown at the next update(). */
+  setActive(ids: readonly string[]): void;
   /** The mic key's dictation state: listening is lit like a locked key, with bars; recognizing, a circling arc (ui/mic.ts). */
   setMic(state: MicState): void;
   /** The speech level's last five steps on the mic key's bars, while listening. */
@@ -399,6 +401,8 @@ export const createView = (
   };
   let candidates: { el: HTMLElement; text: string; index: number }[] = [];
   let labels: Readonly<Record<string, string>> = {};
+  /** Action keys marked as in their mode (setActive), by data-k id. */
+  let active: ReadonlySet<string> = new Set();
   for (const key of toolbar.filter((k) => k.action === 'hide')) bar.append(makeKey(key)); // close sits at the right end
   const keysEl = doc.createElement('div');
   keysEl.className = 'keys';
@@ -893,7 +897,7 @@ export const createView = (
         const { el, key } = entry;
         if (key.type === 'action' && (key.action === 'eisu' || key.action === 'kana')) {
           el.classList.toggle('on', (key.action === 'eisu') === latin); // the current mode's key
-        }
+        } else if (key.type === 'action') el.classList.toggle('on', active.has(el.dataset['k'] ?? ''));
         if (key.type === 'mod') {
           const state = modState(mods, key.mod);
           el.classList.toggle('on', state.on);
@@ -947,6 +951,9 @@ export const createView = (
     },
     setLabels: (next) => {
       labels = next;
+    },
+    setActive: (ids) => {
+      active = new Set(ids);
     },
     setMic: (state) => { for (const m of mics()) m.setState(state); },
     setMicLevels: (levels) => { for (const m of mics()) m.setLevels(levels); },
