@@ -622,10 +622,11 @@ def test_the_korean_packs_load():
     )
     hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
     assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
-    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한/영
-    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.5} in hangul["rows"][
+    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한자 and 한/영 either side of Space
+    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.25} in hangul["rows"][
         4
     ]
+    assert {"type": "action", "action": "convert", "label": "한자", "w": 1.25} in hangul["rows"][4]
 
 
 def hangul_table(item_id: str, **fields) -> dict:
