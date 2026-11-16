@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import json
 import mmap
-import os
 from pathlib import Path
 from typing import Optional
 
+from ..packs import data_dir, write_json
 from .engine import ConverterUnavailable
 
 DICTIONARY = Path("/usr/share/libhangul/hanja/hanja.txt")
@@ -34,11 +34,6 @@ MAX_LEARNED_EACH = 8
 
 class HanjaUnavailable(ConverterUnavailable):
     pass
-
-
-def learned_path() -> Path:
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "polykey" / "hanja-learned.json"
 
 
 def _read_learned(path: Path) -> dict[str, list[str]]:
@@ -71,7 +66,7 @@ class Hanja:
             end = self._map.find(b"\n", start)
             start = len(self._map) if end < 0 else end + 1
         self._start = start
-        self._learned_path = learned if learned is not None else learned_path()
+        self._learned_path = learned if learned is not None else data_dir() / "hanja-learned.json"
         self._learned = _read_learned(self._learned_path)
 
     def _first(self, target: bytes) -> int:
@@ -183,10 +178,7 @@ class Hanja:
         while len(self._learned) > MAX_LEARNED:
             del self._learned[next(iter(self._learned))]
         try:
-            self._learned_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._learned_path.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(self._learned, ensure_ascii=False) + "\n", encoding="utf-8")
-            os.replace(tmp, self._learned_path)
+            write_json(self._learned_path, self._learned)
         except OSError:
             pass  # kept for this run; the next pick tries again
         return True
