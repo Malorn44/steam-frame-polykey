@@ -760,10 +760,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
    * A swipe on the letters: the sidecar decodes it, spelling words as the mode's suggestions are (한글's
    * keys); the best word is typed, the others offered.
    */
-  const onSwipe: SwipeHandler = (path, letters, keyWidth, shifts) => {
-    if (afterSwipe(() => onSwipe(path, letters, keyWidth, shifts))) return;
+  const onSwipe: SwipeHandler = (path, letters, keyWidth) => {
+    if (afterSwipe(() => onSwipe(path, letters, keyWidth))) return;
     const lexicon = swipeNow();
-    if (!lexicon || !bridge.available()) return;
+    const keyboard = currentKeyboard();
+    if (!lexicon || !keyboard || !bridge.available()) return;
     if (surface) tick(surface.win, hand);
     swiped = null;
     dictatedTail = null; // typed in between: the next phrase joins what is known now
@@ -773,7 +774,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     view?.update(mods);
     const round = (v: number): number => Math.round(v * 10) / 10;
     swipeWait = bridge.call('swipe', { lexicon, path: path.map((p) => [round(p.x), round(p.y)]), keys: letters, keyWidth: round(keyWidth),
-      limit: SWIPE_WORDS, shifts, ...spelledBy(currentKeyboard()) }, SWIPE_TIMEOUT_MS).then((reply) => {
+      limit: SWIPE_WORDS, shifts: swipeKeys(keyboard).shifts, ...spelledBy(keyboard) }, SWIPE_TIMEOUT_MS).then((reply) => {
       swipeWait = null;
       const found = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '') : [];
       if (!found.length) {
@@ -797,6 +798,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
+   * The keys a swipe goes over on the layout the keyboard shows now: its letters (in lower case) and the
+   * letters typed with Shift on them, each with its key's (ㅃ on ㅂ). A swipe and its prepare send the same.
+   */
+  const swipeKeys = (keyboard: KeyboardDef): { letters: Set<string>; shifts: Record<string, string> | undefined } => {
+    const keys = layoutOf(keyboard)?.rows.flat().map(normalizeKey) ?? [];
+    return { letters: new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : []))), shifts: swipeShifts(keys) };
+  };
+
+  /**
    * Have the sidecar load the word list the current mode swipes with, and index it for the keys shown,
    * spelled as its suggestions are, as the keyboard is drawn: the first swipe does not wait. It is a no-op
    * once built.
@@ -804,13 +814,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const prepareSwipe = (): void => {
     const lexicon = swipeNow();
     const keyboard = currentKeyboard();
-    const layout = keyboard && layoutOf(keyboard);
-    if (!lexicon || !layout || !bridge.available()) return;
-    const keys = layout.rows.flat().map(normalizeKey);
-    const letters = new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+    if (!lexicon || !keyboard || !bridge.available()) return;
+    const { letters, shifts } = swipeKeys(keyboard);
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
-    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), shifts: swipeShifts(keys), prepare: true,
-      ...spelledBy(keyboard) }, 10_000);
+    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), shifts, prepare: true, ...spelledBy(keyboard) }, 10_000);
   };
 
   const unmountView = (): void => {
