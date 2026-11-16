@@ -2089,6 +2089,158 @@ describe('Korean composed in the text field', () => {
     await tap(popup, 'Backspace');
     expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣]/u);
   });
+  describe('한자', () => {
+    /** A hanja converter on a tiny dictionary: the longest word with Hanja ending the reading, resized to the next length that has some. */
+    const DICTIONARY: Record<string, [string, string][]> = { 한국: [['寒國', ''], ['韓國', '대한민국']], 국: [['國', '나라 국'], ['局', '']] };
+    const hanja = (more: (req: SentRequest) => Record<string, unknown> | undefined = () => undefined) => (req: SentRequest) => {
+      if (req.op === 'learn') return { ok: true };
+      if (req.op !== 'convert') return more(req);
+      const reading = req.reading!;
+      const spans = Array.from({ length: reading.length }, (_, i) => i + 1).filter((n) => DICTIONARY[reading.slice(-n)]);
+      if (!spans.length) return { ok: true, segments: [] };
+      let span = Math.max(...spans);
+      if (req.lengths && req.resize) {
+        const now = req.lengths.at(-1)!;
+        const longer = req.resize[1]! > 0;
+        const next = spans.filter((n) => (longer ? n > now : n < now));
+        span = next.length ? (longer ? Math.min(...next) : Math.max(...next)) : now;
+      }
+      const word = reading.slice(-span);
+      const entries = DICTIONARY[word]!;
+      return { ok: true, segments: [...(span < reading.length ? [{ reading: reading.slice(0, -span), candidates: [] }] : []),
+        { reading: word, candidates: entries.map(([value]) => value), notes: entries.map(([, note]) => note) }] };
+    };
+    const shown = (t: Field) => [...shadowOf(t.popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')]
+      .map((el) => [el.querySelector('.text')?.textContent ?? el.textContent, el.querySelector('.note')?.textContent ?? '']);
+    const segments = (t: Field) => [...shadowOf(t.popup)!.querySelectorAll('.comp.on .pre.converting .seg')].map((el) => el.textContent);
+    const tapCandidate = async (t: Field, text: string) => {
+      const el = [...shadowOf(t.popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => (c.querySelector('.text')?.textContent ?? c.textContent) === text)!;
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(200);
+    };
+    const converts = (t: Field) => t.asked.filter((r) => r.op === 'convert');
+
+    it('in a game, converts the word before the caret; the pick deletes its syllables in the field and types the Hanja', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴㄱㅜㄱ');
+      const mark = t.sent().length;
+      expect(fieldOf(t.sent())).toBe('한국');
+      await tap(t.popup, 'convert');
+      expect(converts(t)).toMatchObject([{ converter: 'hanja', reading: '한국' }]);
+      expect(t.sent()).toHaveLength(mark); // the text stays as it is while the candidates show
+      expect([segments(t), shown(t)]).toEqual([['한국'], [['寒國', ''], ['韓國', '대한민국']]]);
+      await tapCandidate(t, '韓國');
+      expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', '韓國']); // 국 (the composition), then 한
+      expect(fieldOf(t.sent())).toBe('韓國');
+      expect(t.asked.filter((r) => r.op === 'learn')).toMatchObject([{ converter: 'hanja', reading: '한국', choices: [1], texts: ['韓國'] }]);
+      await t.typeAll('ㅇㅓ'); // the word goes on after it
+      expect(fieldOf(t.sent())).toBe('韓國어');
+      expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣一-龥]/u); // nothing typed or picked is logged
+    });
+
+    it('Space goes on to the next candidate, Enter picks it; ← and → move the word\'s start; the word before it stays', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await t.typeAll('ㅇㅗㄴㅡㄹㅎㅏㄴㄱㅜㄱ'); // 오늘한국, one word
+      const mark = t.sent().length;
+      await tap(t.popup, 'convert');
+      expect(segments(t)).toEqual(['오늘', '한국']);
+      await tap(t.popup, 'ArrowLeft'); // nothing longer has Hanja
+      expect(converts(t).at(-1)).toMatchObject({ reading: '오늘한국', lengths: [2, 2], resize: [1, 1] });
+      expect(segments(t)).toEqual(['오늘', '한국']);
+      await tap(t.popup, 'ArrowRight');
+      expect([segments(t), shown(t)]).toEqual([['오늘한', '국'], [['國', '나라 국'], ['局', '']]]);
+      await tap(t.popup, ' ');
+      expect(shadowOf(t.popup)!.querySelector('.cand.sel .text, .cand.sel')!.textContent).toBe('局');
+      await tap(t.popup, 'Enter');
+      expect(t.sent().slice(mark)).toEqual(['Backspace', '局']); // only the composition goes
+      expect(fieldOf(t.sent())).toBe('오늘한局');
+    });
+
+    it('⌫ or 한자 again ends it with the text as it was; typing ends it, then types', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴㄱㅜㄱ');
+      const mark = t.sent().length;
+      for (const end of ['Backspace', 'convert']) {
+        await tap(t.popup, 'convert');
+        expect(shown(t)).toHaveLength(2);
+        await tap(t.popup, end);
+        expect([t.sent().slice(mark), shown(t)]).toEqual([[], []]);
+      }
+      await tap(t.popup, 'convert');
+      await t.typeAll('ㅇ');
+      expect(t.sent().slice(mark)).toEqual(['ㅇ']); // 국 stays, ㅇ starts the next syllable
+      expect(fieldOf(t.sent())).toBe('한국ㅇ');
+      await tap(t.popup, 'convert'); // ㅇ has no Hanja: nothing shows
+      await tap(t.popup, 'convert');
+      expect(t.sent().slice(mark)).toEqual(['ㅇ']);
+    });
+
+    for (const [name, change] of [
+      ['Steam moving to another text field', (t: Field) => t.manager.OnActiveElementChanged.Dispatch({})],
+      ['a click in the field', (t: Field) => t.manager.OnActiveElementClicked.Dispatch({})],
+      ['the popup losing focus', (t: Field) => t.popup.document.dispatchEvent(new Event('blur'))],
+    ] as const) {
+      it(`${name} ends it, with no Backspace: its candidates go`, async () => {
+        const t = setupField({ sidecar: notDesktop(hanja()) });
+        await t.opened();
+        await t.typeAll('ㅎㅏㄴㄱㅜㄱ');
+        await tap(t.popup, 'convert');
+        const mark = t.sent().length;
+        change(t);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(shown(t)).toEqual([]);
+        await tap(t.popup, 'Enter'); // Enter as itself
+        await t.typeAll('ㄱ');
+        expect(t.sent().slice(mark)).toEqual(['Enter', 'ㄱ']);
+      });
+    }
+
+    it('in Desktop Mode the word waits in the bar: the pick replaces it there and nothing is sent until Space', async () => {
+      const pasted: string[] = [];
+      const t = setupField({
+        sidecar: hanja((req) => {
+          if (req.op === 'desktop.focus') return { ok: true, desktop: true };
+          if (req.op === 'desktop.prepare') pasted.push(req.text!);
+          return req.op === 'desktop.prepare' ? { ok: true } : req.op === 'desktop.wait' ? { ok: true, pasted: true } : undefined;
+        }),
+      });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴㄱㅜㄱ');
+      expect(t.pre()).toBe('한국');
+      await tap(t.popup, 'convert');
+      expect(converts(t)).toMatchObject([{ reading: '한국' }]);
+      await tapCandidate(t, '韓國');
+      expect([t.sent(), pasted, t.pre()]).toEqual([[], [], '韓國']);
+      await tap(t.popup, ' ');
+      expect(pasted).toEqual(['韓國']);
+      expect(t.sent()).toEqual([' ']);
+    });
+
+    it('in ABC, 한자 does nothing: the English word stays in the bar', async () => {
+      const t = setupField({ sidecar: notDesktop(hanja()) });
+      await t.opened();
+      await tap(t.popup, 'mode');
+      await t.typeAll('hi');
+      await tap(t.popup, 'convert');
+      expect([t.sent(), t.pre(), converts(t)]).toEqual([[], 'hi', []]);
+    });
+
+    it('without the dictionary it warns once, and typing goes on as before', async () => {
+      const t = setupField({ sidecar: notDesktop((req) => (req.op === 'convert' ? { ok: false, error: 'unavailable' } : undefined)) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴ');
+      await tap(t.popup, 'convert');
+      await tap(t.popup, 'convert');
+      await t.typeAll('ㄱㅜㄱ');
+      expect(fieldOf(t.sent())).toBe('한국');
+      expect(logged.filter((line) => line.includes('conversion unavailable'))).toEqual([
+        '[polykey] conversion unavailable (hanja did not load); what is typed is still sent as it is']);
+    });
+  });
 });
 
 describe('failing safe', () => {
