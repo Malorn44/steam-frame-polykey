@@ -20,7 +20,8 @@ import math
 import time
 import unicodedata
 from collections import OrderedDict
-from itertools import accumulate, pairwise
+from itertools import accumulate, islice, pairwise
+from operator import itemgetter
 from types import MappingProxyType
 from typing import Mapping, Optional, Protocol, Sequence
 
@@ -55,6 +56,9 @@ NO_SHIFTS: Mapping[str, str] = MappingProxyType({})
 MAX_GEOMETRIES = 4
 MAX_TEMPLATES = 4000
 MAX_INDEXES = 2
+# A longer word list is indexed by its most frequent words: on a Frame, all of Korean's 150,000 took 0.9 s
+# to index (60,000: 0.3 s) and its slowest decodes 100 ms (60 ms). The English list has as many as this.
+MAX_WORDS = 60_000
 
 MAX_POINTS = 512
 MAX_KEYS = 64
@@ -147,7 +151,8 @@ class _Index:
         self, counts: Mapping[str, int], letters: frozenset[str], speller: Speller, shifts: Mapping[str, str]
     ) -> None:
         best: dict[str, tuple[str, int, str]] = {}  # lower case -> its most frequent spelling (help, not Help)
-        for word, count in counts.items():
+        words = counts.items() if len(counts) <= MAX_WORDS else sorted(counts.items(), key=itemgetter(1), reverse=True)
+        for word, count in islice(words, MAX_WORDS):
             lower = word.lower()
             if lower in best and best[lower][1] >= count:
                 continue

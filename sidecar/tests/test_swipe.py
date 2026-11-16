@@ -10,7 +10,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-from polykey import packs
+from polykey import packs, swipe
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.lexicon import UNUSED_S, Lexicon, Lexicons
@@ -205,6 +205,17 @@ def test_most_sloppy_korean_swipes_still_rank_first_or_close():
         top5 += word in found
     # A little below English's bar (above): Korean words are longer, and share more of their paths.
     assert top1 >= 70 and top5 >= 85, (top1, top5)
+
+
+def test_a_long_list_is_indexed_by_its_most_frequent_words(monkeypatch):
+    monkeypatch.setattr(swipe, "MAX_WORDS", 2)
+    lexicon = Lexicon.parse("rare\t1\nhello\t200\nhelp\t100\n")  # not in order of frequency
+    decoder = GeometricDecoder()
+    assert decoder.decode("t/w", lexicon.counts(), resample(traced("hello"), 64), KEYS, KEY_WIDTH, 5) == [
+        "hello",
+        "help",
+    ]
+    assert decoder.decode("t/w", lexicon.counts(), resample(traced("rare"), 64), KEYS, KEY_WIDTH, 5) == []
 
 
 def test_prunes_by_the_first_and_last_keys():
