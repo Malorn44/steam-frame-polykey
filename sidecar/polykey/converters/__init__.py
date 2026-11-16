@@ -9,10 +9,12 @@ from typing import Optional
 
 from .anthy import Anthy
 from .engine import Converter
+from .hanja import Hanja
 
 # Each converter's engine, by the id packs use.
 CONVERTERS = {
     "anthy": Anthy,
+    "hanja": Hanja,
 }
 
 
