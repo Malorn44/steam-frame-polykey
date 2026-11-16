@@ -543,6 +543,30 @@ describe('hold to repeat', () => {
     expect([...shadow.querySelectorAll('.comp.on .cand')].map((el) => el.textContent)).toEqual(['학교', '학교에서']);
   });
 
+  it('a candidate with a note shows it small beneath, cut off when long; one without has none, and a pick gives the candidate', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const picked: [string, number][] = [];
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {}, () => {},
+      (text, index) => picked.push([text, index]));
+    view.update(NO_MODS);
+    view.setComposition({ segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國', '漢'], selected: 1, notes: ['', '대한민국', '한수 한'] });
+    const cands = [...shadow.querySelectorAll<HTMLElement>('.comp.on .cand')];
+    expect(cands.map((el) => [el.querySelector('.text')?.textContent ?? el.textContent, el.querySelector('.note')?.textContent ?? null]))
+      .toEqual([['寒國', null], ['韓國', '대한민국'], ['漢', '한수 한']]);
+    expect(cands.map((el) => el.classList.contains('noted'))).toEqual([false, true, true]);
+    expect(cands[1]!.classList.contains('sel')).toBe(true);
+    const css = shadow.querySelector('style')!.textContent;
+    expect(css).toContain('.cand .note { max-width: 8em; overflow: hidden; text-overflow: ellipsis;');
+    tap(cands[1]!);
+    expect(picked).toEqual([['韓國', 1]]); // the candidate, not its note
+    // Without notes (anthy's), candidates are as before.
+    view.setComposition({ segments: ['かんじ'], focus: 0, candidates: ['漢字'], selected: 0 });
+    expect(shadow.querySelector('.cand')!.outerHTML).toBe('<span class="cand sel">漢字</span>');
+  });
+
   it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
     const boot = bundledBoot();
     const make = (side: boolean) => {

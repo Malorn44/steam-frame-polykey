@@ -31,8 +31,11 @@ export interface ComposerContext {
   readonly layout: Layout | undefined;
 }
 
-/** A segment of a conversion, as the converter gives it. */
-export interface Converted { readonly reading: string; readonly candidates: readonly string[] }
+/**
+ * A segment of a conversion, as the converter gives it; `notes`, if it has any, are one per candidate
+ * ('' for none): a line the bar draws beneath it (a Hanja's meaning).
+ */
+export interface Converted { readonly reading: string; readonly candidates: readonly string[]; readonly notes?: readonly string[] }
 
 /** What the bar asks the converter for after a press: live candidates, or a conversion (re-cut, resized). */
 export type ConverterRequest =
@@ -60,11 +63,15 @@ export interface ComposerResult<S> {
 
 /**
  * What the bar shows: while typing, the text before and after the caret (the converter's live
- * candidates beside it); while converting, the segments with one focused and its candidates.
+ * candidates beside it); while converting, the segments with one focused and its candidates, with
+ * their notes if they have any.
  */
 export type Preedit =
   | { readonly before: string; readonly after: string }
-  | { readonly segments: readonly string[]; readonly focus: number; readonly candidates: readonly string[]; readonly selected: number };
+  | {
+    readonly segments: readonly string[]; readonly focus: number; readonly candidates: readonly string[]; readonly selected: number;
+    readonly notes?: readonly string[];
+  };
 
 export interface Shown {
   readonly preedit: Preedit;
