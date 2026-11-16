@@ -5,11 +5,12 @@ swipe. Decoders sit behind `Decoder`, so a neural one could replace the geometri
 words are typed content: never logged.
 
 `GeometricDecoder` is template matching in the manner of SHARK2 (Kristensson and Zhai, 2004). A word's
-ideal path runs straight through its letters' key centres (doubled letters once). Candidates are pruned
-by the keys near the swipe's start and end and by path length; each one left is scored by how far the
-swipe is from that ideal path (location), how different its shape is once both are scaled to the same
-size (shape), and how common the word is. Work that depends only on the word list or the geometry is
-done once and cached, so a decode only touches the few hundred words that survive pruning.
+ideal path runs straight through its keys' centres, its keys spelled as its suggestions are (`fold`).
+Candidates are pruned by the keys near the swipe's start and end and by path length; each one left is
+scored by how far the swipe is from that ideal path (location), how different its shape is once both
+are scaled to the same size (shape), and how common the word is. Work that depends only on the word
+list or the geometry is done once and cached, so a decode only touches the few hundred words that
+survive pruning.
 """
 
 from __future__ import annotations
@@ -20,7 +21,10 @@ import time
 import unicodedata
 from collections import OrderedDict
 from itertools import accumulate, pairwise
+from types import MappingProxyType
 from typing import Mapping, Optional, Protocol, Sequence
+
+from .spellers import LOWERCASE, Speller
 
 Point = tuple[float, float]
 
@@ -45,6 +49,7 @@ FREQUENCY_WEIGHT = 0.35
 FREQUENCY_SCALE = 13.0
 # Characters left out of a word's path (don't is swiped as dont).
 SKIPPED = frozenset("'’-.")
+NO_SHIFTS: Mapping[str, str] = MappingProxyType({})
 # Geometries kept (a resized keyboard has new centres), templates kept per geometry (about 7 KB each),
 # word-list indexes kept.
 MAX_GEOMETRIES = 4
@@ -71,6 +76,8 @@ class Decoder(Protocol):
         keys: Mapping[str, Point],
         key_width: float,
         limit: int,
+        speller: Speller = LOWERCASE,
+        shifts: Mapping[str, str] = NO_SHIFTS,
     ) -> list[str]: ...
 
 
@@ -111,13 +118,20 @@ def mean_distance(a: Sequence[Point], b: Sequence[Point]) -> float:
     return sum(map(math.dist, a, b)) / len(a)
 
 
-def fold(word: str, letters: frozenset[str]) -> Optional[str]:
-    """The keys a word is swiped through (lower case, accents on their base letter, doubles once), or None
-    when one of its letters has no key."""
+def fold(
+    word: str, letters: frozenset[str], speller: Speller = LOWERCASE, shifts: Mapping[str, str] = NO_SHIFTS
+) -> Optional[str]:
+    """The keys a word is swiped through, or None when one of them is not a key: the word as the speller
+    spells its suggestions (spellers/: lower case, or a composer's keys, 빨리 ㅃㅏㄹㄹㅣ), accents on their
+    base letter, a letter typed with Shift on its key (shifts: ㅃ on ㅂ), doubles once (ㅂㅏㄹㅣ)."""
+    spelled = speller.spell(word)
+    if spelled is None:
+        return None
     keys: list[str] = []
-    for ch in unicodedata.normalize("NFD", word.lower()):
+    for ch in unicodedata.normalize("NFD", spelled):
         if ch in SKIPPED or unicodedata.combining(ch):
             continue
+        ch = shifts.get(ch, ch)
         if ch not in letters:
             return None
         if not keys or keys[-1] != ch:
@@ -126,16 +140,18 @@ def fold(word: str, letters: frozenset[str]) -> Optional[str]:
 
 
 class _Index:
-    """A word list for one set of letter keys: words by (first key, last key), most frequent first, each
-    with its key path and its frequency term."""
+    """A word list for one set of letter keys and one spelling: words by (first key, last key), most frequent
+    first, each with its key path and its frequency term."""
 
-    def __init__(self, counts: Mapping[str, int], letters: frozenset[str]) -> None:
+    def __init__(
+        self, counts: Mapping[str, int], letters: frozenset[str], speller: Speller, shifts: Mapping[str, str]
+    ) -> None:
         best: dict[str, tuple[str, int, str]] = {}  # lower case -> its most frequent spelling (help, not Help)
         for word, count in counts.items():
             lower = word.lower()
             if lower in best and best[lower][1] >= count:
                 continue
-            keys = fold(word, letters)
+            keys = fold(word, letters, speller, shifts)
             if keys is not None and len(keys) >= 2:  # one key is a tap, not a swipe
                 best[lower] = (word, count, keys)
         self.buckets: dict[tuple[str, str], list[tuple[float, str, str]]] = {}
@@ -182,11 +198,18 @@ class GeometricDecoder:
         self._indexes: OrderedDict[tuple, _Index] = OrderedDict()
         self._geometries: OrderedDict[tuple, _Geometry] = OrderedDict()
 
-    def _index(self, lexicon_id: str, counts: Mapping[str, int], letters: frozenset[str]) -> _Index:
-        key = (lexicon_id, len(counts), letters)
+    def _index(
+        self,
+        lexicon_id: str,
+        counts: Mapping[str, int],
+        letters: frozenset[str],
+        speller: Speller,
+        shifts: Mapping[str, str],
+    ) -> _Index:
+        key = (lexicon_id, len(counts), letters, speller, frozenset(shifts.items()))
         index = self._indexes.get(key)
         if index is None:
-            index = self._indexes[key] = _Index(counts, letters)
+            index = self._indexes[key] = _Index(counts, letters, speller, shifts)
             while len(self._indexes) > MAX_INDEXES:
                 self._indexes.popitem(last=False)
         self._indexes.move_to_end(key)
@@ -203,9 +226,16 @@ class GeometricDecoder:
         self._geometries.move_to_end(key)
         return geometry
 
-    def prepare(self, lexicon_id: str, counts: Mapping[str, int], letters: frozenset[str]) -> None:
+    def prepare(
+        self,
+        lexicon_id: str,
+        counts: Mapping[str, int],
+        letters: frozenset[str],
+        speller: Speller = LOWERCASE,
+        shifts: Mapping[str, str] = NO_SHIFTS,
+    ) -> None:
         """Build the word list's index ahead of the first swipe."""
-        self._index(lexicon_id, counts, letters)
+        self._index(lexicon_id, counts, letters, speller, shifts)
 
     def forget(self, lexicon_id: str) -> None:
         """Drop the indexes of a word list no longer loaded."""
@@ -220,10 +250,12 @@ class GeometricDecoder:
         keys: Mapping[str, Point],
         key_width: float,
         limit: int,
+        speller: Speller = LOWERCASE,
+        shifts: Mapping[str, str] = NO_SHIFTS,
     ) -> list[str]:
         if len(path) < 2 or len(keys) < 2 or key_width <= 0:
             return []
-        index = self._index(lexicon_id, counts, frozenset(keys))
+        index = self._index(lexicon_id, counts, frozenset(keys), speller, shifts)
         geometry = self._geometry(keys, key_width)
         centres = geometry.centres
         raw = [(x / key_width, y / key_width) for x, y in path]
@@ -284,17 +316,18 @@ def _point(value: object) -> Optional[Point]:
 
 
 class Swipe:
-    """The `swipe` bridge op: checks the request, then asks the decoder with the keyboard's word list."""
+    """The `swipe` bridge op: checks the request, then asks the decoder with the keyboard's word list, spelled
+    by the speller its suggestions are (the bridge's, for the keyboard the request names)."""
 
     def __init__(self, lexicons, decoder: Optional[Decoder] = None, log=None) -> None:
         self._lexicons = lexicons
         self._decoder = decoder or GeometricDecoder()
         self._log = log
 
-    def handle(self, request: dict) -> dict:
+    def handle(self, request: dict, speller: Speller = LOWERCASE) -> dict:
         started = time.perf_counter()  # loading the word list counts too
         lexicon_id, raw_path, raw_keys = request.get("lexicon"), request.get("path"), request.get("keys")
-        limit, key_width = request.get("limit", 5), request.get("keyWidth")
+        limit, key_width, shifts = request.get("limit", 5), request.get("keyWidth"), request.get("shifts", {})
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
@@ -303,10 +336,15 @@ class Swipe:
         keys = {k: _point(v) for k, v in raw_keys.items() if isinstance(k, str) and len(k) == 1}
         if len(keys) != len(raw_keys) or any(v is None for v in keys.values()):
             return {"ok": False, "error": "bad-keys"}
+        # The letters typed with Shift, each on its key (ㅃ on ㅂ).
+        if not isinstance(shifts, dict) or not all(
+            isinstance(k, str) and len(k) == 1 and isinstance(v, str) and v in keys for k, v in shifts.items()
+        ):
+            return {"ok": False, "error": "bad-keys"}
         if request.get("prepare") is True:
             prepare = getattr(self._decoder, "prepare", None)
             if prepare:
-                prepare(lexicon_id, lexicon.counts(), frozenset(keys))
+                prepare(lexicon_id, lexicon.counts(), frozenset(keys), speller, shifts)
                 self._note(f"swipe: {lexicon_id} ready in {(time.perf_counter() - started) * 1000:.0f} ms")
             return {"ok": True, "words": []}
         if not isinstance(raw_path, list) or not 2 <= len(raw_path) <= MAX_POINTS:
@@ -318,7 +356,7 @@ class Swipe:
             return {"ok": False, "error": "bad-limit"}
         if not isinstance(key_width, (int, float)) or isinstance(key_width, bool) or not 1 <= key_width <= 1000:
             return {"ok": False, "error": "bad-key-width"}
-        words = self._decoder.decode(lexicon_id, lexicon.counts(), path, keys, float(key_width), limit)  # type: ignore[arg-type]
+        words = self._decoder.decode(lexicon_id, lexicon.counts(), path, keys, float(key_width), limit, speller, shifts)  # type: ignore[arg-type]
         elapsed = (time.perf_counter() - started) * 1000
         if elapsed > SLOW_MS:
             self._note(f"swipe: a decode took {elapsed:.0f} ms")
