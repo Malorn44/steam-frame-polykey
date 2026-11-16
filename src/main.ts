@@ -138,9 +138,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let wasTarget = '';
   /** Reading the open state and target every FIELD_CHECK_MS, while something typed may be deleted. */
   let fieldWatch: ReturnType<typeof setInterval> | null = null;
-  /** Per gamescope window (its overlay key): whether Desktop Mode has the focus there (text goes by paste), as the sidecar last said. */
-  const desktopAt = new Map<string, boolean>();
-  const askingDesktop = new Set<string>();
+  /**
+   * Whether Desktop Mode has gamescope's focus where the keyboard types now (its text goes by paste), as
+   * the sidecar last said (undefined until it has), and whether it was asked. A new field or target starts
+   * afresh (newField): an answer still on its way is kept by the one it was asked for, not this one.
+   */
+  let desktop: { focus: boolean | undefined; asked: boolean } = { focus: undefined, asked: false };
   let waitingSince = 0;
   let queue: Promise<unknown> = Promise.resolve();
   // Suggestions: the word being typed, words used this session (memory only), and a generation so a
@@ -220,15 +223,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
 
   /**
    * Non-ASCII into KDE Desktop Mode goes by paste; the sidecar refuses unless the desktop has focus, and
-   * its answer is kept for the window (desktopFocus). A window it has said is not the desktop (a game)
-   * is typed into at once, without asking again for each text: it is asked at each open. True when the
-   * text was sent (or pasted).
+   * its answer is kept (desktop). Where it has said the desktop does not have it (a game), text is typed
+   * at once, without asking again for each text. True when the text was sent (or pasted).
    */
   const sendText = async (text: string): Promise<boolean> => {
-    const status = readStatus(statusStore);
-    if (NON_ASCII.test(text) && classifyTarget(status) === 'local-app' && bridge.available() && desktopAt.get(overlayOf(status)) !== false) {
+    const at = desktop;
+    if (NON_ASCII.test(text) && classifyTarget(readStatus(statusStore)) === 'local-app' && bridge.available() && at.focus !== false) {
       const prepared = await bridge.call('desktop.prepare', { text });
-      desktopAt.set(overlayOf(status), prepared.ok);
+      at.focus = prepared.ok;
       if (prepared.ok) {
         const pressed = await keys.send(CLIPBOARD_CHORDS.paste, KEY_GAP_MS);
         const waited = await bridge.call('desktop.wait', { timeoutMs: pressed.ok ? 2000 : 0 }, 4000);
@@ -241,22 +243,21 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * Whether Desktop Mode has the focus on this window: as the sidecar last said for it (a paste, or an
-   * ask); undefined while it has not, and it is asked. Without the sidecar there is no paste route.
+   * Whether Desktop Mode has the focus where the keyboard types: as the sidecar last said (a paste, or an
+   * ask); undefined while it has not, and it is asked, once. Without the sidecar there is no paste route.
    */
-  const desktopFocus = (status: VRKeyboardStatus | null): boolean | undefined => {
+  const desktopFocus = (): boolean | undefined => {
     if (!bridge.available()) return false;
-    const overlay = overlayOf(status);
-    if (!desktopAt.has(overlay)) askDesktop(overlay);
-    return desktopAt.get(overlay);
+    askDesktop();
+    return desktop.focus;
   };
-  /** Ask the sidecar whether Desktop Mode has the focus; what it last said for the window stays until it answers. */
-  const askDesktop = (overlay: string): void => {
-    if (askingDesktop.has(overlay)) return;
-    askingDesktop.add(overlay);
+  /** Ask the sidecar whether Desktop Mode has the focus, once for each field or target. */
+  const askDesktop = (): void => {
+    const at = desktop;
+    if (at.asked) return;
+    at.asked = true;
     void bridge.call('desktop.focus', {}).then((reply) => {
-      askingDesktop.delete(overlay);
-      desktopAt.set(overlay, reply.ok && reply['desktop'] === true);
+      at.focus = reply.ok && reply['desktop'] === true;
     });
   };
 
@@ -267,7 +268,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const composeInField = (): boolean => {
     const status = readStatus(statusStore);
     const target = classifyTarget(status);
-    return chooseInline(target, target === 'local-app' ? desktopFocus(status) : undefined) === 'retype';
+    return chooseInline(target, target === 'local-app' ? desktopFocus() : undefined) === 'retype';
   };
   /** Where typing goes now ('' while the keyboard is closed): what polykey typed belongs to one. */
   const targetOf = (status: VRKeyboardStatus | null): string =>
@@ -1112,6 +1113,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     pickSpace = false;
     lose('a new field'); // what of a composition is in the old field stays there
     setWord(NO_WORD);
+    desktop = { focus: undefined, asked: false }; // asked again for this one
   };
 
   /** Forget what of a composition is in the field (it stays as it is), saying why when there was some: never what. */
@@ -1172,12 +1174,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const target = targetOf(status);
     if (open !== wasOpen) {
       newField();
-      // Whether Desktop Mode has the focus, asked again for the window it opened on: until it answers, the
-      // paste route checks for itself and a composition waits in the bar.
-      if (open && classifyTarget(status) === 'local-app' && bridge.available()) {
-        desktopAt.delete(overlayOf(status));
-        askDesktop(overlayOf(status));
-      }
+      // Whether Desktop Mode has the focus, asked for the window it opened on: until it answers, the paste
+      // route checks for itself and a composition waits in the bar.
+      if (open && classifyTarget(status) === 'local-app' && bridge.available()) askDesktop();
       if (!open) {
         bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
         showBar();
