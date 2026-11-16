@@ -31,6 +31,7 @@ BINDING_NAME = "polykeyBridge"
 REPLY_FUNCTION = "bridgeReply"
 MAX_TEXT_CHARS = 4096
 OPS = (
+    "desktop.focus",
     "desktop.prepare",
     "desktop.wait",
     "suggest",
@@ -125,6 +126,13 @@ class Bridge:
             return self._converters.handle(op, request) if self._converters else {"ok": False, "error": "unavailable"}
         if self._desktop is None:
             return {"ok": False, "error": "desktop-paste-off"}
+        if op == "desktop.focus":
+            # Whether text would go by paste (Desktop Mode has gamescope's focus): the page composes in
+            # the bar there, since retyping a syllable would be a paste for each jamo.
+            process = await focused_process(self._desktop.display)
+            if not process:
+                return {"ok": False, "error": "focus-unknown"}
+            return {"ok": True, "desktop": process == NESTED_DESKTOP_PROCESS}
         if op == "desktop.prepare":
             text = request.get("text")
             if not isinstance(text, str) or not text or len(text) > MAX_TEXT_CHARS:

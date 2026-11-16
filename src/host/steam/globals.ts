@@ -53,6 +53,42 @@ export const pickKeyboardManager = (g: SteamGlobals): VirtualKeyboardManager | n
   return managers.find((m) => typeof read(m, 'm_fnVROnTextEnteredOverride') === 'function') ?? managers[0] ?? null;
 };
 
+/** Steam's callback list (library.js): Register returns the way out. */
+interface CallbackList { Register(fn: (...args: unknown[]) => void): { Unregister?: () => void } }
+
+/**
+ * The dispatches Steam's own keyboard resets its composition on: a Steam UI window's keyboard moving to
+ * another text field or losing it (OnActiveElementChanged), or its field clicked again, which may move
+ * the caret (OnActiveElementClicked). `fn` runs on each, from every manager that has them; it never
+ * throws into Steam's dispatch. Returns the unregister.
+ */
+export const onFieldChange = (manager: VirtualKeyboardManager, fn: () => void): (() => void) => {
+  const call = (): void => {
+    try {
+      fn();
+    } catch {
+      // Never into Steam's dispatch: its other callbacks still run.
+    }
+  };
+  const ways = ['OnActiveElementChanged', 'OnActiveElementClicked'].map((name) => {
+    const list = read(manager, name);
+    try {
+      return typeof read(list, 'Register') === 'function' ? (list as CallbackList).Register(call) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  return () => {
+    for (const way of ways) {
+      try {
+        way?.Unregister?.();
+      } catch {
+        // Gone with its window.
+      }
+    }
+  };
+};
+
 /** The stock keyboard popup's window, or null while it does not exist. */
 export const getKeyboardPopupWindow = (g: SteamGlobals): Window | null => {
   const manager = getPopupManager(g);

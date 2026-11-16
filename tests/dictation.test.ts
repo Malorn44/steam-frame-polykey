@@ -3,11 +3,12 @@
 // settings through installPolykey with a fake sidecar.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeReply } from '../src/bridge/client.js';
+import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
 import { ERROR_MS, MAX_SESSION_MS, createDictation } from '../src/dictation.js';
 import { BOOT_GLOBAL, GLOBAL, installPolykey, type PolykeyApi } from '../src/main.js';
 import { bundledBoot } from './boot.js';
-import { MINIMAL, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
+import { MINIMAL, STREAMED, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
 let logged: string[];
 let installed: PolykeyApi[];
@@ -72,6 +73,7 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
     else if (req.op === 'convert') answer(req.id, { ok: true, segments: [{ reading: req['reading'], candidates: [req['reading']] }] });
     else if (req.op === 'predict') answer(req.id, { ok: true, predictions: [] });
     else if (req.op === 'desktop.prepare') answer(req.id, { ok: false, error: 'not-desktop' });
+    else if (req.op === 'desktop.focus') answer(req.id, { ok: true, desktop: false });
     else answer(req.id, { ok: true });
   };
   return {
@@ -101,10 +103,10 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
   };
 };
 
-const setup = (settings: Record<string, unknown> = {}, status: Record<string, unknown> = {}) => {
+const setup = (settings: Record<string, unknown> = {}, status: Record<string, unknown> = {}, keyboard: VRKeyboardStatus = MINIMAL) => {
   const popup = fakePopupWindow();
   const manager = fakeManager(true);
-  const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+  const steam = fakeSteam({ popup, managers: [manager], status: keyboard, keyState: true });
   const boot = bundledBoot();
   Object.assign(boot.settings, settings);
   steam.g[BOOT_GLOBAL] = boot;
@@ -363,8 +365,8 @@ describe('dictation on the page', () => {
     expect(typed()).toBe('あ今日は晴れ');
   });
 
-  it('Korean: the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
-    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+  it('Korean in the bar (streamed): the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
+    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] }, {}, STREAMED);
     api.debug.use('ko/korean');
     await tap(popup, 'ㄴ');
     await tap(popup, 'ㅔ'); // 네, in the bar
@@ -374,6 +376,19 @@ describe('dictation on the page', () => {
     await vi.advanceTimersByTimeAsync(500); // each text waits for the keymap to settle
     expect([pre(popup), typed()]).toEqual([null, '네 좋아요 ']);
     expect(logged.join('\n')).not.toContain('좋아요');
+  });
+
+  it('Korean composed in the field: the syllable stays as it is, and the phrase follows it with no Backspace', async () => {
+    const { popup, api, sidecar, manager } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+    api.debug.use('ko/korean');
+    await vi.advanceTimersByTimeAsync(10); // the sidecar has said the desktop is not focused
+    await tap(popup, 'ㄴ');
+    await tap(popup, 'ㅔ'); // 네, in the field
+    await tap(popup, 'dictate');
+    await sidecar.phase({ phase: 'done', text: '좋아요' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(manager.calls.map(([k]) => k)).toEqual(['ㄴ', 'Backspace', '네', ' ', '좋아요', ' ']); // ASCII a call of its own
+    expect(pre(popup)).toBeNull();
   });
 
   it('英数 mode on a Japanese keyboard dictates English after the English word', async () => {

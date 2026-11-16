@@ -41,12 +41,13 @@ Each merge to main updates release-please's release PR, which holds the next ver
 ## Source layout
 
 ```
-src/core/       pure logic: catalog types, key handling, key codes, output planning
-                composers/: how typing composes in the bar, one registry (COMPOSERS in index.ts)
+src/core/       pure logic: catalog types, key handling, key codes, output planning (output/inline.ts: retyping
+                a composition in the text field); composers/: how typing composes, one registry (COMPOSERS in index.ts)
 src/host/steam/ the only Steam-facing TypeScript
 src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
                 dictation.ts, updates.ts: the page side of dictation and of the updater; bar.ts, the candidate bar
+                and composing in the field
 src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes, tables, picker sets, languages; pack.schema.json, their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation),
@@ -63,7 +64,7 @@ contrib/        polykey.service; allowed_signers, the release key
 What a language needs today; each step only if the language uses it.
 
 1. **Packs** in `packs/<code>/`: its `language.json`, its layouts and its keyboard ([PACKS.md](PACKS.md)).
-2. **A composer**, if typing composes in the bar: a module in `src/core/composers/`, its line in `COMPOSERS` (`index.ts`), and its id in the schema's keyboard `composer` enum. A test holds the enum to the registry.
+2. **A composer**, if typing composes: a module in `src/core/composers/`, its line in `COMPOSERS` (`index.ts`), and its id in the schema's keyboard `composer` enum. A test holds the enum to the registry. With `inline: true`, what it composes is typed into the text field and retyped as it changes, where that is safe (Steam and games), as Hangul is; elsewhere what it commits waits in the bar until the word is sent. The bar controller does that for any composer, so the composer itself stays the same.
 3. **A table format**, if its composer reads data no table holds yet: a field in the schema's `table`, with its option in that `oneOf`, and the composer's line in `COMPOSER_TABLES` (`sidecar/polykey/packs.py`).
 4. **A converter**, if what is composed is converted (kana to kanji): a module in `sidecar/polykey/converters/`, its line in `CONVERTERS` (`__init__.py`), and its id in the schema's keyboard `converter` enum. A test holds this enum to the registry too.
 5. **A speller**, if words are typed in keys that are not their letters (Hangul's jamo): a module in `sidecar/polykey/spellers/` and its line in `SPELLERS` (`__init__.py`), by the composer it spells for. It is made with the keyboard's table, as the composer reads it. Suggestions then match what is typed on the keys (하 → 한국).

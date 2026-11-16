@@ -113,6 +113,22 @@ def test_prepare_and_wait_through_the_bridge(tmp_path, monkeypatch):
     run(main())
 
 
+def test_says_whether_the_desktop_has_the_focus(tmp_path, monkeypatch):
+    async def main():
+        bridge = Bridge(Log(io.StringIO()), DesktopPaste(tmp_path / "wayland-0"))
+        for process, reply in (
+            ("kwin_wayland", {"id": 7, "ok": True, "desktop": True}),
+            ("konsole", {"id": 7, "ok": True, "desktop": False}),
+            (None, {"id": 7, "ok": False, "error": "focus-unknown"}),
+        ):
+            focus(monkeypatch, process)
+            assert await bridge.handle(request(op="desktop.focus")) == reply
+        off = Bridge(Log(io.StringIO()), None)
+        assert (await off.handle(request(op="desktop.focus")))["error"] == "desktop-paste-off"
+
+    run(main())
+
+
 def test_desktop_missing_is_a_short_error(tmp_path, monkeypatch):
     focus(monkeypatch, "kwin_wayland")
 
