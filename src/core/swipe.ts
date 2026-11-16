@@ -6,6 +6,7 @@
 // stay a tap. It becomes a swipe only once it is more than a third of a key outside the key it pressed,
 // and half a key from where it pressed.
 
+import type { KeyDef } from './catalog.js';
 import type { Effect } from './keyboard.js';
 
 export interface Point { readonly x: number; readonly y: number }
@@ -23,6 +24,16 @@ export const SWIPE_WORDS = 5;
 
 /** A key that swipes: a letter. */
 export const swipeLetter = (char: string): boolean => /^\p{L}$/u.test(char);
+
+/**
+ * The letters the letter keys type with Shift, each with its key's own (ㅃ on ㅂ): a word swipes through
+ * the key, since nothing shifts mid-swipe. None where a pack names no letter to shift to (q's Q).
+ */
+export const swipeShifts = (keys: readonly KeyDef[]): Record<string, string> | undefined => {
+  const pairs = keys.flatMap((k): [string, string][] => (k.type === 'char' && swipeLetter(k.char) && k.shift && k.shift !== k.char && swipeLetter(k.shift)
+    ? [[k.shift, k.char.toLowerCase()]] : []));
+  return pairs.length ? Object.fromEntries(pairs) : undefined;
+};
 
 /** True once a press that started at `start` on `key` has moved to `at` far enough to be a swipe. */
 export const leftKey = (start: Point, at: Point, key: Rect, keyWidth: number): boolean => {

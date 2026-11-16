@@ -9,7 +9,7 @@
  "composer": "romaji",
  "table": "ja/romaji-table",
  "converter": "anthy",
- "features": {"swipe": {"lexicon": "en/words"}},
+ "features": {"swipe": {}},
  "options": {"swipe": false},
  "modes": [
   {"id": "kana"},

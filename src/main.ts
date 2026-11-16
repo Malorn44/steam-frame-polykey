@@ -34,7 +34,7 @@ import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedTe
 import { createDictation, createSpeechModels } from './dictation.js';
 import { createUpdates } from './updates.js';
 import { OPTIONS, offered, optionsFor, suggestLexicon, suggests, swipeLexicon, type OptionName } from './core/options.js';
-import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter } from './core/swipe.js';
+import { SWIPE_WORDS, recentAfter, spaceBefore, swipeCase, swipeLetter, swipeShifts } from './core/swipe.js';
 import { fullName, languageName, ownName } from './ui/keyboards-page.js';
 import { createSettingsView, type SettingsScroll, type SettingsTab, type SettingsValues, type SettingsView } from './ui/settings.js';
 import { createView, type SwipeHandler, type View } from './ui/view.js';
@@ -161,7 +161,6 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let recent: string | null = null;
   let swiped: { word: string; words: string[] } | null = null;
   let swipeWait: Promise<void> | null = null;
-  const swipePrepared = new Set<string>();
   /** Each Steam UI window's keyboard manager, and the way out of watching it for a new text field. */
   const fieldWatches = new Map<VirtualKeyboardManager, () => void>();
   // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
@@ -411,6 +410,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
+  /** The layout a keyboard shows now: its own, or its page for the mode and the symbols page it is on (core/pages.ts). */
+  const layoutOf = (keyboard: KeyboardDef): Layout | undefined => boot?.catalog.layouts[pageLayout(keyboard, {
+    latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[keyboard.id]).qwertyLatin,
+  })];
   /** A keyboard's language pack (its letters, bar words, idle hint, dictation language). */
   const languageFor = (keyboard: KeyboardDef | undefined) => languageOf(boot?.catalog.languages, keyboard);
   /** What a keyboard's composer reads: its options as set, its table and its main layout. */
@@ -489,7 +492,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     else {
       view?.setMode(latinMode.has(keyboard.id));
       showBar(); // the keys too, and which mode key is marked
-      prepareSuggestions(); // the keys drawn anew, in a mode that may suggest from another list
+      prepareSuggestions(); // the keys drawn anew, in a mode that may suggest and swipe from another list
+      prepareSwipe();
     }
   };
 
@@ -504,7 +508,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       swiped = null; // any other key ends the alternatives
       // Backspace straight after a swipe takes the whole word back, as phones do (in 英数 mode, out of the bar).
       if (key.type === 'key' && key.key === 'Backspace' && !repeat && mods.ctrl === 'off' && mods.alt === 'off') {
-        if (composes(currentKeyboard())) {
+        if (swipesIntoBar()) {
           en = NO_ENGLISH;
           refreshSuggestions();
         } else sendEffects(graphemes(word).map((): Effect => ({ kind: 'key', key: 'Backspace' })));
@@ -722,13 +726,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * The word list a swipe decodes against now, if the keyboard swipes: while its swipe option is on, and
-   * on a Japanese keyboard only in 英数 mode on its letters (never in kana mode or on a symbols page).
+   * The word list a swipe decodes against now, if the keyboard swipes: while its swipe option is on, on
+   * its letters (not a symbols page), in a mode with a word list (한글 and ABC; never かな).
    */
   const swipeNow = (): string | undefined => {
     const keyboard = currentKeyboard();
-    if (!keyboard || page !== 'keys' || (composes(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
-    return swipeLexicon(keyboard, keyboardOptions[keyboard.id]);
+    if (!keyboard || page !== 'keys' || symbolsOn.has(keyboard.id)) return undefined;
+    return swipeLexicon(keyboard, keyboardOptions[keyboard.id], latinMode.has(keyboard.id));
+  };
+  /** In the Latin mode of a keyboard that composes (英数, ABC), a swiped word waits in the bar; elsewhere (한글 too) it is sent. */
+  const swipesIntoBar = (): boolean => {
+    const keyboard = currentKeyboard();
+    return composes(keyboard) && latinMode.has(keyboard!.id);
   };
 
   /**
@@ -747,11 +756,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     refreshSuggestions();
   };
 
-  /** A swipe on the letters: the sidecar decodes it; the best word is typed, the others offered. */
+  /**
+   * A swipe on the letters: the sidecar decodes it, spelling words as the mode's suggestions are (한글's
+   * keys); the best word is typed, the others offered.
+   */
   const onSwipe: SwipeHandler = (path, letters, keyWidth) => {
     if (afterSwipe(() => onSwipe(path, letters, keyWidth))) return;
     const lexicon = swipeNow();
-    if (!lexicon || !bridge.available()) return;
+    const keyboard = currentKeyboard();
+    if (!lexicon || !keyboard || !bridge.available()) return;
     if (surface) tick(surface.win, hand);
     swiped = null;
     dictatedTail = null; // typed in between: the next phrase joins what is known now
@@ -761,7 +774,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     view?.update(mods);
     const round = (v: number): number => Math.round(v * 10) / 10;
     swipeWait = bridge.call('swipe', { lexicon, path: path.map((p) => [round(p.x), round(p.y)]), keys: letters, keyWidth: round(keyWidth),
-      limit: SWIPE_WORDS }, SWIPE_TIMEOUT_MS).then((reply) => {
+      limit: SWIPE_WORDS, shifts: swipeKeys(keyboard).shifts, ...spelledBy(keyboard) }, SWIPE_TIMEOUT_MS).then((reply) => {
       swipeWait = null;
       const found = reply.ok && Array.isArray(reply['words']) ? (reply['words'] as unknown[]).filter((w): w is string => typeof w === 'string' && w !== '') : [];
       if (!found.length) {
@@ -769,10 +782,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         return;
       }
       const words = [...new Set(found.map((w) => swipeCase(w, shift, caps)))];
-      if (composes(currentKeyboard())) {
+      if (swipesIntoBar()) {
         swipeIntoBar(words);
         return;
       }
+      bar.flush(); // what is being composed goes first (한글), as it does for any key the composer does not take
       const text = `${spaceBefore(recent) ? ' ' : ''}${words[0]}`;
       boost(words[0]!);
       swiped = { word: words[0]!, words };
@@ -783,13 +797,27 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     });
   };
 
-  /** Have the sidecar load the word list a swipe needs before the first swipe (once per list). */
-  const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
-    if (!lexicon || swipePrepared.has(lexicon) || !bridge.available()) return;
-    const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+  /**
+   * The keys a swipe goes over on the layout the keyboard shows now: its letters (in lower case) and the
+   * letters typed with Shift on them, each with its key's (ㅃ on ㅂ). A swipe and its prepare send the same.
+   */
+  const swipeKeys = (keyboard: KeyboardDef): { letters: Set<string>; shifts: Record<string, string> | undefined } => {
+    const keys = layoutOf(keyboard)?.rows.flat().map(normalizeKey) ?? [];
+    return { letters: new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : []))), shifts: swipeShifts(keys) };
+  };
+
+  /**
+   * Have the sidecar load the word list the current mode swipes with, and index it for the keys shown,
+   * spelled as its suggestions are, as the keyboard is drawn: the first swipe does not wait. It is a no-op
+   * once built.
+   */
+  const prepareSwipe = (): void => {
+    const lexicon = swipeNow();
+    const keyboard = currentKeyboard();
+    if (!lexicon || !keyboard || !bridge.available()) return;
+    const { letters, shifts } = swipeKeys(keyboard);
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
-    swipePrepared.add(lexicon);
-    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
+    void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), shifts, prepare: true, ...spelledBy(keyboard) }, 10_000);
   };
 
   const unmountView = (): void => {
@@ -853,9 +881,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     const keyboard = boot.catalog.keyboards[id];
-    const layout = keyboard && boot.catalog.layouts[pageLayout(keyboard, {
-      latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[id]).qwertyLatin,
-    })];
+    const layout = keyboard && layoutOf(keyboard);
     const theme = themeFor(surface.win);
     if (!layout || !theme) {
       warn(`keyboard ${id} has no layout or theme; showing Steam's keyboard`);
@@ -942,9 +968,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       panel.setScroll(settingsScroll); // sized first, so the lists can scroll
       updates.follow(); // what the updater says now (and while a check or download runs)
     } else {
-      // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
-      const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
-      prepareSwipe(swipes, layout);
+      prepareSwipe();
       prepareSuggestions();
       // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
       // With one keyboard in your list 🌐 has nowhere to go: the layout's rows without it.
@@ -955,7 +979,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const hint = idleHint(keyboard, language);
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
+          // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
+          onSwipe: bridge.available() ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
           latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), language),
           otherLetters: modeLetters(keyboard, !latinMode.has(id), language),
           // Holding 🌐: each keyboard's language small above its layout.

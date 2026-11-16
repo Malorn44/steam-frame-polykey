@@ -11,7 +11,7 @@ What polykey's English, Japanese and Korean keyboards do, and the toolbar and em
 
 ## Swipe typing
 
-Hold the trigger and trace a word across the letters. The best word is typed, with a space before it when it follows a word; two alternatives show beside it in the bar, and picking one replaces it. Backspace right after a swipe takes the word back. The sidecar decodes the path by template matching against the word list, so any layout pack that declares `"features": {"swipe": {"lexicon": …}}` can swipe. It is off by default: Settings → Swipe typing turns it on, per keyboard. The Japanese keyboards offer it for English in 英数 mode (the 12-key's QWERTY ABC page, romaji, JIS), where the swiped word waits in the bar like a typed one.
+Hold the trigger and trace a word across the letters. The best word is typed, with a space before it when it follows a word; two alternatives show beside it in the bar, and picking one replaces it. Backspace right after a swipe takes the word back. The sidecar decodes the path by template matching against the word list of the mode you are in, so any keyboard pack that declares `"features": {"swipe": {}}` can swipe. It is off by default: Settings → Swipe typing turns it on, per keyboard. The Japanese keyboards offer it for English in 英数 mode (the 12-key's QWERTY ABC page, romaji, JIS), where the swiped word waits in the bar like a typed one.
 
 ## Japanese
 
@@ -54,8 +54,7 @@ The standard 2-set (두벌식) layout: consonants on the left, vowels on the rig
 - **Space, Enter and punctuation** send the syllable (in the bar, the word) first, as do 한/영, 🌐 and dictation.
 - **한자**, left of Space, converts a word in the one you are typing to Hanja: the longest word with Hanja in it, so 학교에서 offers 學校 for 학교 (of words as long, the one nearest the caret). The text stays as it is while the bar shows the Hanja, each with its meaning beneath where the dictionary gives one (韓: 나라 이름 한), and 한자 shows the mode's mark. Space (다음) goes on to the next, ← and → go to the word with Hanja before or after it, and Enter or a tap picks one: polykey deletes back to the word's start, only ever syllables it typed, then types the Hanja and what followed it (學校에서), the syllable you are composing still being composed. In the bar, it replaces them there. 한자 again closes it with the text as it was, as ⌫ does; typing on, another field or the keyboard closing do too, and nothing but a picked Hanja is ever typed. Your pick comes first for that word from then on. The Hanja come from SteamOS's own dictionary (libhangul's, installed with ibus-hangul); without it 한자 does nothing, and the journal says so once. In ABC it does nothing.
 - **한/영**, right of Space, switches to ABC: the English layout, where words wait in the bar with suggestions and swipe typing works, as in the Japanese keyboards' 英数 mode. 한/영 again goes back. The bar under 한 or 영 shows which mode you are in, as 英数 and かな do.
-
-There is no Hangul swipe typing yet.
+- **Swipe typing**, once on, works in 한글 too: a word goes through its jamo's keys as you would type them, a compound through both of its (과: ㄱ ㅗ ㅏ), and ㅃ and the other Shift letters through their own key (빨리: ㅂ ㅏ ㄹ ㅣ, a doubled key once). The syllable being composed is sent first; then the word goes in as in English, its alternatives where the candidates go. It knows the list's 60,000 most common words.
 
 ## Toolbar
 
