@@ -60,7 +60,7 @@ describe('the bar controller', () => {
     expect(bar.press(char('h'), { typed: 'h' })).toBe(true);
     expect(bar.press(char('i'), { typed: 'i' })).toBe(true);
     expect(bar.composing()).toBe(true);
-    expect(bar.shown()).toEqual({ composition: { before: 'HI', after: '', candidates: ['HI'], selected: -1 }, labels: { ' ': 'send' } });
+    expect(bar.shown()).toEqual({ composition: { before: 'HI', after: '', candidates: ['HI'], selected: -1 }, labels: { ' ': 'send' }, active: [] });
     expect(bar.composedText()).toBe('HI');
     expect(bar.press({ type: 'key', key: 'Tab' }, {})).toBe(false); // not for it
     bar.flush();
