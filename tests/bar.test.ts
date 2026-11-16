@@ -47,6 +47,8 @@ const setup = (converter: string | null = 'mine') => {
     show: shows,
     warn: () => {},
     keyboard: () => kb,
+    canRetype: () => false,
+    target: () => '',
   });
   return { bar, sent, calls, answers, shows, switchTo: (next: BarKeyboard | null) => { kb = next; } };
 };
@@ -165,7 +167,7 @@ describe('composing in the text field', () => {
       show: () => {},
       warn: () => {},
       keyboard: () => ({ composer, ctx, converter: undefined }),
-      retype: () => retyping,
+      canRetype: () => retyping,
       target: () => where,
     });
     /** Make the queued sends, as the page's queue does: a send no longer live is skipped. */

@@ -7,7 +7,7 @@ import { createBridge } from './bridge/client.js';
 import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
-import { chooseInline } from './core/output/inline.js';
+import { retypesInField } from './core/output/inline.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
 import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
 import { getKeyboardManagers, getKeyboardPopupWindow, onFieldChange, pickKeyboardManager, type SteamGlobals, type VirtualKeyboardManager } from './host/steam/globals.js';
@@ -267,10 +267,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
    * Whether a composer that can compose in the text field does so now: retyped in Steam and in games;
    * in the bar in Desktop Mode (and until the sidecar says it is not), and when streaming.
    */
-  const composeInField = (): boolean => {
-    const status = readStatus(statusStore);
-    const target = classifyTarget(status);
-    return chooseInline(target, target === 'local-app' ? desktopFocus() : undefined) === 'retype';
+  const canRetype = (): boolean => {
+    const target = classifyTarget(readStatus(statusStore));
+    return retypesInField(target, target === 'local-app' ? desktopFocus() : undefined);
   };
   /** Where typing goes now ('' while the keyboard is closed): what polykey typed belongs to one. */
   const targetOf = (status: VRKeyboardStatus | null): string =>
@@ -439,7 +438,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
     enqueue: (effects, inline) => { track(effects); enqueue(effects, inline); }, show: () => showBar(), keyboard: barKeyboard,
-    retype: composeInField, target: () => targetOf(readStatus(statusStore)),
+    canRetype, target: () => targetOf(readStatus(statusStore)),
   });
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
