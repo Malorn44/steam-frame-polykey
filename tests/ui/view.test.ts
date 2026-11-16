@@ -634,46 +634,65 @@ describe('hold to repeat', () => {
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
 
-  it('more candidates than fit: the list scrolls to keep the picked one in view as it moves on, and back to the start', () => {
+  /**
+   * The bar with more candidates than fit, as a browser lays it out (jsdom lays nothing out): across, the
+   * list 200px wide and 245px from the keyboard's left (after the toolbar and the reading), each candidate
+   * 60px wide; in the side panel, the list 100px high and 50px down, a candidate a row of 36px. Each moves
+   * with the list's scroll, which stops at the end.
+   */
+  const longList = (side: boolean) => {
     const boot = bundledBoot();
     const host = document.createElement('div');
     document.body.append(host);
     const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {},
+      () => {}, () => {}, { side });
     view.update(NO_MODS);
     const list = shadow.querySelector<HTMLElement>('.comp .list')!;
-    // jsdom lays nothing out: the list 200px wide, 245px from the keyboard's left (after the toolbar and the
-    // reading), each candidate 60px wide in it, moved by its scroll.
-    Object.defineProperty(list, 'clientWidth', { value: 200 });
-    const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 26, height: 26, x: left, y: 0, toJSON: () => ({}) });
+    const count = 16;
+    const [start, size, step] = side ? [50, 100, 36] : [245, 200, 60];
+    Object.defineProperties(list, side
+      ? { clientHeight: { value: size }, scrollHeight: { value: count * step } }
+      : { clientWidth: { value: size }, scrollWidth: { value: count * step } });
+    const scroll = (): number => (side ? list.scrollTop : list.scrollLeft);
+    const rect = (at: number, length: number) => (side
+      ? { left: 0, right: 300, width: 300, top: at, bottom: at + length, height: length, x: 0, y: at, toJSON: () => ({}) }
+      : { left: at, right: at + length, width: length, top: 0, bottom: 26, height: 26, x: at, y: 0, toJSON: () => ({}) });
     const layout = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this === list) return rect(245, 200);
+      if (this === list) return rect(start, size);
       const index = this.classList.contains('cand') ? [...list.children].indexOf(this) : -1;
-      return index >= 0 ? rect(245 + index * 60 - list.scrollLeft, 60) : rect(0, 0);
+      return index >= 0 ? rect(start + index * step - scroll(), step) : rect(0, 0);
     });
-    const candidates = Array.from({ length: 16 }, (_, i) => `漢${i}`);
-    const shown = () => {
+    const candidates = Array.from({ length: count }, (_, i) => `漢${i}`);
+    const pick = (selected: number) => view.setComposition({ segments: ['한'], focus: 0, candidates, selected });
+    /** Where the picked candidate starts in the list's box, and whether it is all in it. */
+    const picked = () => {
       const at = shadow.querySelector<HTMLElement>('.cand.sel')!.getBoundingClientRect();
-      return at.left >= 245 && at.right <= 445;
+      const [from, to] = side ? [at.top, at.bottom] : [at.left, at.right];
+      return { offset: from - start, whole: from >= start && to <= start + size };
     };
-    try {
-      for (const selected of [0, 1, 2, 3, 4, 5, 6]) {
-        view.setComposition({ segments: ['한'], focus: 0, candidates, selected });
-        expect([selected, shown()]).toEqual([selected, true]);
+    return { view, scroll, pick, picked, count, step, end: count * step - size, restore: () => layout.mockRestore() };
+  };
+
+  for (const side of [false, true]) {
+    it(`more candidates than fit${side ? ', in the side panel' : ''}: the picked one leads the list, so the ones after it show; at the end it moves on; a wrap goes back to the start`, () => {
+      const { view, scroll, pick, picked, count, step, end, restore } = longList(side);
+      try {
+        for (let selected = 0; selected < count; selected++) {
+          pick(selected);
+          if (selected * step <= end) expect([selected, picked().offset, scroll()]).toEqual([selected, 0, selected * step]); // at the start, from the first step
+          else expect([selected, picked().whole, scroll()]).toEqual([selected, true, end]); // the list's end: it moves on across the last screen
+        }
+        pick(0); // wrapped back to the first
+        expect([picked().offset, scroll()]).toEqual([0, 0]);
+        pick(9);
+        view.setComposition({ before: 'か', after: '', candidates: [], selected: -1 }); // none picked: from the start
+        expect(scroll()).toBe(0);
+      } finally {
+        restore();
       }
-      expect(list.scrollLeft).toBe(6 * 60 + 60 + 8 - 200); // the 7th at the right, with room to spare, no further
-      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 5 }); // still in view: no scroll
-      expect(list.scrollLeft).toBe(6 * 60 + 60 + 8 - 200);
-      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 15 });
-      expect(shown()).toBe(true);
-      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 0 }); // wrapped back to the first
-      expect([shown(), list.scrollLeft]).toEqual([true, 0]);
-      view.setComposition({ before: 'か', after: '', candidates, selected: -1 }); // none picked: from the start
-      expect(list.scrollLeft).toBe(0);
-    } finally {
-      layout.mockRestore();
-    }
-  });
+    });
+  }
 
   it('a reading longer than the bar scrolls to keep the caret, or the focused segment, in view', async () => {
     const boot = bundledBoot();
