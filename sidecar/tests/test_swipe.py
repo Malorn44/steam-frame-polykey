@@ -305,12 +305,12 @@ def test_the_bridge_answers_swipe_and_never_logs_the_path_or_words(capsys):
             lines.append(message)
 
     bridge = Bridge(Capture(), lexicons=Lexicons([ROOT / "packs"]))
+    asyncio.run(bridge.handle(json.dumps({"id": 3, "op": "swipe", **request(prepare=True)})))
+    assert [line for line in lines if line.startswith("swipe: en/words ready in ")]  # a timing, nothing typed
     reply = asyncio.run(bridge.handle(json.dumps({"id": 4, "op": "swipe", **request()})))
     assert reply["id"] == 4 and reply["ok"] and reply["words"][0] == "hello"
     broken = asyncio.run(bridge.handle(json.dumps({"id": 5, "op": "swipe", **request(keys=None)})))
     assert broken == {"id": 5, "ok": False, "error": "bad-keys"}
-    asyncio.run(bridge.handle(json.dumps({"id": 6, "op": "swipe", **request(prepare=True)})))
-    assert any(line.startswith("swipe: en/words ready in ") for line in lines)  # a timing, nothing typed
     assert not any("hello" in line for line in lines)
     assert "hello" not in capsys.readouterr().out
 
@@ -366,3 +366,21 @@ def test_a_swipe_on_the_korean_keyboard_is_spelled_by_its_speller_and_never_logg
     assert ask()["words"] == []  # in lower case, no Hangul word is on these keys
     assert not any("빨리" in line or "ㅂ" in line for line in lines)
     assert "빨리" not in capsys.readouterr().out
+
+
+def test_the_korean_list_is_prepared_once_and_unloaded_with_its_index_when_unused():
+    lines: list[str] = []
+    now = [0.0]
+    bridge, decoder = korean_bridge(lines, now)
+    ask = lambda **f: asyncio.run(
+        bridge.handle(json.dumps({"id": 1, **ko_request(keyboard="ko/korean", shifts=KO_SHIFTS, **f)}))
+    )
+    assert ask(prepare=True, path=None) == {"id": 1, "ok": True, "words": []}
+    assert ask(prepare=True, path=None)["ok"]  # drawn again: already built
+    assert [line.split(" ready")[0] for line in lines] == ["swipe: ko/words"]  # one timing, nothing typed
+    (index,) = decoder._indexes.values()
+    assert len(index.buckets) > 100 and sum(map(len, index.buckets.values())) == swipe.MAX_WORDS
+    now[0] = UNUSED_S
+    bridge.unload_unused()
+    assert decoder._indexes == {} and lines[-1] == "suggest: ko/words unloaded after 10 min unused"
+    assert ask()["words"][0] == "빨리"  # loaded and indexed again

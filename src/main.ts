@@ -161,7 +161,6 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let recent: string | null = null;
   let swiped: { word: string; words: string[] } | null = null;
   let swipeWait: Promise<void> | null = null;
-  const swipePrepared = new Set<string>();
   /** Each Steam UI window's keyboard manager, and the way out of watching it for a new text field. */
   const fieldWatches = new Map<VirtualKeyboardManager, () => void>();
   // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
@@ -783,12 +782,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     });
   };
 
-  /** Have the sidecar load the word list a swipe needs before the first swipe (once per list). */
+  /**
+   * Have the sidecar load the word list a swipe needs, and index it for the keys shown, as the keyboard is
+   * drawn: the first swipe does not wait. It is a no-op once built.
+   */
   const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
-    if (!lexicon || swipePrepared.has(lexicon) || !bridge.available()) return;
+    if (!lexicon || !bridge.available()) return;
     const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
-    swipePrepared.add(lexicon);
     void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
   };
 

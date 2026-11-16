@@ -210,15 +210,17 @@ class GeometricDecoder:
         letters: frozenset[str],
         speller: Speller,
         shifts: Mapping[str, str],
-    ) -> _Index:
+    ) -> tuple[_Index, bool]:
+        """The index for the list, keys and spelling, and whether it was built now."""
         key = (lexicon_id, len(counts), letters, speller, frozenset(shifts.items()))
         index = self._indexes.get(key)
+        built = index is None
         if index is None:
             index = self._indexes[key] = _Index(counts, letters, speller, shifts)
             while len(self._indexes) > MAX_INDEXES:
                 self._indexes.popitem(last=False)
         self._indexes.move_to_end(key)
-        return index
+        return index, built
 
     def _geometry(self, keys: Mapping[str, Point], key_width: float) -> _Geometry:
         # Rounded, so a layout redrawn at the same size reuses its templates.
@@ -238,9 +240,9 @@ class GeometricDecoder:
         letters: frozenset[str],
         speller: Speller = LOWERCASE,
         shifts: Mapping[str, str] = NO_SHIFTS,
-    ) -> None:
-        """Build the word list's index ahead of the first swipe."""
-        self._index(lexicon_id, counts, letters, speller, shifts)
+    ) -> bool:
+        """Build the word list's index ahead of the first swipe; False if it already is."""
+        return self._index(lexicon_id, counts, letters, speller, shifts)[1]
 
     def forget(self, lexicon_id: str) -> None:
         """Drop the indexes of a word list no longer loaded."""
@@ -260,7 +262,7 @@ class GeometricDecoder:
     ) -> list[str]:
         if len(path) < 2 or len(keys) < 2 or key_width <= 0:
             return []
-        index = self._index(lexicon_id, counts, frozenset(keys), speller, shifts)
+        index = self._index(lexicon_id, counts, frozenset(keys), speller, shifts)[0]
         geometry = self._geometry(keys, key_width)
         centres = geometry.centres
         raw = [(x / key_width, y / key_width) for x, y in path]
@@ -348,8 +350,7 @@ class Swipe:
             return {"ok": False, "error": "bad-keys"}
         if request.get("prepare") is True:
             prepare = getattr(self._decoder, "prepare", None)
-            if prepare:
-                prepare(lexicon_id, lexicon.counts(), frozenset(keys), speller, shifts)
+            if prepare and prepare(lexicon_id, lexicon.counts(), frozenset(keys), speller, shifts):
                 self._note(f"swipe: {lexicon_id} ready in {(time.perf_counter() - started) * 1000:.0f} ms")
             return {"ok": True, "words": []}
         if not isinstance(raw_path, list) or not 2 <= len(raw_path) <= MAX_POINTS:
