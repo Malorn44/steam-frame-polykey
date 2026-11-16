@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KEYMAP_SETTLE, KEYMAP_SETTLE_KEY_MS, KEYMAP_SETTLE_MS, type Delivery } from '../../../src/core/output/plan.js';
+import { KEYMAP_SETTLE, type Delivery } from '../../../src/core/output/plan.js';
 import { createKeySender } from '../../../src/host/steam/keys.js';
 import { createOutput } from '../../../src/host/steam/output.js';
 import { createPacer } from '../../../src/host/steam/pace.js';
@@ -62,8 +62,8 @@ describe('createOutput', () => {
 
 describe('a keymap swap settles before what needs it (minimal mode)', () => {
   const minimal: Delivery = { policy: 'run', gapMs: 0, settle: KEYMAP_SETTLE };
-  const KEY = KEYMAP_SETTLE_KEY_MS;
-  const CHORD = KEYMAP_SETTLE_MS;
+  const KEY = KEYMAP_SETTLE.key;
+  const CHORD = KEYMAP_SETTLE.chord;
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
   /** The text sender and the key sender on one pacer, as main.ts has them; calls are recorded with their time. */
