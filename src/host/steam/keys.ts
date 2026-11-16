@@ -57,7 +57,7 @@ export const createKeySender = ({ getSetKeyState: lookup, pacer = createPacer() 
     let sent = 0;
     try {
       for (const [code, down] of events) {
-        await pacer.ready(sent > 0 ? gapMs : 0);
+        await pacer.ready(sent > 0 ? gapMs : 0, 'chord');
         if (down) held.add(code);
         setKeyState(code, down);
         if (!down) held.delete(code);

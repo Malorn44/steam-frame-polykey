@@ -14,13 +14,19 @@ export type TargetKind = 'streamed' | 'local-app' | 'steam-ui' | 'unknown';
 /** Gap between calls when Steam's buffer has to re-render in between (measured by fjk). */
 export const BUFFERED_GAP_MS = 40;
 
+/** How long each kind of call waits after one that swapped the keymap (pace.ts). */
+export type Settle = Readonly<Record<'text' | 'key' | 'chord', number>>;
+
 /**
- * In minimal mode gamescope types a non-ASCII call through a temporary keymap. The next call, or key
- * chord, waits this long, so its own keys (or its own keymap) do not land before the target has read
- * these: without it, a kaomoji's calls, or two tapped in quick succession, come out as stray or missing
- * characters, and text sent just before a chord (Copy while composing) as number-row digits.
+ * In minimal mode gamescope types a non-ASCII call through a temporary keymap. What is sent next must
+ * not change it before the target has read that call's keys, or they come out as number-row digits, so
+ * each kind waits as long as it needs, from the end of that call:
+ * - text: none; text straight after text comes out right.
+ * - a named key (⌫, Enter, the arrows), which gamescope performs as an action: a ⌫ straight after a
+ *   syllable (Hangul retyped in the field) turns that syllable into digits.
+ * - a key chord: text sent just before one (Copy while composing) comes out as digits.
  */
-export const KEYMAP_SETTLE_MS = 60;
+export const KEYMAP_SETTLE: Settle = { text: 0, key: 30, chord: 60 };
 
 const PRINTABLE_ASCII = /^[\x20-\x7e]$/;
 /** Whether a call needs a temporary keymap in minimal mode: it has something other than printable ASCII. */
@@ -38,30 +44,37 @@ export const graphemes = (text: string): string[] => {
   return segmenter ? Array.from(segmenter.segment(text), (s) => s.segment) : Array.from(text);
 };
 
-/** Plan one string per call. Key names (e.g. "Backspace") pass through as they are. */
-export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string[] => {
-  const calls: string[] = [];
+/** One HandleVirtualKeyDown call: its string, and whether it is text or a key by name. */
+export interface PlannedCall {
+  readonly call: string;
+  readonly kind: 'text' | 'key';
+}
+
+/** Plan the calls, in order. Key names (e.g. "Backspace") pass through as they are. */
+export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): PlannedCall[] => {
+  const calls: PlannedCall[] = [];
+  const text = (call: string): void => { calls.push({ call, kind: 'text' }); };
   for (const op of ops) {
     if ('key' in op) {
-      calls.push(op.key);
+      calls.push({ call: op.key, kind: 'key' });
       continue;
     }
     const parts = graphemes(op.text);
     if (policy === 'chars') {
-      calls.push(...parts);
+      for (const part of parts) text(part);
       continue;
     }
     let run = '';
     for (const part of parts) {
       if (PRINTABLE_ASCII.test(part)) {
-        if (run) calls.push(run);
+        if (run) text(run);
         run = '';
-        calls.push(part);
+        text(part);
       } else {
         run += part;
       }
     }
-    if (run) calls.push(run);
+    if (run) text(run);
   }
   return calls;
 };
@@ -69,8 +82,8 @@ export const planCalls = (ops: readonly OutputOp[], policy: SplitPolicy): string
 export interface Delivery {
   readonly policy: SplitPolicy;
   readonly gapMs: number;
-  /** After a call that swaps the keymap, the next call (of this send or the next) or chord waits this long; 0: no wait. */
-  readonly settleMs: number;
+  /** After a call that swaps the keymap, what is sent next (of this send or the next, or a chord) waits this long, by its kind; null: no wait. */
+  readonly settle: Settle | null;
 }
 
 /** `auto`: fjk's behaviour when the mode is known, one character per call otherwise. */
@@ -78,5 +91,5 @@ export const chooseDelivery = (mode: KeyboardMode, setting: SplitSetting, gapOve
   const policy: SplitPolicy = setting !== 'auto' ? setting : mode === 'minimal' ? 'run' : 'chars';
   const defaultGap = mode === 'minimal' ? 0 : BUFFERED_GAP_MS;
   const gapMs = gapOverrideMs !== undefined && Number.isFinite(gapOverrideMs) ? Math.max(0, gapOverrideMs) : defaultGap;
-  return { policy, gapMs, settleMs: mode === 'minimal' ? KEYMAP_SETTLE_MS : 0 };
+  return { policy, gapMs, settle: mode === 'minimal' ? KEYMAP_SETTLE : null };
 };
