@@ -24,7 +24,7 @@
 // as it was; anything else ends it, then acts. Nothing but a picked candidate is ever sent as Hanja.
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
-import type { Effect } from '../keyboard.js';
+import { replaceText } from '../suggest.js';
 import { MAX_READING, builtOnce, nextCandidate, picked, type Composer, type ComposerContext, type ComposerResult, type Segment } from './composer.js';
 
 /** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in one or two parts each. */
@@ -160,10 +160,11 @@ const pickHanja = (h: Hangul, text: string, index: number): ComposerResult<Hangu
   const typed = chars.length - length(conversion.composed); // before the composition: in the field, or the bar's word
   const converted = end > typed; // the composition is part of the word
   if (converted && end !== chars.length) return { state: h, effects: [] };
-  const back = Array.from({ length: Math.max(0, typed - start) }, (): Effect => ({ kind: 'key', key: 'Backspace' }));
+  const part = (from: number, to: number): string => chars.slice(from, to).join('');
   return {
     state: converted ? NO_HANGUL : { syllable: h.syllable, conversion: null },
-    effects: [...back, { kind: 'text', text: text + (converted ? '' : chars.slice(end, typed).join('')) }],
+    // What was typed becomes what goes before the word, the Hanja, then what followed it (as a picked word does).
+    effects: replaceText(part(0, typed), part(0, start) + text + (converted ? '' : part(end, typed))),
     learned: { reading: word.reading, lengths: [length(word.reading)], choices: [index], texts: [text] },
   };
 };
