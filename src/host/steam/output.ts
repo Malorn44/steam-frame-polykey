@@ -26,7 +26,7 @@ interface OutputDeps {
 export const createOutput = ({ getManager, getDelivery, pacer = createPacer() }: OutputDeps) => {
   const deliver = async (ops: readonly OutputOp[]): Promise<SendResult> => {
     const delivery = getDelivery();
-    const calls = ops.flatMap((op) => planCalls([op], delivery.policy).map((call) => ({ call, kind: 'key' in op ? 'key' as const : 'text' as const })));
+    const calls = planCalls(ops, delivery.policy);
     const manager = getManager();
     if (!manager) return { ok: false, calls: 0, planned: calls.length, delivery, error: 'no-keyboard-manager' };
     let made = 0;
