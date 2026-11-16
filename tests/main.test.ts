@@ -1987,7 +1987,7 @@ describe('Korean composed in the text field', () => {
     t.state.status = { ...MINIMAL, sOverlayKey: 'gamescope.gamescope-0.window.90' };
     t.g['polykeyBridge'] = (payload: string) => {
       const req = request(payload);
-      const reply = { ok: false, error: 'unknown-op' };
+      const reply = req.op === 'desktop.focus' ? { ok: true, desktop: false } : { ok: false, error: 'unknown-op' };
       const send = () => (t.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply });
       if (req.op === 'desktop.focus') answer = send;
       else setTimeout(send, 1);
@@ -1998,6 +1998,38 @@ describe('Korean composed in the text field', () => {
     await vi.advanceTimersByTimeAsync(0);
     await t.typeAll('ㅏ');
     expect([t.sent(), t.pre()]).toEqual([['하'], null]);
+  });
+
+  it('an answer that does not say where the focus is (unknown, the paste route off) keeps the bar: nothing typed is deleted', async () => {
+    for (const error of ['focus-unknown', 'desktop-paste-off']) {
+      const prepared: string[] = [];
+      const t = setupField({
+        sidecar: (req) => {
+          if (req.op === 'desktop.prepare') prepared.push(req.text!);
+          return req.op === 'desktop.focus' || req.op === 'desktop.prepare' ? { ok: false, error } : undefined;
+        },
+      });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴ');
+      expect([t.sent(), t.pre()]).toEqual([[], '한']); // in the bar, not retyped
+      await tap(t.popup, ' ');
+      expect(prepared).toEqual(['한']); // the paste route tried, and could not say either
+      await t.typeAll('ㄱㅡ');
+      expect(t.pre()).toBe('그'); // still the bar
+      expect(t.sent()).not.toContain('Backspace');
+      t.api.uninstall();
+    }
+  });
+
+  it('a paste that finds no desktop there lets the field be composed in', async () => {
+    const t = setupField({
+      sidecar: (req) => (req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : req.op === 'desktop.focus' ? { ok: false, error: 'focus-unknown' } : undefined),
+    });
+    await t.opened();
+    await t.typeAll('ㅎㅏㄴ');
+    await tap(t.popup, ' ');
+    await t.typeAll('ㄱ');
+    expect([t.sent(), t.pre()]).toEqual([['한', ' ', 'ㄱ'], null]); // typed as it is, then into the field
   });
 
   it('streamed (Steam Link), the bar as before', async () => {

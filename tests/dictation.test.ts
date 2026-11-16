@@ -73,6 +73,7 @@ const fakeSidecar = (g: Record<string, unknown>, status: Record<string, unknown>
     else if (req.op === 'convert') answer(req.id, { ok: true, segments: [{ reading: req['reading'], candidates: [req['reading']] }] });
     else if (req.op === 'predict') answer(req.id, { ok: true, predictions: [] });
     else if (req.op === 'desktop.prepare') answer(req.id, { ok: false, error: 'not-desktop' });
+    else if (req.op === 'desktop.focus') answer(req.id, { ok: true, desktop: false });
     else answer(req.id, { ok: true });
   };
   return {
