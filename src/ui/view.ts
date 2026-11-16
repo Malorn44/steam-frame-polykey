@@ -239,8 +239,6 @@ const iconFor = (key: KeyDef, mods: Mods, set: IconSet, arrows: 'icon' | 'glyph'
 
 /** Room kept beside the caret or focused segment as the reading scrolls: about a kana. */
 const READING_PAD_PX = 16;
-/** Room kept beside the picked candidate as the candidate list scrolls to it. */
-const CANDIDATE_PAD_PX = 8;
 /**
  * Where a box `size` wide, scrolled to `scroll`, scrolls to show the span [start, end] with `pad` to
  * spare on each side: no further than it must, and to its start when it cannot all fit.
@@ -921,8 +919,6 @@ export const createView = (
       const showing = c !== null || side || placeholder !== '';
       comp.classList.toggle('on', showing);
       if (!side) cands.style.display = showing ? 'none' : '';
-      // Where the candidates were scrolled to: moving the pick on scrolls them no further than it must.
-      const scrolled = side ? list.scrollTop : list.scrollLeft;
       pre.textContent = '';
       list.textContent = '';
       candidates = [];
@@ -951,9 +947,10 @@ export const createView = (
         list.append(el);
         candidates.push({ el, text, index });
       });
-      // Keep the picked candidate in view, forward and when it wraps back to the first; with none picked,
-      // start from the top of the list. Measured against the list itself (its candidates' offsets are from
-      // the keyboard), in layout pixels.
+      // The picked candidate leads the list (at its left, or its top in the side panel), so the ones after
+      // it show, as on a phone's candidate bar; where the list can scroll no further, it moves on across
+      // the last screen. A wrap back to the first, or none picked, starts from the top. Measured against the
+      // list itself (its candidates' offsets are from the keyboard), in layout pixels.
       list.scrollLeft = 0;
       list.scrollTop = 0;
       const sel = candidates[c.selected]?.el;
@@ -961,13 +958,8 @@ export const createView = (
         const box = list.getBoundingClientRect();
         const at = sel.getBoundingClientRect();
         const scale = list.offsetWidth ? box.width / list.offsetWidth : 1;
-        if (side) {
-          const top = (at.top - box.top) / scale;
-          list.scrollTop = scrollToShow(scrolled, list.clientHeight, top, top + at.height / scale, CANDIDATE_PAD_PX / 2);
-        } else {
-          const left = (at.left - box.left) / scale;
-          list.scrollLeft = scrollToShow(scrolled, list.clientWidth, left, left + at.width / scale, CANDIDATE_PAD_PX);
-        }
+        if (side) list.scrollTop = Math.max(0, Math.min((at.top - box.top) / scale, list.scrollHeight - list.clientHeight));
+        else list.scrollLeft = Math.max(0, Math.min((at.left - box.left) / scale, list.scrollWidth - list.clientWidth));
       }
     },
     setLabels: (next) => {
