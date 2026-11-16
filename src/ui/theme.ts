@@ -62,6 +62,7 @@ const textOn = (backgrounds: string[], texts: string[], surface: string): string
 /** The theme's CSS custom properties, as a style attribute value. */
 export const themeVars = (theme: Theme): string => {
   const c = theme.colors;
+  const hover = c.hover ?? c.modifier;
   const fn = c.fnLegend ?? c.accent;
   // The text on each background a state paints: the theme's own where it reads, else another of its
   // text colours, else white or black.
@@ -75,13 +76,14 @@ export const themeVars = (theme: Theme): string => {
     '--accent': c.accent,
     '--legend': c.legend ?? c.keyText,
     '--fn': fn,
-    '--hover': c.hover ?? c.modifier,
+    '--hover': hover,
     '--accent-text': on([c.accent], c.accentText ?? c.surface),
     '--fn-text': on([fn], c.fnText ?? c.surface),
     '--error': c.error ?? c.fnLegend ?? c.accent,
     '--divider': c.divider ?? c.modifier,
     '--ring': c.ring ?? c.accent,
     '--indicator': c.indicator ?? c.accent,
+    '--hover-text': on([hover], c.keyText),
     '--pressed': TONE[theme.tone ?? 'dark'].pressed,
     '--raised': TONE[theme.tone ?? 'dark'].raised,
     '--shadow': theme.shadow ?? THEME_DEFAULTS.shadow,

@@ -11,6 +11,7 @@ describe('themeVars', () => {
     expect(vars).toContain('--surface:#101820;--key:#1c2833;--text:#e8eef2;--mod:#26333f;--accent:#4fa3e0;'
       + '--legend:#e8eef2;--fn:#4fa3e0;--hover:#26333f;');
     expect(vars).toContain('--accent-text:#101820;--fn-text:#101820;--error:#4fa3e0;--divider:#26333f;--ring:#4fa3e0;--indicator:#4fa3e0;');
+    expect(vars).toContain('--hover-text:#e8eef2;');
     expect(vars).toContain('--pressed:brightness(1.5);--raised:rgba(255, 255, 255, 0.1);');
     expect(vars).toContain('--radius:6px;--radius-sm:3px;--radius-pill:13px;');
   });
@@ -21,9 +22,10 @@ describe('themeVars', () => {
   });
 
   it('text that would not read on a state gives way to another of the theme\'s text colours, else white or black', () => {
-    // White on yellow: the surface reads.
-    const light = themeVars({ id: 't/y', name: 'Y', colors: { ...MIDNIGHT, accent: '#ffd000', accentText: '#ffffff' } });
+    // White on yellow, light text on a light hover: the surface reads on both.
+    const light = themeVars({ id: 't/y', name: 'Y', colors: { ...MIDNIGHT, accent: '#ffd000', accentText: '#ffffff', hover: '#d0d8e0' } });
     expect(light).toContain('--accent-text:#101820;');
+    expect(light).toContain('--hover-text:#101820;');
     // On a mid blue none of the theme's text reads: black reads better than white.
     expect(themeVars({ id: 't/z', name: 'Z', colors: { ...MIDNIGHT, accent: '#5e81ac' } })).toContain('--accent-text:#000000;');
   });

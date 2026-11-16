@@ -49,14 +49,14 @@ const CSS = `
 .tab.on { background: var(--mod); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .trash { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border-radius: var(--radius); font-size: var(--ui-icon-lg); color: var(--legend); }
-.trash.hover { background: var(--hover); color: var(--text); }
+.trash.hover { background: var(--hover); color: var(--hover-text); }
 .grid { position: relative; flex: 1; overflow: hidden; margin-top: 2px; }
 .strip { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; }
 .cell { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   font-size: var(--size-emoji); border-radius: var(--radius); }
 .cell img { max-width: 80%; max-height: 80%; pointer-events: none; }
 .cell.effect { font-size: var(--ui-tiny); text-align: center; color: var(--legend); }
-.cell.hover { background: var(--hover); }
+.cell.hover { background: var(--hover); color: var(--hover-text); }
 .cell.face { font-size: ${FACE_PX}px; font-family: var(--font-kaomoji); overflow: hidden; white-space: nowrap; background: none; }
 .cell.face::before { content: ""; position: absolute; inset: 2px; border-radius: var(--radius); background: var(--key); }
 .cell.face.hover::before { background: var(--hover); }
