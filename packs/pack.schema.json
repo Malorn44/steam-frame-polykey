@@ -877,9 +877,10 @@
         },
         "converter": {
           "enum": [
-            "anthy"
+            "anthy",
+            "hanja"
           ],
-          "description": "The engine that converts the reading (with composer kana): anthy, from the system's libanthy."
+          "description": "The engine that converts what is composed: anthy (kana to kanji, with composer kana or romaji), from the system's libanthy; hanja (Hangul to Hanja, with composer hangul-2set), from the system's libhangul dictionary."
         },
         "table": {
           "$ref": "#/$defs/id",
