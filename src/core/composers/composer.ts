@@ -131,6 +131,11 @@ export interface Composer<S> {
    * composed waits in the bar. A conversion (segments) is shown in the bar either way.
    */
   readonly inline?: boolean;
+  /**
+   * Which characters make up the words it types (Hangul: a Hanja or a Latin letter ends one), for the word
+   * suggestions complete, a pick replaces and a conversion reaches back over; none: every letter.
+   */
+  readonly wordChar?: (ch: string) => boolean;
   composing(state: S): boolean;
   /** Whether a key with two sets of legends (JIS) types its Latin ones (romaji input); none: it types its own. */
   latinKeys?(ctx: ComposerContext): boolean;

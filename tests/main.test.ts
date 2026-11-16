@@ -2290,6 +2290,46 @@ describe('Korean composed in the text field', () => {
       expect(pasted).toEqual(['韓國', '學校에선']);
     });
 
+    it('after a Hanja the word starts again: 學校 then 에 suggests for 에, a pick replaces only 에, and 한자 asks about 에', async () => {
+      const WORDS: Record<string, string[]> = { 에: ['에서', '에게'] };
+      const suggest = (req: SentRequest) => (req.op === 'suggest' ? { ok: true, words: WORDS[req.prefix ?? ''] ?? [] } : undefined);
+      const t = setupField({ sidecar: notDesktop(hanja(suggest)) });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄱㄱㅛ');
+      await tap(t.popup, 'convert');
+      await tap(t.popup, 'Enter'); // 學校
+      await t.typeAll('ㅇㅔ');
+      expect(t.asked.filter((r) => r.op === 'suggest' && !r.prepare).at(-1)!.prefix).toBe('에');
+      expect(t.cands()).toEqual(['에서', '에게']);
+      await tap(t.popup, 'convert');
+      expect(converts(t).at(-1)).toMatchObject({ reading: '에' });
+      await tap(t.popup, 'convert'); // closed
+      const mark = t.sent().length;
+      await t.pick('에서');
+      expect(t.sent().slice(mark)).toEqual(['서', ' ']); // 에 stays, and 學校 before it
+      expect(fieldOf(t.sent())).toBe('學校에서 ');
+    });
+
+    it('in Desktop Mode too: with 學校 waiting in the bar, a pick for 에 keeps it and sends the word whole', async () => {
+      const pasted: string[] = [];
+      const t = setupField({
+        sidecar: hanja((req) => {
+          if (req.op === 'suggest') return { ok: true, words: req.prefix === '에' ? ['에서'] : [] };
+          if (req.op === 'desktop.focus') return { ok: true, desktop: true };
+          if (req.op === 'desktop.prepare') pasted.push(req.text!);
+          return req.op === 'desktop.prepare' ? { ok: true } : req.op === 'desktop.wait' ? { ok: true, pasted: true } : undefined;
+        }),
+      });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄱㄱㅛ');
+      await tap(t.popup, 'convert');
+      await tap(t.popup, 'Enter');
+      await t.typeAll('ㅇㅔ');
+      expect([t.pre(), t.cands()]).toEqual(['學校에', ['에서']]);
+      await t.pick('에서');
+      expect([pasted, t.sent()]).toEqual([['學校에서 '], []]);
+    });
+
     it('in ABC, 한자 does nothing: the English word stays in the bar', async () => {
       const t = setupField({ sidecar: notDesktop(hanja()) });
       await t.opened();

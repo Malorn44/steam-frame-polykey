@@ -392,7 +392,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     const inBar = composes(keyboard);
     if (inBar && converting()) return; // the conversion's candidates show; the word's come back after it
     const english = inBar && latinMode.has(keyboard!.id); // the English word waits in the bar
-    const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText());
+    const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText(), wordChar());
     const lexicon = lexiconId();
     if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
       showWords([]);
@@ -428,9 +428,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
   const latinKeys = (keyboard: KeyboardDef | undefined): boolean =>
     !!keyboard && (composerOf(keyboard)?.latinKeys?.(contextOf(keyboard)) ?? false);
+  /** Which characters make up the word being typed: the composer's in the mode it composes in (Hangul's), else every letter. */
+  const wordChar = (): ((ch: string) => boolean) | undefined => {
+    const keyboard = currentKeyboard();
+    return keyboard && !latinMode.has(keyboard.id) ? composerOf(keyboard)?.wordChar : undefined;
+  };
   /** Follow what is sent into the field: the word being typed, and the word a boundary ended (it counts as used). */
   const track = (effects: readonly Effect[]): void => {
-    const tracked = trackWord(word, effects);
+    const tracked = trackWord(word, effects, wordChar());
     if (tracked.ended) boost(tracked.ended);
     word = tracked.state;
   };
@@ -704,14 +709,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   /**
    * A suggestion in place of the word being typed, then a space: what was sent of the word stays as far
    * as the suggestion starts with it, the rest is deleted (a Backspace a letter or syllable), and what is
-   * still composed in the bar is dropped, never sent.
+   * still composed in the bar is dropped, never sent, but for what goes before the word there (a Hanja).
    */
   const pickWord = (chosen: string): void => {
     const typed = word.word;
+    const waiting = bar.composedText(); // in the bar, the word's unsent part (and a Hanja before it, which stays)
     boost(chosen);
     bar.drop();
     setWord(NO_WORD);
-    enqueue(replaceWord(typed, chosen));
+    enqueue(replaceWord(typed, chosen, wordChar(), waiting));
     pickSpace = true;
   };
 
@@ -987,7 +993,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const sendEffects = (effects: Effect[]): void => {
-    const tracked = trackWord(word, effects);
+    const tracked = trackWord(word, effects, wordChar());
     setWord(tracked.state);
     enqueue(effects);
   };

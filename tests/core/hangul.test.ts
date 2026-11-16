@@ -114,6 +114,13 @@ describe('the hangul-2set composer', () => {
     expect(jamo.filter((ch) => pattern('compoundFinals').test(ch.repeat(3))).join('')).toBe(FINALS);
   });
 
+  it('its words are Hangul: every syllable, and the jamo it types; not a Hanja, a Latin letter or an old jamo', () => {
+    const isWord = hangul2Set.wordChar!;
+    const syllables = Array.from({ length: 11_172 }, (_, i) => String.fromCodePoint(0xac00 + i));
+    expect([...syllables, ...INITIALS, ...MEDIALS, ...FINALS].every(isWord)).toBe(true);
+    expect(['韓', 'a', 'ㅥ', 'ㆎ', '\uabff', '\ud7a4', ' ', '1'].some(isWord)).toBe(false);
+  });
+
   it('without its table the keys type as they are', () => {
     const bare = { ...ctx, table: undefined };
     expect(hangul2Set.press(NO_HANGUL, { type: 'char', char: 'ㄱ' }, { typed: 'ㄱ' }, bare)).toBeNull();
