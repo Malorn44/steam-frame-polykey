@@ -23,11 +23,9 @@ import { modifyTable } from '../kana.js';
 import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
 import { UNDO } from '../keyboard.js';
 import {
-  MAX_READING, builtOnce, type Composer, type ComposerContext, type ComposerInput, type ComposerResult, type Converted, type Learned, type LiveSource,
+  MAX_READING, builtOnce, nextCandidate, picked, type Composer, type ComposerContext, type ComposerInput, type ComposerResult, type Converted,
+  type Learned, type LiveSource, type Segment,
 } from './composer.js';
-
-/** A segment of a conversion, with the candidate picked for it. */
-export interface Segment extends Converted { readonly index: number }
 
 export interface Ime {
   /** The reading, one kana per entry; not sent yet. */
@@ -50,7 +48,7 @@ export const reading = (ime: Ime): string => ime.chars.join('');
 export const composing = (ime: Ime): boolean => ime.chars.length > 0;
 /** What confirming sends now: the picked candidates while converting, else the reading in its form. */
 export const converted = (ime: Ime): string =>
-  (ime.segments ? ime.segments.map((s) => s.candidates[s.index] ?? s.reading).join('') : inForm(reading(ime), ime.form));
+  (ime.segments ? picked(ime.segments).join('') : inForm(reading(ime), ime.form));
 
 
 const commit = (ime: Ime): Result => ({
@@ -61,7 +59,7 @@ const commit = (ime: Ime): Result => ({
     reading: reading(ime),
     lengths: ime.segments.map((s) => Array.from(s.reading).length),
     choices: ime.segments.map((s) => s.index),
-    texts: ime.segments.map((s) => s.candidates[s.index] ?? s.reading),
+    texts: picked(ime.segments),
   } } : {}),
 });
 
@@ -162,11 +160,7 @@ export const pressIme = (
       const next = pressIme(NO_IME, key, input, options, tables);
       return next ? { ...next, effects: [...sent.effects, ...next.effects] } : sent;
     }
-    if (isSpace(key)) {
-      const segments = ime.segments.map((s, i) =>
-        (i === ime.focus && s.candidates.length ? { ...s, index: (s.index + 1) % s.candidates.length } : s));
-      return { state: { ...ime, segments }, effects: [] };
-    }
+    if (isSpace(key)) return { state: { ...ime, segments: nextCandidate(ime.segments, ime.focus) }, effects: [] };
     if (isKey(key, 'ArrowLeft') || isKey(key, 'ArrowRight')) {
       const lengths = ime.segments.map((s) => Array.from(s.reading).length);
       return { state: ime, effects: [], request: { kind: 'convert', lengths, resize: [ime.focus, isKey(key, 'ArrowLeft') ? -1 : 1] } };
@@ -256,8 +250,7 @@ const show: Composer<Ime>['show'] = (ime) => {
   const focused = ime.segments?.[ime.focus];
   return {
     preedit: ime.segments
-      ? { segments: ime.segments.map((s) => s.candidates[s.index] ?? s.reading), focus: ime.focus,
-        candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
+      ? { segments: picked(ime.segments), focus: ime.focus, candidates: focused?.candidates ?? [], selected: focused?.index ?? -1 }
       : { before: inForm(ime.chars.slice(0, ime.caret).join(''), ime.form), after: inForm(ime.chars.slice(ime.caret).join(''), ime.form) },
     // Space converts (次変換 once converting), Enter confirms; かな shows the form it changes the reading to.
     labels: { ' ': ime.segments ? 'next' : 'convert', Enter: 'confirm', kana: ime.segments ? 'katakana' : nextForm(ime.form) },

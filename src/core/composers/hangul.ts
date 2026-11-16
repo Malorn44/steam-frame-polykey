@@ -25,7 +25,7 @@
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
 import type { Effect } from '../keyboard.js';
-import { MAX_READING, builtOnce, type Composer, type ComposerContext, type ComposerResult, type Converted } from './composer.js';
+import { MAX_READING, builtOnce, nextCandidate, picked, type Composer, type ComposerContext, type ComposerResult, type Segment } from './composer.js';
 
 /** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in one or two parts each. */
 export interface Syllable { readonly initial: string; readonly medial: readonly string[]; readonly final: readonly string[] }
@@ -119,12 +119,10 @@ export interface Conversion {
   readonly reading: string;
   /** The syllable being composed as it was, at the reading's end ('' for none). */
   readonly composed: string;
-  /** What goes before the word, the word with its Hanja, then what follows it; null until the converter answers. */
-  readonly segments: readonly Converted[] | null;
+  /** What goes before the word, the word with its Hanja (the one picked), then what follows; null until the converter answers. */
+  readonly segments: readonly Segment[] | null;
   /** Which segment is the word (the one with candidates). */
   readonly focus: number;
-  /** The candidate picked so far. */
-  readonly index: number;
 }
 
 /** The composer's state: the syllable being composed, and a conversion under way. */
@@ -144,7 +142,7 @@ const isConvert = (key: KeyDef): boolean => key.type === 'action' && key.action 
 const isKey = (key: KeyDef, name: string): boolean => key.type === 'key' && key.key === name;
 
 /** The converted word: the conversion's focused segment, once the converter has answered. */
-const wordOf = (conversion: Conversion | null): Converted | undefined => conversion?.segments?.[conversion.focus];
+const wordOf = (conversion: Conversion | null): Segment | undefined => conversion?.segments?.[conversion.focus];
 
 const length = (text: string): number => Array.from(text).length;
 
@@ -173,11 +171,11 @@ const pickHanja = (h: Hangul, text: string, index: number): ComposerResult<Hangu
 /** A press while the bar shows a conversion; null: it ends, and the key acts as it would. */
 const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): ComposerResult<Hangul> | null => {
   const segments = conversion.segments!;
-  const candidates = segments[conversion.focus]!.candidates;
+  const word = segments[conversion.focus]!;
   if (key.type === 'char' && key.char === ' ') {
-    return { state: { ...h, conversion: { ...conversion, index: (conversion.index + 1) % candidates.length } }, effects: [] };
+    return { state: { ...h, conversion: { ...conversion, segments: nextCandidate(segments, conversion.focus) } }, effects: [] };
   }
-  if (isKey(key, 'Enter')) return pickHanja(h, candidates[conversion.index]!, conversion.index);
+  if (isKey(key, 'Enter')) return pickHanja(h, word.candidates[word.index]!, word.index);
   if (isKey(key, 'ArrowLeft') || isKey(key, 'ArrowRight')) {
     // The word with Hanja before it or after it.
     const lengths = segments.map((s) => length(s.reading));
@@ -206,7 +204,7 @@ export const hangul2Set: Composer<Hangul> = {
       const composed = composing(s) ? syllableText(table, s) : '';
       const reading = hangulEnd(ctx.before ?? '', MAX_READING - Array.from(composed).length) + composed;
       if (!reading) return { state: { syllable: s, conversion: null }, effects: [] };
-      return { state: { syllable: s, conversion: { reading, composed, segments: null, focus: 0, index: 0 } }, effects: [], request: { kind: 'convert' } };
+      return { state: { syllable: s, conversion: { reading, composed, segments: null, focus: 0 } }, effects: [], request: { kind: 'convert' } };
     }
     if (typed !== undefined) {
       const added = addJamo(table, s, typed);
@@ -222,10 +220,10 @@ export const hangul2Set: Composer<Hangul> = {
   show: (h, ctx) => {
     const word = wordOf(h.conversion);
     if (h.conversion?.segments && word) {
-      const { segments, focus, index } = h.conversion;
+      const { segments, focus } = h.conversion;
       return {
         preedit: {
-          segments: segments.map((s) => s.reading), focus, candidates: word.candidates, selected: index,
+          segments: picked(segments), focus, candidates: word.candidates, selected: word.index,
           ...(word.notes ? { notes: word.notes } : {}),
         },
         labels: { ' ': 'next' },
@@ -244,7 +242,7 @@ export const hangul2Set: Composer<Hangul> = {
       if (focus < 0 || segments.map((s) => s.reading).join('') !== forReading) {
         return conversion.segments ? h : { ...h, conversion: null }; // nothing to convert to: the text stays as it is
       }
-      return { ...h, conversion: { ...conversion, segments, focus, index: 0 } };
+      return { ...h, conversion: { ...conversion, segments: segments.map((s) => ({ ...s, index: 0 })), focus } };
     },
     live: () => [],
     pick: pickHanja,

@@ -43,6 +43,14 @@ export interface ComposerContext {
  */
 export interface Converted { readonly reading: string; readonly candidates: readonly string[]; readonly notes?: readonly string[] }
 
+/** A segment of a conversion, with the candidate picked for it (none: its reading). */
+export interface Segment extends Converted { readonly index: number }
+/** Each segment as picked so far: what the bar shows while converting, and what confirming sends. */
+export const picked = (segments: readonly Segment[]): string[] => segments.map((s) => s.candidates[s.index] ?? s.reading);
+/** The focused segment's next candidate picked, the first again after the last (Space while converting). */
+export const nextCandidate = (segments: readonly Segment[], focus: number): Segment[] =>
+  segments.map((s, i) => (i === focus && s.candidates.length ? { ...s, index: (s.index + 1) % s.candidates.length } : s));
+
 /** What the bar asks the converter for after a press: live candidates, or a conversion (re-cut, resized). */
 export type ConverterRequest =
   | { readonly kind: 'live' }

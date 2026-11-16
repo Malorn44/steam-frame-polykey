@@ -2142,7 +2142,7 @@ describe('Korean composed in the text field', () => {
       await tap(t.popup, 'convert');
       expect(converts(t)).toMatchObject([{ converter: 'hanja', reading: '한국' }]);
       expect(t.sent()).toHaveLength(mark); // the text stays as it is while the candidates show
-      expect([segments(t), shown(t)]).toEqual([['한국'], [['寒國', ''], ['韓國', '대한민국']]]);
+      expect([segments(t), shown(t)]).toEqual([['寒國'], [['寒國', ''], ['韓國', '대한민국']]]); // the word as picked
       await tapCandidate(t, '韓國');
       expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', '韓國']); // 국 (the composition), then 한
       expect(fieldOf(t.sent())).toBe('韓國');
@@ -2159,7 +2159,7 @@ describe('Korean composed in the text field', () => {
       const mark = t.sent().length;
       await tap(t.popup, 'convert');
       expect(converts(t).at(-1)).toMatchObject({ reading: '학교에서' });
-      expect([segments(t), shown(t)]).toEqual([['학교', '에서'], [['學校', '']]]);
+      expect([segments(t), shown(t)]).toEqual([['學校', '에서'], [['學校', '']]]);
       await tap(t.popup, 'Enter');
       // 서 (the composition), then 에, 교 and 학; then 學校 and 에, and 서, still being composed.
       expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', 'Backspace', 'Backspace', '學校에', '서']);
@@ -2176,11 +2176,11 @@ describe('Korean composed in the text field', () => {
       await tap(t.popup, 'convert');
       await tap(t.popup, 'ArrowLeft'); // none before 학교
       expect(converts(t).at(-1)).toMatchObject({ reading: '학교에서', lengths: [2, 2], resize: [0, -1] });
-      expect(segments(t)).toEqual(['학교', '에서']);
+      expect(segments(t)).toEqual(['學校', '에서']);
       await tap(t.popup, 'ArrowRight');
-      expect([segments(t), shown(t)]).toEqual([['학교에', '서'], [['西', '서녘 서']]]);
+      expect([segments(t), shown(t)]).toEqual([['학교에', '西'], [['西', '서녘 서']]]);
       await tap(t.popup, 'ArrowLeft');
-      expect(segments(t)).toEqual(['학교', '에서']);
+      expect(segments(t)).toEqual(['學校', '에서']);
       await tap(t.popup, 'ArrowRight');
       await tap(t.popup, 'Enter'); // 西 for 서, the composition: no Backspace but its own
       expect(t.sent().slice(mark)).toEqual(['Backspace', '西']);
@@ -2192,15 +2192,15 @@ describe('Korean composed in the text field', () => {
       await t.opened();
       await t.typeAll('ㅎㅏㄱㄱㅛㅎㅏㄴㄱㅜㄱ'); // 학교한국
       await tap(t.popup, 'convert');
-      expect(segments(t)).toEqual(['학교', '한국']);
+      expect(segments(t)).toEqual(['학교', '寒國']);
       await tap(t.popup, 'Backspace');
       await tap(t.popup, ' ');
       await t.typeAll('ㅇㅗㄴㅡㄹㅎㅏㄴㄱㅜㄱ'); // 오늘한국
       const mark = t.sent().length;
       await tap(t.popup, 'convert');
-      expect(segments(t)).toEqual(['오늘', '한국']);
+      expect(segments(t)).toEqual(['오늘', '寒國']);
       await tap(t.popup, ' ');
-      expect(shadowOf(t.popup)!.querySelector('.cand.sel .text')!.textContent).toBe('韓國');
+      expect([segments(t), shadowOf(t.popup)!.querySelector('.cand.sel .text')!.textContent]).toEqual([['오늘', '韓國'], '韓國']);
       await tap(t.popup, 'Enter');
       expect(t.sent().slice(mark)).toEqual(['Backspace', 'Backspace', '韓國']); // 국, the composition, then 한
       expect(fieldOf(t.sent())).toBe('학교한국 오늘韓國');
@@ -2218,6 +2218,8 @@ describe('Korean composed in the text field', () => {
       expect([marked(), space()]).toEqual([true, '다음']);
       await tap(t.popup, ' ');
       expect(shadowOf(t.popup)!.querySelector('.cand.sel .text')!.textContent).toBe('韓國');
+      // The composition shows the word as picked, focused; the field is untouched until a pick.
+      expect([segments(t), shadowOf(t.popup)!.querySelector('.pre .seg.focus')!.textContent, t.sent().slice(mark)]).toEqual([['韓國'], '韓國', []]);
       await tap(t.popup, 'convert'); // closed, the text as it was
       expect([t.sent().slice(mark), shown(t), marked(), space()]).toEqual([[], [], false, 'Space']);
       await tap(t.popup, 'convert'); // and open again, from the first candidate
@@ -2229,7 +2231,7 @@ describe('Korean composed in the text field', () => {
       expect(t.sent().slice(mark)).toEqual(['ㅇ']); // 국 stays, ㅇ starts the next syllable
       expect([fieldOf(t.sent()), marked()]).toEqual(['한국ㅇ', false]);
       await tap(t.popup, 'convert'); // 한국 is still in the word
-      expect(segments(t)).toEqual(['한국', 'ㅇ']);
+      expect(segments(t)).toEqual(['寒國', 'ㅇ']);
       await tap(t.popup, 'Backspace');
       await tap(t.popup, ' ');
       await t.typeAll('ㅇㅓ'); // 어: no word with Hanja, so 한자 does nothing
