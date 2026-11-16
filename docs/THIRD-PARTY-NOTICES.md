@@ -70,8 +70,8 @@ polykey's own code does these, following others' work:
 
 Hanja conversion reads libhangul's dictionary where SteamOS installs it with ibus-hangul
 (`/usr/share/libhangul/hanja/hanja.txt`): BSD-3-Clause, Copyright (c) 2005, 2006 Choe Hwanjin, its
-licence in the file's own header. polykey ships no part of it. What it converts, the longest word
-ending at the caret, follows ibus-hangul's behaviour; none of its code is copied.
+licence in the file's own header. polykey ships no part of it. ibus-hangul's Hanja conversion was read
+for its behaviour; none of its code is copied.
 
 ## Downloaded on request, not included
 

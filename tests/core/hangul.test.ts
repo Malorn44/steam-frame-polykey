@@ -195,15 +195,38 @@ describe('한자: converting the word before the caret', () => {
     expect(hangul2Set.convert!.pick(convertAfter('', 'ㄱㅜㄱ').state, '國', 0, null).effects).toEqual([]); // not answered yet
   });
 
-  it('← and → ask for the word\'s start to move, longer and shorter, and the answer replaces the candidates', () => {
-    const shown = answer(convertAfter('대한', 'ㄱㅜㄱ').state, '한국', ['韓國']);
-    expect(hangul2Set.press(shown, key('ArrowLeft'), {}, ctx)).toEqual({
-      state: shown, effects: [], request: { kind: 'convert', lengths: [1, 2], resize: [1, 1] },
+  /** The converter's answer as segments: a word with Hanja written [like this], with its candidates. */
+  const cut = (state: Hangul, marked: string, candidates: string[]) => {
+    const reading = hangul2Set.convert!.reading(state, ctx);
+    const segments = marked.split(/[[\]]/u).map((part, i) => ({ reading: part, candidates: i === 1 ? candidates : [] })).filter((s) => s.reading);
+    return hangul2Set.convert!.converted(state, reading, segments);
+  };
+
+  it('a word inside the reading: the pick deletes back to its start and types the Hanja, then what followed it; the syllable stays', () => {
+    const shown = cut(convertAfter('학교에', 'ㅅㅓ').state, '[학교]에서', ['學校', '學敎']);
+    expect(hangul2Set.show(shown, ctx).preedit).toEqual({ segments: ['학교', '에서'], focus: 0, candidates: ['學校', '學敎'], selected: 0 });
+    const picked = hangul2Set.convert!.pick(shown, '學校', 0, null);
+    // 학교에 were typed before the composition (서): three Backspaces, then 學校 and 에. 서 is still being composed.
+    expect([backspaces(picked.effects), texts(picked.effects)]).toEqual([3, ['學校에']]);
+    expect([hangul2Set.show(picked.state, ctx).preedit, picked.learned]).toEqual([
+      { before: '서', after: '' }, { reading: '학교', lengths: [2], choices: [0], texts: ['學校'] }]);
+    // In the middle, with nothing composed.
+    const middle = cut(convertAfter('오늘한국어', '').state, '오늘[한국]어', ['韓國']);
+    const sent = hangul2Set.convert!.pick(middle, '韓國', 0, null);
+    expect([backspaces(sent.effects), texts(sent.effects), hangul2Set.composing(sent.state)]).toEqual([3, ['韓國어'], false]);
+  });
+
+  it('← and → ask for the word with Hanja before or after this one, and the answer moves the focus to it', () => {
+    const shown = cut(convertAfter('학교에', 'ㅅㅓ').state, '[학교]에서', ['學校']);
+    expect(hangul2Set.press(shown, key('ArrowRight'), {}, ctx)).toEqual({
+      state: shown, effects: [], request: { kind: 'convert', lengths: [2, 2], resize: [0, 1] },
     });
-    expect(hangul2Set.press(shown, key('ArrowRight'), {}, ctx)!.request).toEqual({ kind: 'convert', lengths: [1, 2], resize: [1, -1] });
-    const shorter = answer(shown, '국', ['國', '局']);
-    expect(hangul2Set.show(shorter, ctx).preedit).toMatchObject({ segments: ['대한', '국'], candidates: ['國', '局'], selected: 0 });
-    expect(hangul2Set.convert!.pick(shorter, '局', 1, null).effects).toEqual([{ kind: 'text', text: '局' }]);
+    const next = cut(shown, '학교에[서]', ['西']);
+    expect(hangul2Set.show(next, ctx).preedit).toMatchObject({ segments: ['학교에', '서'], focus: 1, candidates: ['西'], selected: 0 });
+    expect(hangul2Set.press(next, key('ArrowLeft'), {}, ctx)!.request).toEqual({ kind: 'convert', lengths: [3, 1], resize: [1, -1] });
+    // The last syllable is the composition: picking it drops it, with no Backspace.
+    const picked = hangul2Set.convert!.pick(next, '西', 0, null);
+    expect([picked.effects, picked.state]).toEqual([[{ kind: 'text', text: '西' }], NO_HANGUL]);
   });
 
   it('⌫ ends it with the text as it was; typing ends it, then acts; nothing sends a Hanja that was not picked', () => {
