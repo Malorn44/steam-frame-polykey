@@ -11,7 +11,20 @@ import zipfile
 import pytest
 from aiohttp import web
 
-from fake_speech import PW_RECORD, TRANSCRIBE_CPP, fake_engine, noise, tone, tool, zeros
+from fake_speech import (
+    PW_RECORD,
+    TRANSCRIBE_CPP,
+    clicks,
+    fake_engine,
+    hiss,
+    knocks,
+    noise,
+    tone,
+    tool,
+    typing,
+    voice,
+    zeros,
+)
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.speech import session as session_module
@@ -19,7 +32,8 @@ from polykey.speech.capture import Tools
 from polykey.speech.catalog import Catalog, Engine as EngineInfo, Model
 from polykey.speech.download import Remote
 from polykey.speech.engine import Engine
-from polykey.speech.session import Dictation, bar_level, pick
+from polykey.speech.session import Dictation, Meter, bar_level, pick
+from polykey.speech.vad import FRAME_BYTES, Segmenter
 
 TEXT = "今日は晴れです"
 MODEL_BLOB = b"m" * 300_000
@@ -214,7 +228,9 @@ def test_the_speech_level_reaches_the_page_while_listening_and_silence_sends_not
     make, _, pcm, *_ = setup
     monkeypatch.setenv("FAKE_REALTIME", "1")
     pcm.write_bytes(noise(1.0) + tone(0.6) + noise(3.0))
-    assert bar_level(-70, -50) == 0 and bar_level(-50, -50) == 1 and bar_level(-30, -50) == 6 and bar_level(0, -50) == 8
+    assert bar_level(-70, -50, True) == 0 and bar_level(-50, -50, True) == 1
+    assert bar_level(-30, -50, True) == 4 and bar_level(0, -50, True) == 8
+    assert bar_level(-30, -50, False) == 1 and bar_level(0, -50, False) == 1  # not speech: one step
 
     async def main():
         dictation = make()
@@ -239,7 +255,39 @@ def test_the_speech_level_reaches_the_page_while_listening_and_silence_sends_not
     assert len(updates) < 25  # the tone and its tail only: 0.6 s is 8 levels, then 5 to go flat
 
 
-@pytest.mark.parametrize("audio, code", [(noise(5.0), "no-speech"), (zeros(5.0), "mic-silent")])
+def bars(pcm: bytes) -> list[int]:
+    """The mic key's bars for some audio, one every 80 ms."""
+    segmenter, meter, out = Segmenter(), Meter(), []
+    for i in range(0, len(pcm) - FRAME_BYTES + 1, FRAME_BYTES):
+        segmenter.feed(pcm[i : i + FRAME_BYTES])
+        bar = meter.add(segmenter)
+        if bar is not None:
+            out.append(bar)
+    return out
+
+
+@pytest.mark.parametrize(
+    "sound",
+    [typing(6.0, 3.0), typing(6.0), typing(6.0, 10.0, 12000), clicks(6.0), knocks(6.0), hiss(6.0)],
+    ids=["typing-3", "typing-6", "typing-10-loud", "clicks", "knocks", "hiss"],
+)
+def test_other_sound_shows_as_one_step_of_the_bars(sound):
+    assert max(bars(noise(1.0) + sound)) == 1  # the mic hears it, and no more
+
+
+def test_a_voice_fills_the_bars_by_how_loud_it_is_and_silence_leaves_them_flat():
+    for f0 in (120, 220):
+        assert 5 <= max(bars(noise(1.0) + voice(1.5, f0, -24))) <= 7  # speaking as usual, at the Frame's mic
+        assert max(bars(noise(1.0) + voice(1.5, f0, -36))) >= 3  # softly
+        assert max(bars(noise(1.0) + voice(1.5, f0, -14))) == 8  # loudly
+    assert set(bars(noise(3.0))) == {0} and set(bars(zeros(3.0))) == {0}
+
+
+@pytest.mark.parametrize(
+    "audio, code",
+    [(noise(5.0), "no-speech"), (typing(5.0), "no-speech"), (zeros(5.0), "mic-silent")],
+    ids=["quiet", "typing", "zeros"],
+)
 def test_no_speech_ends_the_session(setup, monkeypatch, audio, code):
     make, _, pcm, *_ = setup
     pcm.write_bytes(audio)
@@ -607,6 +655,25 @@ def test_a_failing_helper_ends_a_continuous_session(continuous, monkeypatch):
     texts, seen = asyncio.run(main())
     assert texts == [] and seen[-1] == {"ok": True, "session": 1, "phase": "error", "error": "helper-failed"}
     assert "dictation 1: helper-failed (0 phrases, 0 dropped)" in out.getvalue()
+
+
+def test_typing_between_phrases_is_not_a_phrase_and_lets_a_forgotten_mic_stop(setup, monkeypatch):
+    make, out, pcm, *_ = setup
+    pcm.write_bytes(noise(0.3) + tone(0.5) + typing(2.5) + tone(0.5) + typing(3.0))
+    monkeypatch.setenv("FAKE_TEXTS", "alpha|bravo|charlie")
+    monkeypatch.setattr(session_module, "IDLE_STOP", 100)  # 2 s without speech, typing or not
+
+    async def main():
+        dictation = make()
+        try:
+            await ask(dictation, "dictation.start", language="en", continuous=True)
+            return await follow_continuous(dictation)
+        finally:
+            await dictation.close()
+
+    texts, seen = asyncio.run(main())
+    assert texts == ["alpha", "bravo"] and seen[-1]["phase"] == "done"
+    assert "dictation 1: idle-stop (2 phrases, 0 dropped)" in out.getvalue()
 
 
 def test_a_forgotten_mic_stops_by_itself(setup, monkeypatch):

@@ -13,6 +13,7 @@ import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStat
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
 import { fjkActive, otherKeyboards } from './host/steam/others.js';
 import { createOutput } from './host/steam/output.js';
+import { createPacer } from './host/steam/pace.js';
 import { mountSurface, overlayRect, type Surface } from './host/steam/popup.js';
 import { missingPrerequisites } from './host/steam/probe.js';
 import { createStockGuard } from './host/steam/stock-guard.js';
@@ -162,11 +163,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
   const tick = (win: Window, which: number): void => { if (settings.haptics) haptic(win, HAPTIC.enter, which); };
 
+  // One line for text and chords: a chord waits for the text before it and its keymap (host/steam/pace.ts).
+  const pacer = createPacer();
   const output = createOutput({
     getManager: () => pickKeyboardManager(g),
     getDelivery: () => chooseDelivery(keyboardMode(readStatus(statusStore)), 'auto'),
+    pacer,
   });
-  const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g) });
+  const keys = createKeySender({ getSetKeyState: () => getSetKeyState(g), pacer });
   const bridge = createBridge(g);
   const dictation = createDictation({
     call: bridge.call, onState: (state) => view?.setMic(state), onText: (text) => placeDictated(text), log,
@@ -347,6 +351,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
+    if (repeat && swipeWait) return; // a repeat waiting for the word would come after its key's release
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     if (!dictates(key)) dictatedTail = null; // typed in between: the next phrase joins what is known now
@@ -1044,6 +1049,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         live = [];
         showIme();
         keys.releaseAll(); // closing must never leave a key held
+        view?.cancel(); // nor one repeating
         dictation.cancel(); // nor the mic listening
         mods = { ...NO_MODS, caps: mods.caps };
         view?.update(mods);

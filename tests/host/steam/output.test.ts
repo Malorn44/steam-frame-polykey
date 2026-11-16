@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Delivery } from '../../../src/core/output/plan.js';
+import { createKeySender } from '../../../src/host/steam/keys.js';
 import { createOutput } from '../../../src/host/steam/output.js';
+import { createPacer } from '../../../src/host/steam/pace.js';
 import { fakeManager } from '../../fake-steam.js';
 
 const run: Delivery = { policy: 'run', gapMs: 0, settleMs: 0 };
@@ -18,7 +20,7 @@ describe('createOutput', () => {
   it('waits the gap between calls, not before the first', async () => {
     const manager = fakeManager();
     const sleeps: number[] = [];
-    const send = createOutput({ getManager: () => manager, getDelivery: () => chars, sleep: async (ms) => { sleeps.push(ms); } });
+    const send = createOutput({ getManager: () => manager, getDelivery: () => chars, pacer: createPacer({ sleep: async (ms) => { sleeps.push(ms); } }) });
     await send([{ text: 'テスト' }]);
     expect(manager.calls.map(([k]) => k)).toEqual(['テ', 'ス', 'ト']);
     expect(sleeps).toEqual([40, 40]);
@@ -51,7 +53,7 @@ describe('createOutput', () => {
     const send = createOutput({
       getManager: () => manager,
       getDelivery: () => chars,
-      sleep: () => new Promise((resolve) => setTimeout(resolve, 1)),
+      pacer: createPacer({ sleep: () => new Promise((resolve) => setTimeout(resolve, 1)) }),
     });
     await Promise.all([send([{ text: 'ab' }]), send([{ text: 'cd' }])]);
     expect(manager.calls.map(([k]) => k).join('')).toBe('abcd');
@@ -62,13 +64,17 @@ describe('a keymap swap settles before the next call (minimal mode)', () => {
   const minimal: Delivery = { policy: 'run', gapMs: 0, settleMs: 60 };
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
-  /** A sender whose calls are recorded with the time they were made. */
+  /** The text sender and the key sender on one pacer, as main.ts has them; calls are recorded with their time. */
   const timed = (delivery: () => Delivery = () => minimal) => {
     const at: [string, number][] = [];
     const start = Date.now();
-    const manager = { HandleVirtualKeyDown: (key: string) => { at.push([key, Date.now() - start]); } };
-    return { at, send: createOutput({ getManager: () => manager, getDelivery: delivery }) };
+    const mark = (what: string) => { at.push([what, Date.now() - start]); };
+    const pacer = createPacer();
+    const manager = { HandleVirtualKeyDown: (key: string) => mark(key) };
+    const keys = createKeySender({ getSetKeyState: () => (code, down) => mark(`${code}${down ? '↓' : '↑'}`), pacer });
+    return { at, keys, send: createOutput({ getManager: () => manager, getDelivery: delivery, pacer }) };
   };
+  const ctrlInsert = [[103, true], [110, true], [110, false], [103, false]] as const;
 
   it('the call after a non-ASCII run waits; ASCII calls with nothing to settle do not', async () => {
     const { at, send } = timed();
@@ -112,6 +118,32 @@ describe('a keymap swap settles before the next call (minimal mode)', () => {
     void send([{ text: 'う' }]);
     await vi.advanceTimersByTimeAsync(1000);
     expect(at).toEqual([['あ', 0], ['い', 40], ['う', 40]]);
+  });
+
+  it('a chord after a non-ASCII call waits too: before its first press, never with a key held', async () => {
+    const { at, keys, send } = timed();
+    void send([{ text: 'かな' }]); // nobody waits for it: the chord still goes after
+    void keys.send(ctrlInsert, 8);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(at).toEqual([['かな', 0], ['103↓', 60], ['110↓', 68], ['110↑', 76], ['103↑', 84]]);
+  });
+
+  it('a chord after ASCII, or in buffered mode, is not slowed', async () => {
+    for (const delivery of [minimal, chars]) {
+      const { at, keys, send } = timed(() => delivery);
+      void send([{ text: 'a' }]);
+      void keys.send(ctrlInsert, 0);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(at.map(([, t]) => t)).toEqual([0, 0, 0, 0, 0]);
+    }
+  });
+
+  it('text after a chord waits for the chord, in order', async () => {
+    const { at, keys, send } = timed();
+    void keys.send(ctrlInsert, 8);
+    void send([{ text: 'あ' }]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(at).toEqual([['103↓', 0], ['110↓', 8], ['110↑', 16], ['103↑', 24], ['あ', 24]]);
   });
 
   it('the settle time is read at each send', async () => {

@@ -33,6 +33,11 @@ export interface ListenOptions {
   readonly capture?: boolean;
 }
 
+/** Touch events a view claimed: a node following its touch (see listenTouch) passes on only the others. */
+const claimed = new WeakSet<Event>();
+/** What follows a touch's start, all sent to the node it started on. */
+const LATER = ['touchmove', 'touchend', 'touchcancel'] as const;
+
 /** Listen for a view's touches (and its mouse clicks); returns a function that stops listening. */
 export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, capture = false }: ListenOptions = {}): (() => void) => {
   const options = { capture, passive: false } as const;
@@ -41,10 +46,12 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
     el.addEventListener(type, listener, opts);
     added.push([type, listener, opts]);
   };
+  const listeners: Partial<Record<string, EventListener>> = {};
   const claim = (type: 'touchstart' | 'touchmove' | 'touchend', handler: TouchHandler | undefined): void => {
     if (!handler) return;
-    on(type, (e) => {
+    on(type, listeners[type] = (e) => {
       if (handler(touchPoint(e), e) === false) return;
+      claimed.add(e);
       e.preventDefault();
       e.stopPropagation();
       if (type !== 'touchmove') guard?.touched();
@@ -53,7 +60,31 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
   claim('touchstart', handlers.start);
   claim('touchmove', handlers.move);
   claim('touchend', handlers.end);
-  if (handlers.cancel) on('touchcancel', handlers.cancel, options);
+  if (handlers.cancel) on('touchcancel', listeners['touchcancel'] = handlers.cancel, options);
+
+  // A touch's later events go to the node it started on, even once that node has left the page (a key's
+  // icon drawn again under a held press). Then they never reach `el`, and the gesture never ends: a held
+  // Backspace repeats on. So that node passes them on itself, until no touch that started on it is left.
+  const followed = new Set<EventTarget>();
+  const unfollow = (node: EventTarget): void => {
+    for (const type of LATER) node.removeEventListener(type, relay);
+    followed.delete(node);
+  };
+  const relay = (e: Event): void => {
+    // Still in the page it reaches `el` as ever; one claimed by a view already followed is that view's.
+    if (!e.composedPath().includes(el) && !claimed.has(e)) listeners[e.type]?.(e);
+    if (e.type !== 'touchmove' && !(e as TouchEvent).targetTouches?.length && e.currentTarget) unfollow(e.currentTarget);
+  };
+  if (LATER.some((type) => listeners[type])) {
+    on('touchstart', (e) => {
+      // The only touch down: any node still followed lost its touch's end.
+      if (((e as TouchEvent).touches?.length ?? 0) <= 1) for (const node of followed) unfollow(node);
+      const node = e.composedPath()[0];
+      if (!node || node === el || followed.has(node)) return;
+      followed.add(node);
+      for (const type of LATER) node.addEventListener(type, relay, { passive: false });
+    }, { capture, passive: true });
+  }
   const click = handlers.click;
   if (click) {
     on('click', (e) => {
@@ -64,7 +95,10 @@ export const listenTouch = (el: EventTarget, handlers: TouchHandlers, { guard, c
       click(e as MouseEvent);
     }, { capture });
   }
-  return () => { for (const [type, listener, opts] of added) el.removeEventListener(type, listener, opts); };
+  return () => {
+    for (const [type, listener, opts] of added) el.removeEventListener(type, listener, opts);
+    for (const node of followed) unfollow(node);
+  };
 };
 
 /** A press on a scrolling list, which turns into a drag of it once it moves past `slop`. */

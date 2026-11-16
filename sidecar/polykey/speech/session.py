@@ -20,21 +20,24 @@ bridge (bridge.py routes `dictation.*` here):
                                 {session, phase: listening|transcribing|done|error|cancelled, text?, error?,
                                  seq?, bars?, texts?, recognizing?}
 
-A session takes one phrase: it ends after 0.6 s of quiet once speech has started, or with `no-speech`
-when none starts. A continuous session takes phrase after phrase: each pause ends one, which is
-recognized (in order, one at a time) while listening goes on, and its text handed out in `texts`. It
-ends when stopped (the phrase under way is still recognized), on an error, or after IDLE_STOP without a
-phrase starting (a forgotten mic); a phrase without words is dropped, and so is one that ends while
-recognition is MAX_BEHIND behind. Text is handed out once, and dropped anyway after UNCLAIMED seconds.
+A session takes one phrase: it ends 0.6 s after the voice stops once speech has started, or with
+`no-speech` when none starts (typing and other noise do not start one: vad.py). A continuous session
+takes phrase after phrase: each pause ends one, which is recognized (in order, one at a time) while
+listening goes on, and its text handed out in `texts`. It ends when stopped (the phrase under way is
+still recognized), on an error, or after IDLE_STOP without a phrase starting (a forgotten mic); a
+phrase without words is dropped, and so is one that ends while recognition is MAX_BEHIND behind. Text
+is handed out once, and dropped anyway after UNCLAIMED seconds.
 
 Audio and text are never logged or written; the log gets codes and durations only. The bars are five
-small numbers for the mic key, worked out from the frames already read; they are sent only while
-speech is heard (and until they are flat again), so silence costs nothing.
+small numbers for the mic key, worked out from the frames already read (Meter): speech raises them,
+other sound shows as one step. They are sent only while something is heard (and until they are flat
+again), so silence costs nothing.
 """
 
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import re
 from collections import deque
@@ -68,7 +71,7 @@ LANGUAGE = re.compile(r"^[a-z]{2,3}$")
 BARS = 5
 LEVEL_FRAMES = 4  # a level every 80 ms
 LEVEL_MAX = 8
-LEVEL_STEP_DB = 4.0
+LEVEL_STEP_DB = 5.5  # speech at the Frame's mic (about -24 dBFS) is 6 of 8, a soft voice 4, a loud one 8
 
 
 def data_dir() -> Path:
@@ -77,9 +80,31 @@ def data_dir() -> Path:
     return Path(base) / "polykey" / "speech"
 
 
-def bar_level(level_db: float, gate_db: float) -> int:
-    """0 below the speech gate, then a step per LEVEL_STEP_DB above it, up to LEVEL_MAX."""
-    return 0 if level_db < gate_db else min(LEVEL_MAX, 1 + int((level_db - gate_db) / LEVEL_STEP_DB))
+def bar_level(level_db: float, gate_db: float, speech: bool) -> int:
+    """0 below the speech gate, then a step per LEVEL_STEP_DB above it, up to LEVEL_MAX for speech and
+    1 for any other sound (typing, a knock): the key shows the mic hears it, and no more."""
+    if level_db < gate_db:
+        return 0
+    return min(LEVEL_MAX if speech else 1, 1 + int((level_db - gate_db) / LEVEL_STEP_DB))
+
+
+class Meter:
+    """The mic key's next bar every LEVEL_FRAMES frames: their average level, so one click among them
+    does not spike it, and the full scale only if the Segmenter counted one of them as speech."""
+
+    def __init__(self) -> None:
+        self._power, self._speech, self._count = 0.0, False, 0
+
+    def add(self, segmenter: Segmenter) -> Optional[int]:
+        """Take the frame the Segmenter was just fed; the bar once LEVEL_FRAMES are in, else None."""
+        self._power += 10 ** (segmenter.level / 10)
+        self._speech = self._speech or segmenter.speech
+        self._count += 1
+        if self._count < LEVEL_FRAMES:
+            return None
+        level = bar_level(10 * math.log10(self._power / self._count), segmenter.gate(), self._speech)
+        self._power, self._speech, self._count = 0.0, False, 0
+        return level
 
 
 def pick(catalog: Catalog, language: str, choices: dict, ready: set) -> Optional[Model]:
@@ -307,27 +332,18 @@ class Dictation:
             self._log.info(f"{name}: failed ({type(error).__name__})")
             self._set("error", error="failed")
 
-    def _show_level(self, peak_db: float, gate_db: float) -> None:
-        """The next bar for the mic key; nothing once the bars are flat and it is still quiet."""
-        level = bar_level(peak_db, gate_db)
-        if level == 0 and not any(self._bars):
+    def _show_level(self, level: Optional[int]) -> None:
+        """The next bar for the mic key, if there is one; nothing once the bars are flat and it is still quiet."""
+        if level is None or (level == 0 and not any(self._bars)):
             return
         self._bars.append(level)
         self._news()
-
-    def _meter(self, segmenter: Segmenter, peak: float, count: int) -> tuple[float, int]:
-        """A bar for the mic key every LEVEL_FRAMES frames, from the loudest of them."""
-        peak, count = max(peak, segmenter.level), count + 1
-        if count < LEVEL_FRAMES:
-            return peak, count
-        self._show_level(peak, segmenter.gate())
-        return -1e9, 0
 
     async def _listen(self, name: str) -> bytes:
         recorder = Recorder(self.tools)
         segmenter = Segmenter()
         pcm: Optional[bytes] = None
-        peak, count = -1e9, 0
+        meter = Meter()
         await recorder.start()
         self._log.info(f"{name}: listening ({recorder.route})")
         try:
@@ -337,7 +353,7 @@ class Dictation:
                     pcm = segmenter.finish()
                     break
                 pcm = segmenter.feed(frame)
-                peak, count = self._meter(segmenter, peak, count)
+                self._show_level(meter.add(segmenter))
                 if pcm is None and not segmenter.in_phrase and segmenter.frames >= NO_SPEECH:
                     # Only exact zeros: the headset is off the head (or the mic is muted).
                     raise SpeechError("mic-silent" if segmenter.all_zero else "no-speech")
@@ -399,7 +415,7 @@ class Dictation:
         """Queue each phrase as it ends; how listening ended: `stopped` or `idle-stop`."""
         recorder = Recorder(self.tools)
         segmenter = Segmenter()
-        peak, count, quiet = -1e9, 0, 0
+        meter, quiet = Meter(), 0
         await recorder.start()
         self._log.info(f"{name}: listening continuously ({recorder.route})")
         try:
@@ -411,7 +427,7 @@ class Dictation:
                         self._queue(name, phrases, counts, tail)
                     return "stopped"
                 pcm = segmenter.feed(frame)
-                peak, count = self._meter(segmenter, peak, count)
+                self._show_level(meter.add(segmenter))
                 if pcm:
                     self._queue(name, phrases, counts, pcm)
                 quiet = 0 if segmenter.in_phrase else quiet + 1

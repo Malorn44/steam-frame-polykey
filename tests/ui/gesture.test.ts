@@ -55,6 +55,86 @@ describe('listenTouch', () => {
     expect(clicks).toEqual(['view', 'outer', 'outer']); // no longer ours
   });
 
+  describe('a touch whose node leaves the page (drawn again under the press)', () => {
+    // As in Chrome: a touch's events all go to the node it started on, so once that node is out of the
+    // page they no longer reach the view's element.
+    const view = (capture = false) => {
+      const el = document.createElement('div');
+      const label = el.appendChild(document.createElement('span'));
+      const icon = label.appendChild(document.createElement('i'));
+      document.body.append(el);
+      const seen: string[] = [];
+      const stop = listenTouch(el, {
+        start: () => { seen.push('start'); },
+        move: (p) => { seen.push(`move ${p?.x}`); },
+        end: (p) => { seen.push(`end ${p?.x}`); },
+        cancel: () => { seen.push('cancel'); },
+      }, { capture });
+      return { el, label, icon, seen, stop };
+    };
+
+    it('still reaches the view: its moves, its end (claimed) and its cancel', () => {
+      const { label, icon, seen } = view();
+      touch(icon, 'touchstart');
+      label.replaceChildren(document.createElement('i'));
+      expect(icon.isConnected).toBe(false);
+      touch(icon, 'touchmove', 1);
+      const end = touch(icon, 'touchend', 2);
+      expect(end.defaultPrevented).toBe(true);
+      label.replaceChildren(icon);
+      touch(icon, 'touchstart');
+      label.replaceChildren();
+      touch(icon, 'touchcancel');
+      expect(seen).toEqual(['start', 'move 1', 'end 2', 'start', 'cancel']);
+    });
+
+    it('once each, in the page or out of it, listening in either phase', () => {
+      for (const capture of [false, true]) {
+        const { label, icon, seen } = view(capture);
+        touch(icon, 'touchstart');
+        touch(icon, 'touchmove', 1);
+        label.replaceChildren();
+        touch(icon, 'touchmove', 2);
+        touch(icon, 'touchend', 3);
+        expect(seen).toEqual(['start', 'move 1', 'move 2', 'end 3']);
+      }
+    });
+
+    it('no longer after its end, nor after the view stops listening', () => {
+      const { label, icon, seen, stop } = view();
+      touch(icon, 'touchstart');
+      label.replaceChildren();
+      touch(icon, 'touchend', 1);
+      touch(icon, 'touchend', 2); // its touch is over: the node no longer passes anything on
+      label.append(icon);
+      touch(icon, 'touchstart');
+      stop();
+      label.replaceChildren();
+      touch(icon, 'touchend', 3);
+      expect(seen).toEqual(['start', 'end 1', 'start']);
+    });
+
+    it('only to the view that claims it, as in the page (one listening across the shadow root, one on its keys)', () => {
+      const host = document.createElement('div');
+      document.body.append(host);
+      const shadow = host.attachShadow({ mode: 'open' });
+      const keys = shadow.appendChild(document.createElement('div'));
+      const icon = keys.appendChild(document.createElement('i'));
+      const seen: string[] = [];
+      let picking = true;
+      listenTouch(shadow, { end: () => { seen.push('picker'); return picking; } }, { capture: true });
+      listenTouch(keys, { start: () => {}, end: () => { seen.push('keys'); } });
+      for (const on of [true, false]) {
+        picking = on;
+        keys.append(icon);
+        touch(icon, 'touchstart');
+        icon.remove();
+        touch(icon, 'touchend');
+      }
+      expect(seen).toEqual(['picker', 'picker', 'keys']); // claimed by the picker, then left to the keys
+    });
+  });
+
   it('reads the touch point, or none', () => {
     const e = new Event('touchstart');
     expect(touchPoint(e)).toBeNull();
