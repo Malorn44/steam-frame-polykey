@@ -72,7 +72,7 @@ export interface Bar {
 const segmentsOf = (reply: BridgeReply): Converted[] =>
   (reply.ok && Array.isArray(reply['segments']) ? reply['segments'] as Converted[] : []);
 
-export const createBar = ({ call, available, enqueue, show, warn, keyboard, retype = () => false, target = () => '', spaceInWord = false }: {
+export const createBar = ({ call, available, enqueue, show, warn, keyboard, retype = () => false, target = () => '' }: {
   call: Call;
   available: () => boolean;
   /** Send effects in order; a send into the field carries `inline`, and is skipped once it is no longer live. */
@@ -86,8 +86,6 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
   retype?: () => boolean;
   /** Where typing goes now (the field's target, '' while closed): what is in the field belongs to one. */
   target?: () => string;
-  /** Space goes into the word waiting in the bar, instead of sending it. */
-  spaceInWord?: boolean;
 }): Bar => {
   /** The composer's state, kept with the composer that made it. */
   let held: { composer: Composer<unknown>; state: unknown } | null = null;
@@ -259,10 +257,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, rety
       // Enter sends it without pressing Enter (a search starts only with nothing in the bar).
       if (key.type === 'key' && key.key === 'Backspace' && word && !composing(kb)) word = graphemes(word).slice(0, -1).join('');
       else if (key.type === 'key' && key.key === 'Enter') flush();
-      else if (spaceInWord && input.typed === ' ') {
-        if (composing(kb)) apply(kb, kb.composer.flush(stateOf(kb), kb.ctx));
-        word += ' ';
-      } else return false;
+      else return false;
       show();
       return true;
     },
