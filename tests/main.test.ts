@@ -2054,8 +2054,8 @@ describe('Korean composed in the text field', () => {
     t.manager.OnActiveElementChanged.Dispatch(null);
     t.popup.document.dispatchEvent(new Event('blur')); // nothing in the field: nothing to say
     const said = logged.filter((line) => line.includes('composing in the field'));
-    expect(said).toEqual(['[polykey] composing in the field: the keyboard lost focus; the syllable stays as it is',
-      '[polykey] composing in the field: a new field; the syllable stays as it is']);
+    expect(said).toEqual(['[polykey] composing in the field: the keyboard lost focus; what was composed stays as it is',
+      '[polykey] composing in the field: a new field; what was composed stays as it is']);
   });
 
   it('never logs what is typed, the syllable in the field included', async () => {
