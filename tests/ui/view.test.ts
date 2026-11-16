@@ -634,6 +634,47 @@ describe('hold to repeat', () => {
     expect(left.querySelector('.sidep .bar')).not.toBeNull(); // the toolbar sits under the candidates
   });
 
+  it('more candidates than fit: the list scrolls to keep the picked one in view as it moves on, and back to the start', () => {
+    const boot = bundledBoot();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
+    view.update(NO_MODS);
+    const list = shadow.querySelector<HTMLElement>('.comp .list')!;
+    // jsdom lays nothing out: the list 200px wide, 245px from the keyboard's left (after the toolbar and the
+    // reading), each candidate 60px wide in it, moved by its scroll.
+    Object.defineProperty(list, 'clientWidth', { value: 200 });
+    const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 26, height: 26, x: left, y: 0, toJSON: () => ({}) });
+    const layout = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this === list) return rect(245, 200);
+      const index = this.classList.contains('cand') ? [...list.children].indexOf(this) : -1;
+      return index >= 0 ? rect(245 + index * 60 - list.scrollLeft, 60) : rect(0, 0);
+    });
+    const candidates = Array.from({ length: 16 }, (_, i) => `漢${i}`);
+    const shown = () => {
+      const at = shadow.querySelector<HTMLElement>('.cand.sel')!.getBoundingClientRect();
+      return at.left >= 245 && at.right <= 445;
+    };
+    try {
+      for (const selected of [0, 1, 2, 3, 4, 5, 6]) {
+        view.setComposition({ segments: ['한'], focus: 0, candidates, selected });
+        expect([selected, shown()]).toEqual([selected, true]);
+      }
+      expect(list.scrollLeft).toBe(6 * 60 + 60 + 8 - 200); // the 7th at the right, with room to spare, no further
+      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 5 }); // still in view: no scroll
+      expect(list.scrollLeft).toBe(6 * 60 + 60 + 8 - 200);
+      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 15 });
+      expect(shown()).toBe(true);
+      view.setComposition({ segments: ['한'], focus: 0, candidates, selected: 0 }); // wrapped back to the first
+      expect([shown(), list.scrollLeft]).toEqual([true, 0]);
+      view.setComposition({ before: 'か', after: '', candidates, selected: -1 }); // none picked: from the start
+      expect(list.scrollLeft).toBe(0);
+    } finally {
+      layout.mockRestore();
+    }
+  });
+
   it('a reading longer than the bar scrolls to keep the caret, or the focused segment, in view', async () => {
     const boot = bundledBoot();
     const host = document.createElement('div');
