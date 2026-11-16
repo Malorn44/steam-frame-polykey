@@ -13,7 +13,7 @@
   "romajiInput": false,
   "swipe": false
  },
- "features": {"swipe": {"lexicon": "en/words"}},
+ "features": {"swipe": {}},
  "modes": [
   {"id": "kana"},
   {"id": "latin", "letters": "ABC", "latin": true, "lexicon": "en/words"}

@@ -76,13 +76,23 @@ describe('the swiped word', () => {
 });
 
 describe('swipe on a keyboard', () => {
-  const keyboard: KeyboardDef = { id: 'en/x', name: 'X', layout: 'en/qwerty', features: { swipe: { lexicon: 'en/words' } }, options: { swipe: true } };
+  const keyboard: KeyboardDef = { id: 'en/x', name: 'X', layout: 'en/qwerty', lexicon: 'en/words', features: { swipe: {} }, options: { swipe: true } };
 
   it('needs the feature and the option, which the user may turn off', () => {
-    expect(swipeLexicon(keyboard, undefined)).toBe('en/words');
-    expect(swipeLexicon(keyboard, { swipe: false })).toBeUndefined();
-    expect(swipeLexicon({ ...keyboard, options: {} }, { swipe: true })).toBeUndefined(); // no option offered
-    expect(swipeLexicon({ ...keyboard, features: {} }, undefined)).toBeUndefined();
+    expect(swipeLexicon(keyboard, undefined, false)).toBe('en/words');
+    expect(swipeLexicon(keyboard, { swipe: false }, false)).toBeUndefined();
+    expect(swipeLexicon({ ...keyboard, options: {} }, { swipe: true }, false)).toBeUndefined(); // no option offered
+    expect(swipeLexicon({ ...keyboard, features: {} }, undefined, false)).toBeUndefined();
     expect(offered(keyboard)).toContain('swipe');
+  });
+
+  it('decodes against the word list of the mode it is in; a mode without one does not swipe', () => {
+    const modes: KeyboardDef = { id: 'ja/x', name: 'X', layout: 'ja/qwerty-romaji', composer: 'kana', features: { swipe: {} }, options: { swipe: true },
+      modes: [{ id: 'kana' }, { id: 'latin', letters: 'ABC', latin: true, lexicon: 'en/words' }] };
+    expect([swipeLexicon(modes, undefined, false), swipeLexicon(modes, undefined, true)]).toEqual([undefined, 'en/words']);
+    const korean: KeyboardDef = { ...modes, composer: 'hangul-2set', modes: [{ id: 'hangul', lexicon: 'ko/words' }, modes.modes![1]!] };
+    expect([swipeLexicon(korean, undefined, false), swipeLexicon(korean, undefined, true)]).toEqual(['ko/words', 'en/words']);
+    // An older pack's list here is not read: the keyboard's own is.
+    expect(swipeLexicon({ ...keyboard, features: { swipe: { lexicon: 'mine/words' } } }, undefined, false)).toBe('en/words');
   });
 });

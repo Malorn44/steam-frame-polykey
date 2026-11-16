@@ -878,16 +878,13 @@
             "swipe": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "lexicon"
-              ],
               "properties": {
                 "lexicon": {
                   "$ref": "#/$defs/id",
-                  "description": "The word list a swipe is decoded against (packs/<ns>/<name>.tsv)."
+                  "description": "Not read: older packs named the swipe word list here."
                 }
               },
-              "description": "Swipe typing over the letter keys (the swipe option turns it on and off). On a Japanese keyboard, in its 英数 mode."
+              "description": "Swipe typing over the letter keys (the swipe option turns it on and off), decoded against the word list of the mode it is in (lexicon, or the mode's), its words spelled as its suggestions are. A mode without one does not swipe: on a Japanese keyboard, only 英数 swipes."
             }
           }
         },

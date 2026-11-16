@@ -8,6 +8,6 @@
  "layout": "en/qwerty",
  "composer": "direct",
  "lexicon": "en/words",
- "features": {"swipe": {"lexicon": "en/words"}},
+ "features": {"swipe": {}},
  "options": {"swipe": false}
 }

@@ -410,6 +410,10 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const currentKeyboard = () => boot?.catalog.keyboards[ring[current] ?? ''];
+  /** The layout a keyboard shows now: its own, or its page for the mode and the symbols page it is on (core/pages.ts). */
+  const layoutOf = (keyboard: KeyboardDef): Layout | undefined => boot?.catalog.layouts[pageLayout(keyboard, {
+    latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[keyboard.id]).qwertyLatin,
+  })];
   /** A keyboard's language pack (its letters, bar words, idle hint, dictation language). */
   const languageFor = (keyboard: KeyboardDef | undefined) => languageOf(boot?.catalog.languages, keyboard);
   /** What a keyboard's composer reads: its options as set, its table and its main layout. */
@@ -488,7 +492,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     else {
       view?.setMode(latinMode.has(keyboard.id));
       showBar(); // the keys too, and which mode key is marked
-      prepareSuggestions(); // the keys drawn anew, in a mode that may suggest from another list
+      prepareSuggestions(); // the keys drawn anew, in a mode that may suggest and swipe from another list
+      prepareSwipe();
     }
   };
 
@@ -721,13 +726,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * The word list a swipe decodes against now, if the keyboard swipes: while its swipe option is on, and
-   * on a Japanese keyboard only in 英数 mode on its letters (never in kana mode or on a symbols page).
+   * The word list a swipe decodes against now, the mode's, if the keyboard swipes: while its swipe option
+   * is on, and on a keyboard that composes only in its Latin mode on its letters (never in kana mode or on
+   * a symbols page).
    */
   const swipeNow = (): string | undefined => {
     const keyboard = currentKeyboard();
     if (!keyboard || page !== 'keys' || (composes(keyboard) && (!latinMode.has(keyboard.id) || symbolsOn.has(keyboard.id)))) return undefined;
-    return swipeLexicon(keyboard, keyboardOptions[keyboard.id]);
+    return swipeLexicon(keyboard, keyboardOptions[keyboard.id], latinMode.has(keyboard.id));
   };
 
   /**
@@ -783,12 +789,16 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   /**
-   * Have the sidecar load the word list a swipe needs, and index it for the keys shown, as the keyboard is
-   * drawn: the first swipe does not wait. It is a no-op once built.
+   * Have the sidecar load the word list the current mode swipes with, and index it for the keys shown, as
+   * the keyboard is drawn: the first swipe does not wait. It is a no-op once built.
    */
-  const prepareSwipe = (lexicon: string | undefined, layout: Layout): void => {
-    if (!lexicon || !bridge.available()) return;
-    const letters = new Set(layout.rows.flat().map(normalizeKey).flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
+  const prepareSwipe = (): void => {
+    const lexicon = swipeNow();
+    const keyboard = currentKeyboard();
+    const layout = keyboard && layoutOf(keyboard);
+    if (!lexicon || !layout || !bridge.available()) return;
+    const keys = layout.rows.flat().map(normalizeKey);
+    const letters = new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : [])));
     if (letters.size < 2) return; // a page without letters (the 12-key's kana): when its letters show
     void bridge.call('swipe', { lexicon, keys: Object.fromEntries([...letters].map((c) => [c, [0, 0]])), prepare: true }, 10_000);
   };
@@ -854,9 +864,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     const keyboard = boot.catalog.keyboards[id];
-    const layout = keyboard && boot.catalog.layouts[pageLayout(keyboard, {
-      latin: latinMode.has(keyboard.id), symbols: symbolsOn.get(keyboard.id) ?? 0, qwerty: optionsFor(keyboard, keyboardOptions[id]).qwertyLatin,
-    })];
+    const layout = keyboard && layoutOf(keyboard);
     const theme = themeFor(surface.win);
     if (!layout || !theme) {
       warn(`keyboard ${id} has no layout or theme; showing Steam's keyboard`);
@@ -943,9 +951,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       panel.setScroll(settingsScroll); // sized first, so the lists can scroll
       updates.follow(); // what the updater says now (and while a check or download runs)
     } else {
-      // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
-      const swipes = bridge.available() ? swipeLexicon(keyboard, keyboardOptions[id]) : undefined;
-      prepareSwipe(swipes, layout);
+      prepareSwipe();
       prepareSuggestions();
       // With dictation off there is no mic on the toolbar (no gap either); Settings → Dictation turns it on.
       // With one keyboard in your list 🌐 has nowhere to go: the layout's rows without it.
@@ -956,7 +962,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const hint = idleHint(keyboard, language);
       view = createView(surface.doc, surface.shadow, shown, theme, onKey, onSuggestion, onCandidate,
         { side: optionsFor(keyboard, keyboardOptions[id]).candidatesLeft, hints: optionsFor(keyboard, keyboardOptions[id]).flickHints,
-          onSwipe: swipes ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
+          // Swipes need the sidecar to decode them; without it a press that moves off a letter still types it.
+          onSwipe: bridge.available() ? onSwipe : undefined, canSwipe: () => swipeNow() !== undefined,
           latin: latinMode.has(id), romaji: latinKeys(keyboard), symbols: symbolsOn.get(id) ?? 0, letters: modeLetters(keyboard, latinMode.has(id), language),
           otherLetters: modeLetters(keyboard, !latinMode.has(id), language),
           // Holding 🌐: each keyboard's language small above its layout.

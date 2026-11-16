@@ -46,9 +46,12 @@ export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
   (Object.keys(OPTIONS) as OptionName[]).filter((name) =>
     (name === 'dictationCommit' ? takesDictation(keyboard) : name in (keyboard?.options ?? {})));
 
-/** The word list a swipe is decoded against, while the keyboard can swipe and its swipe option is on. */
-export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): string | undefined =>
-  (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? keyboard.features.swipe.lexicon : undefined);
+/**
+ * The word list a swipe is decoded against: the one the keyboard's current mode suggests from (latin: its
+ * Latin mode), while the keyboard can swipe and its swipe option is on.
+ */
+export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined, latin: boolean): string | undefined =>
+  (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? suggestLexicon(keyboard, latin) : undefined);
 
 /**
  * The word list suggested from in the keyboard's current mode (latin: its Latin mode): a keyboard with
