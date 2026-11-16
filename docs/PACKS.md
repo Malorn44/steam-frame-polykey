@@ -22,7 +22,7 @@ A file with a mistake is skipped, never fatal. Its error shows at the foot of th
 
 Every item has `schemaVersion` (1), `kind`, `id` and `name`. [`packs/pack.schema.json`](../packs/pack.schema.json) describes every field.
 
-- **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme.
+- **theme:** the colours. `surface`, `key`, `keyText`, `modifier` and `accent` are required, and the other colours fall back to them. Add `"tone": "light"` for a light theme. Text on the accent, the Fn colour, the hover colour and a pressed key is the theme's own where it reads at 4.5:1; where it would not, polykey uses another of the theme's text colours, or white or black.
 - **layout:** the keys, row by row, and the toolbar above them. A layout can `extends` another and replace only some of its rows.
 - **keyboard:** a layout and what typing on it does: its language, its word list for suggestions, the options it offers in settings, and, for Japanese, how it composes and converts. A keyboard can `extends` another too.
 - **table:** a romaji table (ka → か), or the cycles of the ゛゜小 key.
