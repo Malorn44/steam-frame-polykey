@@ -128,7 +128,7 @@ A language of yours replaces the bundled one with its code: to change the Japane
 
 ## A Hangul table
 
-The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layout) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+The Korean keyboards' composer (`"composer": "hangul-2set"`, for the 2-set layout and 천지인) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
 
 ```json
 "hangul": {
@@ -137,7 +137,7 @@ The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layou
 }
 ```
 
-- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). A pair's jamo are three vowels, or three consonants that can end a syllable.
+- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). What a pair makes joins the next jamo in turn: 천지인's table makes every vowel of the strokes ㅣ ㆍ ㅡ that way (`"ㅣㆍㅏ"`, then `"ㅏㆍㅑ"`), its ㆍ and ᆢ being strokes, no vowel alone. A pair's jamo are three vowels (or strokes), or three consonants that can end a syllable.
 - The jamo themselves are Unicode's, not the table's: a syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each its jamo's place in Unicode's lists (in `src/core/composers/hangul.ts`). ㄸ, ㅃ and ㅉ end no syllable, so they always start a new one.
 - Another Hangul layout is its own layout pack, with this table or one of its own.
 - With `"converter": "hanja"`, a key whose action is `convert` (the bundled layout's 한자) converts the word before the caret to Hanja, from the system's libhangul dictionary.

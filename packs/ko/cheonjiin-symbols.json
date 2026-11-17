@@ -1,0 +1,12 @@
+{
+  "$schema": "../pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ko/cheonjiin-symbols",
+  "name": "Korean 12-key numbers and symbols",
+  "description": "The 천지인 keyboard's ?123 page: the Japanese 12-key's (ja/flick-symbols), with ₩ for ¥. =\\< goes on to ja/flick-symbols2.",
+  "extends": "ja/flick-symbols",
+  "rows": {
+    "1": [{"char": "@"}, {"char": "#"}, {"char": "₩"}, {"char": "÷"}, {"char": "&"}, {"char": "-"}, {"char": "+"}, {"char": "("}, {"char": ")"}, {"char": "/"}]
+  }
+}
