@@ -11,14 +11,15 @@ const ctx: ComposerContext = { options: optionsFor(undefined, undefined), table:
 const BACKSPACE: KeyDef = { type: 'key', key: 'Backspace' };
 
 /**
- * Press keys in turn, each a jamo (or any character a key types), ⌫ for Backspace: what was sent, what the
- * bar shows, and the state left (its syllable). A press not for the composer is written <like this>.
+ * Press keys in turn, each a jamo (or any character a key types) or one of `named`, ⌫ for Backspace: what
+ * was sent, what the bar shows, and the state left (its syllable). A press not for the composer is written <like this>.
  */
-const type = (keys: string, from: Hangul = NO_HANGUL) => {
+const type = (keys: string, from: Hangul = NO_HANGUL, c = ctx, named: Readonly<Record<string, KeyDef>> = {}) => {
   let s = from;
   let sent = '';
   for (const ch of Array.from(keys)) {
-    const result = ch === '⌫' ? hangul2Set.press(s, BACKSPACE, {}, ctx) : hangul2Set.press(s, { type: 'char', char: ch }, { typed: ch }, ctx);
+    const key = ch === '⌫' ? BACKSPACE : named[ch] ?? { type: 'char', char: ch };
+    const result = hangul2Set.press(s, key, key.type === 'char' ? { typed: key.char } : {}, c);
     if (!result) {
       sent += `<${ch}>`;
       continue;
@@ -26,13 +27,13 @@ const type = (keys: string, from: Hangul = NO_HANGUL) => {
     s = result.state;
     for (const effect of result.effects) if (effect.kind === 'text') sent += effect.text;
   }
-  const shown = hangul2Set.show(s, ctx).preedit;
+  const shown = hangul2Set.show(s, c).preedit;
   return { sent, bar: 'before' in shown ? shown.before : '', syllable: s };
 };
 /** Everything typed, the last syllable flushed (as the bar does on Space or a keyboard switch). */
-const written = (keys: string): string => {
-  const { sent, syllable } = type(keys);
-  return sent + hangul2Set.flush(syllable, ctx).effects.map((e) => (e.kind === 'text' ? e.text : '')).join('');
+const written = (keys: string, c = ctx): string => {
+  const { sent, syllable } = type(keys, NO_HANGUL, c);
+  return sent + hangul2Set.flush(syllable, c).effects.map((e) => (e.kind === 'text' ? e.text : '')).join('');
 };
 
 describe('the hangul-2set composer', () => {
@@ -124,6 +125,47 @@ describe('the hangul-2set composer', () => {
   it('without its table the keys type as they are', () => {
     const bare = { ...ctx, table: undefined };
     expect(hangul2Set.press(NO_HANGUL, { type: 'char', char: 'ㄱ' }, { typed: 'ㄱ' }, bare)).toBeNull();
+  });
+});
+
+describe('천지인: the 2-set composer, with strokes and tap cycles', () => {
+  const ctxC: ComposerContext = { ...ctx, table: JSON.parse(readFileSync('packs/ko/hangul-cheonjiin.json', 'utf8')) as TableDef };
+  const keys: Record<string, KeyDef> = {
+    ㄷ: { type: 'char', char: 'ㄷ', cycle: ['ㄷ', 'ㄸ'] }, '.': { type: 'char', char: '.', cycle: ['.', ','] }, '→': { type: 'key', key: 'ArrowRight' },
+  };
+  const tap = (taps: string) => type(taps, NO_HANGUL, ctxC, keys);
+
+  it('makes every vowel of the strokes ㅣ ㆍ ㅡ, each joining the vowel before it', () => {
+    const strokes: Record<string, string> = {
+      ㅣ: 'ㅣ', ㅡ: 'ㅡ', ㅏ: 'ㅣㆍ', ㅓ: 'ㆍㅣ', ㅗ: 'ㆍㅡ', ㅜ: 'ㅡㆍ', ㅢ: 'ㅡㅣ', ㅑ: 'ㅣㆍㆍ', ㅕ: 'ㆍㆍㅣ', ㅛ: 'ㆍㆍㅡ', ㅠ: 'ㅡㆍㆍ',
+      ㅐ: 'ㅣㆍㅣ', ㅔ: 'ㆍㅣㅣ', ㅚ: 'ㆍㅡㅣ', ㅟ: 'ㅡㆍㅣ', ㅒ: 'ㅣㆍㆍㅣ', ㅖ: 'ㆍㆍㅣㅣ', ㅘ: 'ㆍㅡㅣㆍ', ㅝ: 'ㅡㆍㆍㅣ', ㅙ: 'ㆍㅡㅣㆍㅣ', ㅞ: 'ㅡㆍㆍㅣㅣ',
+    };
+    expect(Object.keys(strokes).sort().join('')).toBe(Array.from(MEDIALS).sort().join(''));
+    for (const [vowel, made] of Object.entries(strokes)) expect(written(`ㅇ${made}`, ctxC), vowel).toBe(written(`ㅇ${vowel}`));
+    expect([tap('ㄱㆍ').bar, tap('ㄱㆍㆍ').bar]).toEqual(['ㄱㆍ', 'ㄱᆢ']); // a stroke is shown as it is until it makes a vowel
+  });
+
+  it('a key tapped again types its cycle\'s next character; what a tap sent is held until the cycle ends; → ends it', () => {
+    expect(['ㄷ', 'ㄷㄷ', 'ㄷㄷㄷ'].map((taps) => tap(taps).bar)).toEqual(['ㄷ', 'ㄸ', 'ㄷ']);
+    expect(tap('ㄱㅣㆍㄷㄷ')).toMatchObject({ sent: '', bar: '가ㄸ' }); // ㄸ ends no syllable: 가 is sent, but held
+    expect(tap('ㄱㅣㆍㄷㄷㄷ')).toMatchObject({ sent: '', bar: '갇' }); // and taken back
+    expect(tap('ㄱㅣㆍㄷㄷㅣㆍ')).toMatchObject({ sent: '가', bar: '따' });
+    expect(tap('ㄷ→ㄷㅣㆍ')).toMatchObject({ sent: 'ㄷ', bar: '다' });
+    expect(tap('→').sent).toBe('<→>'); // with no tap to end, → is the field's
+    expect(tap('ㄱㅣㆍ..')).toMatchObject({ sent: '', bar: '가,' }); // a cycle of punctuation sends the syllable first
+    expect(tap('ㄱㅣㆍ..ㄷ')).toMatchObject({ sent: '가,', bar: 'ㄷ' });
+  });
+
+  it('⌫ takes the last stroke off, and the last tap back', () => {
+    expect(['', '⌫', '⌫⌫', '⌫⌫⌫', '⌫⌫⌫⌫', '⌫⌫⌫⌫⌫'].map((back) => tap(`ㄱㆍㅡㅣㆍ${back}`).bar)).toEqual(['과', '괴', '고', 'ㄱㆍ', 'ㄱ', '']);
+    expect([tap('ㄱㅣㆍㄷ⌫'), tap('ㄱㅣㆍㄷㄷ⌫')]).toMatchObject([{ sent: '', bar: '가' }, { sent: '', bar: '가' }]);
+  });
+
+  it('한자 ends an open tap first: what it held is sent, and is part of the word converted', () => {
+    const typed = tap('ㅎㅣㆍㄴㄷ'); // the tap sent 한: held while it may still become ㄸ
+    expect([typed.sent, typed.bar]).toEqual(['', '한ㄷ']);
+    const asked = hangul2Set.press(typed.syllable, { type: 'action', action: 'convert' }, {}, { ...ctxC, before: '' })!;
+    expect([asked.effects, hangul2Set.convert!.reading(asked.state, ctxC)]).toEqual([[{ kind: 'text', text: '한' }], '한ㄷ']);
   });
 });
 

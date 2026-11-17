@@ -1,0 +1,14 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "ko/12key",
+ "name": "천지인",
+ "description": "The 천지인 12-key: vowels built from ㅣ ㆍ ㅡ, consonants by tapping a key again (ㄱ → ㅋ → ㄲ). It composes as 두벌식 does (ko/korean, which it extends): a vowel after a final takes it on, in the text field, with Korean word suggestions, 한자 and 한/영. No swipe typing.",
+ "extends": "ko/korean",
+ "layout": "ko/cheonjiin",
+ "pages": {"latin": "ko/qwerty", "symbols": ["ko/cheonjiin-symbols", "ja/flick-symbols2"]},
+ "table": "ko/hangul-cheonjiin",
+ "features": {},
+ "options": {}
+}

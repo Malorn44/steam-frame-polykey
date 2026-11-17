@@ -1,0 +1,15 @@
+{
+  "$schema": "../pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ko/cheonjiin",
+  "name": "Korean 12-key (천지인)",
+  "description": "The 천지인 phone keypad (KS X 5020, 2011): the strokes ㅣ ㆍ ㅡ make every vowel (ㅣ ㆍ → ㅏ), and a consonant key tapped again goes on to its next consonant (ㄱ → ㅋ → ㄲ); → ends a tap, to type the same key again (학교). The punctuation key cycles . , ? ! too. Round the keypad: 한자, the arrows, 한/영 and ?123.",
+  "large": true,
+  "rows": [
+    [{"action": "convert", "label": "한자"}, {"char": "ㅣ"}, {"char": "ㆍ"}, {"char": "ㅡ"}, {"key": "Backspace"}],
+    [{"key": "ArrowLeft"}, {"cycle": ["ㄱ", "ㅋ", "ㄲ"], "label": "ㄱㅋ"}, {"cycle": ["ㄴ", "ㄹ"], "label": "ㄴㄹ"}, {"cycle": ["ㄷ", "ㅌ", "ㄸ"], "label": "ㄷㅌ"}, {"key": "ArrowRight"}],
+    [{"action": "mode", "legends": {"c": {"parts": ["한", "영"]}}}, {"cycle": ["ㅂ", "ㅍ", "ㅃ"], "label": "ㅂㅍ"}, {"cycle": ["ㅅ", "ㅎ", "ㅆ"], "label": "ㅅㅎ"}, {"cycle": ["ㅈ", "ㅊ", "ㅉ"], "label": "ㅈㅊ"}, {"key": "Enter"}],
+    [{"action": "next-keyboard", "w": 0.5}, {"action": "symbols", "w": 0.5, "alone": {"w": 1}}, {"flick": {"left": ",", "up": "?", "right": "!"}, "cycle": [".", ",", "?", "!"], "flickHints": true}, {"cycle": ["ㅇ", "ㅁ"], "label": "ㅇㅁ"}, {"char": " ", "w": 2}]
+  ]
+}

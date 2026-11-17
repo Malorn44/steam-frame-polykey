@@ -1,5 +1,6 @@
 // Tap cycles, as on a phone's 12-key: tapping a key again types its next character in place of the last
-// (か → き → く, a → b → c), and another key ends it. Pure: the reading and the English word each replace their own way.
+// (か → き → く, a → b → c, ㄱ → ㅋ → ㄲ), and another key ends it. Pure: the reading, the English word and the
+// syllable each replace their own way.
 
 import type { KeyDef } from './catalog.js';
 import { DIRECTIONS } from './kana.js';

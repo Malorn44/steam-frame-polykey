@@ -63,6 +63,14 @@ def test_prefixes_complete_on_the_keys_typed():
     assert complete("hel") == [] and lexicon.complete("hel", 5) == ["hello"]  # Latin is not Hangul
 
 
+def test_cheonjiin_spells_vowels_as_their_strokes():
+    table = packs.read_json((BUNDLED / "ko" / "hangul-cheonjiin.json").read_text(encoding="utf-8"))["hangul"]
+    speller = SPELLERS["hangul-2set"](table)
+    assert speller.spell("ㄱㆍ") == "ㄱㆍ" and speller.spell("ㄱᆢ") == "ㄱㆍㆍ"  # strokes that make no vowel yet
+    complete = lambda prefix: Lexicon.parse(WORDS).complete(prefix, 5, speller)
+    assert complete("ㄱㆍ") == ["과일", "고기"] and complete("기") == ["감사", "가방"]  # 기 is on the way to 가
+
+
 def test_spellers_are_by_composer_and_spell_with_the_keyboards_table():
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]["keyboard"]
     assert set(SPELLERS) <= set(schema["properties"]["composer"]["enum"]) and set(SPELLERS) <= set(COMPOSER_TABLES)
