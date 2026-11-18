@@ -84,7 +84,7 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
   if (!own || derived === NONE) return derived;
   const slots = { ...derived.slots };
   for (const [slot, def] of Object.entries(own) as [SlotName, LegendDef | undefined][]) {
-    // The page's label wins in c, as does the tap character while flick hints show.
+    // While flick hints show, c is the tap character: the rest are at the edges.
     if (def === undefined || (slot === 'c' && (ctx.label !== undefined || derived.arrangement === 'edges'))) continue;
     const legend = def === null ? undefined : fromDef(def, slot, ctx, key, slots[slot]);
     if (legend) slots[slot] = legend;
@@ -158,8 +158,7 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     return { arrangement: 'quad', slots };
   }
 
-  // Flick hints: the tap character, and each direction's small at the key's left, top, right and bottom
-  // edge, as Shift and Caps type it (capitals on the ABC page), like the label without hints and the flick guide.
+  // Flick hints, in the case Shift and Caps type (capitals on the ABC page), as the flick guide shows them.
   if (key.type === 'char' && key.flick && (ctx.hints || key.flickHints)) {
     const slots: Partial<Record<SlotName, Legend>> = { c: text(ctx.label ?? flickText(key.char, mods), 'key', 'text') };
     for (const [slot, way] of [['l', 'left'], ['t', 'up'], ['r', 'right'], ['b', 'down']] as const) {

@@ -661,7 +661,6 @@ def _without_alone(key: Any) -> Any:
 
 
 def _with_char(key: Any) -> Any:
-    """A char key that leaves out char types its cycle's first."""
     return {**key, "char": key["cycle"][0]} if isinstance(key, dict) and "cycle" in key and "char" not in key else key
 
 

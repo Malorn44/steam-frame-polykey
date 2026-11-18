@@ -28,8 +28,7 @@ export type LegendDefs = Partial<Record<LegendSlot, LegendDef>>;
 
 /**
  * A key. On a JIS key, char and shift are its Latin legends (typed in 英数 mode) and kana and kanaShift
- * its kana legends (typed in かな mode). A 12-key key flicks (flick: what each way types) and taps step
- * through its cycle (core/cycle.ts); a pack may leave out char, and the loader makes it cycle[0].
+ * its kana legends (typed in かな mode). A pack may leave out char, and the loader makes it cycle[0].
  */
 export type CharKey = {
   type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey;

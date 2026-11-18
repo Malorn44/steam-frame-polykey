@@ -489,8 +489,7 @@ export const createView = (
   /**
    * Show the guide over the key: the tap kana in the middle, the flick kana left, above, right and below.
    * Sized like fjk's: square cells 94% of the key's height, one key height apart, kana at 62% of the
-   * cell; a direction with nothing is shown faded. The cross moves inward where it would leave the keyboard
-   * (false: the key does not flick).
+   * cell; a direction with nothing is shown faded. The cross moves inward where it would leave the keyboard.
    */
   const openFlick = (entry: Entry, start: { x: number; y: number }): boolean => {
     const { key } = entry;
@@ -781,7 +780,7 @@ export const createView = (
       const way = DIRECTIONS[pick]!;
       const text = way === 'tap' ? undefined : key.flick?.[way];
       if (way === 'tap') onKey(key); // a tap: the 12-key decides (it may cycle)
-      else if (text) onKey(key, flickText(text, mods)); // as its guide shows it (a/A: capitals); a direction with nothing types nothing
+      else if (text) onKey(key, flickText(text, mods)); // in the case its guide shows (a/A)
       return;
     }
     const slot = slotFor(e.target);

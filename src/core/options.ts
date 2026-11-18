@@ -29,8 +29,8 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
 
 /**
  * The keyboard's options with the user's choices applied (only options the keyboard has; the others off,
- * but tapCycle on: a key with a cycle steps through it unless the keyboard offers to stop it). A keyboard
- * whose composer takes dictated text offers dictationCommit; packs do not list it.
+ * but tapCycle on: a keyboard that can't turn cycles off has them). A keyboard whose composer takes
+ * dictated text offers dictationCommit; packs do not list it.
  */
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
   const own = keyboard?.options ?? {};
