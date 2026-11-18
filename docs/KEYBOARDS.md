@@ -58,7 +58,7 @@ The standard 2-set (두벌식) layout: consonants on the left, vowels on the rig
 
 ### 천지인
 
-The phone 12-key (KS X 5020): tap ㅣ ㆍ ㅡ to build a vowel (ㅣ ㆍ → ㅏ, ㆍ ㅡ → ㅗ, ㅣ ㆍ ㆍ → ㅑ), and a consonant key again for its next consonant (ㄱ → ㅋ → ㄲ). To type the same key twice (학교), → ends the first tap. ⌫ takes the last stroke or tap back. It composes as 두벌식 does, a vowel after a final taking it on, without swipe typing; ?123 has the digits and symbols, and 한/영 goes to the ABC keyboard.
+The phone 12-key (KS X 5020): tap ㅣ ㆍ ㅡ to build a vowel (ㅣ ㆍ → ㅏ, ㆍ ㅡ → ㅗ, ㅣ ㆍ ㆍ → ㅑ), and a consonant key again for its next consonant (ㄱ → ㅋ → ㄲ). To type the same key twice (학교), → ends the first tap. ⌫ takes the last stroke or tap back. It composes as 두벌식 does, a vowel after a final taking it on; ?123 has the digits and symbols, and 한/영 goes to ABC, the Japanese 12-key's QWERTY page, where swipe typing works once on (the keypad never swipes).
 
 ### 천지인 플러스
 
