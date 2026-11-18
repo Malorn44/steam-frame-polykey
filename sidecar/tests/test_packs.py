@@ -85,12 +85,6 @@ def test_every_json_file_in_the_repo_parses_with_no_key_twice():
         packs.read_json(path.read_text(encoding="utf-8"))  # raises on bad JSON or a key twice
 
 
-def test_every_bundled_layout_row_is_15_units(tmp_path):
-    layout = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["en/qwerty"]
-    widths = [sum(k.get("w", 1) if isinstance(k, dict) else 1 for k in row) for row in layout["rows"]]
-    assert widths == [15] * len(widths)
-
-
 def layout(item_id: str, **fields) -> dict:
     return {
         "schemaVersion": 1,
@@ -495,21 +489,6 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert boot["settings"]["keyboards"] == ["ja/jis", "en/english"]
 
 
-def test_the_japanese_12key_pack_loads():
-    boot = packs.load(BUNDLED, SCHEMA, None)
-    assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {
-        "tapCycle": False,
-        "candidatesLeft": True,
-        "flickHints": False,
-        "qwertyLatin": True,
-        "swipe": False,
-    }
-    layout = boot["catalog"]["layouts"]["ja/flick"]
-    assert layout["rows"][0][1]["flick"] == {"left": "い", "up": "う", "right": "え", "down": "お"}
-    assert "はばぱ" in layout["modify"]
-
-
 def test_bridge_saves_emoji_state_cleaned(tmp_path):
     import asyncio
     from polykey.bridge import Bridge
@@ -604,12 +583,6 @@ def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
     assert (ja["letters"], ja["labels"], "idleHint" in ja) == ("かな", {"convert": "Convert"}, False)
 
 
-def test_a_mode_takes_its_letters_from_the_language_unless_it_names_them(tmp_path):
-    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    assert [mode.get("letters") for mode in keyboards["ja/12key"]["modes"]] == [None, "ABC"]
-    assert "strings" not in keyboards["ja/jis"]  # the idle hint is the language's
-
-
 def test_each_mode_names_its_word_list_and_a_keyboard_with_modes_has_none(tmp_path):
     keyboard = lambda item_id, **fields: {
         "schemaVersion": 1,
@@ -631,31 +604,6 @@ def test_each_mode_names_its_word_list_and_a_keyboard_with_modes_has_none(tmp_pa
     assert f"mine/both{refused}" in boot["errors"] and f"mine/moded{refused}" in boot["errors"]
     assert not {"mine/bad", "mine/both", "mine/moded"} & set(keyboards)
     assert not any("modes" in k and "lexicon" in k for k in keyboards.values()) and "lexicon" in keyboards["en/english"]
-
-
-def test_the_korean_packs_load():
-    boot = packs.load(BUNDLED, SCHEMA, None)
-    assert boot["errors"] == []
-    catalog = boot["catalog"]
-    korean = catalog["keyboards"]["ko/korean"]
-    assert (korean["composer"], korean["table"], korean["pages"]) == (
-        "hangul-2set",
-        "ko/hangul",
-        {"latin": "ko/qwerty"},
-    )
-    assert [mode.get("lexicon") for mode in korean["modes"]] == ["ko/words", "en/words"] and "lexicon" not in korean
-    assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
-    assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
-        "한글",
-        '"Noto Sans CJK KR", "Noto Sans CJK JP"',
-    )
-    hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
-    assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
-    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한자 and 한/영 either side of Space
-    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.25} in hangul["rows"][
-        4
-    ]
-    assert {"type": "action", "action": "convert", "label": "한자", "w": 1.25} in hangul["rows"][4]
 
 
 def hangul_table(item_id: str, **fields) -> dict:

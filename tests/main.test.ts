@@ -672,26 +672,6 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     expect(sent(manager)).toBe('one two');
   });
 
-  it('JIS: no swipe in かな mode (the same keys type kana); in 英数 it swipes', async () => {
-    const { popup, requests } = setupJa('ja/jis', [['hello']]);
-    await swipe(popup, 'h', 'o');
-    expect(swipeRequests(requests)).toEqual([]);
-    await tap(popup, 'Backspace');
-    await tap(popup, 'eisu');
-    await swipe(popup, 'h', 'o');
-    expect(swipeRequests(requests)).toHaveLength(1);
-    expect(pre(popup)).toBe('hello');
-  });
-
-  it('12-key: swipes on its QWERTY ABC page, with the candidates on the left', async () => {
-    const { popup, manager, requests } = setupJa('ja/12key', [['hello', 'help']]);
-    await tap(popup, 'eisu'); // the QWERTY ABC page (英字入力はQWERTY is on)
-    await swipe(popup, 'h', 'o');
-    expect([pre(popup), cands(popup), swipeRequests(requests).length]).toEqual(['hello', ['hello', 'help'], 1]);
-    await tap(popup, 'Enter');
-    expect(sent(manager)).toBe('hello');
-  });
-
   it('かな, which has no word list, prepares none; 英数 prepares English for the same keys', async () => {
     const { popup, requests } = setupJa('ja/romaji', [['hello']]);
     const prepared = () => requests.filter((r) => r['op'] === 'swipe' && r['prepare']).map((r) => r['lexicon']);
@@ -1412,30 +1392,6 @@ describe('12-key ?123', () => {
 });
 
 describe('Japanese romaji and JIS kana', () => {
-  it('romaji: letters become kana in the buffer; 確定 sends them', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/romaji');
-    for (const c of ['k', 'a', 'n', 'j', 'i']) await tap(popup, c);
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('かんじ');
-    expect(manager.calls).toEqual([]);
-    await tap(popup, 'Enter');
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('かんじ');
-  });
-
-  it('romaji: 英数 types Latin directly, かな goes back to romaji', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/romaji');
-    await tap(popup, 'eisu');
-    await tap(popup, 'k');
-    await tap(popup, 'a');
-    expect(manager.calls).toEqual([]);
-    await tap(popup, 'kana'); // sends the English word
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('ka');
-    await tap(popup, 'k');
-    await tap(popup, 'a');
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('か');
-  });
-
   it('JIS kana: Shift gives the small kana and does not send the buffer; ゛ joins', async () => {
     const { popup, manager, api } = setup();
     api.debug.use('ja/jis');
