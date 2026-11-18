@@ -20,6 +20,19 @@ HANGUL = packs.read_json((PACKS / "ko" / "hangul.json").read_text(encoding="utf-
 SPELLER = HangulSpeller(HANGUL["hangul"])
 CATALOG = packs.load(PACKS, PACKS / "pack.schema.json", user=Path("/nonexistent"))["catalog"]
 BUNDLED_SPELLERS = Spellers(lambda: CATALOG)
+
+
+def typed_by(key: str | dict) -> set[str]:
+    """Everything a key types: its char and Shift's, its flicks, its tap cycle and what holding it offers."""
+    if isinstance(key, str):
+        return {key}
+    return {key.get("char", ""), key.get("shift", "")} | {
+        *key.get("flick", {}).values(),
+        *key.get("cycle", []),
+        *key.get("long", []),
+    }
+
+
 WORDS = (
     "한국\t200\n하나\t150\n하고\t300\n학교\t120\n달걀\t40\n닭\t30\n과일\t60\n고기\t50\n감사\t90\n가방\t20\nhello\t10\n"
 )
@@ -41,10 +54,8 @@ def test_hangul_is_spelled_as_the_keys_typed():
     "keyboard_id", sorted(k for k in CATALOG["keyboards"] if isinstance(BUNDLED_SPELLERS.get(k), HangulSpeller))
 )
 def test_every_syllable_is_spelled_with_the_keyboards_keys(keyboard_id):
-    keys: set[str] = set()
-    for row in CATALOG["layouts"][CATALOG["keyboards"][keyboard_id]["layout"]]["rows"]:
-        for key in row:
-            keys.update([key] if isinstance(key, str) else [key.get("char", ""), key.get("shift", "")])
+    rows = CATALOG["layouts"][CATALOG["keyboards"][keyboard_id]["layout"]]["rows"]
+    keys = {typed for row in rows for key in row for typed in typed_by(key)}
     spelled = {BUNDLED_SPELLERS.get(keyboard_id).spell(chr(code)) for code in range(0xAC00, 0xD7A4)}
     assert None not in spelled and len(spelled) == 11_172  # each syllable its own keys
     assert set("".join(spelled)) <= keys
