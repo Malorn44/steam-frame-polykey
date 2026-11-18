@@ -60,6 +60,10 @@ The standard 2-set (두벌식) layout: consonants on the left, vowels on the rig
 
 The phone 12-key (KS X 5020): tap ㅣ ㆍ ㅡ to build a vowel (ㅣ ㆍ → ㅏ, ㆍ ㅡ → ㅗ, ㅣ ㆍ ㆍ → ㅑ), and a consonant key again for its next consonant (ㄱ → ㅋ → ㄲ). To type the same key twice (학교), → ends the first tap. ⌫ takes the last stroke or tap back. It composes as 두벌식 does, a vowel after a final taking it on, without swipe typing; ?123 has the digits and symbols, and 한/영 goes to the ABC keyboard.
 
+### 천지인 플러스
+
+천지인 with a key for each consonant, round the same keys. A tense consonant is its plain key tapped again (ㄱ → ㄲ) or its aspirated one held (ㅋ → ㄲ, shown in that key's corner, as on Samsung's); the vowels and the rest are as on 천지인.
+
 ## Toolbar
 
 Settings (theme, haptics, suggestions, updates and the keyboard's own options; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste, menu (the context menu, as Shift+F10) and ✕, which closes the keyboard.
