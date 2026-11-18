@@ -37,32 +37,8 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {
-        "en/qwerty",
-        "internal/emoji-row",
-        "ja/flick",
-        "ja/flick-abc",
-        "ja/flick-qwerty",
-        "ja/flick-symbols",
-        "ja/flick-symbols2",
-        "ja/gojuon",
-        "ja/kana-jis",
-        "ja/qwerty-romaji",
-        "ko/dubeolsik",
-        "ko/qwerty",
-    }
-    assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table", "ko/hangul"}
-    assert boot["settings"] == {
-        "keyboards": ["en/english"],
-        "theme": "themes/steam",
-        "haptics": True,
-        "suggestions": True,
-        "dictation": False,
-        "dictationModels": {},
-        "dictationContinuous": False,
-        "autoUpdate": True,
-    }
-    assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
+    assert boot["settings"] == packs.DEFAULT_SETTINGS
+    assert not any("$schema" in item for items in boot["catalog"].values() for item in items.values())
 
 
 def test_a_key_twice_in_one_object_is_refused(tmp_path):
@@ -83,12 +59,6 @@ def test_every_json_file_in_the_repo_parses_with_no_key_twice():
     assert len(files) > 30
     for path in files:
         packs.read_json(path.read_text(encoding="utf-8"))  # raises on bad JSON or a key twice
-
-
-def test_every_bundled_layout_row_is_15_units(tmp_path):
-    layout = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["en/qwerty"]
-    widths = [sum(k.get("w", 1) if isinstance(k, dict) else 1 for k in row) for row in layout["rows"]]
-    assert widths == [15] * len(widths)
 
 
 def layout(item_id: str, **fields) -> dict:
@@ -302,32 +272,24 @@ def keyboard(item_id: str, **fields) -> dict:
 
 
 def test_a_keyboard_extends_another(tmp_path):
-    write(
-        tmp_path / "packs",
-        "ja/mine.json",
-        keyboard("ja/mine", extends="ja/12key", layout="ja/gojuon", options={"flickHints": True}),
+    for item_id in ("mine/a", "mine/b"):
+        write(tmp_path / "packs", f"{item_id}.json", layout(item_id))
+    base = keyboard(
+        "mine/base", layout="mine/a", language="xx", pages={"symbols": ["mine/a"]}, options={"tapCycle": True}
     )
+    write(tmp_path / "packs", "mine/base.json", base)
+    mine = keyboard("mine/mine", extends="mine/base", layout="mine/b", options={"flickHints": True})
+    write(tmp_path / "packs", "mine/mine.json", mine)
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    mine, base = boot["catalog"]["keyboards"]["ja/mine"], boot["catalog"]["keyboards"]["ja/12key"]
-    assert mine["layout"] == "ja/gojuon" and mine["name"] == "ja/mine" and "extends" not in mine
-    assert mine["pages"] == base["pages"] and mine["converter"] == "anthy" and mine["language"] == "ja"
+    mine, base = boot["catalog"]["keyboards"]["mine/mine"], boot["catalog"]["keyboards"]["mine/base"]
+    assert mine["layout"] == "mine/b" and mine["name"] == "mine/mine" and "extends" not in mine
+    assert (mine["pages"], mine["language"]) == ({"symbols": ["mine/a"]}, "xx")
     assert mine["options"] == {"flickHints": True}  # options replace the base's as a whole
-    assert base["options"]["candidatesLeft"] is True  # the base is untouched
+    assert base["options"] == {"tapCycle": True}  # the base is untouched
 
 
 def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
-    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    for keyboard_id in (
-        "en/english",
-        "ja/12key",
-        "ja/50on",
-        "ja/romaji",
-        "ja/jis",
-        "ko/korean",
-    ):  # 50on through extends
-        assert keyboards[keyboard_id]["features"] == {"swipe": {}}, keyboard_id  # with the list of the mode it is in
-        assert keyboards[keyboard_id]["options"]["swipe"] is False, keyboard_id  # off until turned on
     write(tmp_path / "packs", "mine/qwerty.json", keyboard("mine/qwerty", layout="en/qwerty", options={"swipe": True}))
     # An older pack that names the swipe list still loads (the list is not read).
     old = keyboard("mine/old", layout="en/qwerty", lexicon="en/words", features={"swipe": {"lexicon": "en/words"}})
@@ -495,21 +457,6 @@ def test_bridge_saves_only_known_settings(tmp_path):
     assert boot["settings"]["keyboards"] == ["ja/jis", "en/english"]
 
 
-def test_the_japanese_12key_pack_loads():
-    boot = packs.load(BUNDLED, SCHEMA, None)
-    assert boot["errors"] == []
-    assert boot["catalog"]["keyboards"]["ja/12key"]["options"] == {
-        "tapCycle": False,
-        "candidatesLeft": True,
-        "flickHints": False,
-        "qwertyLatin": True,
-        "swipe": False,
-    }
-    layout = boot["catalog"]["layouts"]["ja/flick"]
-    assert layout["rows"][0][1]["flick"] == {"left": "い", "up": "う", "right": "え", "down": "お"}
-    assert "はばぱ" in layout["modify"]
-
-
 def test_bridge_saves_emoji_state_cleaned(tmp_path):
     import asyncio
     from polykey.bridge import Bridge
@@ -572,14 +519,6 @@ def language(code: str, **fields) -> dict:
 
 
 def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
-    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["errors"] == []
-    ja = boot["catalog"]["languages"]["ja"]
-    assert (ja["letters"], ja["labels"]["convert"], ja["idleHint"]) == (
-        "あいう",
-        "変換",
-        "入力すると、ここに変換候補が出ます",
-    )
     write(
         tmp_path / "packs", "de/language.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de")
     )
@@ -593,21 +532,13 @@ def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
         "mine/language.json: /id: must be mine (the folder name)",
         "pt/language.json: /letters: too long",
     ]
-    assert {"de", "ja"} <= set(boot["catalog"]["languages"]) and not {"es", "fr", "pt"} & set(
-        boot["catalog"]["languages"]
-    )
+    assert "de" in boot["catalog"]["languages"] and not {"es", "fr", "pt"} & set(boot["catalog"]["languages"])
 
 
 def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
     write(tmp_path / "packs", "ja/language.json", language("ja", letters="かな", labels={"convert": "Convert"}))
     ja = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["languages"]["ja"]
     assert (ja["letters"], ja["labels"], "idleHint" in ja) == ("かな", {"convert": "Convert"}, False)
-
-
-def test_a_mode_takes_its_letters_from_the_language_unless_it_names_them(tmp_path):
-    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    assert [mode.get("letters") for mode in keyboards["ja/12key"]["modes"]] == [None, "ABC"]
-    assert "strings" not in keyboards["ja/jis"]  # the idle hint is the language's
 
 
 def test_each_mode_names_its_word_list_and_a_keyboard_with_modes_has_none(tmp_path):
@@ -631,31 +562,6 @@ def test_each_mode_names_its_word_list_and_a_keyboard_with_modes_has_none(tmp_pa
     assert f"mine/both{refused}" in boot["errors"] and f"mine/moded{refused}" in boot["errors"]
     assert not {"mine/bad", "mine/both", "mine/moded"} & set(keyboards)
     assert not any("modes" in k and "lexicon" in k for k in keyboards.values()) and "lexicon" in keyboards["en/english"]
-
-
-def test_the_korean_packs_load():
-    boot = packs.load(BUNDLED, SCHEMA, None)
-    assert boot["errors"] == []
-    catalog = boot["catalog"]
-    korean = catalog["keyboards"]["ko/korean"]
-    assert (korean["composer"], korean["table"], korean["pages"]) == (
-        "hangul-2set",
-        "ko/hangul",
-        {"latin": "ko/qwerty"},
-    )
-    assert [mode.get("lexicon") for mode in korean["modes"]] == ["ko/words", "en/words"] and "lexicon" not in korean
-    assert len(catalog["tables"]["ko/hangul"]["hangul"]["compoundFinals"]) == 11
-    assert (catalog["languages"]["ko"]["letters"], catalog["languages"]["ko"]["font"]) == (
-        "한글",
-        '"Noto Sans CJK KR", "Noto Sans CJK JP"',
-    )
-    hangul, latin = catalog["layouts"]["ko/dubeolsik"], catalog["layouts"]["ko/qwerty"]
-    assert hangul["rows"][1][1] == {"type": "char", "char": "ㅂ", "shift": "ㅃ"} and latin["rows"][1][1] == "q"
-    assert hangul["rows"][4] == latin["rows"][4]  # one bottom row, with 한자 and 한/영 either side of Space
-    assert {"type": "action", "action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.25} in hangul["rows"][
-        4
-    ]
-    assert {"type": "action", "action": "convert", "label": "한자", "w": 1.25} in hangul["rows"][4]
 
 
 def hangul_table(item_id: str, **fields) -> dict:

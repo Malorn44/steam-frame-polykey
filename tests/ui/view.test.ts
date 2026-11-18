@@ -69,6 +69,21 @@ describe('createView', () => {
     expect(pressed).toEqual([{ type: 'char', char: 'w' }]);
   });
 
+  it('a key two rows high presses as one from its bottom piece', () => {
+    const eisu = { type: 'action', action: 'eisu' } as const;
+    const layout: Layout = { id: 'mine/tall', name: 'Tall', rows: [[{ ...eisu, tall: 'top', span: 2 }, 'a'], [{ ...eisu, tall: 'bottom' }, 'b']] };
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const pressed: KeyDef[] = [];
+    createView(document, shadow, layout, bundledBoot().catalog.themes['themes/steam']!, (k) => pressed.push(k)).update(NO_MODS);
+    const pieces = [...shadow.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'eisu');
+    pieces[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    expect(pieces.map((el) => el.classList.contains('down'))).toEqual([true, true]);
+    pieces[1]!.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    expect(pressed).toEqual([{ ...eisu, tall: 'bottom' }]);
+  });
+
   it('setBounds positions the keyboard, destroy removes it', () => {
     const { view, shadow } = setup();
     view.setBounds({ top: 0, left: 0, width: 854, height: 239 });
