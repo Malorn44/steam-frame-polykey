@@ -9,7 +9,7 @@ import { env } from 'node:process';
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, KeyboardDef, Layout } from '../src/core/catalog.js';
 import { HOLD_MS } from '../src/core/interaction.js';
-import { NO_MODS, charText, flickText, kanaSide, press, resolveKey, type Mods } from '../src/core/keyboard.js';
+import { NO_MODS, charText, kanaSide, press, resolveKey, type Mods } from '../src/core/keyboard.js';
 import { languageOf } from '../src/core/languages.js';
 import { modeLetters } from '../src/core/pages.js';
 import { createView } from '../src/ui/view.js';
@@ -71,7 +71,7 @@ const SHIFT: Mods = { ...NO_MODS, shift: 'once' };
 
 /** What a press types where the layout is shown (as main.ts sends it), or undefined for a key that types no text. */
 const typed = (key: KeyDef, alternate: string | undefined, mods: Mods, place: Place): string | undefined => {
-  if (alternate !== undefined) return key.type === 'flick' ? flickText(alternate, mods) : alternate;
+  if (alternate !== undefined) return alternate;
   // Into the reading: a char key with Shift (a JIS key its kana); a key's Fn variant goes out as a key.
   const side = place.kana && resolveKey(key, mods) === key ? kanaSide(key, !place.romaji) : undefined;
   if (side?.type === 'char') return charText(side, mods);
@@ -152,12 +152,13 @@ describe.each(ids)('%s', (id) => {
       for (const { el, where } of keys.filter(({ where: w }) => w.startsWith('row'))) {
         const shown = mainLegend(el);
         const hit = tap(el);
-        if (!hit || (hit.key.type !== 'char' && hit.key.type !== 'flick')) continue;
+        if (hit?.key.type !== 'char') continue;
         const { key } = hit;
-        if (!labelled(key, el) || (key.type === 'flick' && (place.hints || key.hints))) check(where, shown, typed(key, undefined, mods, place));
+        const hinted = key.flick && (place.hints || key.flickHints);
+        if (!labelled(key, el) || hinted) check(where, shown, typed(key, undefined, mods, place));
         const shift = mods === NO_MODS ? shiftLegend(el, place) : null;
         if (shift) check(`${where} (Shift legend)`, text(shift), typed(key, undefined, SHIFT, place));
-        if (key.type === 'flick') {
+        if (key.flick) {
           // Each way: the guide shows what the flick types, and so does its hint when hints are shown.
           STEP.forEach(([dx, dy], way) => {
             pressed.length = 0;
@@ -168,11 +169,11 @@ describe.each(ids)('%s', (id) => {
             touch(el, 'touchend', 100 + dx * 40, 100 + dy * 40);
             const out = pressed.length === 1 ? typed(pressed[0]!.key, pressed[0]!.alternate, mods, place) : pressed.length ? `${pressed.length} presses` : '';
             check(`${where} (flick ${way}, its guide)`, guide, out);
-            if (way && (place.hints || key.hints)) check(`${where} (flick ${way}, its hint)`, text(el.querySelector(EDGES[way - 1]!)), out);
+            if (way && hinted) check(`${where} (flick ${way}, its hint)`, text(el.querySelector(EDGES[way - 1]!)), out);
           });
         }
         // The small legend top right: the character a long press offers.
-        const hint = key.type === 'char' && key.hint !== undefined ? el.querySelector('.lg.tr:not(.t-fn)') : null;
+        const hint = key.hint !== undefined ? el.querySelector('.lg.tr:not(.t-fn)') : null;
         if (hint) {
           vi.useFakeTimers();
           touch(el, 'touchstart');

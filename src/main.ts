@@ -6,7 +6,7 @@ import { createBar, type BarKeyboard, type InlineSend } from './bar.js';
 import { createBridge } from './bridge/client.js';
 import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
-import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
+import { NO_MODS, charText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
 import { retypesInField } from './core/output/inline.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
 import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceText, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
@@ -543,8 +543,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (keyboard && composes(keyboard) && page === 'keys' && latin) {
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const typed = chording ? undefined
-        : key.type === 'char' ? (alternate ?? charText(key, mods))
-          : key.type === 'flick' ? flickText(alternate ?? key.flick[0], mods) : undefined;
+        : key.type === 'char' ? (alternate ?? charText(key, mods)) : undefined;
       const handled = pressEnglish(en, key, typed, { tapCycle: options.tapCycle, flicked: alternate !== undefined });
       if (handled) {
         if (typed !== undefined) {
@@ -565,7 +564,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       const chording = mods.ctrl !== 'off' || mods.alt !== 'off' || mods.super !== 'off' || fnKey(key);
       const side = kanaSide(key, !latinKeys(keyboard)); // a JIS key types its kana (its Latin legend with romaji input)
       const typed = side.type === 'char' && !chording ? (alternate ?? charText(side, mods)) : undefined;
-      const handled = bar.press(key, { ...(key.type === 'flick' && alternate !== undefined ? { flicked: alternate } : {}), ...(typed !== undefined ? { typed } : {}) });
+      const handled = bar.press(key, { ...(alternate !== undefined ? { flicked: true } : {}), ...(typed !== undefined ? { typed } : {}) });
       if (handled) {
         if (typed !== undefined) {
           mods = pressText(mods, '').mods; // a one-shot Shift is used up
@@ -578,8 +577,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       if (!keepsWaiting(key)) bar.flush();
     }
     if (converts(key)) return;
-    const result = alternate === undefined ? press(mods, key)
-      : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
+    const result = alternate === undefined ? press(mods, key) : pressText(mods, alternate);
     mods = result.mods;
     view?.update(mods);
     const effects = pickSpace ? closeUp(result.effects) : result.effects;
@@ -803,7 +801,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
    */
   const swipeKeys = (keyboard: KeyboardDef): { letters: Set<string>; shifts: Record<string, string> | undefined } => {
     const keys = layoutOf(keyboard)?.rows.flat().map(normalizeKey) ?? [];
-    return { letters: new Set(keys.flatMap((k) => (k.type === 'char' && swipeLetter(k.char) ? [k.char.toLowerCase()] : []))), shifts: swipeShifts(keys) };
+    return { letters: new Set(keys.flatMap((k) => (swipeLetter(k) ? [k.char.toLowerCase()] : []))), shifts: swipeShifts(keys) };
   };
 
   /**

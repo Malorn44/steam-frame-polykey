@@ -28,15 +28,16 @@ export const OPTIONS: Record<OptionName, OptionInfo> = {
 };
 
 /**
- * The keyboard's options with the user's choices applied (only options the keyboard has). A keyboard
- * whose composer takes dictated text offers dictationCommit; packs do not list it.
+ * The keyboard's options with the user's choices applied (only options the keyboard has; the others off,
+ * but tapCycle on: a keyboard that can't turn cycles off has them). A keyboard whose composer takes
+ * dictated text offers dictationCommit; packs do not list it.
  */
 export const optionsFor = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined): Required<KeyboardOptions> => {
   const own = keyboard?.options ?? {};
-  const pick = (name: OptionName): boolean =>
-    name in own ? (typeof saved?.[name] === 'boolean' ? saved[name] : own[name]!) : false;
+  const pick = (name: OptionName, otherwise = false): boolean =>
+    name in own ? (typeof saved?.[name] === 'boolean' ? saved[name] : own[name]!) : otherwise;
   return {
-    tapCycle: pick('tapCycle'), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
+    tapCycle: pick('tapCycle', true), candidatesLeft: pick('candidatesLeft'), flickHints: pick('flickHints'), romajiInput: pick('romajiInput'),
     qwertyLatin: pick('qwertyLatin'), swipe: pick('swipe'), dictationCommit: takesDictation(keyboard) && saved?.dictationCommit === true,
   };
 };
