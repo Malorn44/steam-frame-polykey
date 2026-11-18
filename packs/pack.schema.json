@@ -914,6 +914,17 @@
                 "lexicon": {
                   "$ref": "#/$defs/id",
                   "description": "Not read: older packs named the swipe word list here."
+                },
+                "modes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z]+$",
+                    "maxLength": 16
+                  },
+                  "description": "The modes it swipes in, by id (default: all): 천지인's keypad does not swipe, its ABC page does (latin)."
                 }
               },
               "description": "Swipe typing over the letter keys (the swipe option turns it on and off), decoded against the word list of the mode it is in (lexicon, or the mode's), its words spelled as its suggestions are. A mode without one does not swipe: on a Japanese keyboard, only 英数 swipes."
