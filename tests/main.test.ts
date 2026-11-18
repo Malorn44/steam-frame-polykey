@@ -11,6 +11,7 @@ import { BOOT_GLOBAL, CHECK_MS, FIELD_CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_
 import { STEAM_LOADING_NOTE } from '../src/ui/emoji.js';
 import { ICONS } from '../src/ui/icons.js';
 import { EMOJI, KAOMOJI, bundledBoot, emojiSet, kaomojiSet } from './boot.js';
+import { touch } from './dom.js';
 import { BUFFERED, MINIMAL, STREAMED, fakeItemStore, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
 /** A request the page sent the fake sidecar, with the fields these tests look at. */
@@ -76,11 +77,6 @@ const layOut = (popup: FakePopupWindow) => {
   [...shadowOf(popup)!.querySelectorAll('.row')].forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
     el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
   }));
-};
-const touch = (el: Element, type: string, x: number, y: number) => {
-  const e = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-  el.dispatchEvent(e);
 };
 /** Swipe from the centre of one letter key to another's (the touches all go to the first key, as a laser's do). */
 const swipe = async (popup: FakePopupWindow, from: string, to: string, wait = 200) => {
@@ -172,11 +168,6 @@ describe('installPolykey', () => {
 });
 
 describe('a held Backspace', () => {
-  const touch = (el: Element, type: string) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: 10, clientY: 10 }] });
-    el.dispatchEvent(e);
-  };
   const backspaces = (manager: ReturnType<typeof fakeManager>) => manager.calls.filter(([k]) => k === 'Backspace').length;
 
   it('stops at its release, though its icon was drawn again under the press (the release goes to the old one)', async () => {

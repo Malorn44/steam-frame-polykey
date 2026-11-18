@@ -1,31 +1,18 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import type { KeyDef, Layout } from '../../src/core/catalog.js';
+import type { Layout } from '../../src/core/catalog.js';
 import { NO_MODS } from '../../src/core/keyboard.js';
 import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, REPEAT_QUIET_MS } from '../../src/core/interaction.js';
-import { createView } from '../../src/ui/view.js';
-import { bundledBoot } from '../boot.js';
+import type { View } from '../../src/ui/view.js';
+import { drawView, tap, touch } from '../dom.js';
 
 const setup = () => {
-  const boot = bundledBoot();
-  const host = document.createElement('div');
-  document.body.append(host);
-  const shadow = host.attachShadow({ mode: 'open' });
-  const pressed: KeyDef[] = [];
-  const chosen: string[] = [];
-  const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
-    (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)));
-  view.update(NO_MODS);
-  const rows = [...shadow.querySelectorAll('.row')];
+  const drawn = drawView('en/qwerty', { theme: 'themes/night-owl' });
+  const rows = [...drawn.shadow.querySelectorAll('.row')];
   const keyIn = (row: number, id: string) =>
     [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
   const labelOf = (el: HTMLElement) => el.querySelector('.lbl')!.textContent;
-  return { view, shadow, rows, keyIn, labelOf, pressed, chosen, host };
-};
-
-const tap = (el: HTMLElement) => {
-  el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-  el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+  return { ...drawn, rows, keyIn, labelOf };
 };
 
 describe('createView', () => {
@@ -72,11 +59,7 @@ describe('createView', () => {
   it('a key two rows high presses as one from its bottom piece', () => {
     const eisu = { type: 'action', action: 'eisu' } as const;
     const layout: Layout = { id: 'mine/tall', name: 'Tall', rows: [[{ ...eisu, tall: 'top', span: 2 }, 'a'], [{ ...eisu, tall: 'bottom' }, 'b']] };
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const pressed: KeyDef[] = [];
-    createView(document, shadow, layout, bundledBoot().catalog.themes['themes/steam']!, (k) => pressed.push(k)).update(NO_MODS);
+    const { shadow, pressed } = drawView(layout);
     const pieces = [...shadow.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'eisu');
     pieces[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
     expect(pieces.map((el) => el.classList.contains('down'))).toEqual([true, true]);
@@ -94,13 +77,8 @@ describe('createView', () => {
   });
 
   it('draws the bar in the language\'s fonts, then the theme\'s; a language without any keeps the theme\'s', () => {
-    const boot = bundledBoot();
-    const fontOf = (languageFont?: string) => {
-      const shadow = document.createElement('div').attachShadow({ mode: 'open' });
-      createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/steam']!, () => {},
-        undefined, undefined, { languageFont });
-      return shadow.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
-    };
+    const fontOf = (languageFont?: string) =>
+      drawView('en/qwerty', { languageFont }).shadow.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
     expect(fontOf('"Noto Sans CJK KR"')).toBe('"Noto Sans CJK KR", var(--font)');
     expect(fontOf()).toBe('');
     expect(setup().shadow.querySelector('style')!.textContent).toContain('.pre, .cand { font-family: var(--language-font, var(--font)); }');
@@ -120,14 +98,9 @@ describe('hover', () => {
   });
 
   it('a gap is nothing to hover: no change while the laser stays on it (no haptic buzz)', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ja/gojuon']!, boot.catalog.themes['themes/steam']!, () => {});
-    view.update(NO_MODS);
+    const { view, shadow, keyOf } = drawView('ja/gojuon');
     const gap = shadow.querySelector<HTMLElement>('.key.gap')!;
-    const wa = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'わ')!;
+    const wa = keyOf('わ');
     Object.defineProperty(shadow, 'elementsFromPoint', { value: (x: number) => (x === 10 ? [gap] : x === 20 ? [wa] : []) });
     expect(view.hoverAt(10, 10)).toBe(false); // from nothing to a gap: still nothing
     expect(view.hoverAt(10, 11)).toBe(false);
@@ -141,12 +114,7 @@ describe('hover', () => {
 
 describe('icons', () => {
   const render = (layout: Partial<Layout>) => {
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const full: Layout = { id: 't/t', name: 't', toolbar: [], rows: [], ...layout };
-    createView(document, shadow, full, bundledBoot().catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
-    const key = (k: string) => [...shadow.querySelectorAll<HTMLElement>('.kb .key')].find((el) => el.dataset['k'] === k)!;
+    const { keyOf: key } = drawView({ id: 't/t', name: 't', toolbar: [], rows: [], ...layout });
     return { key, svg: (k: string) => key(k).querySelector('svg'), text: (k: string) => key(k).querySelector('.lbl')!.textContent };
   };
 
@@ -185,12 +153,6 @@ describe('icons', () => {
 });
 
 describe('long press', () => {
-  const touch = (el: Element, type: string, x = 0, y = 0) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-    el.dispatchEvent(e);
-  };
-
   it('offers the key and its variants (no capital); release types the pick', () => {
     vi.useFakeTimers();
     const { keyIn, shadow, pressed, chosen } = setup();
@@ -312,12 +274,6 @@ describe('long press', () => {
 });
 
 describe('hold to repeat', () => {
-  const touch = (el: Element, type: string, x = 0, y = 0) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-    el.dispatchEvent(e);
-  };
-
   it('a held Backspace repeats after a delay and does not type again on release', () => {
     vi.useFakeTimers();
     const { keyIn, pressed, shadow } = setup();
@@ -336,18 +292,11 @@ describe('hold to repeat', () => {
 
   /** A keyboard that draws its keys again after each key, as polykey does (main.ts): every icon is a new node. */
   const redrawing = (layout = 'en/qwerty') => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const pressed: KeyDef[] = [];
-    const view = createView(document, shadow, boot.catalog.layouts[layout]!, boot.catalog.themes['themes/night-owl']!, (k) => {
-      pressed.push(k);
-      view.update(NO_MODS);
-    });
-    view.update(NO_MODS);
-    const icon = (id: string) => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!.querySelector('svg')!;
-    return { view, shadow, pressed, icon };
+    const drawn: ReturnType<typeof drawView> = drawView(layout, { theme: 'themes/night-owl', onKey: (k) => {
+      drawn.pressed.push(k);
+      drawn.view.update(NO_MODS);
+    } });
+    return { ...drawn, icon: (id: string) => drawn.keyOf(id).querySelector('svg')! };
   };
 
   it('a held Backspace stops at its release, though the release goes to the icon the press started on, drawn again since', () => {
@@ -381,20 +330,14 @@ describe('hold to repeat', () => {
 
   describe('a repeat never outlives its press', () => {
     /** Hold Backspace (at 540, 15) until it has repeated once. */
-    const holding = (onRepeat?: (view: ReturnType<typeof createView>) => void) => {
+    const holding = (onRepeat?: (view: View) => void) => {
       vi.useFakeTimers();
-      const boot = bundledBoot();
-      const host = document.createElement('div');
-      document.body.append(host);
-      const shadow = host.attachShadow({ mode: 'open' });
+      const drawn: ReturnType<typeof drawView> = drawView('en/qwerty', { theme: 'themes/night-owl', onKey: (k) => {
+        drawn.pressed.push(k);
+        onRepeat?.(drawn.view);
+      } });
+      const { shadow, pressed, keyOf } = drawn;
       Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: () => [] });
-      const pressed: KeyDef[] = [];
-      const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!, (k) => {
-        pressed.push(k);
-        onRepeat?.(view);
-      });
-      view.update(NO_MODS);
-      const keyOf = (id: string) => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
       const backspace = keyOf('Backspace');
       touch(backspace, 'touchstart', 540, 15);
       vi.advanceTimersByTime(REPEAT_DELAY_MS);
@@ -405,7 +348,7 @@ describe('hold to repeat', () => {
         vi.advanceTimersByTime(ms);
         return pressed.length - was;
       };
-      return { view, shadow, pressed, backspace, keyOf, more };
+      return { ...drawn, backspace, more };
     };
 
     it('the laser moving on without touch moves (a release lost) stops it; trembling on the key does not', () => {
@@ -438,7 +381,7 @@ describe('hold to repeat', () => {
     it('cancel() (the keyboard closing), the popup losing focus or hiding: each stops it', () => {
       const hidden = Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState')!;
       const ends = [
-        (view: ReturnType<typeof createView>) => view.cancel(),
+        (view: View) => view.cancel(),
         () => window.dispatchEvent(new Event('blur')),
         () => {
           Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
@@ -497,38 +440,22 @@ describe('hold to repeat', () => {
   });
 
   it('boxes the dotted characters on the 12-key: ゛゜ on the modify key, 、 and its 。 hint', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {});
-    view.update(NO_MODS);
-    const keys = [...shadow.querySelectorAll<HTMLElement>('.key')];
-    const modify = keys.find((el) => el.dataset['k'] === 'modify')!;
+    const { keyOf } = drawView('ja/flick');
+    const modify = keyOf('modify');
     // Full-width cells; the marks as combining marks on a full-width space, so they sit high right.
     expect([...modify.querySelectorAll('.mk-marks .dot.cell.mark .ch')].map((el) => el.textContent)).toEqual(['\u3000\u3099', '\u3000\u309a']);
     expect(modify.querySelector('.mk-size')?.textContent).toBe('大⇔小');
-    const punct = keys.find((el) => el.dataset['k'] === '、')!;
+    const punct = keyOf('、');
     expect(punct.querySelector('.lbl .dot.cell')?.textContent).toBe('、');
     expect(punct.querySelector('.lg.l .dot.cell')?.textContent).toBe('。');
     expect(punct.querySelector('.lg.t .dot')).toBeNull();
   });
 
   it('a flick key shows its kana in a cross while held, and the flick picks one', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
     const got: [string, string | undefined][] = [];
-    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
-      (k, alternate) => got.push([k.type === 'char' ? k.char : '?', alternate]));
-    view.update(NO_MODS);
-    const ka = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
-    const at = (type: string, x: number, y: number) => {
-      const e = new Event(type, { bubbles: true, cancelable: true });
-      Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-      ka.dispatchEvent(e);
-    };
+    const { shadow, keyOf } = drawView('ja/flick', { onKey: (k, alternate) => got.push([k.type === 'char' ? k.char : '?', alternate]) });
+    const ka = keyOf('か');
+    const at = (type: string, x: number, y: number) => touch(ka, type, x, y);
     at('touchstart', 100, 100);
     expect([...shadow.querySelectorAll('.fl div')].map((c) => c.textContent)).toEqual(['か', 'き', 'く', 'け', 'こ']);
     // Unlaid-out (jsdom: zero-size) keyboard: the cross still sits inside, its cells text-sized.
@@ -545,12 +472,7 @@ describe('hold to repeat', () => {
   });
 
   it('with nothing composed, the bar shows only the candidates: no reading, no caret', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
-    view.update(NO_MODS);
+    const { view, shadow } = drawView('ko/dubeolsik');
     view.setComposition({ before: '교', after: '', candidates: ['학교'], selected: -1 });
     expect(shadow.querySelector('.comp.on .pre .caret')).not.toBeNull();
     view.setComposition({ before: '', after: '', candidates: ['학교', '학교에서'], selected: -1 });
@@ -559,13 +481,8 @@ describe('hold to repeat', () => {
   });
 
   it('an action key the composer marks as in its mode shows the indicator, as 한/영 and 英数 do; the mark goes with it', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {});
-    const convert = () => [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'convert')!;
-    view.update(NO_MODS);
+    const { view, shadow, keyOf } = drawView('ko/dubeolsik');
+    const convert = () => keyOf('convert');
     expect(convert().classList.contains('on')).toBe(false);
     view.setActive(['convert']);
     view.update(NO_MODS);
@@ -577,14 +494,8 @@ describe('hold to repeat', () => {
   });
 
   it('a candidate with a note shows it small beneath, cut off when long; one without has none, and a pick gives the candidate', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
     const picked: [string, number][] = [];
-    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {}, () => {},
-      (text, index) => picked.push([text, index]));
-    view.update(NO_MODS);
+    const { view, shadow } = drawView('ko/dubeolsik', { onCandidate: (text, index) => picked.push([text, index]) });
     view.setComposition({ segments: ['오늘', '한국'], focus: 1, candidates: ['寒國', '韓國', '漢'], selected: 1, notes: ['', '대한민국', '한수 한'] });
     const cands = [...shadow.querySelectorAll<HTMLElement>('.comp.on .cand')];
     expect(cands.map((el) => [el.querySelector('.text')?.textContent ?? el.textContent, el.querySelector('.note')?.textContent ?? null]))
@@ -601,25 +512,15 @@ describe('hold to repeat', () => {
   });
 
   it('candidates scroll by dragging (a short press still picks), and can sit in a panel on the left', () => {
-    const boot = bundledBoot();
     const make = (side: boolean) => {
-      const host = document.createElement('div');
-      document.body.append(host);
-      const shadow = host.attachShadow({ mode: 'open' });
       const picked: string[] = [];
-      const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
-        () => {}, () => {}, (text) => picked.push(text), { side });
-      view.update(NO_MODS);
+      const { view, shadow } = drawView('ja/flick', { onCandidate: (text) => picked.push(text), side });
       view.setComposition({ before: 'かんじ', after: '', candidates: ['漢字', '感じ', '幹事'], selected: -1 });
       return { shadow, picked };
     };
     const { shadow, picked } = make(false);
     const cand = [...shadow.querySelectorAll<HTMLElement>('.cand')][1]!;
-    const at = (type: string, x: number) => {
-      const e = new Event(type, { bubbles: true, cancelable: true });
-      Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: 10 }] });
-      cand.dispatchEvent(e);
-    };
+    const at = (type: string, x: number) => touch(cand, type, x, 10);
     at('touchstart', 200);
     at('touchmove', 150); // a drag: scrolls, no pick
     at('touchend', 150);
@@ -628,21 +529,13 @@ describe('hold to repeat', () => {
     expect(picked).toEqual(['感じ']);
     const left = make(true).shadow;
     // Flick hints: the other four kana at the key's edges, left, up, right, down.
-    const host = document.createElement('div');
-    document.body.append(host);
-    const hinted = host.attachShadow({ mode: 'open' });
-    createView(document, hinted, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}, () => {}, () => {}, { hints: true }).update(NO_MODS);
-    const ka = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
+    const hinted = drawView('ja/flick', { hints: true }).keyOf;
+    const ka = hinted('か');
     expect([...ka.querySelectorAll('.lg')].map((h) => `${h.className}:${h.textContent}`))
       .toEqual(['lg t s-hint t-legend:く', 'lg l s-hint t-legend:き', 'lg r s-hint t-legend:け', 'lg b s-hint t-legend:こ']);
-    const punct = [...hinted.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === '、')!;
-    expect(punct.querySelector('.lbl')!.textContent).toBe('、'); // with hints, just its tap kana
+    expect(hinted('、').querySelector('.lbl')!.textContent).toBe('、'); // with hints, just its tap kana
     // The punctuation key always shows its directions, hints option or not.
-    const plain = document.createElement('div');
-    document.body.append(plain);
-    const noHints = plain.attachShadow({ mode: 'open' });
-    createView(document, noHints, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {}).update(NO_MODS);
-    const keysOf = (id: string) => [...noHints.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
+    const keysOf = drawView('ja/flick').keyOf;
     expect([...keysOf('、').querySelectorAll('.lg')].map((h) => h.textContent)).toEqual(['？', '。', '！', '…']);
     expect(keysOf('か').querySelectorAll('.lg')).toHaveLength(0);
     expect(left.querySelector('.kb.side .sidep .comp .list')).not.toBeNull();
@@ -656,13 +549,7 @@ describe('hold to repeat', () => {
    * with the list's scroll, which stops at the end.
    */
   const longList = (side: boolean) => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ko/dubeolsik']!, boot.catalog.themes['themes/steam']!, () => {},
-      () => {}, () => {}, { side });
-    view.update(NO_MODS);
+    const { view, shadow } = drawView('ko/dubeolsik', { side });
     const list = shadow.querySelector<HTMLElement>('.comp .list')!;
     const count = 16;
     const [start, size, step] = side ? [50, 100, 36] : [245, 200, 60];
@@ -710,12 +597,7 @@ describe('hold to repeat', () => {
   }
 
   it('a reading longer than the bar scrolls to keep the caret, or the focused segment, in view', async () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!, () => {});
-    view.update(NO_MODS);
+    const { view, shadow } = drawView('ja/flick');
     const pre = shadow.querySelector<HTMLElement>('.pre')!;
     // jsdom lays nothing out: the reading 100px wide, its kana 16px each, the caret 2px.
     Object.defineProperty(pre, 'clientWidth', { value: 100 });
@@ -753,30 +635,16 @@ describe('hold to repeat', () => {
 
 
 describe('swipe', () => {
-  const touch = (el: Element, type: string, x = 0, y = 0) => {
-    const e = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-    el.dispatchEvent(e);
-  };
   /** The view with swipe on, its keys laid out on a grid of 40×30 px cells (row r, column c). */
   const swipeSetup = (canSwipe?: () => boolean) => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const pressed: KeyDef[] = [];
-    const chosen: string[] = [];
     const swipes: { path: { x: number; y: number }[]; keys: Record<string, [number, number]>; width: number }[] = [];
-    const view = createView(document, shadow, boot.catalog.layouts['en/qwerty']!, boot.catalog.themes['themes/night-owl']!,
-      (k, alternate) => (alternate === undefined ? pressed.push(k) : chosen.push(alternate)), undefined, undefined,
-      { onSwipe: (path, keys, width) => swipes.push({ path, keys, width }), canSwipe });
-    view.update(NO_MODS);
-    const rows = [...shadow.querySelectorAll('.row')];
+    const drawn = drawView('en/qwerty', { theme: 'themes/night-owl', onSwipe: (path, keys, width) => swipes.push({ path, keys, width }), canSwipe });
+    const rows = [...drawn.shadow.querySelectorAll('.row')];
     rows.forEach((row, r) => [...row.querySelectorAll<HTMLElement>('.key')].forEach((el, c) => {
       el.getBoundingClientRect = () => ({ left: c * 40, right: c * 40 + 40, top: r * 30, bottom: r * 30 + 30, width: 40, height: 30 }) as DOMRect;
     }));
     const keyIn = (row: number, id: string) => [...rows[row]!.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === id)!;
-    return { view, shadow, keyIn, pressed, chosen, swipes };
+    return { ...drawn, keyIn, swipes };
   };
 
   it('a press that leaves its letter key traces a path instead of typing, with a trail that thins and fades with age', () => {
@@ -943,13 +811,8 @@ describe('swipe', () => {
 
 describe('the mode key', () => {
   it('marks the current mode\'s half with the indicator bar, following the mode without being drawn again', () => {
-    const boot = bundledBoot();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    const view = createView(document, shadow, boot.catalog.layouts['ko/qwerty']!, boot.catalog.themes['themes/github-light']!, () => {});
-    view.update(NO_MODS);
-    const key = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'mode')!;
+    const { view, shadow, keyOf } = drawView('ko/qwerty', { theme: 'themes/github-light' });
+    const key = keyOf('mode');
     const halves = () => [...key.querySelectorAll('.part.indicator')].map((el) => [el.textContent, el.classList.contains('now')]);
     expect(key.textContent).toBe('한/영');
     expect(halves()).toEqual([['한', true], ['영', false]]);
