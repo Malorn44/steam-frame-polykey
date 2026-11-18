@@ -39,16 +39,16 @@ export const pressEnglish = (word: EnglishWord, key: KeyDef, typed: string | und
   { tapCycle = false, flicked = false }: { tapCycle?: boolean; flicked?: boolean } = {}):
   { word: EnglishWord; effects: Effect[] } | null => {
   if (typed !== undefined) {
-    const tap = tapCycle && key.type === 'char' && key.flick && !flicked ? tapKey(word.caret > 0 ? word.cycle ?? null : null, key) : null;
+    const tap = tapCycle && !flicked ? tapKey(word.caret > 0 ? word.cycle ?? null : null, key) : null;
     // The same key tapped again: its next character, in the case the cycle started in.
     if (tap?.again && word.cycle) {
       const { upper } = word.cycle;
       const chars = [...word.chars.slice(0, word.caret - 1), upper ? tap.char.toUpperCase() : tap.char, ...word.chars.slice(word.caret)];
-      return { word: { chars, caret: word.caret, cycle: { ...tap.cycle!, upper } }, effects: [] };
+      return { word: { chars, caret: word.caret, cycle: { ...tap.cycle, upper } }, effects: [] };
     }
     if (WORD_CHAR.test(typed) && word.chars.length < MAX_WORD) {
       const chars = [...word.chars.slice(0, word.caret), typed, ...word.chars.slice(word.caret)];
-      const cycle = tap?.cycle ? { ...tap.cycle, upper: typed !== typed.toLowerCase() } : null;
+      const cycle = tap ? { ...tap.cycle, upper: typed !== typed.toLowerCase() } : null;
       return { word: { chars, caret: word.caret + 1, cycle }, effects: [] };
     }
     return { word: NO_ENGLISH, effects: commitEnglish(word, typed) };
