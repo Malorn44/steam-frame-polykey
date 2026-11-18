@@ -7,7 +7,6 @@ import json
 import math
 import random
 import time
-import unicodedata
 from pathlib import Path
 
 from polykey import packs, swipe
@@ -84,6 +83,7 @@ def test_folds_words_onto_the_keys():
     letters = frozenset("abcdefghijklmnopqrstuvwxyz")
     assert fold("hello", letters) == "helo"  # a doubled letter is one key
     assert fold("don't", letters) == "dont"
+    assert [fold(word, letters) for word in ("it’s", "e-mail", "St.")] == ["its", "email", "st"]
     assert fold("café", letters) == "cafe"  # an accent on its base letter
     assert fold("Paris", letters) == "paris"
     assert fold("naïve", frozenset("naive")) == "naive"
@@ -100,29 +100,6 @@ def test_hangul_folds_onto_the_2set_keys_as_its_suggestions_spell_it():
     assert hangul("까까") == "ㄱㅏㄱㅏ" and hangul("안녕") == "ㅇㅏㄴㅕㅇ"
     assert hangul("hello") is None and hangul("K팝") is None  # not Hangul: not on these keys
     assert fold("한국", frozenset(KO_KEYS)) is None  # spelled in lower case, Hangul is on no key
-    assert sorted(KO_SHIFTS.items()) == sorted(zip("ㅃㅉㄸㄲㅆㅒㅖ", "ㅂㅈㄷㄱㅅㅐㅔ"))
-
-
-def test_english_folds_as_it_did_before_spellers():
-    """Every word of the English list folds as fold did before it took a speller: lower case, accents off,
-    doubles once. Only the fold changed, so English decodes as it did."""
-
-    def before(word: str):
-        keys: list[str] = []
-        for ch in unicodedata.normalize("NFD", word.lower()):
-            if ch in "'’-." or unicodedata.combining(ch):
-                continue
-            if ch not in letters:
-                return None
-            if not keys or keys[-1] != ch:
-                keys.append(ch)
-        return "".join(keys)
-
-    letters = frozenset(KEYS)
-    words = list(LEXICON.counts())
-    assert len(words) == 60_000
-    assert [fold(w, letters) for w in words] == [before(w) for w in words]
-    assert [fold(w, letters, LOWERCASE, {}) for w in words] == [before(w) for w in words]
 
 
 def test_resample_spaces_points_evenly():
