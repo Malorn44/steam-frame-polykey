@@ -10,8 +10,8 @@ import { HOLD_MS } from '../src/core/interaction.js';
 import { NO_MODS, charText, kanaSide, press, resolveKey, type Mods } from '../src/core/keyboard.js';
 import { languageOf } from '../src/core/languages.js';
 import { modeLetters } from '../src/core/pages.js';
-import { createView } from '../src/ui/view.js';
 import { bundledBoot } from './boot.js';
+import { drawView, touch } from './dom.js';
 
 const boot = bundledBoot();
 const ids = Object.keys(boot.catalog.layouts).sort();
@@ -95,19 +95,10 @@ const shiftLegend = (el: HTMLElement, place: Place): Element | null => {
 const EDGES = ['.lg.l', '.lg.t', '.lg.r', '.lg.b'];
 const STEP: [number, number][] = [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1]];
 
-const touch = (el: Element, type: string, x = 100, y = 100): void => {
-  const e = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(e, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
-  el.dispatchEvent(e);
-};
-
 const render = (layout: Layout, place: Place, mods: Mods) => {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const shadow = host.attachShadow({ mode: 'open' });
   const pressed: { key: KeyDef; alternate: string | undefined }[] = [];
-  const view = createView(document, shadow, layout, boot.catalog.themes['themes/steam']!, (key, alternate) => pressed.push({ key, alternate }),
-    undefined, undefined, { latin: place.latin, romaji: place.romaji, symbols: place.symbols, letters: place.letters, hints: place.hints });
+  const { view, host, shadow } = drawView(layout, { onKey: (key, alternate) => pressed.push({ key, alternate }),
+    latin: place.latin, romaji: place.romaji, symbols: place.symbols, letters: place.letters, hints: place.hints });
   view.update(mods);
   const keys = [
     ...[...shadow.querySelectorAll<HTMLElement>('.bar .key')].map((el) => ({ el, where: `toolbar "${el.dataset['k']}"` })),
@@ -158,10 +149,10 @@ describe.each(ids)('%s', (id) => {
           STEP.forEach(([dx, dy], way) => {
             pressed.length = 0;
             touch(el, 'touchstart');
-            if (way) touch(el, 'touchmove', 100 + dx * 40, 100 + dy * 40);
+            if (way) touch(el, 'touchmove', dx * 40, dy * 40);
             const cell = shadow.querySelector('.fl div.pick');
             const guide = cell?.classList.contains('empty') ? '' : text(cell);
-            touch(el, 'touchend', 100 + dx * 40, 100 + dy * 40);
+            touch(el, 'touchend', dx * 40, dy * 40);
             const out = pressed.length === 1 ? typed(pressed[0]!.key, pressed[0]!.alternate, mods, place) : pressed.length ? `${pressed.length} presses` : '';
             check(`${where} (flick ${way}, its guide)`, guide, out);
             if (way && hinted) check(`${where} (flick ${way}, its hint)`, text(el.querySelector(EDGES[way - 1]!)), out);
