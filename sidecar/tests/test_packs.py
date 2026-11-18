@@ -126,6 +126,12 @@ def test_a_layout_names_its_modify_table(tmp_path):
     assert "mine/none: has a ゛゜小 key but no modify table" in boot["errors"]
 
 
+def test_a_char_key_without_char_types_its_cycles_first(tmp_path):
+    dots = {"type": "char", "cycle": [".", ","]}
+    write(tmp_path / "packs", "mine/dots.json", layout("mine/dots", rows=[[dots]]))
+    assert packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["mine/dots"]["rows"] == [[{**dots, "char": "."}]]
+
+
 def test_a_layout_extends_another(tmp_path):
     base = layout(
         "mine/base",
@@ -488,7 +494,7 @@ def test_the_japanese_12key_pack_loads():
         "swipe": False,
     }
     layout = boot["catalog"]["layouts"]["ja/flick"]
-    assert layout["rows"][0][1]["flick"] == ["あ", "い", "う", "え", "お"]
+    assert layout["rows"][0][1]["flick"] == {"left": "い", "up": "う", "right": "え", "down": "お"}
     assert "はばぱ" in layout["modify"]
 
 

@@ -17,7 +17,7 @@
 // かな while typing (無変換's job on a Windows keyboard) shows the reading as カタカナ, then ﾊﾝｶｸ, then
 // ひらがな again; 確定 sends it in that form. While converting it goes back to the reading, in カタカナ.
 
-import type { FlickKey, KeyDef, Layout } from '../catalog.js';
+import type { KeyDef, Layout } from '../catalog.js';
 import { stepCycle, tapKey, type TapCycle } from '../cycle.js';
 import { inForm, nextForm, toKatakana, type Form } from '../forms.js';
 import { modifyTable } from '../kana.js';
@@ -78,13 +78,6 @@ const replaceBefore = (ime: Ime, text: string, cycle: Ime['cycle'] = null): Ime 
 const step = (ime: Ime, by: 1 | -1): Result => {
   const cycle = stepCycle(ime.cycle!, by);
   return { state: replaceBefore(ime, cycle.chars[cycle.index]!, cycle), effects: [], request: { kind: 'live' } };
-};
-
-const typeFlick = (ime: Ime, key: FlickKey, flicked: string | undefined, tapCycle: boolean): Result => {
-  if (flicked !== undefined) return { state: insert(ime, flicked), effects: [], request: { kind: 'live' } };
-  const tap = tapKey(tapCycle ? ime.cycle : null, key);
-  const cycle = tapCycle ? tap.cycle : null;
-  return { state: tap.again ? replaceBefore(ime, tap.char, cycle) : insert(ime, tap.char, cycle), effects: [], request: { kind: 'live' } };
 };
 
 /** ゛ and ゜ typed after a kana join it (か゛ → が); otherwise they stay as typed. */
@@ -152,7 +145,7 @@ export const pressIme = (
   const { modify, romaji } = tables;
   const typing = typed !== undefined && key.type === 'char' && !isSpace(key);
   if (ime.segments) {
-    if (key.type === 'flick' || isAction(key, 'modify') || typing) {
+    if (isAction(key, 'modify') || typing) {
       // Typing on after a conversion: send it, then start a new reading.
       const sent = commit(ime);
       const next = pressIme(NO_IME, key, input, options, tables);
@@ -172,7 +165,9 @@ export const pressIme = (
     return null;
   }
 
-  if (key.type === 'flick') return typeFlick(ime, key, flicked, options.tapCycle);
+  // A tap on a key that flicks, with tapCycle: its next character in place of the last (a flick types its own).
+  const tap = typing && key.type === 'char' && key.flick && options.tapCycle && !flicked ? tapKey(ime.cycle, key) : null;
+  if (tap) return { state: tap.again ? replaceBefore(ime, tap.char, tap.cycle) : insert(ime, tap.char, tap.cycle), effects: [], request: { kind: 'live' } };
   if (typing) return { state: insertTyped({ ...ime, cycle: null }, typed, romaji), effects: [], request: { kind: 'live' } };
   if (!composing(ime)) {
     if (isAction(key, 'modify')) return { state: ime, effects: [] };

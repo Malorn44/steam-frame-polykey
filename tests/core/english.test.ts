@@ -40,7 +40,7 @@ describe('English word in 英数 mode', () => {
   });
 
   it('with tapCycle, tapping an ABC key again steps its letter; a flick or → ends the cycle', () => {
-    const abc: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'] };
+    const abc: KeyDef = { type: 'char', char: 'a', flick: { left: 'b', up: 'c', down: '2' } };
     const tap = (word: EnglishWord, typed = 'a', flicked = false) => pressEnglish(word, abc, typed, { tapCycle: true, flicked })!.word;
     let word = tap(NO_ENGLISH);
     word = tap(word);

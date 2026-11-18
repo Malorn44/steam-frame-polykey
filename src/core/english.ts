@@ -39,7 +39,7 @@ export const pressEnglish = (word: EnglishWord, key: KeyDef, typed: string | und
   { tapCycle = false, flicked = false }: { tapCycle?: boolean; flicked?: boolean } = {}):
   { word: EnglishWord; effects: Effect[] } | null => {
   if (typed !== undefined) {
-    const tap = tapCycle && key.type === 'flick' && !flicked ? tapKey(word.caret > 0 ? word.cycle ?? null : null, key) : null;
+    const tap = tapCycle && key.type === 'char' && key.flick && !flicked ? tapKey(word.caret > 0 ? word.cycle ?? null : null, key) : null;
     // The same key tapped again: its next character, in the case the cycle started in.
     if (tap?.again && word.cycle) {
       const { upper } = word.cycle;

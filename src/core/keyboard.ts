@@ -75,8 +75,6 @@ export const press = (mods: Mods, pressed: KeyDef): { mods: Mods; effects: Effec
   switch (key.type) {
     case 'gap':
       return { mods, effects: [] };
-    case 'flick': // a tap outside a reading buffer (the kana composer handles the 12-key kana): the key's own character
-      return { mods: releaseOnce(mods), effects: key.flick[0] ? [{ kind: 'text', text: flickText(key.flick[0], mods) }] : [] };
     case 'mod':
       if (key.mod === 'super' && mods.super === 'once') {
         // Super never locks: a second tap sends Super on its own (KDE opens its launcher).
@@ -152,10 +150,9 @@ export const keyLabel = (pressed: KeyDef, mods: Mods): string => {
   const key = resolveKey(pressed, mods);
   switch (key.type) {
     case 'gap': return '';
-    case 'flick': return flickText(key.label ?? key.flick[0], mods);
     case 'mod': return key.label ?? MOD_LABELS[key.mod];
     case 'action': return key.label ?? ACTION_LABELS[key.action];
     case 'key': return key.label ?? NAMED_LABELS[key.key] ?? key.key;
-    case 'char': return key.label ?? charText(key, mods);
+    case 'char': return key.label === undefined ? charText(key, mods) : key.flick ? flickText(key.label, mods) : key.label; // abc, ABC with a/A
   }
 };

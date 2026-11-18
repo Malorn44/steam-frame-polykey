@@ -54,20 +54,20 @@ describe('keyLegends', () => {
     expect(keyLegends(one, mods(), ctx({ romaji: true })).slots.tr).toMatchObject({ tone: 'fn' });
   });
 
-  it('flick keys: hints at the edges when on; otherwise the label, with its digit beneath', () => {
-    const punct: KeyDef = { type: 'flick', flick: ['、', '。', '？', '！', '…'], hints: true };
+  it('keys with flicks: hints at the edges when on; otherwise the label, with its digit beneath', () => {
+    const punct: KeyDef = { type: 'char', char: '、', flick: { left: '。', up: '？', right: '！', down: '…' }, hints: true };
     expect(shown(punct)).toEqual({ arrangement: 'edges', c: '、', l: '。', t: '？', r: '！', b: '…' });
-    const ka: KeyDef = { type: 'flick', flick: ['か', 'き', 'く', 'け', 'こ'] };
+    const ka: KeyDef = { type: 'char', char: 'か', flick: { left: 'き', up: 'く', right: 'け', down: 'こ' } };
     expect(shown(ka)).toEqual({ arrangement: 'plain', c: 'か' });
     expect(shown(ka, mods(), ctx({ hints: true }))).toMatchObject({ arrangement: 'edges', l: 'き' });
-    const abc: KeyDef = { type: 'flick', flick: ['@', '-', '_', '/', '1'], label: '@-_/', sub: '1' };
+    const abc: KeyDef = { type: 'char', char: '@', flick: { left: '-', up: '_', right: '/', down: '1' }, label: '@-_/', sub: '1' };
     const c = keyLegends(abc, mods(), ctx()).slots.c;
     expect(c).toMatchObject({ kind: 'text', text: '@-_/', under: { text: '1', size: 'sub' } });
     expect(keyLegends(abc, mods(), ctx({ hints: true })).slots.c).toMatchObject({ text: '@' }); // hints show the rest
   });
 
   it('flick hints follow Shift and Caps, as the label does without them', () => {
-    const letters: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', '2'], label: 'abc', sub: '2' };
+    const letters: KeyDef = { type: 'char', char: 'a', flick: { left: 'b', up: 'c', down: '2' }, label: 'abc', sub: '2' };
     const hinted = { arrangement: 'edges', l: 'b', t: 'c', b: '2' };
     expect(shown(letters, mods(), ctx({ hints: true }))).toEqual({ ...hinted, c: 'a' });
     expect(shown(letters, mods({ shift: 'once' }), ctx({ hints: true }))).toEqual({ ...hinted, c: 'A', l: 'B', t: 'C' });
@@ -77,7 +77,7 @@ describe('keyLegends', () => {
   });
 
   it('boxes the characters the layout lists, wherever they are', () => {
-    const punct: KeyDef = { type: 'flick', flick: ['、', '。', '？', '！', '…'], hints: true };
+    const punct: KeyDef = { type: 'char', char: '、', flick: { left: '。', up: '？', right: '！', down: '…' }, hints: true };
     const { slots } = keyLegends(punct, mods(), ctx({ dotted: new Set(['、', '。']) }));
     expect(slots.c).toMatchObject({ boxed: true });
     expect(slots.l).toMatchObject({ boxed: true });
@@ -102,7 +102,7 @@ describe('keyLegends', () => {
     const mode: KeyDef = { type: 'action', action: 'eisu', legends: { c: { parts: ['あ', 'a'] } } };
     expect(keyLegends(mode, mods(), ctx()).slots.c).toEqual({ kind: 'parts', parts: ['あ', 'a'], now: 0, mark: 'bold' });
     expect(keyLegends(mode, mods(), ctx({ latin: true })).slots.c).toMatchObject({ now: 1 });
-    const abc: KeyDef = { type: 'flick', flick: ['a', 'b', 'c', '', ''], legends: { c: { text: 'abc', under: '2' } } };
+    const abc: KeyDef = { type: 'char', char: 'a', flick: { left: 'b', up: 'c' }, legends: { c: { text: 'abc', under: '2' } } };
     expect(keyLegends(abc, mods(), ctx()).slots.c).toMatchObject({ text: 'abc', under: { text: '2', size: 'sub' } });
   });
 

@@ -3,7 +3,7 @@
 // the width weights exactly and columns line up across rows. The VR laser arrives as touch events
 // (mouse clicks are the desktop fallback); hover comes from hoverAt() (laser) or mouseover.
 
-import { normalizeKey, type KeyDef, type Layout, type Tall, type Theme } from '../core/catalog.js';
+import { normalizeKey, type CharKey, type KeyDef, type Layout, type Tall, type Theme } from '../core/catalog.js';
 import type { MicState } from '../core/dictation.js';
 import { NO_MODS, alternates, flickText, kanaSide, modState, type Mods } from '../core/keyboard.js';
 import { HOLD_MS, RELEASE_LOST_MS, REPEAT_DELAY_MS, REPEAT_MS, REPEAT_QUIET_MS, SLOP_PX, touchGuard } from '../core/interaction.js';
@@ -346,11 +346,11 @@ export const createView = (
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
     const el = doc.createElement('div');
-    el.className = `key ${key.type === 'char' ? 'char' : key.type === 'key' ? 'named' : key.type}`;
+    el.className = `key ${key.type === 'char' ? (key.flick ? 'flick' : 'char') : key.type === 'key' ? 'named' : key.type}`;
     // An exact share of the row, so keys line up across rows whatever their count.
     if (rowUnits) el.style.flex = `0 0 ${(widthOf(key) / rowUnits) * 100}%`;
     el.dataset['k'] = key.type === 'char' ? key.char : key.type === 'key' ? key.key
-      : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : key.type === 'flick' ? key.flick[0] : '';
+      : key.type === 'mod' ? key.mod : key.type === 'action' ? key.action : '';
     const label = doc.createElement('span');
     label.className = 'lbl';
     el.append(label);
@@ -483,16 +483,18 @@ export const createView = (
   // when the laser passed each.
   let trail: { svg: SVGSVGElement; quads: SVGGElement; head: SVGCircleElement; origin: DOMRect; pts: { x: number; y: number; t: number }[]; frame: number } | null = null;
   // A held flick key: where the press started and its guide (one cell per direction that has a kana).
-  let flick: { key: Extract<KeyDef, { type: 'flick' }>; start: { x: number; y: number }; el: HTMLElement;
+  let flick: { key: CharKey; start: { x: number; y: number }; el: HTMLElement;
     cells: HTMLElement[]; pick: number } | null = null;
 
   /**
    * Show the guide over the key: the tap kana in the middle, the flick kana left, above, right and below.
    * Sized like fjk's: square cells 94% of the key's height, one key height apart, kana at 62% of the
-   * cell; a direction with nothing is shown faded. The cross moves inward where it would leave the keyboard.
+   * cell; a direction with nothing is shown faded. The cross moves inward where it would leave the keyboard
+   * (false: the key does not flick).
    */
-  const openFlick = (entry: Entry, start: { x: number; y: number }): void => {
-    if (entry.key.type !== 'flick') return;
+  const openFlick = (entry: Entry, start: { x: number; y: number }): boolean => {
+    const { key } = entry;
+    if (key.type !== 'char' || !key.flick) return false;
     const at = entry.el.getBoundingClientRect();
     const box = root.getBoundingClientRect();
     const step = Math.min(at.width, at.height) || FLICK_CELL_PX;
@@ -504,7 +506,8 @@ export const createView = (
     el.className = 'fl';
     Object.assign(el.style, { left: `${cx - size / 2}px`, top: `${cy - size / 2}px`, fontSize: `${Math.round(size * 0.62)}px` });
     const place: [number, number][] = [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1]];
-    const cells = entry.key.flick.map((text, i) => {
+    const cells = DIRECTIONS.map((way, i) => {
+      const text = way === 'tap' ? key.char : key.flick?.[way] ?? '';
       const cell = doc.createElement('div');
       const [dx, dy] = place[i]!;
       Object.assign(cell.style, { left: `${dx * step}px`, top: `${dy * step}px`, width: `${size}px`, height: `${size}px` });
@@ -514,8 +517,9 @@ export const createView = (
       return cell;
     });
     root.append(el);
-    flick = { key: entry.key, start, el, cells, pick: 0 };
+    flick = { key, start, el, cells, pick: 0 };
     cells[0]?.classList.add('pick');
+    return true;
   };
   const moveFlick = (p: { x: number; y: number }): void => {
     if (!flick) return;
@@ -619,7 +623,7 @@ export const createView = (
   const letterCentres = (): Record<string, [number, number]> => {
     const out: Record<string, [number, number]> = {};
     for (const { el, key } of keys) {
-      if (key.type !== 'char' || !swipeLetter(key.char)) continue;
+      if (!swipeLetter(key)) continue;
       const r = el.getBoundingClientRect();
       out[key.char.toLowerCase()] = [Math.round((r.left + r.width / 2) * 10) / 10, Math.round((r.top + r.height / 2) * 10) / 10];
     }
@@ -700,14 +704,11 @@ export const createView = (
     repeated = false;
     endSwipe(false);
     // A letter may start a swipe; not while Ctrl, Alt, Super or Fn makes it a shortcut.
-    if (onSwipe && start && held?.key.type === 'char' && swipeLetter(held.key.char) && (canSwipe?.() ?? true)
+    if (onSwipe && start && held && swipeLetter(held.key) && (canSwipe?.() ?? true)
       && mods.ctrl === 'off' && mods.alt === 'off' && mods.super === 'off' && mods.fn === 'off') {
       swipe = { start, points: [start], rect: held.el.getBoundingClientRect(), on: false };
     }
-    if (held?.key.type === 'flick') {
-      openFlick(held, lastPoint ?? { x: 0, y: 0 });
-      return;
-    }
+    if (held && openFlick(held, lastPoint ?? { x: 0, y: 0 })) return;
     if (held && repeats(held.key)) {
       holdTimer = setTimeout(() => {
         holdTimer = null;
@@ -777,8 +778,10 @@ export const createView = (
       if (lastPoint) moveFlick(lastPoint);
       const { key, pick } = flick;
       closeFlick();
-      if (pick === 0) onKey(key); // a tap: the 12-key decides (it may cycle)
-      else if (key.flick[pick]) onKey(key, key.flick[pick]); // a direction with nothing types nothing
+      const way = DIRECTIONS[pick]!;
+      const text = way === 'tap' ? undefined : key.flick?.[way];
+      if (way === 'tap') onKey(key); // a tap: the 12-key decides (it may cycle)
+      else if (text) onKey(key, flickText(text, mods)); // as its guide shows it (a/A: capitals); a direction with nothing types nothing
       return;
     }
     const slot = slotFor(e.target);

@@ -19,9 +19,11 @@ describe('swipe detection', () => {
     expect(leftKey({ x: 101, y: 51 }, { x: 139, y: 79 }, key, 40)).toBe(false);
   });
 
-  it('only letters swipe', () => {
-    expect(['a', 'Z', 'é', 'ß'].map(swipeLetter)).toEqual([true, true, true, true]);
-    expect(['1', ' ', ',', 'ab', ''].map(swipeLetter)).toEqual([false, false, false, false, false]);
+  it('only letters swipe, and not keys that flick', () => {
+    const swipes = (char: string) => swipeLetter({ type: 'char', char });
+    expect(['a', 'Z', 'é', 'ß'].map(swipes)).toEqual([true, true, true, true]);
+    expect(['1', ' ', ',', 'ab', ''].map(swipes)).toEqual([false, false, false, false, false]);
+    expect(swipeLetter({ type: 'char', char: 'a', flick: { left: 'b' } })).toBe(false);
   });
 });
 
