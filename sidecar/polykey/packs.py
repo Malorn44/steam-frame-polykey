@@ -556,8 +556,7 @@ def _key_id(key: Any) -> str:
     """What a key does, as the page tells keys apart (data-k): the two halves of a two-row key match."""
     if not isinstance(key, dict):
         return str(key)
-    field = {"char": "char", "key": "key", "mod": "mod", "action": "action"}.get(key.get("type", ""))
-    return str(key.get(field, "")) if field else ""
+    return next((str(key[field]) for field in ("char", "key", "mod", "action") if field in key), "")
 
 
 def _width(key: Any) -> float:
@@ -660,8 +659,16 @@ def _without_alone(key: Any) -> Any:
     return {k: v for k, v in key.items() if k != "alone"} if isinstance(key, dict) else key
 
 
-def _with_char(key: Any) -> Any:
-    return {**key, "char": key["cycle"][0]} if isinstance(key, dict) and "cycle" in key and "char" not in key else key
+def _complete(key: Any) -> Any:
+    """A key as the page reads it: the type it names when it leaves that out (char or cycle: a char key; key,
+    mod, action; none of these: a gap), its char its cycle's first when it has none, and its Fn key the same."""
+    if not isinstance(key, dict):
+        return key
+    kind = next((f for f in ("char", "key", "mod", "action") if f in key), "char" if "cycle" in key else "gap")
+    filled = {"char": key["cycle"][0]} if "cycle" in key and "char" not in key else {}
+    if "fn" in key:
+        filled["fn"] = _complete(key["fn"])
+    return {"type": kind, **key, **filled}
 
 
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
@@ -671,8 +678,8 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
     resolved = {layout_id: _extend(layouts, layout_id, errors, done) for layout_id in layouts}
     catalog["layouts"] = layouts = {k: v for k, v in resolved.items() if v is not None}
     for layout_id, layout in layouts.items():
-        layout["rows"] = [[_with_char(key) for key in row] for row in layout["rows"]]
-        layout.setdefault("toolbar", [dict(key) for key in DEFAULT_TOOLBAR])
+        layout["rows"] = [[_complete(key) for key in row] for row in layout["rows"]]
+        layout["toolbar"] = [_complete(key) for key in layout.get("toolbar", DEFAULT_TOOLBAR)]
         if isinstance(layout.get("modify"), str):
             table = catalog["tables"].get(layout["modify"], {})
             if "cycles" in table:
