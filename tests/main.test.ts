@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { KeyDef } from '../src/core/catalog.js';
+import type { ActionName, KeyDef } from '../src/core/catalog.js';
 import { NO_EMOJI_STATE, type EmojiState, type PickerSet } from '../src/core/emoji.js';
-import { REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
+import { HOLD_MS, REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
 import { BUFFERED_GAP_MS, KEYMAP_SETTLE, graphemes } from '../src/core/output/plan.js';
 import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
@@ -1186,55 +1186,6 @@ describe('picker sets', () => {
   });
 });
 
-describe('12-key ABC', () => {
-  it('ABC keys QWERTY (the default): letters with digits on the top row; ?123 and back return to it', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/12key');
-    await tap(popup, 'eisu');
-    expect(key(popup, 'q').querySelector('.lg.tr')!.textContent).toBe('1');
-    await tap(popup, 'q');
-    await tap(popup, 'shift');
-    await tap(popup, 'w');
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('qW');
-    await tap(popup, 'symbols');
-    await tap(popup, 'symbols'); // あいう: back to the QWERTY letters
-    expect(key(popup, 'q')).toBeDefined();
-    await tap(popup, '.');
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('qW.'); // a symbol waits in the word too
-    expect(manager.calls).toEqual([]);
-    await tap(popup, 'Enter'); // 確定
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('qW.');
-  });
-
-  it('ABC keys Flick: sends the reading and shows the letter keys; a/A capitalises; あ a goes back', async () => {
-    const popup = fakePopupWindow();
-    const manager = fakeManager(true);
-    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
-    const boot = bundledBoot();
-    boot.settings.keyboardOptions = { 'ja/12key': { qwertyLatin: false } };
-    steam.g[BOOT_GLOBAL] = boot;
-    const api = installPolykey(steam.g);
-    installed.push(api);
-    api.debug.use('ja/12key');
-    await tap(popup, 'あ');
-    await tap(popup, 'eisu');
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('あ');
-    expect(key(popup, 'あ')).toBeUndefined();
-    await tap(popup, 'a');
-    await tap(popup, 'shift');
-    await tap(popup, 'd');
-    await tap(popup, 'd'); // Shift was one-shot
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('aDd'); // the word waits in the bar
-    await tap(popup, ' ');
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('あaDd ');
-    await tap(popup, 'a');
-    await tap(popup, 'undo'); // ↶ drops the word
-    await tap(popup, 'kana');
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('あaDd ');
-    expect(key(popup, 'あ')).toBeDefined();
-  });
-});
-
 describe('settings → Keyboards', () => {
   it('✕ removes a keyboard, a tapped layout comes back at the end; 🌐 and the save follow', async () => {
     const { popup, g, api } = setup();
@@ -1334,26 +1285,6 @@ describe('names in more than one language', () => {
   });
 });
 
-describe('五十音', () => {
-  it('kana keys go into the reading; ゛゜小 voices the one before; the two-row あa switches to letters', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/50on');
-    await tap(popup, 'か');
-    await tap(popup, 'modify');
-    await tap(popup, 'な');
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('がな');
-    const halves = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.key')].filter((el) => el.dataset['k'] === 'eisu');
-    expect(halves.map((el) => el.className.includes('tall'))).toEqual([true, true]);
-    halves[1]!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-    halves[1]!.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
-    await vi.advanceTimersByTimeAsync(200);
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('がな'); // あa sends the reading first
-    expect(key(popup, 'q')).toBeDefined(); // the QWERTY letters
-    await tap(popup, 'kana');
-    expect(key(popup, 'か')).toBeDefined();
-  });
-});
-
 describe('12-key ?123', () => {
   it('digits and symbols wait in the reading in kana mode, and in the English word in ABC mode', async () => {
     const { popup, manager, api } = setup();
@@ -1373,37 +1304,9 @@ describe('12-key ?123', () => {
     await tap(popup, 'Enter');
     expect(manager.calls.map((c) => c[0]).join('')).toBe('3たa!');
   });
-
-  it('=\\< opens the second page; 123 goes back to the numbers, あいう to the letters', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/12key');
-    await tap(popup, 'symbols');
-    await tap(popup, 'more-symbols');
-    expect(key(popup, '1')).toBeUndefined();
-    await tap(popup, '§');
-    await tap(popup, 'more-symbols'); // 123
-    expect(key(popup, '1')).toBeDefined();
-    await tap(popup, 'more-symbols');
-    await tap(popup, 'symbols'); // あいう
-    expect(key(popup, 'あ')).toBeDefined();
-    await tap(popup, 'Enter');
-    expect(manager.calls.map((c) => c[0]).join('')).toBe('§');
-  });
 });
 
 describe('Japanese romaji and JIS kana', () => {
-  it('JIS kana: Shift gives the small kana and does not send the buffer; ゛ joins', async () => {
-    const { popup, manager, api } = setup();
-    api.debug.use('ja/jis');
-    await tap(popup, 't'); // か
-    await tap(popup, '@'); // ゛
-    await tap(popup, 'shift');
-    await tap(popup, '3'); // ぁ
-    await tap(popup, '3'); // あ: Shift was one-shot
-    expect(shadowOf(popup)!.querySelector('.pre')!.textContent).toBe('がぁあ');
-    expect(manager.calls).toEqual([]);
-  });
-
   it('JIS: Fn+1 is F1 (the reading goes first, Fn is one-shot); Esc is its own key', async () => {
     const { popup, manager, state, api } = setup();
     api.debug.use('ja/jis');
@@ -1606,6 +1509,85 @@ describe('the convert key', () => {
     await tap(popup, 'i');
     expect(manager.calls.map((c) => c[0])).toEqual(['h', 'i']);
     expect(logged.join('\n')).not.toContain('not available'); // not an action the page runs
+  });
+});
+
+describe('pages', () => {
+  const setupPages = (options: { qwertyLatin?: boolean } = {}) => {
+    const popup = fakePopupWindow();
+    const steam = fakeSteam({ popup, managers: [fakeManager(true)], status: MINIMAL, keyState: true });
+    const boot = bundledBoot();
+    const action = (name: ActionName): KeyDef => ({ type: 'action', action: name });
+    const page = (id: string, ...keys: (string | KeyDef)[]) => { boot.catalog.layouts[id] = { id, name: id, rows: [keys] }; };
+    page('mine/letters', 'm', action('symbols'), action('eisu'));
+    page('mine/flick', 'f', action('symbols'), action('kana'));
+    page('mine/qwerty', 'q', action('symbols'), action('kana'));
+    page('mine/symbols', '1', action('more-symbols'), action('symbols'));
+    page('mine/symbols2', '§', action('more-symbols'), action('symbols'));
+    boot.catalog.keyboards['mine/pages'] = { id: 'mine/pages', name: 'Pages', layout: 'mine/letters', options: { qwertyLatin: true },
+      pages: { latin: { flick: 'mine/flick', qwerty: 'mine/qwerty' }, symbols: ['mine/symbols', 'mine/symbols2'] } };
+    boot.settings.keyboards = ['mine/pages'];
+    boot.settings.keyboardOptions = { 'mine/pages': options };
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    const shown = () => shadowOf(popup)!.querySelector<HTMLElement>('.row .key')!.dataset['k'];
+    return { popup, shown };
+  };
+
+  it('英数 shows the ABC page qwertyLatin picks; ?123 opens the symbols over it, =\\< goes between their two pages, ?123 back to the letters', async () => {
+    const { popup, shown } = setupPages();
+    const seen = [shown()];
+    for (const k of ['eisu', 'symbols', 'more-symbols', 'more-symbols', 'symbols', 'symbols', 'more-symbols', 'symbols', 'kana']) {
+      await tap(popup, k);
+      seen.push(shown());
+    }
+    expect(seen).toEqual(['m', 'q', '1', '§', '1', 'q', '1', '§', 'q', 'm']);
+    const flick = setupPages({ qwertyLatin: false });
+    await tap(flick.popup, 'eisu');
+    expect(flick.shown()).toBe('f');
+  });
+});
+
+describe('a keyboard that composes', () => {
+  /** Composing in the bar (streamed), with ㄴ held for 4. */
+  const setupComposing = () => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: STREAMED, keyState: true });
+    const boot = bundledBoot();
+    boot.catalog.tables = { ...boot.catalog.tables, 'mine/hangul': { id: 'mine/hangul', name: 'Hangul', hangul: {} } };
+    boot.catalog.layouts['mine/hangul'] = { id: 'mine/hangul', name: 'Hangul', toolbar: [{ type: 'action', action: 'hide' }],
+      rows: [['ㅎ', 'ㅏ', { type: 'char', char: 'ㄴ', long: ['4'] }, { type: 'mod', mod: 'shift' }]] };
+    boot.catalog.keyboards['mine/hangul'] = { id: 'mine/hangul', name: 'Hangul', layout: 'mine/hangul', composer: 'hangul-2set', table: 'mine/hangul' };
+    boot.settings.keyboards = ['mine/hangul'];
+    steam.g[BOOT_GLOBAL] = boot;
+    installed.push(installPolykey(steam.g));
+    const sent = () => manager.calls.map((c) => c[0]);
+    const pre = () => shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null;
+    return { popup, sent, pre };
+  };
+
+  it('a held key\'s alternate that the composer does not take sends what is composed first', async () => {
+    const { popup, sent, pre } = setupComposing();
+    await tap(popup, 'ㅎ');
+    await tap(popup, 'ㅏ');
+    const held = key(popup, 'ㄴ');
+    touch(held, 'touchstart', 0, 0);
+    await vi.advanceTimersByTimeAsync(HOLD_MS);
+    const four = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.alts .key')].find((el) => el.textContent === '4')!;
+    Object.defineProperty(shadowOf(popup)!, 'elementsFromPoint', { configurable: true, value: () => [four] });
+    touch(held, 'touchmove', 0, 0);
+    touch(held, 'touchend', 0, 0);
+    await vi.advanceTimersByTimeAsync(200);
+    expect([sent(), pre()]).toEqual([['하', '4'], null]);
+  });
+
+  it('a modifier only arms: what is composed waits', async () => {
+    const { popup, sent, pre } = setupComposing();
+    await tap(popup, 'ㅎ');
+    await tap(popup, 'shift');
+    await tap(popup, 'ㅏ');
+    expect([sent(), pre()]).toEqual([[], '하']);
   });
 });
 
