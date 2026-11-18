@@ -165,7 +165,6 @@ export const pressIme = (
     return null;
   }
 
-  // A tap on a key that cycles, with tapCycle: its next character in place of the last (a flick types its own).
   const tap = typing && options.tapCycle && !flicked ? tapKey(ime.cycle, key) : null;
   if (tap) return { state: tap.again ? replaceBefore(ime, tap.char, tap.cycle) : insert(ime, tap.char, tap.cycle), effects: [], request: { kind: 'live' } };
   if (typing) return { state: insertTyped({ ...ime, cycle: null }, typed, romaji), effects: [], request: { kind: 'live' } };
