@@ -1223,6 +1223,26 @@
           "maxLength": 80,
           "description": "Shown where candidates appear while there are none, on the keyboards that compose."
         },
+        "optionNames": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "tapCycle",
+              "candidatesLeft",
+              "flickHints",
+              "romajiInput",
+              "qwertyLatin",
+              "swipe",
+              "dictationCommit"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": "What Settings calls the keyboards' options, by option (candidatesLeft: 후보를 왼쪽에 표시). An option left out keeps polykey's name."
+        },
         "dictation": {
           "$ref": "#/$defs/languageCode",
           "description": "The language dictation listens for (default: the id)."

@@ -27,7 +27,7 @@ import { createEmojiView, type EmojiView } from './ui/emoji.js';
 import { composerOf, takesDictation } from './core/composers/index.js';
 import type { ComposerContext } from './core/composers/composer.js';
 import { nameFor } from './core/names.js';
-import { idleHint, languageOf, spelled } from './core/languages.js';
+import { idleHint, languageOf, optionName, spelled } from './core/languages.js';
 import { latinTarget, modeLetters, pageLayout } from './core/pages.js';
 import { NO_ENGLISH, commitEnglish, englishText, pressEnglish, type EnglishWord } from './core/english.js';
 import { dictationLanguage, dictationLanguages, joinPhrase, spaceAfter, spacedText } from './core/dictation.js';
@@ -928,7 +928,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         suggestions: suggests(keyboard),
         keyboardName: keyboard ? fullName(keyboard) : id,
         // The dictation row only while dictation is on.
-        options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation).map((name) => ({ id: name, ...OPTIONS[name], value: optionsFor(keyboard, keyboardOptions[id])[name] })),
+        options: offered(keyboard).filter((name) => name !== 'dictationCommit' || settings.dictation)
+          .map((name) => ({ id: name, ...OPTIONS[name], name: optionName(name, languageFor(keyboard)), value: optionsFor(keyboard, keyboardOptions[id])[name] })),
         tab: settingsTab,
         keyboards: {
           all: Object.values(boot.catalog.keyboards).map((k) => ({ id: k.id, name: k.name, language: k.language ?? 'und' })),
