@@ -154,7 +154,7 @@ describe.each(ids)('%s', (id) => {
         const hit = tap(el);
         if (hit?.key.type !== 'char') continue;
         const { key } = hit;
-        const hinted = key.flick && (place.hints || key.hints);
+        const hinted = key.flick && (place.hints || key.flickHints);
         if (!labelled(key, el) || hinted) check(where, shown, typed(key, undefined, mods, place));
         const shift = mods === NO_MODS ? shiftLegend(el, place) : null;
         if (shift) check(`${where} (Shift legend)`, text(shift), typed(key, undefined, SHIFT, place));

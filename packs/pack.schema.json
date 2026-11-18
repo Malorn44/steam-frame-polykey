@@ -159,7 +159,7 @@
             "under": {
               "type": "string",
               "maxLength": 16,
-              "description": "Drawn small beneath (大⇔小 under ゛゜, the digit under abc)."
+              "description": "Drawn small beneath (大⇔小 under ゛゜); alone, beneath what the key shows there (the digit under abc)."
             },
             "size": {
               "enum": [
@@ -368,13 +368,9 @@
           },
           "description": "What tapping it again and again types, each in place of the last (や → ゆ → よ); default: char, then its flicks. Without char, the first tap types the first. The keyboard's tapCycle option, where it has one, can turn it off."
         },
-        "hints": {
+        "flickHints": {
           "type": "boolean",
-          "description": "Always show its flicks small at the key's edges, whatever the flick hints option says (e.g. a punctuation key)."
-        },
-        "sub": {
-          "$ref": "#/$defs/label",
-          "description": "A small legend beneath the label (the ABC keys' digit); not shown with flick hints."
+          "description": "Always show its flicks small at the key's edges, whatever the keyboard's flickHints option says (e.g. a punctuation key)."
         },
         "kana": {
           "$ref": "#/$defs/char",
