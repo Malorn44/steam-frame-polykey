@@ -10,5 +10,5 @@
  "pages": {"latin": "ko/qwerty", "symbols": ["ko/cheonjiin-symbols", "ja/flick-symbols2"]},
  "table": "ko/hangul-cheonjiin",
  "features": {},
- "options": {}
+ "options": {"candidatesLeft": true}
 }
