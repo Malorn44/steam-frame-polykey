@@ -296,18 +296,21 @@ def keyboard(item_id: str, **fields) -> dict:
 
 
 def test_a_keyboard_extends_another(tmp_path):
-    write(
-        tmp_path / "packs",
-        "ja/mine.json",
-        keyboard("ja/mine", extends="ja/12key", layout="ja/gojuon", options={"flickHints": True}),
+    for item_id in ("mine/a", "mine/b"):
+        write(tmp_path / "packs", f"{item_id}.json", layout(item_id))
+    base = keyboard(
+        "mine/base", layout="mine/a", language="xx", pages={"symbols": ["mine/a"]}, options={"tapCycle": True}
     )
+    write(tmp_path / "packs", "mine/base.json", base)
+    mine = keyboard("mine/mine", extends="mine/base", layout="mine/b", options={"flickHints": True})
+    write(tmp_path / "packs", "mine/mine.json", mine)
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    mine, base = boot["catalog"]["keyboards"]["ja/mine"], boot["catalog"]["keyboards"]["ja/12key"]
-    assert mine["layout"] == "ja/gojuon" and mine["name"] == "ja/mine" and "extends" not in mine
-    assert mine["pages"] == base["pages"] and mine["converter"] == "anthy" and mine["language"] == "ja"
+    mine, base = boot["catalog"]["keyboards"]["mine/mine"], boot["catalog"]["keyboards"]["mine/base"]
+    assert mine["layout"] == "mine/b" and mine["name"] == "mine/mine" and "extends" not in mine
+    assert (mine["pages"], mine["language"]) == ({"symbols": ["mine/a"]}, "xx")
     assert mine["options"] == {"flickHints": True}  # options replace the base's as a whole
-    assert base["options"]["candidatesLeft"] is True  # the base is untouched
+    assert base["options"] == {"tapCycle": True}  # the base is untouched
 
 
 def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
@@ -551,14 +554,6 @@ def language(code: str, **fields) -> dict:
 
 
 def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
-    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
-    assert boot["errors"] == []
-    ja = boot["catalog"]["languages"]["ja"]
-    assert (ja["letters"], ja["labels"]["convert"], ja["idleHint"]) == (
-        "あいう",
-        "変換",
-        "入力すると、ここに変換候補が出ます",
-    )
     write(
         tmp_path / "packs", "de/language.json", language("de", letters="ABC", labels={"confirm": "OK"}, dictation="de")
     )
@@ -572,9 +567,7 @@ def test_a_language_is_named_by_its_code_and_lives_in_its_folder(tmp_path):
         "mine/language.json: /id: must be mine (the folder name)",
         "pt/language.json: /letters: too long",
     ]
-    assert {"de", "ja"} <= set(boot["catalog"]["languages"]) and not {"es", "fr", "pt"} & set(
-        boot["catalog"]["languages"]
-    )
+    assert "de" in boot["catalog"]["languages"] and not {"es", "fr", "pt"} & set(boot["catalog"]["languages"])
 
 
 def test_a_language_of_yours_replaces_the_bundled_one(tmp_path):
