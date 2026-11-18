@@ -1,7 +1,8 @@
-"""One bundled layout's own checks: it loads on its own, and its rows are as wide as its kind of layout
-needs. tests/layout.test.ts checks the same layout in the page. CI runs both for each layout
-(`npm run test:layout -- ja/flick`); POLYKEY_LAYOUT names the layout, and without it every bundled layout
-is checked."""
+"""Each bundled pack's own checks (its layouts, keyboards, tables, languages and themes): it is defined
+once, is valid, and loads on its own as it does in the whole bundle; a layout's rows are as wide as its kind
+of layout needs, and a keyboard's swipe option is off until turned on. tests/layout.test.ts checks each layout
+in the page. CI runs both for each layout (`npm run test:layout -- ja/flick`); POLYKEY_LAYOUT names the
+layout, and without it every bundled pack is checked."""
 
 from __future__ import annotations
 
@@ -47,9 +48,24 @@ def raw(item_id: str) -> dict:
     return packs.read_json(files_by_id()[item_id][0].read_text(encoding="utf-8"))
 
 
-def layout_ids() -> list[str]:
+def kind_of(item_id: str) -> str | None:
+    return raw(item_id).get("kind") if item_id in files_by_id() else None
+
+
+def pack_ids(kind: str | None = None) -> list[str]:
+    """The bundled packs the catalog holds, or those of one kind."""
     only = os.environ.get("POLYKEY_LAYOUT")
-    return [only] if only else sorted(full_boot()["catalog"]["layouts"])
+    ids = [only] if only else sorted(i for i in files_by_id() if kind_of(i) in packs.KINDS)
+    return [i for i in ids if kind in (None, kind_of(i))]
+
+
+def named(value: object) -> list[str]:
+    """The bundled packs named anywhere in a pack: what it extends, its layouts and pages, its tables."""
+    if isinstance(value, dict):
+        return [item_id for v in value.values() for item_id in named(v)]
+    if isinstance(value, list):
+        return [item_id for v in value for item_id in named(v)]
+    return [value] if isinstance(value, str) and value in files_by_id() else []
 
 
 def width(row: list) -> float:
@@ -62,38 +78,32 @@ def has_ctrl(rows: list) -> bool:
     )
 
 
-each_layout = pytest.mark.parametrize("layout_id", layout_ids())
+each_pack = pytest.mark.parametrize("pack_id", pack_ids())
 
 
-@each_layout
-def test_it_is_one_bundled_layout(layout_id):
-    assert layout_id in files_by_id(), f"no bundled pack has the id {layout_id}"
-    assert len(files_by_id()[layout_id]) == 1, (
-        f"{layout_id} is defined by {', '.join(map(str, files_by_id()[layout_id]))}"
-    )
-    assert raw(layout_id).get("kind") == "layout"
+@each_pack
+def test_it_is_one_bundled_pack(pack_id):
+    assert pack_id in files_by_id(), f"no bundled pack has the id {pack_id}"
+    assert len(files_by_id()[pack_id]) == 1, f"{pack_id} is defined by {', '.join(map(str, files_by_id()[pack_id]))}"
 
 
-@each_layout
-def test_it_validates_against_the_schema(layout_id):
+@each_pack
+def test_it_validates_against_the_schema(pack_id):
     schema = packs.read_json(SCHEMA.read_text(encoding="utf-8"))
-    assert packs.validate(raw(layout_id), schema, schema) == []
+    assert packs.validate(raw(pack_id), schema, schema) == []
 
 
-@each_layout
-def test_it_loads_on_its_own(layout_id, tmp_path):
-    """With only the packs it names (what it extends, its modify table), it loads with no pack errors,
-    and comes out as it does from the whole bundle: nothing else changes it."""
+@each_pack
+def test_it_loads_on_its_own(pack_id, tmp_path):
+    """With only the packs it names, it loads with no pack errors, and comes out as it does from the whole
+    bundle: nothing else changes it."""
     needed: set[str] = set()
-    todo = [layout_id]
+    todo = [pack_id]
     while todo:
         item_id = todo.pop()
-        if item_id in needed:
-            continue
-        assert item_id in files_by_id(), f"{layout_id} needs {item_id}, which no bundled pack defines"
-        needed.add(item_id)
-        data = raw(item_id)
-        todo += [ref for ref in (data.get("extends"), data.get("modify")) if isinstance(ref, str)]
+        if item_id not in needed:
+            needed.add(item_id)
+            todo += named(raw(item_id))
     alone = tmp_path / "packs"
     for item_id in needed:
         source = files_by_id()[item_id][0]
@@ -101,19 +111,20 @@ def test_it_loads_on_its_own(layout_id, tmp_path):
         shutil.copy(source, alone / source.parent.name / source.name)
 
     boot = packs.load(alone, SCHEMA, tmp_path / "user")
-    # On its own there are no keyboards or themes for the settings to name; that is not the layout's.
+    # On its own there may be no keyboard or theme the settings name; that is not the pack's.
     assert [e for e in boot["errors"] if not e.startswith("settings.json:")] == []
-    assert boot["catalog"]["layouts"].get(layout_id) == full_boot()["catalog"]["layouts"].get(layout_id)
+    kind = packs.KINDS[raw(pack_id)["kind"]]
+    assert boot["catalog"][kind].get(pack_id) == full_boot()["catalog"][kind].get(pack_id)
 
 
-@each_layout
-def test_the_whole_bundle_reports_nothing_about_it(layout_id):
-    names = tuple(f"{p.parent.name}/{p.name}:" for p in files_by_id().get(layout_id, []))
-    assert [e for e in full_boot()["errors"] if e.startswith((f"{layout_id}:", *names))] == []
-    assert layout_id in full_boot()["catalog"]["layouts"]
+@each_pack
+def test_the_whole_bundle_reports_nothing_about_it(pack_id):
+    names = tuple(f"{p.parent.name}/{p.name}:" for p in files_by_id().get(pack_id, []))
+    assert [e for e in full_boot()["errors"] if e.startswith((f"{pack_id}:", *names))] == []
+    assert pack_id in full_boot()["catalog"][packs.KINDS[raw(pack_id)["kind"]]]
 
 
-@each_layout
+@pytest.mark.parametrize("layout_id", pack_ids("layout"))
 def test_its_rows_are_as_wide_as_its_kind_needs(layout_id):
     """Every row as wide as the first, with 🌐 hidden too (one keyboard in the list); a full keyboard
     (with Ctrl) 15 units, as en/qwerty; a layout that extends another as wide as that one."""
@@ -135,3 +146,8 @@ def test_its_rows_are_as_wide_as_its_kind_needs(layout_id):
         if abs(width(row) - units) > 1e-6
     ]
     assert problems == []
+
+
+@pytest.mark.parametrize("keyboard_id", pack_ids("keyboard"))
+def test_swipe_is_off_until_turned_on(keyboard_id):
+    assert full_boot()["catalog"]["keyboards"][keyboard_id].get("options", {}).get("swipe", False) is False

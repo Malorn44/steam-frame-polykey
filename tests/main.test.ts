@@ -619,12 +619,12 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     await vi.advanceTimersByTimeAsync(200);
   };
-  const setupJa = (keyboard: string, replies: string[][], on = true) => {
+  const setupJa = (keyboard: string, replies: string[][]) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
     const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
     const boot = bundledBoot();
-    if (on) boot.settings.keyboardOptions = { [keyboard]: { swipe: true } };
+    boot.settings.keyboardOptions = { [keyboard]: { swipe: true } };
     steam.g[BOOT_GLOBAL] = boot;
     const requests: Record<string, unknown>[] = [];
     steam.g['polykeyBridge'] = (payload: string) => {
@@ -680,14 +680,6 @@ describe('swipe typing on the Japanese keyboards (英数 only)', () => {
     expect(prepared()).toEqual(['en/words']);
     await swipe(popup, 'h', 'o');
     expect(swipeRequests(requests)).toHaveLength(1);
-  });
-
-  it('off by default on the Japanese keyboards', async () => {
-    const { popup, requests } = setupJa('ja/romaji', [['hello']], false);
-    await tap(popup, 'eisu');
-    await swipe(popup, 'h', 'o');
-    expect(swipeRequests(requests)).toEqual([]);
-    expect(pre(popup)).toBe('h'); // the press typed its letter into the word
   });
 });
 
