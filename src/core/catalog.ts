@@ -123,6 +123,8 @@ export interface LanguageDef {
   id: string; name: PackName; letters?: string; labels?: Record<string, string>; idleHint?: string; dictation?: string;
   /** The fonts the bar draws its text in first, a CSS font-family list (Korean's: Hangul, which the Frame's system font has none of). */
   font?: string;
+  /** What Settings calls the keyboards' options, by option (candidatesLeft: 후보를 왼쪽에 표시); default: polykey's names. */
+  optionNames?: Partial<Record<keyof KeyboardOptions, string>>;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;

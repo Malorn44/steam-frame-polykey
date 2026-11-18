@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef, LanguageDef } from '../../src/core/catalog.js';
 import { dictationLanguage, dictationLanguages } from '../../src/core/dictation.js';
-import { idleHint, languageOf, spelled } from '../../src/core/languages.js';
+import { idleHint, languageOf, optionName, spelled } from '../../src/core/languages.js';
+import { OPTIONS } from '../../src/core/options.js';
 import { modeLetters } from '../../src/core/pages.js';
 
 const ko: LanguageDef = { id: 'ko', name: '한국어', letters: '한글', labels: { confirm: '확인' } };
@@ -29,6 +31,13 @@ describe('language packs', () => {
     expect(spelled({ Enter: 'confirm', ' ': 'convert' }, ko)).toEqual({ Enter: '확인' });
     expect(spelled({ Enter: 'toString' }, ko)).toEqual({});
     expect(spelled({ Enter: 'confirm' }, undefined)).toEqual({});
+  });
+
+  it('names an option as its language does, else as polykey does; the schema lists every option', () => {
+    const named: LanguageDef = { ...ko, optionNames: { candidatesLeft: 'Mine' } };
+    expect([optionName('candidatesLeft', named), optionName('swipe', named), optionName('swipe', undefined)]).toEqual(['Mine', 'Swipe typing', 'Swipe typing']);
+    const schema = JSON.parse(readFileSync('packs/pack.schema.json', 'utf8')) as { $defs: { language: { properties: { optionNames: { propertyNames: { enum: string[] } } } } } };
+    expect(schema.$defs.language.properties.optionNames.propertyNames.enum.sort()).toEqual(Object.keys(OPTIONS).sort());
   });
 
   it('the first mode\'s letters come from the language unless the mode names them; a Latin mode never takes them', () => {

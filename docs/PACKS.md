@@ -121,6 +121,7 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 - `letters`: what the language's own letters are called. The keys back to the letters read it in a keyboard's first mode. A mode's own `letters` wins, and a Latin mode without any reads ABC.
 - `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. The Hangul composer names Space `next` while converting to Hanja (Korean's 다음). A key whose name is left out keeps its own label.
 - `idleHint`: shown where candidates appear while there are none. A keyboard's `strings.idleHint` wins.
+- `optionNames`: what Settings calls the keyboards' options, by option. Korean names `candidatesLeft` 후보를 왼쪽에 표시; an option left out keeps polykey's name.
 - `dictation`: the language dictation listens for, if it is not the `id`.
 - `font`: the fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font. Korean's is `"Noto Sans CJK KR", "Noto Sans CJK JP"`: the Frame's system font has no Hangul.
 
