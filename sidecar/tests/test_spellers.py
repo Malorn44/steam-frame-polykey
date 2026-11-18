@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from pack_helpers import BUNDLED, SCHEMA, bundled_boot, keyboard, load, typed_by, write
 from polykey import packs
 from polykey.bridge import Bridge
 from polykey.injector import Log
@@ -15,23 +16,10 @@ from polykey.packs import COMPOSER_TABLES
 from polykey.spellers import LOWERCASE, SPELLERS, Spellers
 from polykey.spellers.hangul import HangulSpeller
 
-PACKS = Path(__file__).resolve().parents[2] / "packs"
-HANGUL = packs.read_json((PACKS / "ko" / "hangul.json").read_text(encoding="utf-8"))
+HANGUL = packs.read_json((BUNDLED / "ko" / "hangul.json").read_text(encoding="utf-8"))
 SPELLER = HangulSpeller(HANGUL["hangul"])
-CATALOG = packs.load(PACKS, PACKS / "pack.schema.json", user=Path("/nonexistent"))["catalog"]
+CATALOG = bundled_boot()["catalog"]
 BUNDLED_SPELLERS = Spellers(lambda: CATALOG)
-
-
-def typed_by(key: str | dict) -> set[str]:
-    """Everything a key types: its char and Shift's, its flicks, its tap cycle and what holding it offers."""
-    if isinstance(key, str):
-        return {key}
-    return {key.get("char", ""), key.get("shift", "")} | {
-        *key.get("flick", {}).values(),
-        *key.get("cycle", []),
-        *key.get("long", []),
-    }
-
 
 WORDS = (
     "한국\t200\n하나\t150\n하고\t300\n학교\t120\n달걀\t40\n닭\t30\n과일\t60\n고기\t50\n감사\t90\n가방\t20\nhello\t10\n"
@@ -76,7 +64,7 @@ def test_prefixes_complete_on_the_keys_typed():
 
 
 def test_spellers_are_by_composer_and_spell_with_the_keyboards_table():
-    schema = json.loads((PACKS / "pack.schema.json").read_text(encoding="utf-8"))["$defs"]["keyboard"]
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))["$defs"]["keyboard"]
     assert set(SPELLERS) <= set(schema["properties"]["composer"]["enum"]) and set(SPELLERS) <= set(COMPOSER_TABLES)
     hangul_2set = {"composer": "hangul-2set", "table": "ko/hangul"}
     catalog = {
@@ -99,11 +87,11 @@ def test_a_keyboard_whose_table_makes_more_jamo_of_two_spells_them_so(tmp_path):
         "compoundMedials": [*HANGUL["hangul"]["compoundMedials"], "ㅏㅏㅑ", "ㅑㅣㅒ"],
     }
     table["hangul"]["compoundFinals"] = [*HANGUL["hangul"]["compoundFinals"], "ㄱㄱㄲ"]
-    keyboard = {"schemaVersion": 1, "kind": "keyboard", "id": "mine/single", "name": "mine", "extends": "ko/korean"}
-    (tmp_path / "packs" / "mine").mkdir(parents=True)
-    (tmp_path / "packs" / "mine" / "table.json").write_text(json.dumps(table), encoding="utf-8")
-    (tmp_path / "packs" / "mine" / "single.json").write_text(json.dumps({**keyboard, "table": "mine/single-table"}))
-    assert packs.load(PACKS, PACKS / "pack.schema.json", user=tmp_path)["errors"] == []
+    write(tmp_path / "packs", "mine/table.json", table)
+    write(
+        tmp_path / "packs", "mine/single.json", keyboard("mine/single", extends="ko/korean", table="mine/single-table")
+    )
+    assert load(tmp_path)["errors"] == []
     single = Spellers(packs.loaded_catalog).get("mine/single")
     assert (single.spell("야"), single.spell("얘"), single.spell("까")) == ("ㅇㅏㅏ", "ㅇㅏㅏㅣ", "ㄱㄱㅏ")
     lexicon = Lexicon.parse("야구\t90\n아이\t80\n까치\t10\n")
@@ -112,7 +100,7 @@ def test_a_keyboard_whose_table_makes_more_jamo_of_two_spells_them_so(tmp_path):
 
 
 def test_the_loaded_catalog_is_the_boots():
-    boot = packs.load(PACKS, PACKS / "pack.schema.json", user=Path("/nonexistent"))
+    boot = load(Path("/nonexistent"))
     assert packs.loaded_catalog() is boot["catalog"]
     assert isinstance(Spellers(packs.loaded_catalog).get("ko/korean"), HangulSpeller)
 
