@@ -186,6 +186,9 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
                 errors.append(f"{where}: unknown field {name}")
     if "oneOf" in schema:
         errors += _one_of(value, schema["oneOf"], root, path)
+    # anyOf: when none matches, the first one's errors (a char key with neither char nor cycle: missing char).
+    if "anyOf" in schema and all(found := [validate(value, option, root, path) for option in schema["anyOf"]]):
+        errors += found[0]
     # if/then: what a value must also have when it matches "if" (a convert key, a label).
     if "if" in schema and not validate(value, schema["if"], root, path):
         errors += validate(value, schema.get("then", {}), root, path)
@@ -554,9 +557,7 @@ def _key_id(key: Any) -> str:
     if not isinstance(key, dict):
         return str(key)
     field = {"char": "char", "key": "key", "mod": "mod", "action": "action"}.get(key.get("type", ""))
-    if field:
-        return str(key.get(field, ""))
-    return str(key["flick"][0]) if key.get("type") == "flick" and key.get("flick") else ""
+    return str(key.get(field, "")) if field else ""
 
 
 def _width(key: Any) -> float:
@@ -659,6 +660,11 @@ def _without_alone(key: Any) -> Any:
     return {k: v for k, v in key.items() if k != "alone"} if isinstance(key, dict) else key
 
 
+def _with_char(key: Any) -> Any:
+    """A char key that leaves out char types its cycle's first."""
+    return {**key, "char": key["cycle"][0]} if isinstance(key, dict) and "cycle" in key and "char" not in key else key
+
+
 def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
     """Fill in what a layout leaves to defaults or to other packs, so the page gets every layout complete."""
     layouts = catalog["layouts"]
@@ -666,6 +672,7 @@ def _resolve_layouts(catalog: dict, errors: list[str]) -> None:
     resolved = {layout_id: _extend(layouts, layout_id, errors, done) for layout_id in layouts}
     catalog["layouts"] = layouts = {k: v for k, v in resolved.items() if v is not None}
     for layout_id, layout in layouts.items():
+        layout["rows"] = [[_with_char(key) for key in row] for row in layout["rows"]]
         layout.setdefault("toolbar", [dict(key) for key in DEFAULT_TOOLBAR])
         if isinstance(layout.get("modify"), str):
             table = catalog["tables"].get(layout["modify"], {})

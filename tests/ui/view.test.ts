@@ -506,7 +506,7 @@ describe('hold to repeat', () => {
     const shadow = host.attachShadow({ mode: 'open' });
     const got: [string, string | undefined][] = [];
     const view = createView(document, shadow, boot.catalog.layouts['ja/flick']!, boot.catalog.themes['themes/steam']!,
-      (k, alternate) => got.push([k.type === 'flick' ? k.flick[0] : '?', alternate]));
+      (k, alternate) => got.push([k.type === 'char' ? k.char : '?', alternate]));
     view.update(NO_MODS);
     const ka = [...shadow.querySelectorAll<HTMLElement>('.key')].find((el) => el.dataset['k'] === 'か')!;
     const at = (type: string, x: number, y: number) => {

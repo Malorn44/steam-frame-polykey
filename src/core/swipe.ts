@@ -6,7 +6,7 @@
 // stay a tap. It becomes a swipe only once it is more than a third of a key outside the key it pressed,
 // and half a key from where it pressed.
 
-import type { KeyDef } from './catalog.js';
+import type { CharKey, KeyDef } from './catalog.js';
 import type { Effect } from './keyboard.js';
 
 export interface Point { readonly x: number; readonly y: number }
@@ -22,15 +22,16 @@ export const SWIPE_MAX_POINTS = 2000;
 /** Words the engine returns: the one typed and the alternatives offered. */
 export const SWIPE_WORDS = 5;
 
-/** A key that swipes: a letter. */
-export const swipeLetter = (char: string): boolean => /^\p{L}$/u.test(char);
+const LETTER = /^\p{L}$/u;
+/** A key that swipes: a letter (not one that flicks: moving off it flicks). */
+export const swipeLetter = (key: KeyDef): key is CharKey => key.type === 'char' && !key.flick && LETTER.test(key.char);
 
 /**
  * The letters the letter keys type with Shift, each with its key's own (ㅃ on ㅂ): a word swipes through
  * the key, since nothing shifts mid-swipe. None where a pack names no letter to shift to (q's Q).
  */
 export const swipeShifts = (keys: readonly KeyDef[]): Record<string, string> | undefined => {
-  const pairs = keys.flatMap((k): [string, string][] => (k.type === 'char' && swipeLetter(k.char) && k.shift && k.shift !== k.char && swipeLetter(k.shift)
+  const pairs = keys.flatMap((k): [string, string][] => (swipeLetter(k) && k.shift && k.shift !== k.char && LETTER.test(k.shift)
     ? [[k.shift, k.char.toLowerCase()]] : []));
   return pairs.length ? Object.fromEntries(pairs) : undefined;
 };

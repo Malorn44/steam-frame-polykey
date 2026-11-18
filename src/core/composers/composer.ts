@@ -19,8 +19,8 @@ export const builtOnce = <K extends object, V>(build: (source: K) => V): ((sourc
   };
 };
 
-/** What a press carries: the character a flick chose, or the text a typed key makes (Shift applied). */
-export interface ComposerInput { readonly flicked?: string; readonly typed?: string }
+/** What a press carries: the text a typed key makes (Shift applied, or a flick's or a hold's pick); flicked: a pick, not a tap. */
+export interface ComposerInput { readonly flicked?: boolean; readonly typed?: string }
 
 /** What a composer reads besides the press: the keyboard's options, its table and its main layout. */
 export interface ComposerContext {
