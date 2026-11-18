@@ -38,10 +38,8 @@ export type CharKey = {
   hint?: string;
   flick?: Partial<Record<Exclude<Direction, 'tap'>, string>>;
   cycle?: string[];
-  /** Always show its flicks at the key's edges (whatever the flick hints option says). */
-  hints?: boolean;
-  /** A small legend beneath the label (the ABC keys' digit). */
-  sub?: string;
+  /** Always show its flicks at the key's edges (whatever the keyboard's flickHints option says). */
+  flickHints?: boolean;
 };
 /**
  * tall: a piece of a key two or three rows high (top, middle, bottom); the pieces are one key. A pack
