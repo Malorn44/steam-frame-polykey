@@ -132,6 +132,18 @@ def test_a_char_key_without_char_types_its_cycles_first(tmp_path):
     assert packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["layouts"]["mine/dots"]["rows"] == [[{**dots, "char": "."}]]
 
 
+def test_a_key_without_a_type_has_the_one_it_names(tmp_path):
+    keys = [{"char": "1", "fn": {"key": "F1"}}, {"cycle": [".", ","]}, {"key": "Tab"}, {"mod": "shift"}]
+    rows = [[*keys, {"action": "hide"}, {"w": 1}]]
+    write(tmp_path / "packs", "mine/untyped.json", layout("mine/untyped", rows=rows, toolbar=[{"action": "hide"}]))
+    boot = packs.load(BUNDLED, SCHEMA, tmp_path)
+    mine = boot["catalog"]["layouts"]["mine/untyped"]
+    assert [key["type"] for key in mine["rows"][0]] == ["char", "char", "key", "mod", "action", "gap"]
+    assert mine["rows"][0][0]["fn"] == {"type": "key", "key": "F1"}
+    assert mine["toolbar"] == [{"type": "action", "action": "hide"}]
+    assert not [error for error in boot["errors"] if "mine/" in error]
+
+
 def test_a_layout_extends_another(tmp_path):
     base = layout(
         "mine/base",

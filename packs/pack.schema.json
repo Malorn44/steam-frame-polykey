@@ -285,9 +285,6 @@
     },
     "charKey": {
       "type": "object",
-      "required": [
-        "type"
-      ],
       "anyOf": [
         {
           "required": [
@@ -388,7 +385,6 @@
     "namedKeyKey": {
       "type": "object",
       "required": [
-        "type",
         "key"
       ],
       "additionalProperties": false,
@@ -441,7 +437,6 @@
         {
           "type": "object",
           "required": [
-            "type",
             "char"
           ],
           "additionalProperties": false,
@@ -463,7 +458,6 @@
         {
           "type": "object",
           "required": [
-            "type",
             "key"
           ],
           "additionalProperties": false,
@@ -484,7 +478,6 @@
     "modKey": {
       "type": "object",
       "required": [
-        "type",
         "mod"
       ],
       "additionalProperties": false,
@@ -522,7 +515,6 @@
     "actionKey": {
       "type": "object",
       "required": [
-        "type",
         "action"
       ],
       "additionalProperties": false,
@@ -602,7 +594,6 @@
     "gap": {
       "type": "object",
       "required": [
-        "type",
         "w"
       ],
       "additionalProperties": false,
@@ -619,7 +610,7 @@
       }
     },
     "key": {
-      "description": "A one-character string is shorthand for a char key.",
+      "description": "A one-character string is shorthand for a char key. An object may leave out its type: what it names gives it (char or cycle: a char key; key, mod or action), and one naming none of these is a gap.",
       "oneOf": [
         {
           "$ref": "#/$defs/char"
