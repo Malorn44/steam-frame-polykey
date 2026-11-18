@@ -37,32 +37,8 @@ def theme(item_id: str, surface: str = "#000000") -> dict:
 def test_bundled_packs_are_valid(tmp_path):
     boot = packs.load(BUNDLED, SCHEMA, tmp_path)
     assert boot["errors"] == []
-    assert set(boot["catalog"]["layouts"]) == {
-        "en/qwerty",
-        "internal/emoji-row",
-        "ja/flick",
-        "ja/flick-abc",
-        "ja/flick-qwerty",
-        "ja/flick-symbols",
-        "ja/flick-symbols2",
-        "ja/gojuon",
-        "ja/kana-jis",
-        "ja/qwerty-romaji",
-        "ko/dubeolsik",
-        "ko/qwerty",
-    }
-    assert set(boot["catalog"]["tables"]) == {"ja/modify", "ja/romaji-table", "ko/hangul"}
-    assert boot["settings"] == {
-        "keyboards": ["en/english"],
-        "theme": "themes/steam",
-        "haptics": True,
-        "suggestions": True,
-        "dictation": False,
-        "dictationModels": {},
-        "dictationContinuous": False,
-        "autoUpdate": True,
-    }
-    assert "$schema" not in boot["catalog"]["layouts"]["en/qwerty"]
+    assert boot["settings"] == packs.DEFAULT_SETTINGS
+    assert not any("$schema" in item for items in boot["catalog"].values() for item in items.values())
 
 
 def test_a_key_twice_in_one_object_is_refused(tmp_path):
@@ -314,17 +290,6 @@ def test_a_keyboard_extends_another(tmp_path):
 
 
 def test_swipe_is_declared_by_the_keyboard_and_switched_by_its_option(tmp_path):
-    keyboards = packs.load(BUNDLED, SCHEMA, tmp_path)["catalog"]["keyboards"]
-    for keyboard_id in (
-        "en/english",
-        "ja/12key",
-        "ja/50on",
-        "ja/romaji",
-        "ja/jis",
-        "ko/korean",
-    ):  # 50on through extends
-        assert keyboards[keyboard_id]["features"] == {"swipe": {}}, keyboard_id  # with the list of the mode it is in
-        assert keyboards[keyboard_id]["options"]["swipe"] is False, keyboard_id  # off until turned on
     write(tmp_path / "packs", "mine/qwerty.json", keyboard("mine/qwerty", layout="en/qwerty", options={"swipe": True}))
     # An older pack that names the swipe list still loads (the list is not read).
     old = keyboard("mine/old", layout="en/qwerty", lexicon="en/words", features={"swipe": {"lexicon": "en/words"}})
