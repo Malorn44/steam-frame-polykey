@@ -660,8 +660,7 @@ def _without_alone(key: Any) -> Any:
 
 
 def _complete(key: Any) -> Any:
-    """A key as the page reads it: the type it names when it leaves that out (char or cycle: a char key; key,
-    mod, action; none of these: a gap), its char its cycle's first when it has none, and its Fn key the same."""
+    """A key as the page reads it: what a pack may leave out, filled in."""
     if not isinstance(key, dict):
         return key
     kind = next((f for f in ("char", "key", "mod", "action") if f in key), "char" if "cycle" in key else "gap")
