@@ -85,7 +85,7 @@ A QWERTZ keyboard takes two files. The layout extends the English one and replac
 }
 ```
 
-A plain string is a key that types it. Every other key is an object with a `type`, as in [`packs/en/qwerty.json`](../packs/en/qwerty.json). A key is 1 wide unless its `w` says otherwise, and every row must be as wide as the first.
+A plain string is a key that types it. Every other key is an object, as in [`packs/en/qwerty.json`](../packs/en/qwerty.json), and what it names says what it is: `char`, `key`, `mod` or `action`. An object with only a width is a gap. A key is 1 wide unless its `w` says otherwise, and every row must be as wide as the first.
 
 The keyboard extends the English one, so it keeps its word suggestions and swipe typing, and only changes the layout. Save it as `~/.config/polykey/packs/mine/qwertz.json`:
 

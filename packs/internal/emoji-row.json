@@ -7,9 +7,9 @@
  "description": "The emoji picker's bottom row: back to the keys (ABC), the next picker set (hidden with one set), space, delete, enter and the arrows.",
  "toolbar": [],
  "rows": [
-  [{"type": "action", "action": "abc", "w": 1.5}, {"type": "action", "action": "next-set", "w": 1.5},
-   {"type": "char", "char": " ", "label": "Space", "w": 5.5},
-   {"type": "key", "key": "Backspace", "w": 1.5}, {"type": "key", "key": "Enter", "w": 1.5},
-   {"type": "key", "key": "ArrowLeft"}, {"type": "key", "key": "ArrowRight"}]
+  [{"action": "abc", "w": 1.5}, {"action": "next-set", "w": 1.5},
+   {"char": " ", "label": "Space", "w": 5.5},
+   {"key": "Backspace", "w": 1.5}, {"key": "Enter", "w": 1.5},
+   {"key": "ArrowLeft"}, {"key": "ArrowRight"}]
  ]
 }
