@@ -55,7 +55,7 @@ sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clip
                 spellers/ (words as the keys they are typed with, by composer: SPELLERS in __init__.py)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
-                release.sh, test-layout.sh; make-*.py rebuild the word lists, blocklist and emoji data
+                release.sh; make-*.py rebuild the word lists, blocklist and emoji data
 contrib/        polykey.service; allowed_signers, the release key
 ```
 

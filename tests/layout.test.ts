@@ -3,9 +3,7 @@
 // (their label, their Shift legend, their flicks and flick hints, the long-press hint). The layout is
 // drawn everywhere a keyboard shows it (its modes and pages, and each option that changes what it
 // shows), with no modifier, Shift, Caps and Fn. sidecar/tests/test_layout.py checks that it loads and is
-// as wide as it should be. CI runs both for each layout (npm run test:layout -- ja/flick); POLYKEY_LAYOUT
-// names the layout, and without it every bundled layout is checked.
-import { env } from 'node:process';
+// as wide as it should be.
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, KeyboardDef, Layout } from '../src/core/catalog.js';
 import { HOLD_MS } from '../src/core/interaction.js';
@@ -16,8 +14,7 @@ import { createView } from '../src/ui/view.js';
 import { bundledBoot } from './boot.js';
 
 const boot = bundledBoot();
-const only = env['POLYKEY_LAYOUT'];
-const ids = only ? [only] : Object.keys(boot.catalog.layouts).sort();
+const ids = Object.keys(boot.catalog.layouts).sort();
 
 /** Where a keyboard shows the layout: how the view draws it there, and how its keys type. */
 interface Place {
@@ -131,9 +128,7 @@ const labelled = (key: KeyDef, el: HTMLElement): boolean =>
   ('label' in key && key.label !== undefined) || ('legends' in key && key.legends?.c !== undefined) || el.querySelector('.lbl svg') !== null;
 
 describe.each(ids)('%s', (id) => {
-  const layout = boot.catalog.layouts[id];
-  it('is a bundled layout', () => expect(layout, `no bundled layout ${id}`).toBeDefined());
-  if (!layout) return;
+  const layout = boot.catalog.layouts[id]!;
 
   describe.each(placesOf(id))('$name', (place) => {
     it.each(MODS)('every key draws a label (%s)', (_, mods) => {
