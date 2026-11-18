@@ -54,6 +54,9 @@ describe('reading buffer', () => {
     expect(run([[ta], [ta], [ta], [ta], [ta], [ta], [ta]], true).buffer).toBe('た'); // past っ it wraps
     expect(run([[ta], [ha], [ha]], true).buffer).toBe('たひ'); // another key starts its own cycle
     expect(run([[ha], [ha], [ha]], true).buffer).toBe('ふ'); // no cycle of its own: its char, then its flicks (left, up, …)
+    const dots: KeyDef = { type: 'char', char: '.', cycle: ['.', ','] }; // a cycle and no flicks
+    expect(run([[dots], [dots]], true).buffer).toBe(',');
+    expect(run([[ta], [{ type: 'char', char: 'た' }]], true).buffer).toBe('たた'); // a key with one character does not cycle
   });
 
   it('↶ steps back through the cycle; with an empty buffer it undoes in the app', () => {
@@ -76,7 +79,10 @@ describe('keyboard options', () => {
   it('take the keyboard default, then the user choice, and only options the keyboard has', () => {
     expect(optionsFor(keyboard, undefined).tapCycle).toBe(false);
     expect(optionsFor(keyboard, { tapCycle: true }).tapCycle).toBe(true);
-    expect(optionsFor({ ...keyboard, options: {} }, { tapCycle: true }).tapCycle).toBe(false);
+    expect(optionsFor({ ...keyboard, options: {} }, { flickHints: true }).flickHints).toBe(false);
+  });
+  it('cycle on taps on a keyboard that does not offer to stop them', () => {
+    expect(optionsFor({ ...keyboard, options: {} }, { tapCycle: false }).tapCycle).toBe(true);
   });
 });
 
