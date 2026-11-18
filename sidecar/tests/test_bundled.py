@@ -7,25 +7,15 @@ from __future__ import annotations
 
 import functools
 import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
 
+from pack_helpers import BUNDLED, SCHEMA, as_key, bundled_boot
 from polykey import packs
 
-REPO = Path(__file__).resolve().parents[2]
-SCHEMA = REPO / "packs" / "pack.schema.json"
-BUNDLED = REPO / "packs"
 # A full keyboard (one with Ctrl) is as wide as en/qwerty, in key units.
 FULL_KEYBOARD_UNITS = 15
-
-
-@functools.cache
-def full_boot() -> dict:
-    """The boot data from every bundled pack, as the page gets it (no user packs or settings)."""
-    with tempfile.TemporaryDirectory() as empty:
-        return packs.load(BUNDLED, SCHEMA, Path(empty))
 
 
 @functools.cache
@@ -60,13 +50,11 @@ def named(value: object) -> list[str]:
 
 
 def width(row: list) -> float:
-    return sum(key.get("w", 1) if isinstance(key, dict) else 1 for key in row)
+    return sum(as_key(key).get("w", 1) for key in row)
 
 
 def has_ctrl(rows: list) -> bool:
-    return any(
-        isinstance(key, dict) and key.get("type") == "mod" and key.get("mod") == "ctrl" for row in rows for key in row
-    )
+    return any(as_key(key).get("mod") == "ctrl" for row in rows for key in row)
 
 
 each_pack = pytest.mark.parametrize("pack_id", pack_ids(*packs.KINDS))
@@ -104,21 +92,21 @@ def test_it_loads_on_its_own(pack_id, tmp_path):
     # On its own there may be no keyboard or theme the settings name; that is not the pack's.
     assert [e for e in boot["errors"] if not e.startswith("settings.json:")] == []
     kind = packs.KINDS[raw(pack_id)["kind"]]
-    assert boot["catalog"][kind].get(pack_id) == full_boot()["catalog"][kind].get(pack_id)
+    assert boot["catalog"][kind].get(pack_id) == bundled_boot()["catalog"][kind].get(pack_id)
 
 
 @each_pack
 def test_the_whole_bundle_reports_nothing_about_it(pack_id):
     names = tuple(f"{p.parent.name}/{p.name}:" for p in files_by_id().get(pack_id, []))
-    assert [e for e in full_boot()["errors"] if e.startswith((f"{pack_id}:", *names))] == []
-    assert pack_id in full_boot()["catalog"][packs.KINDS[raw(pack_id)["kind"]]]
+    assert [e for e in bundled_boot()["errors"] if e.startswith((f"{pack_id}:", *names))] == []
+    assert pack_id in bundled_boot()["catalog"][packs.KINDS[raw(pack_id)["kind"]]]
 
 
 @pytest.mark.parametrize("layout_id", pack_ids("layout"))
 def test_its_rows_are_as_wide_as_its_kind_needs(layout_id):
     """Every row as wide as the first, with 🌐 hidden too (one keyboard in the list); a full keyboard
     (with Ctrl) 15 units, as en/qwerty; a layout that extends another as wide as that one."""
-    layouts = full_boot()["catalog"]["layouts"]
+    layouts = bundled_boot()["catalog"]["layouts"]
     layout = layouts[layout_id]
     rows = layout["rows"]
     needs = [("as wide as row 0", width(rows[0]))]
@@ -140,4 +128,4 @@ def test_its_rows_are_as_wide_as_its_kind_needs(layout_id):
 
 @pytest.mark.parametrize("keyboard_id", pack_ids("keyboard"))
 def test_swipe_is_off_until_turned_on(keyboard_id):
-    assert full_boot()["catalog"]["keyboards"][keyboard_id].get("options", {}).get("swipe", False) is False
+    assert bundled_boot()["catalog"]["keyboards"][keyboard_id].get("options", {}).get("swipe", False) is False
