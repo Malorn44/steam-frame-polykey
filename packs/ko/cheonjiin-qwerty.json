@@ -1,0 +1,12 @@
+{
+  "$schema": "../pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ko/cheonjiin-qwerty",
+  "name": "Korean 12-key letters (QWERTY)",
+  "description": "천지인's ABC mode: the Japanese 12-key's QWERTY page (ja/flick-qwerty, which it extends), a top-row letter held for its digit, with 한/영 back to 한글 where that has あa.",
+  "extends": "ja/flick-qwerty",
+  "rows": {
+    "3": [{"action": "next-keyboard"}, {"action": "mode", "legends": {"c": {"parts": ["한", "영"]}}, "w": 1.25}, {"action": "symbols", "w": 1.25}, {"char": ",", "w": 0.75}, {"char": " ", "w": 2.5, "alone": {"w": 3.5}}, {"char": ".", "w": 0.75}, {"key": "ArrowLeft", "w": 0.75}, {"key": "ArrowRight", "w": 0.75}, {"key": "Enter"}]
+  }
+}
