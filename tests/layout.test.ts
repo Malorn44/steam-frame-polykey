@@ -2,7 +2,7 @@
 // One bundled layout's own checks in the page: every key draws a label, and keys type what they show
 // (their label, their Shift legend, their flicks and flick hints, the long-press hint). The layout is
 // drawn everywhere a keyboard shows it (its modes and pages, and each option that changes what it
-// shows), with no modifier, Shift, Caps and Fn. sidecar/tests/test_layout.py checks that it loads and is
+// shows), with no modifier, Shift, Caps and Fn. sidecar/tests/test_bundled.py checks that it loads and is
 // as wide as it should be.
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyDef, KeyboardDef, Layout } from '../src/core/catalog.js';
