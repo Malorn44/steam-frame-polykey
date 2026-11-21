@@ -1,0 +1,10 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "keyboard",
+ "id": "ko/12key-plus",
+ "name": "천지인 플러스",
+ "description": "천지인 (ko/12key, which it extends) with a key for each consonant: a tense one is the plain key tapped again (ㄱ → ㄲ) or the aspirated one held (ㅋ → ㄲ). Vowels from ㅣ ㆍ ㅡ, composed as 두벌식 does, with Korean word suggestions, 한자 and 한/영. Swipe typing only on ABC.",
+ "extends": "ko/12key",
+ "layout": "ko/cheonjiin-plus"
+}

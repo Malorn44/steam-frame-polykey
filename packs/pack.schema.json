@@ -865,7 +865,7 @@
             "romaji",
             "hangul-2set"
           ],
-          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul-2set: 2-set (두벌식) Hangul, jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table."
+          "description": "How typing composes text in the bar (src/core/composers/). direct: keys type at once. kana: typed kana wait in a reading buffer shown in the bar until confirmed (確定) or converted (変換). romaji: the same buffer; letters become kana with the keyboard's table. hangul-2set: 2-set (두벌식) Hangul, jamo compose into the syllable shown in the bar, sent as it completes, with the keyboard's hangul table; 천지인 too, whose keys cycle and whose strokes make vowels (the table's compoundMedials)."
         },
         "lexicon": {
           "$ref": "#/$defs/id",
@@ -914,6 +914,17 @@
                 "lexicon": {
                   "$ref": "#/$defs/id",
                   "description": "Not read: older packs named the swipe word list here."
+                },
+                "modes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z]+$",
+                    "maxLength": 16
+                  },
+                  "description": "The modes it swipes in, by id (default: all): 천지인's keypad does not swipe, its ABC page does (latin)."
                 }
               },
               "description": "Swipe typing over the letter keys (the swipe option turns it on and off), decoded against the word list of the mode it is in (lexicon, or the mode's), its words spelled as its suggestions are. A mode without one does not swipe: on a Japanese keyboard, only 英数 swipes."
@@ -1152,9 +1163,9 @@
               "maxItems": 32,
               "items": {
                 "type": "string",
-                "pattern": "^[ㅏ-ㅣ]{3}$"
+                "pattern": "^[ㅏ-ㅣㆍᆢ]{3}$"
               },
-              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial). Three vowels (ㅏ to ㅣ)."
+              "description": "Vowels typed one after the other that make one: \"ㅗㅏㅘ\" is ㅗ then ㅏ, making ㅘ (a medial). What two make joins the next in turn: with \"ㅣㆍㅏ\" and \"ㅏㆍㅑ\", ㅣ ㆍ ㆍ makes ㅑ (천지인). Three vowels (ㅏ to ㅣ), or 천지인's strokes ㆍ and ᆢ, which are none alone."
             },
             "compoundFinals": {
               "type": "array",
@@ -1222,6 +1233,26 @@
           "type": "string",
           "maxLength": 80,
           "description": "Shown where candidates appear while there are none, on the keyboards that compose."
+        },
+        "optionNames": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "tapCycle",
+              "candidatesLeft",
+              "flickHints",
+              "romajiInput",
+              "qwertyLatin",
+              "swipe",
+              "dictationCommit"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": "What Settings calls the keyboards' options, by option (candidatesLeft: 후보를 왼쪽에 표시). An option left out keeps polykey's name."
         },
         "dictation": {
           "$ref": "#/$defs/languageCode",

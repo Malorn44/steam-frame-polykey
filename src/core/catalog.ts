@@ -81,9 +81,9 @@ export interface KeyboardOptions {
 }
 /**
  * What a keyboard can do beyond typing keys. swipe: swipe typing, decoded against the word list of the
- * mode it is in (an older pack's lexicon here is not read).
+ * mode it is in, in the modes listed (default: all; an older pack's lexicon here is not read).
  */
-export interface KeyboardFeatures { swipe?: { lexicon?: string } }
+export interface KeyboardFeatures { swipe?: { lexicon?: string; modes?: string[] } }
 /**
  * latin: the layout shown in 英数 mode instead (the 12-key's ABC keys), or two that the qwertyLatin
  * option picks between. symbols: the ?123 pages, the first opened by the symbols key and the second
@@ -123,6 +123,8 @@ export interface LanguageDef {
   id: string; name: PackName; letters?: string; labels?: Record<string, string>; idleHint?: string; dictation?: string;
   /** The fonts the bar draws its text in first, a CSS font-family list (Korean's: Hangul, which the Frame's system font has none of). */
   font?: string;
+  /** What Settings calls the keyboards' options, by option (candidatesLeft: 후보를 왼쪽에 표시); default: polykey's names. */
+  optionNames?: Partial<Record<keyof KeyboardOptions, string>>;
 }
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;

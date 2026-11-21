@@ -63,8 +63,8 @@ polykey's own code does these, following others' work:
   thresholds, CPU only) and the design of its mic key.
 - **Hangul composition** follows the Unicode Standard's Hangul syllable composition (section 3.12,
   "Conjoining Jamo Behavior"): a syllable's code point is computed from its jamo's places in Unicode's
-  order. The **2-set (두벌식) layout** is the Korean standard KS X 5002. Both are standards, followed;
-  no code or data is copied from any keyboard.
+  order. The **2-set (두벌식) layout** is the Korean standard KS X 5002, and **천지인** the 12-key
+  standard KS X 5020. These are standards, followed; no code or data is copied from any keyboard.
 
 ## Read from the system, not included
 

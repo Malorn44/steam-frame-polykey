@@ -344,9 +344,14 @@ export const createView = (
   type Entry = { el: HTMLElement; key: KeyDef; label: HTMLElement; slots: Partial<Record<SlotName, HTMLElement>>; under?: HTMLElement; pieces?: Entry[] };
   const keys: Entry[] = [];
   const widthOf = (key: KeyDef): number => ('w' in key && key.w !== undefined ? key.w : 1);
+  // A phone keypad's keys are drawn at the 12-key size: those that flick or cycle, and on a layout with any,
+  // its other letters too (천지인's ㅣ ㆍ ㅡ).
+  const flicksOrCycles = (key: KeyDef): boolean => key.type === 'char' && !!(key.flick ?? key.cycle);
+  const keypad = layout.rows.flat().map(normalizeKey).some(flicksOrCycles);
+  const padKey = (key: KeyDef): boolean => flicksOrCycles(key) || (keypad && key.type === 'char' && /^\p{L}$/u.test(key.char));
   const makeKey = (key: KeyDef, rowUnits?: number): HTMLElement => {
     const el = doc.createElement('div');
-    el.className = `key ${key.type === 'char' ? (key.flick ? 'flick' : 'char') : key.type === 'key' ? 'named' : key.type}`;
+    el.className = `key ${padKey(key) ? 'flick' : key.type === 'char' ? 'char' : key.type === 'key' ? 'named' : key.type}`;
     // An exact share of the row, so keys line up across rows whatever their count.
     if (rowUnits) el.style.flex = `0 0 ${(widthOf(key) / rowUnits) * 100}%`;
     el.dataset['k'] = key.type === 'char' ? key.char : key.type === 'key' ? key.key

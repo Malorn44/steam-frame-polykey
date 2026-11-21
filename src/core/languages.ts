@@ -1,8 +1,9 @@
-// A keyboard's language pack (kind language), and what keyboards take from it: their idle hint and the
-// words their bar's keys show. Their letters are core/pages.ts's modeLetters, their dictation language
-// core/dictation.ts's. A keyboard's own fields win. Pure.
+// A keyboard's language pack (kind language), and what keyboards take from it: their idle hint, the
+// words their bar's keys show and their options' names. Their letters are core/pages.ts's modeLetters,
+// their dictation language core/dictation.ts's. A keyboard's own fields win. Pure.
 
 import type { KeyboardDef, LanguageDef } from './catalog.js';
+import { OPTIONS, type OptionName } from './options.js';
 
 /** The language pack for the keyboard's language: that code's, else its base language's (pt-BR → pt). */
 export const languageOf = (languages: Readonly<Record<string, LanguageDef>> | undefined, keyboard: KeyboardDef | undefined): LanguageDef | undefined => {
@@ -21,3 +22,6 @@ export const spelled = (names: Readonly<Record<string, string>>, language: Langu
     const word = language?.labels && Object.hasOwn(language.labels, name) ? language.labels[name] : undefined;
     return word ? [[key, word]] : [];
   }));
+
+export const optionName = (option: OptionName, language: LanguageDef | undefined): string =>
+  language?.optionNames?.[option] ?? OPTIONS[option].name;

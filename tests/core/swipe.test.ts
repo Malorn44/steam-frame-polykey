@@ -94,6 +94,9 @@ describe('swipe on a keyboard', () => {
     expect([swipeLexicon(modes, undefined, false), swipeLexicon(modes, undefined, true)]).toEqual([undefined, 'en/words']);
     const korean: KeyboardDef = { ...modes, composer: 'hangul-2set', modes: [{ id: 'hangul', lexicon: 'ko/words' }, modes.modes![1]!] };
     expect([swipeLexicon(korean, undefined, false), swipeLexicon(korean, undefined, true)]).toEqual(['ko/words', 'en/words']);
+    // Only in the modes it lists, where it lists them (천지인: ABC, not its keypad).
+    const latinOnly: KeyboardDef = { ...korean, features: { swipe: { modes: ['latin'] } } };
+    expect([swipeLexicon(latinOnly, undefined, false), swipeLexicon(latinOnly, undefined, true)]).toEqual([undefined, 'en/words']);
     // An older pack's list here is not read: the keyboard's own is.
     expect(swipeLexicon({ ...keyboard, features: { swipe: { lexicon: 'mine/words' } } }, undefined, false)).toBe('en/words');
   });

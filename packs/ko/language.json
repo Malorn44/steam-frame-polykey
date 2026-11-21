@@ -4,8 +4,10 @@
  "kind": "language",
  "id": "ko",
  "name": {"en": "Korean", "ko": "한국어"},
- "description": "What the Korean keyboards call their letters and say in the bar while converting to Hanja, and the fonts for Hangul in the bar.",
+ "description": "What the Korean keyboards call their letters, say in the bar (where words will appear, and while converting to Hanja) and call their options in Settings, and the fonts for Hangul in the bar.",
  "letters": "한글",
  "labels": {"next": "다음"},
+ "optionNames": {"candidatesLeft": "후보를 왼쪽에 표시"},
+ "idleHint": "입력하면 여기에 추천 단어가 표시됩니다",
  "font": "\"Noto Sans CJK KR\", \"Noto Sans CJK JP\""
 }

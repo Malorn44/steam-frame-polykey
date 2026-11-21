@@ -121,6 +121,7 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 - `letters`: what the language's own letters are called. The keys back to the letters read it in a keyboard's first mode. A mode's own `letters` wins, and a Latin mode without any reads ABC.
 - `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. The Hangul composer names Space `next` while converting to Hanja (Korean's 다음). A key whose name is left out keeps its own label.
 - `idleHint`: shown where candidates appear while there are none. A keyboard's `strings.idleHint` wins.
+- `optionNames`: what Settings calls the keyboards' options, by option. Korean names `candidatesLeft` 후보를 왼쪽에 표시; an option left out keeps polykey's name.
 - `dictation`: the language dictation listens for, if it is not the `id`.
 - `font`: the fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font. Korean's is `"Noto Sans CJK KR", "Noto Sans CJK JP"`: the Frame's system font has no Hangul.
 
@@ -128,7 +129,7 @@ A language of yours replaces the bundled one with its code: to change the Japane
 
 ## A Hangul table
 
-The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layout) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
+The Korean keyboards' composer (`"composer": "hangul-2set"`, for the 2-set layout and 천지인) reads the table its `table` names, whose `hangul` says which jamo typed one after the other make one. This is [`packs/ko/hangul.json`](../packs/ko/hangul.json)'s:
 
 ```json
 "hangul": {
@@ -137,7 +138,7 @@ The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layou
 }
 ```
 
-- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). A pair's jamo are three vowels, or three consonants that can end a syllable.
+- `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). What a pair makes joins the next jamo in turn: 천지인's table makes every vowel of the strokes ㅣ ㆍ ㅡ that way (`"ㅣㆍㅏ"`, then `"ㅏㆍㅑ"`), its ㆍ and ᆢ being strokes, no vowel alone. A pair's jamo are three vowels (or strokes), or three consonants that can end a syllable.
 - The jamo themselves are Unicode's, not the table's: a syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each its jamo's place in Unicode's lists (in `src/core/composers/hangul.ts`). ㄸ, ㅃ and ㅉ end no syllable, so they always start a new one.
 - Another Hangul layout is its own layout pack, with this table or one of its own.
 - With `"converter": "hanja"`, a key whose action is `convert` (the bundled layout's 한자) converts the word before the caret to Hanja, from the system's libhangul dictionary.
@@ -149,7 +150,7 @@ A keyboard's `lexicon` names the word list its suggestions come from: `en/words`
 - A keyboard with `modes` names a `lexicon` on each mode instead, and a mode without one suggests nothing. The Japanese keyboards name `en/words` on 英数, so かな suggests nothing; the Korean keyboard names `ko/words` on 한글 and `en/words` on ABC. A keyboard with both modes and its own `lexicon` is refused.
 - In a mode that composes, the word being typed is what was sent since the last space or punctuation plus what is still composed, and a keyboard whose composer has a speller (`sidecar/polykey/spellers/`) matches it on the keys typed, as its table makes them: 하 (ㅎㅏ) completes to 한국 (ㅎㅏㄴㄱㅜㄱ). A table where ㅏ ㅏ makes ㅑ makes ㅏ complete to words with ㅑ.
 
-- Swipe typing (`"features": {"swipe": {}}`) decodes against the list of the mode it is in, spelled as its suggestions are, from its 60,000 most frequent words; a mode without a list does not swipe. An older pack's `features.swipe.lexicon` is no longer read.
+- Swipe typing (`"features": {"swipe": {}}`) decodes against the list of the mode it is in, spelled as its suggestions are, from its 60,000 most frequent words; a mode without a list does not swipe, nor one left out of `features.swipe.modes` where it lists them (천지인's: `["latin"]`). An older pack's `features.swipe.lexicon` is no longer read.
 - A list is loaded and indexed when a keyboard whose mode suggests from it is drawn, so the first suggestion does not wait; a list no keyboard you show uses is never loaded. One unused for 10 minutes (no suggestion, swipe or keyboard drawn needs it) is unloaded until it is needed again.
 - A list in `~/.config/polykey/packs/<namespace>/` replaces the bundled one with the same name.
 - Words in `~/.config/polykey/packs/<namespace>/blocked.txt`, one per line, are never suggested from that namespace's lists.
