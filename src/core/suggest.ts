@@ -5,6 +5,7 @@
 // them), but the word is not learned at the next boundary, as it may be part of a longer one.
 
 import type { Effect } from './keyboard.js';
+import { planEffects, planInline } from './output/inline.js';
 import { graphemes } from './output/plan.js';
 
 export interface WordState {
@@ -73,11 +74,16 @@ export const matchCase = (suggestion: string, typed: string): string => {
 /** Three slots, the best in the middle: [2nd, 1st, 3rd]. */
 export const slotOrder = (ranked: readonly string[]): (string | undefined)[] => [ranked[1], ranked[0], ranked[2]];
 
+/**
+ * What turns `typed`, letters just sent, into `text`: what both start with stays, the rest of `typed` is
+ * deleted and the rest of `text` typed. A field that completes inline (a browser's address bar, with its
+ * completion selected after the caret) spends the first Backspace on the selection, so a completion
+ * that only adds letters sends none.
+ */
+export const replaceText = (typed: string, text: string): Effect[] => planEffects(planInline(typed, text, ''));
+
 /** What replaces the typed word with a suggestion, then a space. */
-export const replaceWord = (typed: string, suggestion: string): Effect[] => [
-  ...graphemes(typed).map((): Effect => ({ kind: 'key', key: 'Backspace' })),
-  { kind: 'text', text: `${matchCase(suggestion, typed)} ` },
-];
+export const replaceWord = (typed: string, suggestion: string): Effect[] => replaceText(typed, `${matchCase(suggestion, typed)} `);
 
 const CLOSES_UP = /^[.,!?;:]$/;
 
