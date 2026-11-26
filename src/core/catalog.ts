@@ -143,7 +143,7 @@ export interface ThemeColors {
   indicator?: string;
 }
 /**
- * Hangul composition (the hangul composer), what a layout varies: the vowels and the finals typed one after
+ * Hangul composition (the hangul-2set composer), what a layout varies: the vowels and the finals typed one after
  * the other that make one ("ㅗㅏㅘ" is ㅗ then ㅏ, making ㅘ). The jamo themselves are Unicode's (hangul.ts).
  */
 export interface HangulTableDef { compoundMedials?: string[]; compoundFinals?: string[] }

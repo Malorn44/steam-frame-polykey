@@ -6,7 +6,8 @@ learn_prediction). Readings are typed text: never logged.
 
 from __future__ import annotations
 
-# The longest reading a converter is asked about (the page's composers keep to it too).
+# The longest reading a converter is asked about; the page's composers keep to it too (MAX_READING in
+# src/core/composers/composer.ts, held equal by tests/core/composers.test.ts).
 MAX_READING = 64
 
 
