@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0](https://github.com/Malorn44/steam-frame-polykey/compare/v0.2.0...v0.3.0) (2026-11-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **packs:** a 12-key key is a char key with flicks and a tap cycle ([#72](https://github.com/Malorn44/steam-frame-polykey/issues/72))
+* **ko:** word suggestions while typing Hangul ([#61](https://github.com/Malorn44/steam-frame-polykey/issues/61))
+
+### Features
+
+* **input:** compose in the text field where it is safe ([#66](https://github.com/Malorn44/steam-frame-polykey/issues/66)) ([62e2be7](https://github.com/Malorn44/steam-frame-polykey/commit/62e2be7df4cc545b6ef3ded9941c11ef20571d67))
+* **ko:** a Korean 2-set keyboard with Hangul composed in the bar ([#56](https://github.com/Malorn44/steam-frame-polykey/issues/56)) ([82ac60c](https://github.com/Malorn44/steam-frame-polykey/commit/82ac60c499afa84fa569a4b5e0e158f558520b6a))
+* **ko:** convert Korean words to Hanja with the 한자 key ([#69](https://github.com/Malorn44/steam-frame-polykey/issues/69)) ([c4a8bef](https://github.com/Malorn44/steam-frame-polykey/commit/c4a8bef9746a14035d97fbcdfeecc9dedbc135fe))
+* **ko:** swipe typing in 한글, spelled as its suggestions are ([#71](https://github.com/Malorn44/steam-frame-polykey/issues/71)) ([59c2972](https://github.com/Malorn44/steam-frame-polykey/commit/59c2972de88688402ad644106009a97f435e0a94))
+* **ko:** the 천지인 and 천지인 플러스 keyboards ([#76](https://github.com/Malorn44/steam-frame-polykey/issues/76)) ([235665c](https://github.com/Malorn44/steam-frame-polykey/commit/235665c34f5b3c3f480de502dab0a3d380e33f2b))
+* **ko:** word suggestions while typing Hangul ([#61](https://github.com/Malorn44/steam-frame-polykey/issues/61)) ([bbc876d](https://github.com/Malorn44/steam-frame-polykey/commit/bbc876d0cbad41c41e9a05269b7036cb255a5861))
+
+
+### Bug Fixes
+
+* **suggest:** a pick keeps the letters the word starts with ([#67](https://github.com/Malorn44/steam-frame-polykey/issues/67)) ([7ba47d9](https://github.com/Malorn44/steam-frame-polykey/commit/7ba47d9f11b9fe603f244f86b8d8f3ee8c799f8b))
+* **theme:** text stays readable on a selected, hovered or pressed accent ([#70](https://github.com/Malorn44/steam-frame-polykey/issues/70)) ([b28d0d5](https://github.com/Malorn44/steam-frame-polykey/commit/b28d0d57a4b21a80b94635857cfe53519213589a))
+
+
+### Performance Improvements
+
+* **output:** wait after a keymap only for what needs it ([#68](https://github.com/Malorn44/steam-frame-polykey/issues/68)) ([1ef9e0f](https://github.com/Malorn44/steam-frame-polykey/commit/1ef9e0f2005228163c643656a8d616c0b007b730))
+
+
+### Code Refactoring
+
+* **packs:** a 12-key key is a char key with flicks and a tap cycle ([#72](https://github.com/Malorn44/steam-frame-polykey/issues/72)) ([679a1e0](https://github.com/Malorn44/steam-frame-polykey/commit/679a1e0e61ce31b2b2c0d73d9f36274703cf5a8f))
+
 ## [0.2.0](https://github.com/Malorn44/steam-frame-polykey/compare/v0.1.0...v0.2.0) (2026-11-15)
 
 
