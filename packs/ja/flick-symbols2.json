@@ -7,9 +7,9 @@
   "description": "The 12-key's second symbols page (=\\<): typed in the mode it was opened from. 123 goes back to the numbers, the back key to the letters (あいう or ABC).",
   "large": true,
   "rows": [
-    [{"type": "char", "char": "~"}, {"type": "char", "char": "`"}, {"type": "char", "char": "|"}, {"type": "char", "char": "·"}, {"type": "char", "char": "√"}, {"type": "char", "char": "π"}, {"type": "char", "char": "÷"}, {"type": "char", "char": "×"}, {"type": "char", "char": "§"}, {"type": "char", "char": "Δ"}],
-    [{"type": "char", "char": "£"}, {"type": "char", "char": "€"}, {"type": "char", "char": "$"}, {"type": "char", "char": "¢"}, {"type": "char", "char": "^"}, {"type": "char", "char": "°"}, {"type": "char", "char": "="}, {"type": "char", "char": "{"}, {"type": "char", "char": "}"}, {"type": "char", "char": "\\"}],
-    [{"type": "action", "action": "more-symbols", "w": 1.5}, {"type": "char", "char": "_"}, {"type": "char", "char": "©"}, {"type": "char", "char": "®"}, {"type": "char", "char": "™"}, {"type": "char", "char": "✓"}, {"type": "char", "char": "["}, {"type": "char", "char": "]"}, {"type": "key", "key": "Backspace", "w": 1.5}],
-    [{"type": "action", "action": "next-keyboard"}, {"type": "action", "action": "symbols", "w": 1.5}, {"type": "char", "char": "<"}, {"type": "char", "char": " ", "w": 3.5, "alone": {"w": 4.5}}, {"type": "char", "char": ">"}, {"type": "key", "key": "Enter", "w": 2}]
+    [{"char": "~"}, {"char": "`"}, {"char": "|"}, {"char": "·"}, {"char": "√"}, {"char": "π"}, {"char": "÷"}, {"char": "×"}, {"char": "§"}, {"char": "Δ"}],
+    [{"char": "£"}, {"char": "€"}, {"char": "$"}, {"char": "¢"}, {"char": "^"}, {"char": "°"}, {"char": "="}, {"char": "{"}, {"char": "}"}, {"char": "\\"}],
+    [{"action": "more-symbols", "w": 1.5}, {"char": "_"}, {"char": "©"}, {"char": "®"}, {"char": "™"}, {"char": "✓"}, {"char": "["}, {"char": "]"}, {"key": "Backspace", "w": 1.5}],
+    [{"action": "next-keyboard"}, {"action": "symbols", "w": 1.5}, {"char": "<"}, {"char": " ", "w": 3.5, "alone": {"w": 4.5}}, {"char": ">"}, {"key": "Enter", "w": 2}]
   ]
 }
