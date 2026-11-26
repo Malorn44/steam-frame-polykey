@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from polykey import packs
-from test_packs import BUNDLED, SCHEMA, write
+from pack_helpers import BUNDLED, SCHEMA, load, write
 
 EMOJI_GROUPS = ["smileys", "people", "animals", "food", "travel", "activities", "objects", "symbols", "flags"]
 STEAM = ["steam-emoticon", "steam-sticker", "steam-effect"]
@@ -27,10 +26,6 @@ def picker(set_id: str, *categories: dict, **more) -> dict:
         "categories": list(categories) or [category("one")],
         **more,
     }
-
-
-def load(tmp_path: Path) -> dict:
-    return packs.load(BUNDLED, SCHEMA, tmp_path)
 
 
 def sets(boot: dict) -> dict:

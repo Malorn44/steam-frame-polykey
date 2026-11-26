@@ -7,9 +7,9 @@ import json
 import math
 import random
 import time
-from pathlib import Path
 
-from polykey import packs, swipe
+from pack_helpers import BUNDLED, as_key, bundled_boot
+from polykey import swipe
 from polykey.bridge import Bridge
 from polykey.injector import Log
 from polykey.lexicon import UNUSED_S, Lexicon, Lexicons
@@ -17,8 +17,7 @@ from polykey.spellers import LOWERCASE, Spellers
 from polykey.spellers.hangul import HangulSpeller
 from polykey.swipe import GeometricDecoder, Swipe, fold, resample
 
-ROOT = Path(__file__).resolve().parents[2]
-CATALOG = packs.load(ROOT / "packs", ROOT / "packs/pack.schema.json", user=Path("/nonexistent"))["catalog"]
+CATALOG = bundled_boot()["catalog"]
 
 
 def drawn(layout_id: str = "en/qwerty", width: float = 854, height: float = 200):
@@ -30,7 +29,7 @@ def drawn(layout_id: str = "en/qwerty", width: float = 854, height: float = 200)
     shifts: dict[str, str] = {}
     key_width = 0.0
     for r, row in enumerate(rows):
-        keys = [k if isinstance(k, dict) else {"type": "char", "char": k} for k in row]
+        keys = [as_key(k) for k in row]
         units = sum(k.get("w", 1) for k in keys)
         x = 0.0
         for key in keys:
@@ -45,10 +44,10 @@ def drawn(layout_id: str = "en/qwerty", width: float = 854, height: float = 200)
 
 
 KEYS, KEY_WIDTH, _ = drawn()
-LEXICON = Lexicons([ROOT / "packs"]).get("en/words")
+LEXICON = Lexicons([BUNDLED]).get("en/words")
 KO_KEYS, KO_WIDTH, KO_SHIFTS = drawn("ko/dubeolsik")
 HANGUL = HangulSpeller(CATALOG["tables"]["ko/hangul"]["hangul"])
-KO_LEXICON = Lexicons([ROOT / "packs"]).get("ko/words")
+KO_LEXICON = Lexicons([BUNDLED]).get("ko/words")
 ENGLISH = (KEYS, KEY_WIDTH, LOWERCASE, {})
 KOREAN = (KO_KEYS, KO_WIDTH, HANGUL, KO_SHIFTS)
 
@@ -235,7 +234,7 @@ def test_fast_enough():
 
 
 def handle(request: dict, lexicons=None) -> dict:
-    return Swipe(lexicons or Lexicons([ROOT / "packs"])).handle(request)
+    return Swipe(lexicons or Lexicons([BUNDLED])).handle(request)
 
 
 def request(**changes) -> dict:
@@ -270,7 +269,7 @@ def test_another_decoder_can_take_its_place():
         def decode(self, lexicon_id, counts, path, keys, key_width, limit, speller, shifts):
             return ["neural"][:limit]
 
-    reply = Swipe(Lexicons([ROOT / "packs"]), Fixed()).handle(request())
+    reply = Swipe(Lexicons([BUNDLED]), Fixed()).handle(request())
     assert reply == {"ok": True, "words": ["neural"], "engine": "fixed"}
 
 
@@ -281,7 +280,7 @@ def test_the_bridge_answers_swipe_and_never_logs_the_path_or_words(capsys):
         def info(self, message: str) -> None:
             lines.append(message)
 
-    bridge = Bridge(Capture(), lexicons=Lexicons([ROOT / "packs"]))
+    bridge = Bridge(Capture(), lexicons=Lexicons([BUNDLED]))
     asyncio.run(bridge.handle(json.dumps({"id": 3, "op": "swipe", **request(prepare=True)})))
     assert [line for line in lines if line.startswith("swipe: en/words ready in ")]  # a timing, nothing typed
     reply = asyncio.run(bridge.handle(json.dumps({"id": 4, "op": "swipe", **request()})))
@@ -294,7 +293,7 @@ def test_the_bridge_answers_swipe_and_never_logs_the_path_or_words(capsys):
 
 def test_a_list_unloaded_takes_the_swipe_index_built_from_it_along():
     now = [0.0]
-    lexicons = Lexicons([ROOT / "packs"], clock=lambda: now[0])
+    lexicons = Lexicons([BUNDLED], clock=lambda: now[0])
     decoder = GeometricDecoder()
     bridge = Bridge(Log(io.StringIO()), lexicons=lexicons, swipe=Swipe(lexicons, decoder))
     swipe = lambda **f: asyncio.run(bridge.handle(json.dumps({"id": 1, "op": "swipe", **request(**f)})))
@@ -314,7 +313,7 @@ def korean_bridge(lines: list[str], now: list[float]) -> tuple[Bridge, Geometric
             lines.append(message)
 
     log = Capture()
-    lexicons = Lexicons([ROOT / "packs"], clock=lambda: now[0])
+    lexicons = Lexicons([BUNDLED], clock=lambda: now[0])
     decoder = GeometricDecoder()
     spellers = Spellers(lambda: CATALOG)
     return Bridge(log, lexicons=lexicons, swipe=Swipe(lexicons, decoder, log), spellers=spellers), decoder

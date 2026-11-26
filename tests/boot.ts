@@ -3,10 +3,13 @@ import { execFileSync } from 'node:child_process';
 import type { Boot } from '../src/core/catalog.js';
 import type { PickerCategory, PickerSet } from '../src/core/emoji.js';
 
+let resolved: string | undefined;
+
+/** A fresh copy each call, for the test to change; the sidecar resolves the packs once per test file. */
 export const bundledBoot = (): Boot => {
-  const out = execFileSync('python3', ['-m', 'polykey.packs', 'packs', 'packs/pack.schema.json'],
+  resolved ??= execFileSync('python3', ['-m', 'polykey.packs', 'packs', 'packs/pack.schema.json'],
     { env: { ...process.env, PYTHONPATH: 'sidecar' }, encoding: 'utf8' });
-  const { catalog, pickers, errors } = JSON.parse(out) as Pick<Boot, 'catalog' | 'pickers' | 'errors'>;
+  const { catalog, pickers, errors } = JSON.parse(resolved) as Pick<Boot, 'catalog' | 'pickers' | 'errors'>;
   return { catalog, pickers: pickers ?? [], settings: { keyboards: ['en/english', 'ja/12key', 'ja/50on', 'ja/romaji', 'ja/jis'], theme: 'themes/steam' }, errors };
 };
 
