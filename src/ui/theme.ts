@@ -21,13 +21,63 @@ export const KAOMOJI_FONT = '"Noto Sans CJK JP", "Noto Sans", "Noto Sans Symbols
 
 /** How states shift by tone: a dark theme lightens a pressed key and a raised cell; a light one darkens. */
 const TONE = {
-  dark: { pressed: 'brightness(1.5)', raised: 'rgba(255, 255, 255, 0.1)' },
-  light: { pressed: 'brightness(0.85)', raised: 'rgba(0, 0, 0, 0.06)' },
+  dark: { pressed: 1.5, raised: 'rgba(255, 255, 255, 0.1)' },
+  light: { pressed: 0.85, raised: 'rgba(0, 0, 0, 0.06)' },
 } as const;
+
+/** WCAG's AA contrast for text: what text keeps against the background a state paints behind it. */
+const READABLE = 4.5;
+
+type Rgb = readonly number[];
+
+/** #rrggbb as sRGB channels, 0..1; #rrggbbaa laid over `under`. */
+const rgb = (hex: string, under?: Rgb): Rgb => {
+  const channel = (i: number): number => parseInt(hex.slice(i, i + 2), 16) / 255;
+  const alpha = under && hex.length > 7 ? channel(7) : 1;
+  return [1, 3, 5].map((i, n) => channel(i) * alpha + (under?.[n] ?? 0) * (1 - alpha));
+};
+
+/** WCAG 2's contrast ratio, 1 to 21. */
+const contrast = (a: Rgb, b: Rgb): number => {
+  const luminance = (c: Rgb): number => {
+    const [r = 0, g = 0, b = 0] = c.map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
+/**
+ * Text for `backgrounds` (on the surface): the first of `texts` that reads on all of them, else white or
+ * black, whichever reads better. Pressed, the tone's brightness filter shifts text and background alike
+ * (scaling sRGB channels, clamped), so the choice is made on the shifted colours.
+ */
+const textOn = (backgrounds: string[], texts: string[], surface: string, pressed = 1): string => {
+  const shift = (c: Rgb): Rgb => c.map((v) => Math.min(1, v * pressed));
+  const reads = (text: string): number => Math.min(...backgrounds.map((bg) => {
+    const under = rgb(bg, rgb(surface));
+    return contrast(shift(rgb(text, under)), shift(under));
+  }));
+  return texts.find((t) => reads(t) >= READABLE) ?? (reads('#ffffff') >= reads('#000000') ? '#ffffff' : '#000000');
+};
 
 /** The theme's CSS custom properties, as a style attribute value. */
 export const themeVars = (theme: Theme): string => {
   const c = theme.colors;
+  const tone = TONE[theme.tone ?? 'dark'];
+  const hover = c.hover ?? c.modifier;
+  const fn = c.fnLegend ?? c.accent;
+  // The text on each background a state paints, at rest and pressed (-down): the theme's own where it
+  // reads, else another of its text colours, else white or black. Pressed tries the rest colour first.
+  const texts = [c.keyText, c.surface, ...(c.accentText ? [c.accentText] : [])];
+  const on = (backgrounds: string[], own: string): [string, string] => {
+    const rest = textOn(backgrounds, [own, ...texts], c.surface);
+    return [rest, textOn(backgrounds, [rest, ...texts], c.surface, tone.pressed)];
+  };
+  const [, textDown] = on([c.key, c.modifier], c.keyText); // --text itself is the theme's own
+  const [hoverText, hoverTextDown] = on([hover], c.keyText);
+  const [accentText, accentTextDown] = on([c.accent], c.accentText ?? c.surface);
+  const [fnText, fnTextDown] = on([fn], c.fnText ?? c.surface);
   const vars: Record<string, string> = {
     '--surface': c.surface,
     '--key': c.key,
@@ -35,16 +85,21 @@ export const themeVars = (theme: Theme): string => {
     '--mod': c.modifier,
     '--accent': c.accent,
     '--legend': c.legend ?? c.keyText,
-    '--fn': c.fnLegend ?? c.accent,
-    '--hover': c.hover ?? c.modifier,
-    '--accent-text': c.accentText ?? c.surface,
-    '--fn-text': c.fnText ?? c.surface,
+    '--fn': fn,
+    '--hover': hover,
+    '--accent-text': accentText,
+    '--fn-text': fnText,
     '--error': c.error ?? c.fnLegend ?? c.accent,
     '--divider': c.divider ?? c.modifier,
     '--ring': c.ring ?? c.accent,
     '--indicator': c.indicator ?? c.accent,
-    '--pressed': TONE[theme.tone ?? 'dark'].pressed,
-    '--raised': TONE[theme.tone ?? 'dark'].raised,
+    '--hover-text': hoverText,
+    '--text-down': textDown,
+    '--hover-text-down': hoverTextDown,
+    '--accent-text-down': accentTextDown,
+    '--fn-text-down': fnTextDown,
+    '--pressed': `brightness(${tone.pressed})`,
+    '--raised': tone.raised,
     '--shadow': theme.shadow ?? THEME_DEFAULTS.shadow,
     '--shadow-lg': theme.shadowLarge ?? THEME_DEFAULTS.shadowLarge,
     '--opacity-dim': '0.35',

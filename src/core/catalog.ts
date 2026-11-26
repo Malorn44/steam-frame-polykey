@@ -127,9 +127,9 @@ export interface LanguageDef {
 export interface ThemeColors {
   surface: string; key: string; keyText: string; modifier: string; accent: string;
   legend?: string; fnLegend?: string; hover?: string;
-  /** Text on the accent (a selected candidate, a locked key); default surface. */
+  /** Text on the accent (a selected candidate, a locked key); default surface. Where it would not read, ui/theme.ts picks another. */
   accentText?: string;
-  /** Text on the Fn colour (Fn locked); default surface. */
+  /** Text on the Fn colour (Fn locked); default surface. Where it would not read, ui/theme.ts picks another. */
   fnText?: string;
   /** Errors (a failed dictation, a pack that did not load); default the Fn colour. */
   error?: string;
