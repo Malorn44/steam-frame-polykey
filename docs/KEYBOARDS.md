@@ -56,6 +56,14 @@ The standard 2-set (두벌식) layout: consonants on the left, vowels on the rig
 - **한/영**, right of Space, switches to ABC: the English layout, where words wait in the bar with suggestions and swipe typing works, as in the Japanese keyboards' 英数 mode. 한/영 again goes back. The bar under 한 or 영 shows which mode you are in, as 英数 and かな do.
 - **Swipe typing**, once on, works in 한글 too: a word goes through its jamo's keys as you would type them, a compound through both of its (과: ㄱ ㅗ ㅏ), and ㅃ and the other Shift letters through their own key (빨리: ㅂ ㅏ ㄹ ㅣ, a doubled key once). The syllable being composed is sent first; then the word goes in as in English, its alternatives where the candidates go. It knows the list's 60,000 most common words.
 
+### 천지인
+
+The phone 12-key (KS X 5020): tap ㅣ ㆍ ㅡ to build a vowel (ㅣ ㆍ → ㅏ, ㆍ ㅡ → ㅗ, ㅣ ㆍ ㆍ → ㅑ), and a consonant key again for its next consonant (ㄱ → ㅋ → ㄲ). To type the same key twice (학교), → ends the first tap. ⌫ takes the last stroke or tap back. It composes as 두벌식 does, a vowel after a final taking it on; ?123 has the digits and symbols, and 한/영 goes to ABC, the Japanese 12-key's QWERTY page, where swipe typing works once on (the keypad never swipes).
+
+### 천지인 플러스
+
+천지인 with a key for each consonant, round the same keys. A tense consonant is its plain key tapped again (ㄱ → ㄲ) or its aspirated one held (ㅋ → ㄲ, shown in that key's corner, as on Samsung's); the vowels and the rest are as on 천지인.
+
 ## Toolbar
 
 Settings (theme, haptics, suggestions, updates and the keyboard's own options; keyboards; dictation), emoji, dictate (while dictation is on), copy, cut, paste, menu (the context menu, as Shift+F10) and ✕, which closes the keyboard.

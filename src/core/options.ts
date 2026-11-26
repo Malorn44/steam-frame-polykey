@@ -49,10 +49,13 @@ export const offered = (keyboard: KeyboardDef | undefined): OptionName[] =>
 
 /**
  * The word list a swipe is decoded against: the one the keyboard's current mode suggests from (latin: its
- * Latin mode), while the keyboard can swipe and its swipe option is on.
+ * Latin mode), while the keyboard can swipe, in a mode it swipes in, and its swipe option is on.
  */
-export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined, latin: boolean): string | undefined =>
-  (keyboard?.features?.swipe && optionsFor(keyboard, saved).swipe ? suggestLexicon(keyboard, latin) : undefined);
+export const swipeLexicon = (keyboard: KeyboardDef | undefined, saved: KeyboardOptions | undefined, latin: boolean): string | undefined => {
+  const swipe = keyboard?.features?.swipe;
+  const inMode = !swipe?.modes || swipe.modes.includes(modeOf(keyboard, latin)?.id ?? '');
+  return swipe && inMode && optionsFor(keyboard, saved).swipe ? suggestLexicon(keyboard, latin) : undefined;
+};
 
 /**
  * The word list suggested from in the keyboard's current mode (latin: its Latin mode): a keyboard with

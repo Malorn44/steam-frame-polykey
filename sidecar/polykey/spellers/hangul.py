@@ -3,7 +3,7 @@ compatibility jamo a key (ㄱ, ㅏ). A syllable is its initial, vowel and final 
 each the letter its key types: Unicode names the jamo alike (HANGUL CHOSEONG KIYEOK and HANGUL JONGSEONG
 KIYEOK are both HANGUL LETTER KIYEOK, ㄱ). A jamo the keyboard's table makes of two (its pairs: ㅘ is ㅗ
 then ㅏ, ㄺ is ㄹ then ㄱ) is spelled as those two, each spelled again (a table where ㅑ is ㅏ ㅏ and ㅒ is
-ㅑ ㅣ spells ㅒ ㅏㅏㅣ); one typed with Shift (ㄲ, ㅆ) is one key.
+ㅑ ㅣ spells ㅒ ㅏㅏㅣ, and 천지인's ㅘ is its strokes ㆍㅡㅣㆍ); one typed with Shift (ㄲ, ㅆ) is one key.
 
 So 한 is ㅎㅏㄴ, which starts both 한국 (ㅎㅏㄴㄱㅜㄱ) and 하나 (ㅎㅏㄴㅏ), as typing them does; matching
 the syllables instead would miss 하나, whose ㄴ starts its second syllable.
@@ -41,7 +41,8 @@ class HangulSpeller:
         return "".join(self._split_up(half, depth + 1) for half in pair) if pair and depth < 4 else letter
 
     def _spell(self, ch: str) -> Optional[str]:
-        letters = [_letter(jamo) for jamo in unicodedata.normalize("NFD", ch)]
+        jamo = unicodedata.normalize("NFD", ch)
+        letters = [part if part in self._split else _letter(part) for part in jamo]  # 천지인's ᆢ is ㆍㆍ
         if not letters or None in letters:
             return None
         return "".join(self._split_up(letter) for letter in letters)  # type: ignore[arg-type]

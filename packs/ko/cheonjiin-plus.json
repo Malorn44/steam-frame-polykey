@@ -1,0 +1,15 @@
+{
+  "$schema": "../pack.schema.json",
+  "schemaVersion": 1,
+  "kind": "layout",
+  "id": "ko/cheonjiin-plus",
+  "name": "Korean 12-key (천지인 플러스)",
+  "description": "천지인 with a key for each consonant: the strokes ㅣ ㆍ ㅡ make every vowel, as on 천지인, and a tense consonant is its plain key tapped again (ㄱ → ㄲ) or its aspirated one held (ㅋ → ㄲ); → ends a tap. As on Samsung's, a key's corner shows what holding it types: a digit, or the tense consonant. The keys round it are 천지인's.",
+  "large": true,
+  "rows": [
+    [{"action": "convert", "label": "한자"}, {"char": "ㅣ", "long": ["1"], "hint": "1"}, {"char": "ㆍ", "long": ["2"], "hint": "2"}, {"char": "ㅡ", "long": ["3"], "hint": "3"}, {"key": "Backspace"}],
+    [{"key": "ArrowLeft"}, {"cycle": ["ㄱ", "ㄲ"], "w": 0.5, "long": ["4"], "hint": "4"}, {"char": "ㅋ", "w": 0.5, "long": ["ㄲ"], "hint": "ㄲ"}, {"char": "ㄴ", "w": 0.5, "long": ["5"], "hint": "5"}, {"char": "ㄹ", "w": 0.5}, {"cycle": ["ㄷ", "ㄸ"], "w": 0.5, "long": ["6"], "hint": "6"}, {"char": "ㅌ", "w": 0.5, "long": ["ㄸ"], "hint": "ㄸ"}, {"key": "ArrowRight"}],
+    [{"action": "mode", "legends": {"c": {"parts": ["한", "영"]}}}, {"cycle": ["ㅂ", "ㅃ"], "w": 0.5, "long": ["7"], "hint": "7"}, {"char": "ㅍ", "w": 0.5, "long": ["ㅃ"], "hint": "ㅃ"}, {"cycle": ["ㅅ", "ㅆ"], "w": 0.5, "long": ["8"], "hint": "8"}, {"char": "ㅎ", "w": 0.5, "long": ["ㅆ"], "hint": "ㅆ"}, {"cycle": ["ㅈ", "ㅉ"], "w": 0.5, "long": ["9"], "hint": "9"}, {"char": "ㅊ", "w": 0.5, "long": ["ㅉ"], "hint": "ㅉ"}, {"char": " "}],
+    [{"action": "next-keyboard", "w": 0.5}, {"action": "symbols", "w": 0.5, "alone": {"w": 1}}, {"cycle": [".", ","], "label": ".,"}, {"char": "ㅇ", "w": 0.5, "long": ["0"], "hint": "0"}, {"char": "ㅁ", "w": 0.5}, {"cycle": ["?", "!"], "label": "?!"}, {"key": "Enter"}]
+  ]
+}

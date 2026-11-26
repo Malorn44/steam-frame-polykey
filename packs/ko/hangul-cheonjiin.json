@@ -1,0 +1,18 @@
+{
+ "$schema": "../pack.schema.json",
+ "schemaVersion": 1,
+ "kind": "table",
+ "id": "ko/hangul-cheonjiin",
+ "name": "Hangul composition (천지인)",
+ "description": "The 천지인 keyboard's vowels, built from the strokes ㅣ (person), ㆍ (heaven) and ㅡ (earth): each stroke joins the vowel before it (ㅣ ㆍ → ㅏ, then ㆍ → ㅑ); ㆍㆍ alone is ᆢ. The compound finals are 2-set's.",
+ "hangul": {
+  "compoundMedials": [
+   "ㅣㆍㅏ", "ㅏㆍㅑ", "ㅏㅣㅐ", "ㅑㅣㅒ",
+   "ㆍㅣㅓ", "ㆍㆍᆢ", "ᆢㅣㅕ", "ㅓㅣㅔ", "ㅕㅣㅖ",
+   "ㆍㅡㅗ", "ᆢㅡㅛ", "ㅗㅣㅚ", "ㅚㆍㅘ", "ㅘㅣㅙ",
+   "ㅡㆍㅜ", "ㅜㆍㅠ", "ㅜㅣㅟ", "ㅠㅣㅝ", "ㅝㅣㅞ",
+   "ㅡㅣㅢ"
+  ],
+  "compoundFinals": ["ㄱㅅㄳ", "ㄴㅈㄵ", "ㄴㅎㄶ", "ㄹㄱㄺ", "ㄹㅁㄻ", "ㄹㅂㄼ", "ㄹㅅㄽ", "ㄹㅌㄾ", "ㄹㅍㄿ", "ㄹㅎㅀ", "ㅂㅅㅄ"]
+ }
+}

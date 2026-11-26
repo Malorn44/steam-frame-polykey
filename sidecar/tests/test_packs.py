@@ -536,7 +536,7 @@ def test_a_hangul_table_is_checked(tmp_path):
         f"mine/finals.json: /hangul/compoundFinals/0: {finals}",
         "mine/order.json: /hangul: unknown field initials",
         f"mine/tense.json: /hangul/compoundFinals/0: {finals}",
-        "mine/vowels.json: /hangul/compoundMedials/0: does not match ^[ㅏ-ㅣ]{3}$",
+        "mine/vowels.json: /hangul/compoundMedials/0: does not match ^[ㅏ-ㅣㆍᆢ]{3}$",
     ]
     assert "mine/fine" in boot["catalog"]["tables"]
 

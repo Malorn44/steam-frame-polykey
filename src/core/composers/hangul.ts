@@ -2,15 +2,19 @@
 // composed shown in the bar (or typed into the field, where the bar controller retypes it: `inline`) and
 // sent once the next jamo cannot join it. Pure. A 2-set key types the same jamo whether it starts or ends
 // a syllable, so where a consonant goes follows from what comes next (the vowel rule below); a 3-set (세벌식) layout types the two apart and would be a composer of its own, with
-// the same syllables (syllableText) and Unicode lists. A syllable is Unicode's formula, 0xAC00 + (initial × 21 +
+// the same syllables (syllableText) and Unicode lists. 천지인 (the 12-key) types as 2-set does, its keys
+// building each jamo first: a consonant key tapped again types its next consonant instead (ㄱ → ㅋ → ㄲ, the
+// layout's cycle; → ends it), and the strokes ㅣ ㆍ ㅡ make each vowel through the table's pairs (ㅣ ㆍ → ㅏ,
+// then ㆍ → ㅑ). A syllable is Unicode's formula, 0xAC00 + (initial × 21 +
 // medial) × 28 + final (The Unicode Standard, 3.12), each its jamo's place in Unicode's lists below, which
 // are facts, not layout data. Its table (a table pack's hangul) is what a layout varies: the jamo typed one
-// after the other that make one (ㅗㅏ → ㅘ, ㄱㅅ → ㄳ).
+// after the other that make one (ㅗㅏ → ㅘ, ㄱㅅ → ㄳ, 천지인's strokes).
 //
 //   - A jamo that can join the syllable does: 가 + ㄴ → 간, 고 + ㅏ → 과, 갑 + ㅅ → 값.
 //   - One that cannot sends the syllable and starts the next: 간 + ㄱ → 간 ㄱ.
 //   - A vowel after a final takes that consonant into the new syllable: 한 + ㅏ → 하 나, 닭 + ㅏ → 달 가.
-//   - ⌫ takes the last jamo off (닭 → 달 → 다 → ㄷ → nothing); with nothing composed it is the field's.
+//   - ⌫ takes the last jamo off (닭 → 달 → 다 → ㄷ → nothing; on 천지인 the last stroke or tap, 과 → 괴, 같 → 가);
+//     with nothing composed it is the field's.
 //   - Anything else (Space, Enter, punctuation, a mode or keyboard switch) is not for it: the bar sends
 //     the syllable first, then the key acts as usual.
 //
@@ -24,10 +28,12 @@
 // as it was; anything else ends it, then acts. Nothing but a picked candidate is ever sent as Hanja.
 
 import type { HangulTableDef, KeyDef } from '../catalog.js';
+import { tapKey, type TapCycle } from '../cycle.js';
+import type { Effect } from '../keyboard.js';
 import { replaceText, wordEnd } from '../suggest.js';
 import { MAX_READING, builtOnce, nextCandidate, picked, type Composer, type ComposerContext, type ComposerResult, type Segment } from './composer.js';
 
-/** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in one or two parts each. */
+/** The syllable being composed, jamo as typed: its initial ('' for none), its vowel and its final in parts (ㆍㅡ for 천지인's ㅗ). */
 export interface Syllable { readonly initial: string; readonly medial: readonly string[]; readonly final: readonly string[] }
 export const NO_SYLLABLE: Syllable = { initial: '', medial: [], final: [] };
 
@@ -49,6 +55,8 @@ export interface HangulTable {
   /** Two jamo typed one after the other that make one, by the two: ㅗㅏ → ㅘ, ㄱㅅ → ㄳ. */
   readonly medialPairs: ReadonlyMap<string, string>;
   readonly finalPairs: ReadonlyMap<string, string>;
+  /** What vowels are typed with: a vowel, or a stroke that is none alone (천지인's ㆍ). */
+  readonly vowelParts: ReadonlySet<string>;
 }
 
 const pairs = (list: readonly string[] = []): Map<string, string> =>
@@ -56,12 +64,14 @@ const pairs = (list: readonly string[] = []): Map<string, string> =>
 
 export const hangulTable = (def: HangulTableDef): HangulTable => ({
   medialPairs: pairs(def.compoundMedials), finalPairs: pairs(def.compoundFinals),
+  vowelParts: new Set((def.compoundMedials ?? []).join('')),
 });
 
 const composing = (s: Syllable): boolean => s.initial !== '' || s.medial.length > 0;
 
+/** Parts as the jamo they make, each joining what the ones before made (ㆍ ㅡ → ㅗ, then ㅣ → ㅚ). */
 const joined = (pairsOf: ReadonlyMap<string, string>, parts: readonly string[]): string =>
-  (parts.length === 2 ? pairsOf.get(parts[0]! + parts[1]!) ?? parts.join('') : parts[0] ?? '');
+  parts.reduce((made, part) => pairsOf.get(made + part) ?? made + part, '');
 
 /** The syllable as text: one block once it has an initial and a vowel, else the jamo typed so far (ㄷ, ㅘ). */
 export const syllableText = (table: HangulTable, s: Syllable): string => {
@@ -76,18 +86,17 @@ export const syllableText = (table: HangulTable, s: Syllable): string => {
 
 /** A typed jamo: the syllable it makes, and what is sent first; null when it is not a jamo. */
 export const addJamo = (table: HangulTable, s: Syllable, jamo: string): { sent: string; syllable: Syllable } | null => {
-  const vowel = medials.has(jamo);
+  const vowel = medials.has(jamo) || table.vowelParts.has(jamo);
   if (!vowel && !initials.has(jamo) && !finals.has(jamo)) return null;
   const keep = (syllable: Syllable) => ({ sent: '', syllable });
   /** Send `done` and start `next`; a jamo that cannot start a syllable (a final alone) is sent with it. */
   const send = (done: Syllable, next: Syllable | null) => ({ sent: syllableText(table, done) + (next ? '' : jamo), syllable: next ?? NO_SYLLABLE });
   const start = (): Syllable | null => (vowel ? { ...NO_SYLLABLE, medial: [jamo] } : initials.has(jamo) ? { ...NO_SYLLABLE, initial: jamo } : null);
-  const [m0] = s.medial;
   const [f0] = s.final;
   if (vowel) {
     if (!s.medial.length) return keep({ ...s, medial: [jamo] }); // ㄱ + ㅏ → 가 (or a vowel alone)
     if (!s.final.length) {
-      return s.medial.length === 1 && table.medialPairs.has(m0! + jamo) ? keep({ ...s, medial: [m0!, jamo] }) : send(s, start());
+      return table.medialPairs.has(joined(table.medialPairs, s.medial) + jamo) ? keep({ ...s, medial: [...s.medial, jamo] }) : send(s, start());
     }
     // The final's last consonant starts the new syllable, if it can: 한 + ㅏ → 하 나.
     const moved = s.final[s.final.length - 1]!;
@@ -125,14 +134,21 @@ export interface Conversion {
   readonly focus: number;
 }
 
-/** The composer's state: the syllable being composed, and a conversion under way. */
-export interface Hangul { readonly syllable: Syllable; readonly conversion: Conversion | null }
-export const NO_HANGUL: Hangul = { syllable: NO_SYLLABLE, conversion: null };
+/**
+ * An open tap cycle (천지인's consonant keys): the syllable its first tap went into, and what the jamo it
+ * is on sent, held until the cycle ends, as the next tap may take it back (가 + ㄸ sends 가; ㄷ again makes 갇).
+ */
+interface Cycle extends TapCycle { readonly base: Syllable; readonly held: string }
+
+/** The composer's state: the syllable being composed, a conversion under way, and an open tap cycle. */
+export interface Hangul { readonly syllable: Syllable; readonly conversion: Conversion | null; readonly cycle: Cycle | null }
+export const NO_HANGUL: Hangul = { syllable: NO_SYLLABLE, conversion: null, cycle: null };
 
 /** A character of a word typed in Hangul: a syllable, or a jamo this composer types. A Hanja or a Latin letter is not. */
 const isHangul = (ch: string): boolean => {
   const syllable = (ch.codePointAt(0) ?? 0) - FIRST_SYLLABLE;
-  return (syllable >= 0 && syllable < initials.size * medials.size * (finals.size + 1)) || initials.has(ch) || medials.has(ch) || finals.has(ch);
+  return (syllable >= 0 && syllable < initials.size * medials.size * (finals.size + 1)) || initials.has(ch) || medials.has(ch) || finals.has(ch)
+    || ch === 'ㆍ' || ch === 'ᆢ'; // 천지인's strokes, typed until they make a vowel
 };
 
 const isConvert = (key: KeyDef): boolean => key.type === 'action' && key.action === 'convert';
@@ -159,7 +175,7 @@ const pickHanja = (h: Hangul, text: string, index: number): ComposerResult<Hangu
   if (converted && end !== chars.length) return { state: h, effects: [] };
   const part = (from: number, to: number): string => chars.slice(from, to).join('');
   return {
-    state: converted ? NO_HANGUL : { syllable: h.syllable, conversion: null },
+    state: converted ? NO_HANGUL : { ...h, conversion: null },
     // What was typed becomes what goes before the word, the Hanja, then what followed it (as a picked word does).
     effects: replaceText(part(0, typed), part(0, start) + text + (converted ? '' : part(end, typed))),
     learned: { reading: word.reading, lengths: [length(word.reading)], choices: [index], texts: [text] },
@@ -183,12 +199,17 @@ const pressConverting = (h: Hangul, conversion: Conversion, key: KeyDef): Compos
   return isConvert(key) || isKey(key, 'Backspace') ? { state: { ...h, conversion: null }, effects: [] } : null;
 };
 
+/** A cycling key's character into the syllable: a jamo joins it as typed; anything else sends it, then itself. */
+const typeInto = (table: HangulTable, s: Syllable, ch: string) =>
+  addJamo(table, s, ch) ?? { sent: syllableText(table, s) + ch, syllable: NO_SYLLABLE };
+const composedText = (table: HangulTable, h: Hangul): string => (h.cycle?.held ?? '') + (composing(h.syllable) ? syllableText(table, h.syllable) : '');
+
 export const hangul2Set: Composer<Hangul> = {
   empty: NO_HANGUL,
   inline: true,
   wordChar: isHangul,
   // A conversion asked for counts too: sending what waits ends it.
-  composing: (h) => composing(h.syllable) || h.conversion !== null,
+  composing: (h) => composing(h.syllable) || h.conversion !== null || !!h.cycle?.held,
   press: (h, key, input, ctx) => {
     const table = tableOf(ctx);
     if (!table) return null;
@@ -196,24 +217,43 @@ export const hangul2Set: Composer<Hangul> = {
       const converting = pressConverting(h, h.conversion, key);
       if (converting) return converting;
     }
+    const tap = input.typed !== undefined && !input.flicked && ctx.options.tapCycle ? tapKey(h.cycle, key) : null;
+    const { cycle } = h;
+    if (cycle) {
+      if (tap?.again) {
+        const added = typeInto(table, cycle.base, tap.char);
+        return { state: { ...h, syllable: added.syllable, cycle: { ...tap.cycle, base: cycle.base, held: added.sent } }, effects: [] };
+      }
+      // ⌫ takes the tap back; anything else ends the cycle, what it held sent first (→ only ends it).
+      if (isKey(key, 'Backspace')) return { state: { ...h, syllable: cycle.base, cycle: null }, effects: [] };
+      const held: Effect[] = cycle.held ? [{ kind: 'text', text: cycle.held }] : [];
+      const ended = { ...h, cycle: null };
+      if (isKey(key, 'ArrowRight')) return { state: ended, effects: held };
+      const next = hangul2Set.press(ended, key, input, { ...ctx, before: (ctx.before ?? '') + cycle.held });
+      return next && { ...next, effects: [...held, ...next.effects] };
+    }
     // Typing on: a conversion ends (one still asked for too), and the key acts.
     const s = h.syllable;
     const { typed } = input;
+    if (tap) {
+      const added = typeInto(table, s, tap.char);
+      return { state: { syllable: added.syllable, conversion: null, cycle: { ...tap.cycle, base: s, held: added.sent } }, effects: [] };
+    }
     if (isConvert(key)) {
       const composed = composing(s) ? syllableText(table, s) : '';
       const reading = Array.from(wordEnd(ctx.before ?? '', isHangul) + composed).slice(-MAX_READING).join('');
-      if (!reading) return { state: { syllable: s, conversion: null }, effects: [] };
-      return { state: { syllable: s, conversion: { reading, composed, segments: null, focus: 0 } }, effects: [], request: { kind: 'convert' } };
+      if (!reading) return { state: { ...h, conversion: null }, effects: [] };
+      return { state: { ...h, conversion: { reading, composed, segments: null, focus: 0 } }, effects: [], request: { kind: 'convert' } };
     }
     if (typed !== undefined) {
       const added = addJamo(table, s, typed);
-      return added && { state: { syllable: added.syllable, conversion: null }, effects: added.sent ? [{ kind: 'text', text: added.sent }] : [] };
+      return added && { state: { ...NO_HANGUL, syllable: added.syllable }, effects: added.sent ? [{ kind: 'text', text: added.sent }] : [] };
     }
-    return isKey(key, 'Backspace') && composing(s) ? { state: { syllable: removeJamo(s), conversion: null }, effects: [] } : null;
+    return isKey(key, 'Backspace') && composing(s) ? { state: { ...NO_HANGUL, syllable: removeJamo(s) }, effects: [] } : null;
   },
   flush: (h, ctx) => {
     const table = tableOf(ctx);
-    const text = table && composing(h.syllable) ? syllableText(table, h.syllable) : '';
+    const text = table ? composedText(table, h) : '';
     return { state: NO_HANGUL, effects: text ? [{ kind: 'text', text }] : [] };
   },
   show: (h, ctx) => {
@@ -230,7 +270,7 @@ export const hangul2Set: Composer<Hangul> = {
       };
     }
     const table = tableOf(ctx);
-    return { preedit: { before: table ? syllableText(table, h.syllable) : '', after: '' }, labels: {} };
+    return { preedit: { before: table ? composedText(table, h) : '', after: '' }, labels: {} };
   },
   convert: {
     reading: (h) => h.conversion?.reading ?? '',
