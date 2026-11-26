@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUFFERED_GAP_MS, KEYMAP_SETTLE_MS, chooseDelivery, swapsKeymap, graphemes, planCalls } from '../../../src/core/output/plan.js';
+import { BUFFERED_GAP_MS, KEYMAP_SETTLE, chooseDelivery, swapsKeymap, graphemes, planCalls } from '../../../src/core/output/plan.js';
 
 describe('graphemes', () => {
   it('keeps combined characters together', () => {
@@ -8,17 +8,20 @@ describe('graphemes', () => {
 });
 
 describe('planCalls', () => {
+  const strings = (...args: Parameters<typeof planCalls>) => planCalls(...args).map((c) => c.call);
+
   it('run: non-ASCII runs as one call, ASCII one per call', () => {
-    expect(planCalls([{ text: 'テスト' }], 'run')).toEqual(['テスト']);
-    expect(planCalls([{ text: 'hi漢字!' }], 'run')).toEqual(['h', 'i', '漢字', '!']);
+    expect(strings([{ text: 'テスト' }], 'run')).toEqual(['テスト']);
+    expect(strings([{ text: 'hi漢字!' }], 'run')).toEqual(['h', 'i', '漢字', '!']);
   });
 
   it('chars: one grapheme per call', () => {
-    expect(planCalls([{ text: 'テスト' }], 'chars')).toEqual(['テ', 'ス', 'ト']);
+    expect(strings([{ text: 'テスト' }], 'chars')).toEqual(['テ', 'ス', 'ト']);
   });
 
-  it('passes key names through unchanged and keeps order', () => {
-    expect(planCalls([{ text: 'a' }, { key: 'Backspace' }, { text: 'あ' }], 'run')).toEqual(['a', 'Backspace', 'あ']);
+  it('passes key names through unchanged, says which calls are keys, and keeps order', () => {
+    expect(planCalls([{ text: 'a' }, { key: 'Backspace' }, { text: 'あ' }], 'run'))
+      .toEqual([{ call: 'a', kind: 'text' }, { call: 'Backspace', kind: 'key' }, { call: 'あ', kind: 'text' }]);
   });
 
   it('plans nothing for empty text', () => {
@@ -28,17 +31,17 @@ describe('planCalls', () => {
 
 describe('chooseDelivery', () => {
   it('auto follows the mode: runs in minimal, characters with a gap in buffered', () => {
-    expect(chooseDelivery('minimal', 'auto')).toEqual({ policy: 'run', gapMs: 0, settleMs: KEYMAP_SETTLE_MS });
-    expect(chooseDelivery('buffered', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settleMs: 0 });
+    expect(chooseDelivery('minimal', 'auto')).toEqual({ policy: 'run', gapMs: 0, settle: KEYMAP_SETTLE });
+    expect(chooseDelivery('buffered', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settle: null });
   });
 
   it('auto with an unknown mode takes the safe choice', () => {
-    expect(chooseDelivery('unknown', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settleMs: 0 });
+    expect(chooseDelivery('unknown', 'auto')).toEqual({ policy: 'chars', gapMs: BUFFERED_GAP_MS, settle: null });
   });
 
   it('an explicit setting wins over the mode', () => {
     expect(chooseDelivery('buffered', 'run').policy).toBe('run');
-    expect(chooseDelivery('minimal', 'chars')).toEqual({ policy: 'chars', gapMs: 0, settleMs: KEYMAP_SETTLE_MS });
+    expect(chooseDelivery('minimal', 'chars')).toEqual({ policy: 'chars', gapMs: 0, settle: KEYMAP_SETTLE });
   });
 
   it('a call swaps the keymap when it has anything but printable ASCII; named keys do not', () => {
