@@ -44,7 +44,7 @@ If a rollback can't run, install an earlier `polykey-X.Y.Z.tar.gz` from [Release
 
 ## Features
 
-- **[English, Japanese and Korean keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows; Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy; and the Korean 2-set layout, each syllable composed in the text field as on Steam's own keyboard.
+- **[English, Japanese and Korean keyboards](docs/KEYBOARDS.md):** a full English layout with an Fn layer, sticky modifiers and arrows; Japanese 12-key flick, 五十音, romaji and kana (JIS), converted to kanji with Anthy; and the Korean 2-set layout, each syllable composed in the text field as on Steam's own keyboard, with 한자 to convert words to Hanja.
 - **[Word suggestions](docs/KEYBOARDS.md#english)** as you type, with spelling corrections (teh → the).
 - **[Swipe typing](docs/KEYBOARDS.md#swipe-typing):** hold the trigger and trace a word. Turn it on per keyboard in settings.
 - **[Offline dictation](docs/DICTATION.md):** speech is recognized on the Frame's own CPU, and no audio leaves it. Off until you turn it on.

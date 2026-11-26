@@ -390,8 +390,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     }
     const keyboard = currentKeyboard();
     const inBar = composes(keyboard);
+    if (inBar && converting()) return; // the conversion's candidates show; the word's come back after it
     const english = inBar && latinMode.has(keyboard!.id); // the English word waits in the bar
-    const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText());
+    const prefix = english ? englishText(en) || null : suggestPrefix(word, bar.composedText(), wordChar());
     const lexicon = lexiconId();
     if (!prefix || !lexicon || !settings.suggestions || !bridge.available()) {
       showWords([]);
@@ -427,9 +428,14 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   /** Whether the keyboard's JIS keys type their Latin legends while composing (romaji input). */
   const latinKeys = (keyboard: KeyboardDef | undefined): boolean =>
     !!keyboard && (composerOf(keyboard)?.latinKeys?.(contextOf(keyboard)) ?? false);
+  /** Which characters make up the word being typed: the composer's in the mode it composes in (Hangul's), else every letter. */
+  const wordChar = (): ((ch: string) => boolean) | undefined => {
+    const keyboard = currentKeyboard();
+    return keyboard && !latinMode.has(keyboard.id) ? composerOf(keyboard)?.wordChar : undefined;
+  };
   /** Follow what is sent into the field: the word being typed, and the word a boundary ended (it counts as used). */
   const track = (effects: readonly Effect[]): void => {
-    const tracked = trackWord(word, effects);
+    const tracked = trackWord(word, effects, wordChar());
     if (tracked.ended) boost(tracked.ended);
     word = tracked.state;
   };
@@ -438,14 +444,23 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
     enqueue: (effects, inline) => { track(effects); enqueue(effects, inline); }, show: () => showBar(), keyboard: barKeyboard,
-    canRetype, target: () => targetOf(readStatus(statusStore)),
+    canRetype, target: () => targetOf(readStatus(statusStore)), typed: () => word.word,
   });
+  /** The bar shows a conversion (segments): its candidates are the converter's, not word suggestions. */
+  const converting = (): boolean => {
+    const shown = bar.shown();
+    return !!shown && 'segments' in shown.composition;
+  };
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
   const dictatesIntoBar = (keyboard: KeyboardDef | undefined): boolean =>
     takesDictation(keyboard) && !(keyboard && latinMode.has(keyboard.id));
   /** The mic leaves the reading or English word where it is: the dictated text joins it. */
   const dictates = (key: KeyDef): boolean => key.type === 'action' && key.action === 'dictate' && settings.dictation;
+  /** convert is the composer's (한자): where the composer does not take it (a Latin mode), it does nothing. */
+  const converts = (key: KeyDef): boolean => key.type === 'action' && key.action === 'convert';
+  /** A key that leaves what waits (the composition, the English word) as it is: a modifier only arms; the mic joins it. */
+  const keepsWaiting = (key: KeyDef): boolean => key.type === 'mod' || dictates(key) || converts(key);
   /** Fn is on and the key has an Fn variant (JIS: Fn+1 is F1): it goes out as that key, not into a buffer. */
   const fnKey = (key: KeyDef): boolean => mods.fn !== 'off' && (key.type === 'char' || key.type === 'key') && !!key.fn;
 
@@ -473,7 +488,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (keyboard.pages?.latin) render(); // a page of its own (the 12-key's ABC keys)
     else {
       view?.setMode(latinMode.has(keyboard.id));
-      view?.update(mods);
+      showBar(); // the keys too, and which mode key is marked
       prepareSuggestions(); // the keys drawn anew, in a mode that may suggest from another list
     }
   };
@@ -539,7 +554,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         showBar();
         return;
       }
-      if (key.type !== 'mod' && !dictates(key)) sendEnglish(); // any other key sends the word first
+      if (!keepsWaiting(key)) sendEnglish(); // any other key sends the word first
     }
     if (keyboard && composes(keyboard) && page === 'keys' && !latin) {
       // A typed key goes to the composer with Shift applied; with Ctrl, Alt or Super it is a shortcut.
@@ -556,8 +571,9 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         return;
       }
       // Any other key sends what waits first (a modifier only arms, so it does not).
-      if (key.type !== 'mod' && !dictates(key)) bar.flush();
+      if (!keepsWaiting(key)) bar.flush();
     }
+    if (converts(key)) return;
     const result = alternate === undefined ? press(mods, key)
       : pressText(mods, key.type === 'flick' ? flickText(alternate, mods) : alternate); // a flicked letter takes Shift
     mods = result.mods;
@@ -576,8 +592,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     if (!view) return;
     const shown = bar.shown();
     const language = languageFor(currentKeyboard());
-    // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off).
-    const words = suggestsWhileComposing() && suggested.length ? suggested : null;
+    // 한글: the words for what is being typed, beside what is composed, and after it is sent (⌫ took the rest off);
+    // a conversion shows its own candidates.
+    const words = suggestsWhileComposing() && suggested.length && !converting() ? suggested : null;
+    const keyboard = currentKeyboard();
+    view.setActive([keyboard && latinMode.has(keyboard.id) ? 'eisu' : 'kana', ...(shown?.active ?? [])]); // 英数 or かな: the mode it is in
     if (shown) {
       view.setComposition(words ? { ...shown.composition, candidates: words } : shown.composition);
       view.setLabels(spelled(shown.labels, language));
@@ -607,8 +626,11 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       return;
     }
     if (surface) tick(surface.win, hand);
-    if (suggestsWhileComposing()) pickWord(text);
-    else bar.pick(text, index);
+    if (suggestsWhileComposing() && !converting()) pickWord(text);
+    else {
+      bar.pick(text, index);
+      if (suggestsWhileComposing()) refreshSuggestions(); // for the word as the pick left it
+    }
   };
 
   /**
@@ -687,14 +709,15 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   /**
    * A suggestion in place of the word being typed, then a space: what was sent of the word stays as far
    * as the suggestion starts with it, the rest is deleted (a Backspace a letter or syllable), and what is
-   * still composed in the bar is dropped, never sent.
+   * still composed in the bar is dropped, never sent, but for what goes before the word there (a Hanja).
    */
   const pickWord = (chosen: string): void => {
     const typed = word.word;
+    const waiting = bar.composedText(); // in the bar, the word's unsent part (and a Hanja before it, which stays)
     boost(chosen);
     bar.drop();
     setWord(NO_WORD);
-    enqueue(replaceWord(typed, chosen));
+    enqueue(replaceWord(typed, chosen, wordChar(), waiting));
     pickSpace = true;
   };
 
@@ -970,7 +993,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   };
 
   const sendEffects = (effects: Effect[]): void => {
-    const tracked = trackWord(word, effects);
+    const tracked = trackWord(word, effects, wordChar());
     setWord(tracked.state);
     enqueue(effects);
   };

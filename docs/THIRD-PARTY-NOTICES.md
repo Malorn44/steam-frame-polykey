@@ -66,6 +66,13 @@ polykey's own code does these, following others' work:
   order. The **2-set (두벌식) layout** is the Korean standard KS X 5002. Both are standards, followed;
   no code or data is copied from any keyboard.
 
+## Read from the system, not included
+
+Hanja conversion reads libhangul's dictionary where SteamOS installs it with ibus-hangul
+(`/usr/share/libhangul/hanja/hanja.txt`): BSD-3-Clause, Copyright (c) 2005, 2006 Choe Hwanjin, its
+licence in the file's own header. polykey ships no part of it. ibus-hangul's Hanja conversion was read
+for its behaviour; none of its code is copied.
+
 ## Downloaded on request, not included
 
 Dictation's engine, transcribe.cpp (MIT, with ggml and miniz), and its speech models are downloaded

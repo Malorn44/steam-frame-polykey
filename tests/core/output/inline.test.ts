@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { KeyDef, TableDef } from '../../../src/core/catalog.js';
 import type { ComposerContext } from '../../../src/core/composers/composer.js';
-import { NO_SYLLABLE, hangul2Set } from '../../../src/core/composers/hangul.js';
+import { NO_HANGUL, hangul2Set } from '../../../src/core/composers/hangul.js';
 import type { Effect } from '../../../src/core/keyboard.js';
 import { planInline, retype, retypesInField } from '../../../src/core/output/inline.js';
 import { graphemes } from '../../../src/core/output/plan.js';
@@ -70,7 +70,7 @@ describe('Korean typed into a field by retyping', () => {
     (e.kind === 'text' ? f + e.text : e.kind === 'key' && e.key === 'Backspace' ? graphemes(f).slice(0, -1).join('') : f), field);
   /** Each press, as the bar sends it (⌫ for Backspace; Space flushes): the field after it, and the Backspaces sent. */
   const typeKeys = (keys: string, field = '') => {
-    let s = NO_SYLLABLE;
+    let s = NO_HANGUL;
     let tail = '';
     let erased = 0;
     const steps: string[] = [];

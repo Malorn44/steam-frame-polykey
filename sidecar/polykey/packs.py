@@ -96,6 +96,12 @@ def user_dir() -> Path:
     return Path(base) / "polykey"
 
 
+def data_dir() -> Path:
+    """~/.local/share/polykey: what polykey keeps besides its settings (dictation's files, learned Hanja; versions.py has its own copy)."""
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "polykey"
+
+
 # --- validator -----------------------------------------------------------------------------------
 
 _TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
@@ -180,6 +186,9 @@ def validate(value: Any, schema: dict, root: dict, path: str = "") -> list[str]:
                 errors.append(f"{where}: unknown field {name}")
     if "oneOf" in schema:
         errors += _one_of(value, schema["oneOf"], root, path)
+    # if/then: what a value must also have when it matches "if" (a convert key, a label).
+    if "if" in schema and not validate(value, schema["if"], root, path):
+        errors += validate(value, schema.get("then", {}), root, path)
     return errors
 
 

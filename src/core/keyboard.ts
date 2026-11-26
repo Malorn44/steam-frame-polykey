@@ -142,8 +142,9 @@ const NAMED_LABELS: Partial<Record<NamedKey, string>> = {
   PageDown: 'PgDn', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
 };
 const MOD_LABELS: Record<ModName, string> = { shift: '⇧', caps: 'Caps', ctrl: 'Ctrl', alt: 'Alt', super: '', fn: 'Fn' };
+/** convert's is empty: what it is called is the language's, so its key names it (the schema requires a label). */
 const ACTION_LABELS: Record<ActionName, string> = {
-  hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', mode: 'ABC', symbols: '?123', 'more-symbols': '=\\<', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', 'next-set': '⇄', dictate: '🎤',
+  hide: '✕', abc: 'ABC', eisu: '英数', kana: 'かな', mode: 'ABC', symbols: '?123', 'more-symbols': '=\\<', modify: '゛゜小', undo: '↶', 'next-keyboard': '🌐', copy: '⧉', cut: '✂', paste: '📋', menu: '☰', settings: '⚙', emoji: '😀', 'next-set': '⇄', dictate: '🎤', convert: '',
 };
 
 /** What a key shows right now (empty for the Super key, which shows an icon). */

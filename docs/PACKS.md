@@ -119,7 +119,7 @@ A keyboard's `language` is a code (`ja`, `ko`, `pt-BR`), and the `language` pack
 ```
 
 - `letters`: what the language's own letters are called. The keys back to the letters read it in a keyboard's first mode. A mode's own `letters` wins, and a Latin mode without any reads ABC.
-- `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. A key whose name is left out keeps its own label.
+- `labels`: the words on the bar's keys while something is composed, by the names its composer gives them. The kana composer's names are `convert` (Space), `next` (Space while converting), `confirm` (Enter), and `hiragana`, `katakana` and `halfwidth` (the form the かな key goes to). `confirm` is Enter's word too while an English word waits in a Latin mode. The Hangul composer names Space `next` while converting to Hanja (Korean's 다음). A key whose name is left out keeps its own label.
 - `idleHint`: shown where candidates appear while there are none. A keyboard's `strings.idleHint` wins.
 - `dictation`: the language dictation listens for, if it is not the `id`.
 - `font`: the fonts the bar draws the language's text in, a CSS font-family list tried in order before the theme's font. Korean's is `"Noto Sans CJK KR", "Noto Sans CJK JP"`: the Frame's system font has no Hangul.
@@ -140,6 +140,7 @@ The Korean keyboard's composer (`"composer": "hangul-2set"`, for its 2-set layou
 - `compoundMedials` and `compoundFinals` are the jamo typed one after the other that make one: `"ㄹㄱㄺ"` is ㄹ then ㄱ, making ㄺ. A vowel typed after a compound final takes its second consonant (닭 + ㅏ → 달 가). A pair's jamo are three vowels, or three consonants that can end a syllable.
 - The jamo themselves are Unicode's, not the table's: a syllable is `0xAC00 + (initial × 21 + medial) × 28 + final`, each its jamo's place in Unicode's lists (in `src/core/composers/hangul.ts`). ㄸ, ㅃ and ㅉ end no syllable, so they always start a new one.
 - Another Hangul layout is its own layout pack, with this table or one of its own.
+- With `"converter": "hanja"`, a key whose action is `convert` (the bundled layout's 한자) converts the word before the caret to Hanja, from the system's libhangul dictionary.
 
 ## Word lists
 

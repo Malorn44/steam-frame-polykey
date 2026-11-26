@@ -12,8 +12,12 @@
 // composition that may no longer be retyped (Desktop Mode) stays in the field as it is. Where it cannot be
 // composed in the field (Desktop Mode, streaming), what such a composer commits waits in the bar instead,
 // the word before the composition, and goes out whole: ⌫ takes the composition, then the word, off; Enter
-// sends it alone; Space and any other key send it, then act. What is composed, the tail and the word
-// included, is typed text: never logged.
+// sends it alone; Space and any other key send it, then act.
+//
+// A composer's conversion may replace the word before the composition too (ctx.before, what polykey
+// typed of it): it sends a Backspace for each character, which the word in the bar takes first. A
+// conversion like that ends, the text left as it is, whenever the field may have changed. What is
+// composed, the tail and the word included, is typed text: never logged.
 
 import type { BridgeReply, Call } from './bridge/client.js';
 import type { KeyDef } from './core/catalog.js';
@@ -63,8 +67,11 @@ export interface Bar {
   pick(text: string, index: number): void;
   /** Dictated text into the composition, for its candidates; else sent at once, after what waits. */
   dictate(text: string): void;
-  /** What the bar shows of the composition, its key labels as names (convert, confirm); null when nothing is composed. */
-  shown(): { composition: CompositionView; labels: Readonly<Record<string, string>> } | null;
+  /**
+   * What the bar shows of the composition, its key labels as names (convert, confirm) and the keys marked
+   * as in their mode; null when nothing is composed.
+   */
+  shown(): { composition: CompositionView; labels: Readonly<Record<string, string>>; active: readonly string[] } | null;
   /** The text being composed, as the bar shows it ('' when nothing is): the word being typed, for dictation's spacing. */
   composedText(): string;
 }
@@ -72,7 +79,7 @@ export interface Bar {
 const segmentsOf = (reply: BridgeReply): Converted[] =>
   (reply.ok && Array.isArray(reply['segments']) ? reply['segments'] as Converted[] : []);
 
-export const createBar = ({ call, available, enqueue, show, warn, keyboard, canRetype, target }: {
+export const createBar = ({ call, available, enqueue, show, warn, keyboard, canRetype, target, typed }: {
   call: Call;
   available: () => boolean;
   /** Send effects in order; a send into the field carries `inline`, and is skipped once it is no longer live. */
@@ -86,6 +93,11 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
   canRetype: () => boolean;
   /** Where typing goes now (the field's target, '' while closed): what is in the field belongs to one. */
   target: () => string;
+  /**
+   * The word being typed, as far as polykey typed it into the field since its last boundary (what is
+   * composed there included): what a conversion may reach back over.
+   */
+  typed: () => string;
 }): Bar => {
   /** The composer's state, kept with the composer that made it. */
   let held: { composer: Composer<unknown>; state: unknown } | null = null;
@@ -169,11 +181,25 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
     word = '';
   };
 
+  /** The keyboard's context for a press: with the word before the composition, in the field (the tail taken off), then in the bar. */
+  const pressContext = (kb: BarKeyboard): ComposerContext => {
+    const sent = typed();
+    const inField = !tail ? sent : sent.endsWith(tail) ? sent.slice(0, sent.length - tail.length) : '';
+    return { ...kb.ctx, before: inField + word };
+  };
+
+  const isBackspace = (effect: Effect): boolean => effect.kind === 'key' && effect.key === 'Backspace';
+
   /** Send what the composer sends: as it is, held in the bar's word, or into the field, against the tail typed so far. */
   const send = (kb: BarKeyboard, effects: readonly Effect[]): void => {
     if (!retyping(kb)) {
-      if (holds(kb) && effects.every((effect) => effect.kind === 'text')) {
-        word += effects.map((effect) => (effect.kind === 'text' ? effect.text : '')).join('');
+      // Text joins the word in the bar; a Backspace takes its last character off, and the field's once it is empty.
+      if (holds(kb) && effects.every((effect) => effect.kind === 'text' || isBackspace(effect))) {
+        for (const effect of effects) {
+          if (effect.kind === 'text') word += effect.text;
+          else if (word) word = graphemes(word).slice(0, -1).join('');
+          else enqueue([effect]);
+        }
         return;
       }
       sendWord(); // a key: the word goes first
@@ -201,6 +227,14 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
     epoch++;
     const had = tail !== '';
     if (had) clear();
+    else if (held?.composer.convert?.cancel) {
+      // A conversion of what was typed before the composition ends; what waits in the bar stays.
+      const ended = held.composer.convert.cancel(held.state);
+      if (ended === held.state) return false;
+      held = { ...held, state: ended };
+      generation++;
+    } else return false;
+    show(); // drawn again: no candidate of what was forgotten stays to be picked
     return had;
   };
 
@@ -236,10 +270,13 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
   const shown: Bar['shown'] = () => {
     const kb = keyboard();
     if (!kb || (!composing(kb) && !word)) return null;
-    const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
-    if ('segments' in preedit) return { composition: preedit, labels };
+    const { preedit, labels, active = [] } = kb.composer.show(stateOf(kb), kb.ctx);
+    if ('segments' in preedit) return { composition: preedit, labels, active };
     // In the field: the bar shows only the candidates.
-    return { composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, before: word + preedit.before, candidates: live, selected: -1 }, labels };
+    return {
+      composition: tail ? { before: '', after: '', candidates: live, selected: -1 } : { ...preedit, before: word + preedit.before, candidates: live, selected: -1 },
+      labels, active,
+    };
   };
 
   return {
@@ -247,7 +284,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard, canR
     press: (key, input) => {
       const kb = keyboard();
       checkField(kb);
-      const result = kb && kb.composer.press(stateOf(kb), key, input, kb.ctx);
+      const result = kb && kb.composer.press(stateOf(kb), key, input, pressContext(kb));
       if (kb && result) {
         apply(kb, result);
         return true;

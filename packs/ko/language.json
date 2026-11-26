@@ -4,7 +4,8 @@
  "kind": "language",
  "id": "ko",
  "name": {"en": "Korean", "ko": "한국어"},
- "description": "What the Korean keyboards call their letters, and the fonts for Hangul in the bar.",
+ "description": "What the Korean keyboards call their letters and say in the bar while converting to Hanja, and the fonts for Hangul in the bar.",
  "letters": "한글",
+ "labels": {"next": "다음"},
  "font": "\"Noto Sans CJK KR\", \"Noto Sans CJK JP\""
 }

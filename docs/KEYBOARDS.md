@@ -52,9 +52,10 @@ The standard 2-set (두벌식) layout: consonants on the left, vowels on the rig
 - **Word suggestions:** whole words with their particles and endings, from a Korean word list, where the candidates go. They match the keys you type, so 하 already offers 한국, and 학교 offers 학교에서 and 학교를. Picking one replaces the word: the syllables already typed stay as far as it starts with them, the rest are deleted (in the bar nothing was sent, so nothing is), and the rest of the word goes in with a space. Words you use come first for the rest of the session.
 - **⌫** takes the last jamo off (닭 → 달 → 다 → ㄷ), then, in the bar, the word's syllables; with nothing being composed it deletes in the field.
 - **Space, Enter and punctuation** send the syllable (in the bar, the word) first, as do 한/영, 🌐 and dictation.
+- **한자**, left of Space, converts a word in the one you are typing to Hanja: the longest word with Hanja in it, so 학교에서 offers 學校 for 학교 (of words as long, the one nearest the caret). The text stays as it is while the bar shows the Hanja, each with its meaning beneath where the dictionary gives one (韓: 나라 이름 한), and 한자 shows the mode's mark. Space (다음) goes on to the next, ← and → go to the word with Hanja before or after it, and Enter or a tap picks one: polykey deletes back to the word's start, only ever syllables it typed, then types the Hanja and what followed it (學校에서), the syllable you are composing still being composed. In the bar, it replaces them there. 한자 again closes it with the text as it was, as ⌫ does; typing on, another field or the keyboard closing do too, and nothing but a picked Hanja is ever typed. Your pick comes first for that word from then on. The Hanja come from SteamOS's own dictionary (libhangul's, installed with ibus-hangul); without it 한자 does nothing, and the journal says so once. In ABC it does nothing.
 - **한/영**, right of Space, switches to ABC: the English layout, where words wait in the bar with suggestions and swipe typing works, as in the Japanese keyboards' 英数 mode. 한/영 again goes back. The bar under 한 or 영 shows which mode you are in, as 英数 and かな do.
 
-There is no Hanja conversion or Hangul swipe typing yet.
+There is no Hangul swipe typing yet.
 
 ## Toolbar
 

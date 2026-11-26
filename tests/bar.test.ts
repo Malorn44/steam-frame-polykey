@@ -49,6 +49,7 @@ const setup = (converter: string | null = 'mine') => {
     keyboard: () => kb,
     canRetype: () => false,
     target: () => '',
+    typed: () => '',
   });
   return { bar, sent, calls, answers, shows, switchTo: (next: BarKeyboard | null) => { kb = next; } };
 };
@@ -59,7 +60,7 @@ describe('the bar controller', () => {
     expect(bar.press(char('h'), { typed: 'h' })).toBe(true);
     expect(bar.press(char('i'), { typed: 'i' })).toBe(true);
     expect(bar.composing()).toBe(true);
-    expect(bar.shown()).toEqual({ composition: { before: 'HI', after: '', candidates: ['HI'], selected: -1 }, labels: { ' ': 'send' } });
+    expect(bar.shown()).toEqual({ composition: { before: 'HI', after: '', candidates: ['HI'], selected: -1 }, labels: { ' ': 'send' }, active: [] });
     expect(bar.composedText()).toBe('HI');
     expect(bar.press({ type: 'key', key: 'Tab' }, {})).toBe(false); // not for it
     bar.flush();
@@ -141,6 +142,16 @@ describe('the bar controller', () => {
     bar.press(char('h'), { typed: 'h' });
     expect(bar.composedText()).toBe('H!');
   });
+
+  it('a conversion\'s candidates keep their notes, as the composer shows them', () => {
+    const { bar, switchTo } = setup(null);
+    const noted: Composer<string> = {
+      ...shout, show: (s) => ({ preedit: { segments: [s], focus: 0, candidates: ['α', 'β'], selected: 0, notes: ['alpha', ''] }, labels: {} }),
+    };
+    switchTo({ composer: noted, ctx, converter: undefined });
+    bar.press(char('a'), { typed: 'a' });
+    expect(bar.shown()?.composition).toEqual({ segments: ['A'], focus: 0, candidates: ['α', 'β'], selected: 0, notes: ['alpha', ''] });
+  });
 });
 
 describe('composing in the text field', () => {
@@ -154,21 +165,28 @@ describe('composing in the text field', () => {
     press: (s, key, input, c) => (key.type === 'char' && key.char === '?' && s ? { state: `${s}?`, effects: [] } : shout.press(s, key, input, c)),
   };
   /** A field: text at its end, a Backspace takes its last character; the sends as they were made. */
-  const setupField = (composer: Composer<string> = inline, start = 'mine ') => {
+  const setupField = (composer: Composer<unknown> = inline, start = 'mine ') => {
     let field = start;
     let retyping = true;
     let where = 'app';
+    /** What the bar typed into the field, as the page tracks it when a send is queued (the word being typed). */
+    let typed = '';
     const queued: { effects: readonly Effect[]; live: () => boolean }[] = [];
     const sent: Effect[][] = [];
+    const shows = vi.fn();
     const bar = createBar({
       call: () => new Promise(() => {}),
       available: () => true,
-      enqueue: (effects, send) => queued.push({ effects, live: send?.live ?? (() => true) }),
-      show: () => {},
+      enqueue: (effects, send) => {
+        for (const e of effects) typed = e.kind === 'text' ? typed + e.text : e.kind === 'key' && e.key === 'Backspace' ? typed.slice(0, -1) : '';
+        queued.push({ effects, live: send?.live ?? (() => true) });
+      },
+      show: shows,
       warn: () => {},
       keyboard: () => ({ composer, ctx, converter: undefined }),
       canRetype: () => retyping,
       target: () => where,
+      typed: () => typed,
     });
     /** Make the queued sends, as the page's queue does: a send no longer live is skipped. */
     const run = () => {
@@ -185,7 +203,7 @@ describe('composing in the text field', () => {
     const backspaces = () => sent.flat().filter((e) => e.kind === 'key').length;
     const typeAll = (keys: string) => { for (const k of Array.from(keys)) bar.press(char(k), { typed: k }); };
     return {
-      bar, run, sent, backspaces, typeAll, queued,
+      bar, run, sent, backspaces, typeAll, queued, shows,
       setRetype: (on: boolean) => { retyping = on; }, moveTo: (to: string) => { where = to; },
     };
   };
@@ -342,5 +360,96 @@ describe('composing in the text field', () => {
     expect([run(), bar.inField(), bar.composedText()]).toEqual(['mine ', false, 'HI']);
     bar.flush();
     expect(run()).toBe('mine HI');
+  });
+
+  /**
+   * pairs, which can also convert (?) the word before what it composes, with it, into lower case: the
+   * pick sends a Backspace for each character of the word before (ctx.before), then the text.
+   */
+  interface Reach { readonly s: string; readonly before: string | null }
+  const reaching: Composer<Reach> = {
+    empty: { s: '', before: null },
+    inline: true,
+    composing: (r) => r.s !== '' || r.before !== null,
+    press: (r, key, input, c) => {
+      if (key.type === 'char' && key.char === '?') return { state: { ...r, before: c.before ?? '' }, effects: [] };
+      if (r.before !== null) return { state: { ...r, before: null }, effects: [] }; // any key ends the conversion
+      const done = pairs.press(r.s, key, input, c);
+      return done && { ...done, state: { s: done.state, before: null } };
+    },
+    flush: (r) => ({ state: { s: '', before: null }, effects: r.s ? [{ kind: 'text', text: r.s }] : [] }),
+    show: (r) => (r.before !== null
+      ? { preedit: { segments: [r.before + r.s], focus: 0, candidates: [(r.before + r.s).toLowerCase()], selected: 0 }, labels: {} }
+      : { preedit: { before: r.s, after: '' }, labels: {} }),
+    convert: {
+      reading: (r) => (r.before ?? '') + r.s,
+      converted: (r) => r,
+      live: () => [],
+      pick: (r, text) => (r.before === null ? { state: r, effects: [] } : {
+        state: { s: '', before: null },
+        effects: [...Array.from(r.before, (): Effect => ({ kind: 'key', key: 'Backspace' })), { kind: 'text', text }],
+      }),
+      cancel: (r) => (r.before === null ? r : { ...r, before: null }),
+    },
+  };
+  const QUESTION = char('?');
+
+  it('a conversion that reaches back gets the word before the composition, and its Backspaces delete it in the field', () => {
+    const { bar, run, typeAll, backspaces } = setupField(reaching);
+    typeAll('abcde');
+    expect(run()).toBe('mine ABCDE'); // AB and CD sent, E composing in the field
+    bar.press(QUESTION, {});
+    expect(bar.shown()?.composition).toMatchObject({ segments: ['ABCDE'], candidates: ['abcde'] }); // ABCD before E
+    bar.pick('abcde', 0);
+    expect([run(), backspaces()]).toEqual(['mine abcde', 5]); // E, then ABCD
+  });
+
+  it('where it cannot compose in the field, its Backspaces take the word in the bar off first, then the field\'s', () => {
+    const { bar, run, typeAll, backspaces, setRetype } = setupField(reaching);
+    setRetype(false);
+    typeAll('abcde'); // ABCD waits in the bar, E composing
+    bar.press(QUESTION, {});
+    bar.pick('abcde', 0);
+    expect([run(), bar.composedText()]).toEqual(['mine ', 'abcde']); // replaced in the bar, nothing sent
+    bar.flush();
+    expect([run(), backspaces()]).toEqual(['mine abcde', 0]);
+    typeAll('fgh');
+    bar.press(ENTER, {}); // FGH sent alone: part of the word, in the field
+    typeAll('ij');
+    bar.press(QUESTION, {});
+    expect(bar.shown()?.composition).toMatchObject({ segments: ['abcdeFGHIJ'] });
+    bar.pick('abcdefghij', 0);
+    expect([run(), bar.composedText()]).toEqual(['mine ', 'abcdefghij']); // 8 Backspaces into the field
+    bar.flush();
+    expect([run(), backspaces()]).toEqual(['mine abcdefghij', 8]);
+  });
+
+  it('when the field may have changed, a conversion that reaches back ends and the bar is drawn again; what waits stays', () => {
+    const { bar, run, typeAll, backspaces, setRetype, shows } = setupField(reaching);
+    setRetype(false);
+    typeAll('abc');
+    bar.press(QUESTION, {});
+    shows.mockClear();
+    expect(bar.lose()).toBe(false); // nothing was in the field
+    expect(shows).toHaveBeenCalled();
+    expect(bar.shown()?.composition).toMatchObject({ before: 'ABC' }); // the word and the composition, as they were
+    bar.pick('abc', 0); // a candidate still on screen: nothing happens
+    bar.flush();
+    expect([run(), backspaces()]).toEqual(['mine ABC', 0]);
+    shows.mockClear();
+    bar.lose(); // no conversion: nothing to draw
+    expect(shows).not.toHaveBeenCalled();
+  });
+
+  it('with the composition in the field, losing it ends the conversion too, and the bar is drawn again', () => {
+    const { bar, run, typeAll, backspaces, shows } = setupField(reaching);
+    typeAll('abc');
+    expect(run()).toBe('mine ABC');
+    bar.press(QUESTION, {});
+    shows.mockClear();
+    expect(bar.lose()).toBe(true);
+    expect([shows.mock.calls.length, bar.shown()]).toEqual([1, null]);
+    bar.pick('abc', 0);
+    expect([run(), backspaces()]).toEqual(['mine ABC', 0]);
   });
 });

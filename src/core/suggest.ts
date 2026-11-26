@@ -20,14 +20,25 @@ export const UNKNOWN: WordState = { word: '', known: false };
 const WORD_CHAR = /^[\p{L}\p{M}'’]$/u;
 const BOUNDARY_KEYS = new Set(['Enter', 'Tab']);
 
-/** Follow the effects of one key press; `ended` is a word that a boundary just finished. */
-export const trackWord = (state: WordState, effects: readonly Effect[]): { state: WordState; ended?: string } => {
+/** A character of a word, unless the keyboard's composer says otherwise (its wordChar): a letter, a mark or an apostrophe. */
+export const isLetter = (ch: string): boolean => WORD_CHAR.test(ch);
+
+/** The word at the end of `text`: its last run of word characters. */
+export const wordEnd = (text: string, isWord = isLetter): string => {
+  const chars = Array.from(text);
+  let start = chars.length;
+  while (start > 0 && isWord(chars[start - 1]!)) start--;
+  return chars.slice(start).join('');
+};
+
+/** Follow the effects of one key press; `ended` is a word that a boundary (any character not `isWord`) just finished. */
+export const trackWord = (state: WordState, effects: readonly Effect[], isWord = isLetter): { state: WordState; ended?: string } => {
   let { word, known } = state;
   let ended: string | undefined;
   for (const effect of effects) {
     if (effect.kind === 'text') {
       for (const ch of effect.text) {
-        if (WORD_CHAR.test(ch)) {
+        if (isWord(ch)) {
           word += ch;
         } else {
           if (known && word) ended = word;
@@ -52,9 +63,11 @@ export const trackWord = (state: WordState, effects: readonly Effect[]): { state
 
 /**
  * The prefix to complete: the letters sent since the boundary, then what is still composed in the bar
- * (a syllable: 학 sent and 교 composing is 학교); null when there is nothing to suggest for.
+ * (a syllable: 학 sent and 교 composing is 학교), as far back as the word goes (學校에 is 에, by Hangul's
+ * wordChar); null when there is nothing to suggest for.
  */
-export const suggestPrefix = (state: WordState, composed = ''): string | null => state.word + composed || null;
+export const suggestPrefix = (state: WordState, composed = '', isWord = isLetter): string | null =>
+  wordEnd(state.word + composed, isWord) || null;
 
 /** Words used this session first (by use count), then the list's own order. */
 export const rank = (candidates: readonly string[], session: ReadonlyMap<string, number>, count = 3): string[] => {
@@ -82,8 +95,15 @@ export const slotOrder = (ranked: readonly string[]): (string | undefined)[] => 
  */
 export const replaceText = (typed: string, text: string): Effect[] => planEffects(planInline(typed, text, ''));
 
-/** What replaces the typed word with a suggestion, then a space. */
-export const replaceWord = (typed: string, suggestion: string): Effect[] => replaceText(typed, `${matchCase(suggestion, typed)} `);
+/**
+ * What replaces the word being typed with a suggestion, then a space: `typed` is what was sent of it, and
+ * `waiting` what follows it unsent (in the bar). What goes before the word (a Hanja) stays.
+ */
+export const replaceWord = (typed: string, suggestion: string, isWord = isLetter, waiting = ''): Effect[] => {
+  const whole = typed + waiting;
+  const word = wordEnd(whole, isWord);
+  return replaceText(typed, `${whole.slice(0, whole.length - word.length)}${matchCase(suggestion, word)} `);
+};
 
 const CLOSES_UP = /^[.,!?;:]$/;
 
