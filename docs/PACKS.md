@@ -236,4 +236,4 @@ A list too long for a pack, or one from a source of its own, goes in a data file
 
 ## Adding a pack to polykey
 
-To offer a pack to everyone, put it in `packs/` and open a pull request, as [CONTRIBUTING.md](CONTRIBUTING.md) describes. Each bundled layout has its own checks: `npm run test:layout -- <id>` runs them.
+To offer a pack to everyone, put it in `packs/` and open a pull request, as [CONTRIBUTING.md](CONTRIBUTING.md) describes. `npm test` and `npm run test:py` check each bundled pack on its own, and name the one that fails.
