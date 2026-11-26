@@ -8,6 +8,8 @@ export type OutputOp = { readonly text: string } | { readonly key: VkdKey };
 export type SplitPolicy = 'run' | 'chars';
 export type SplitSetting = 'auto' | SplitPolicy;
 export type KeyboardMode = 'buffered' | 'minimal' | 'unknown';
+/** Where the open keyboard types (host/steam/diag.ts reads it from the VR keyboard's overlay key). */
+export type TargetKind = 'streamed' | 'local-app' | 'steam-ui' | 'unknown';
 
 /** Gap between calls when Steam's buffer has to re-render in between (measured by fjk). */
 export const BUFFERED_GAP_MS = 40;

@@ -2,15 +2,16 @@
 // is typed through Steam. Fails safe: does nothing while required Steam objects are missing or fjk is
 // active; never logs typed text; never leaves a key held. Idempotent: a re-injection replaces it.
 
-import { createBar, type BarKeyboard } from './bar.js';
+import { createBar, type BarKeyboard, type InlineSend } from './bar.js';
 import { createBridge } from './bridge/client.js';
 import { normalizeKey, readBoot, type ActionName, type Boot, type KeyboardDef, type KeyboardOptions, type KeyDef, type Layout, type Theme } from './core/catalog.js';
 import { CLIPBOARD_CHORDS } from './core/keycodes.js';
 import { NO_MODS, charText, flickText, kanaSide, press, pressText, type Effect, type Mods } from './core/keyboard.js';
+import { retypesInField } from './core/output/inline.js';
 import { chooseDelivery, graphemes } from './core/output/plan.js';
-import { NO_WORD, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
-import { getKeyboardPopupWindow, pickKeyboardManager, type SteamGlobals } from './host/steam/globals.js';
-import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore } from './host/steam/diag.js';
+import { NO_WORD, UNKNOWN, closeUp, matchCase, rank, replaceWord, slotOrder, suggestPrefix, trackWord, type WordState } from './core/suggest.js';
+import { getKeyboardManagers, getKeyboardPopupWindow, onFieldChange, pickKeyboardManager, type SteamGlobals, type VirtualKeyboardManager } from './host/steam/globals.js';
+import { classifyTarget, describeStatus, findStatusStore, keyboardMode, readStatus, type StatusStore, type VRKeyboardStatus } from './host/steam/diag.js';
 import { createKeySender, getSetKeyState } from './host/steam/keys.js';
 import { fjkActive, otherKeyboards } from './host/steam/others.js';
 import { createOutput } from './host/steam/output.js';
@@ -63,6 +64,12 @@ const STEAM_ITEMS_POLL_MS = 500;
 export const STEAM_ITEMS_WAIT_MS = 15_000;
 /** A swipe's words come back in tens of ms; keys pressed meanwhile wait for them, at most this long. */
 const SWIPE_TIMEOUT_MS = 1500;
+/**
+ * While polykey may delete what it typed (the composition in the field, a word a pick replaces), the
+ * keyboard's open state and target are read this often, not only at CHECK_MS: a close and reopen on
+ * another field in between would put those Backspaces there.
+ */
+export const FIELD_CHECK_MS = 100;
 
 export type State = 'waiting' | 'blocked' | 'running' | 'inactive' | 'uninstalled';
 
@@ -127,6 +134,18 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let statusStore: StatusStore | null = null;
   let mods: Mods = NO_MODS;
   let wasOpen = false;
+  /** Where typing went at the last look (targetOf). */
+  let wasTarget = '';
+  /** Reading the open state and target every FIELD_CHECK_MS, while something typed may be deleted. */
+  let fieldWatch: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Whether Desktop Mode has gamescope's focus where the keyboard types now (its text goes by paste), as
+   * the sidecar last said (undefined until it has), and whether it was asked. Only an answer that says
+   * decides: a failed one (the focus unknown, the paste route off) leaves it unknown, so a composition
+   * waits in the bar and text keeps going by the paste route, which checks for itself. A new field or
+   * target starts afresh (newField): an answer still on its way is kept by the one it was asked for.
+   */
+  let desktop: { focus: boolean | undefined; asked: boolean } = { focus: undefined, asked: false };
   let waitingSince = 0;
   let queue: Promise<unknown> = Promise.resolve();
   // Suggestions: the word being typed, words used this session (memory only), and a generation so a
@@ -143,6 +162,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   let swiped: { word: string; words: string[] } | null = null;
   let swipeWait: Promise<void> | null = null;
   const swipePrepared = new Set<string>();
+  /** Each Steam UI window's keyboard manager, and the way out of watching it for a new text field. */
+  const fieldWatches = new Map<VirtualKeyboardManager, () => void>();
   // Settings the page can change (the sidecar saves them); haptics and suggestions default on.
   const settings: SettingsValues = {
     theme: boot?.settings.theme ?? '',
@@ -200,19 +221,59 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     timer = setInterval(fn, ms);
   };
 
-  /** Non-ASCII into KDE Desktop Mode goes by paste; the sidecar refuses unless the desktop has focus. */
-  const sendText = async (text: string): Promise<void> => {
-    if (NON_ASCII.test(text) && classifyTarget(readStatus(statusStore)) === 'local-app' && bridge.available()) {
+  const overlayOf = (status: VRKeyboardStatus | null): string => (typeof status?.sOverlayKey === 'string' ? status.sOverlayKey : '');
+
+  /**
+   * Non-ASCII into KDE Desktop Mode goes by paste; the sidecar refuses unless the desktop has focus, and
+   * its answer is kept (desktop). Where it has said the desktop does not have it (a game), text is typed
+   * at once, without asking again for each text. True when the text was sent (or pasted).
+   */
+  const sendText = async (text: string): Promise<boolean> => {
+    const at = desktop;
+    if (NON_ASCII.test(text) && classifyTarget(readStatus(statusStore)) === 'local-app' && bridge.available() && at.focus !== false) {
       const prepared = await bridge.call('desktop.prepare', { text });
+      at.focus = prepared.ok ? true : prepared.error === 'not-desktop' ? false : undefined;
       if (prepared.ok) {
         const pressed = await keys.send(CLIPBOARD_CHORDS.paste, KEY_GAP_MS);
-        await bridge.call('desktop.wait', { timeoutMs: pressed.ok ? 2000 : 0 }, 4000);
-        return;
+        const waited = await bridge.call('desktop.wait', { timeoutMs: pressed.ok ? 2000 : 0 }, 4000);
+        return pressed.ok && waited['pasted'] === true;
       }
     }
     const result = await output([{ text }]);
     if (!result.ok) warn(`text not sent: ${result.error ?? '?'}`);
+    return result.ok;
   };
+
+  /**
+   * Whether Desktop Mode has the focus where the keyboard types: as the sidecar last said (a paste, or an
+   * ask); undefined while it has not, and it is asked, once. Without the sidecar there is no paste route.
+   */
+  const desktopFocus = (): boolean | undefined => {
+    if (!bridge.available()) return false;
+    askDesktop();
+    return desktop.focus;
+  };
+  /** Ask the sidecar whether Desktop Mode has the focus, once for each field or target. */
+  const askDesktop = (): void => {
+    const at = desktop;
+    if (at.asked) return;
+    at.asked = true;
+    void bridge.call('desktop.focus', {}).then((reply) => {
+      at.focus = reply.ok && typeof reply['desktop'] === 'boolean' ? reply['desktop'] : undefined;
+    });
+  };
+
+  /**
+   * Whether a composer that can compose in the text field does so now: retyped in Steam and in games;
+   * in the bar in Desktop Mode (and until the sidecar says it is not), and when streaming.
+   */
+  const canRetype = (): boolean => {
+    const target = classifyTarget(readStatus(statusStore));
+    return retypesInField(target, target === 'local-app' ? desktopFocus() : undefined);
+  };
+  /** Where typing goes now ('' while the keyboard is closed): what polykey typed belongs to one. */
+  const targetOf = (status: VRKeyboardStatus | null): string =>
+    (status?.bIsOpen === true ? `${overlayOf(status)} ${String(status.bMinimal)} ${String(status.unAppID)}` : '');
 
   const runAction = (action: ActionName): void => {
     if (action === 'hide') void output([{ key: 'VKClose' }]);
@@ -238,22 +299,39 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     else log(`${action}: not available yet`);
   };
 
-  const apply = async (effect: Effect): Promise<void> => {
-    if (effect.kind === 'text') await sendText(effect.text);
-    else if (effect.kind === 'key') await output([{ key: effect.key }]);
-    else if (effect.kind === 'chord') {
+  /** True when the effect was sent. */
+  const apply = async (effect: Effect): Promise<boolean> => {
+    if (effect.kind === 'text') return sendText(effect.text);
+    if (effect.kind === 'key') return (await output([{ key: effect.key }])).ok;
+    if (effect.kind === 'chord') {
       const result = await keys.send(effect.events, KEY_GAP_MS);
       if (!result.ok) warn(`key chord not sent: ${result.error ?? '?'}`);
-    } else runAction(effect.action);
+      return result.ok;
+    }
+    runAction(effect.action);
+    return true;
   };
 
-  const enqueue = (effects: readonly Effect[]): void => {
+  /**
+   * Send effects in order, one press after another, so fast typing never interleaves (one line with
+   * chords: host/steam/pace.ts). A send into the field (`inline`, from the bar) is skipped once the
+   * field may have changed since it was planned, and one that fails makes what the field holds unknown.
+   */
+  const enqueue = (effects: readonly Effect[], inline?: InlineSend): void => {
     recent = recentAfter(recent, effects);
     pickSpace = false;
-    // In order, one press after another, so fast typing never interleaves.
+    watchField();
     queue = queue.then(async () => {
-      for (const effect of effects) await apply(effect);
-    }).catch((error) => warn('key failed:', errorKind(error)));
+      if (inline && !inline.live()) return;
+      for (const effect of effects) {
+        if ((await apply(effect)) || !inline) continue;
+        fieldLost();
+        return;
+      }
+    }).catch((error) => {
+      warn('key failed:', errorKind(error));
+      if (inline) fieldLost();
+    });
   };
 
   const boost = (used: string): void => { session.set(used.toLowerCase(), (session.get(used.toLowerCase()) ?? 0) + 1); };
@@ -359,7 +437,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   // What it sends is part of the word being typed, as typed letters are (학 sent as 교 begins).
   const bar = createBar({
     call: bridge.call, available: bridge.available, warn,
-    enqueue: (effects) => { track(effects); enqueue(effects); }, show: () => showBar(), keyboard: barKeyboard,
+    enqueue: (effects, inline) => { track(effects); enqueue(effects, inline); }, show: () => showBar(), keyboard: barKeyboard,
+    canRetype, target: () => targetOf(readStatus(statusStore)),
   });
 
   /** Dictated text goes into the composition (a Japanese reading), not typed: the composer takes it, and not in the Latin mode. */
@@ -402,6 +481,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
   const onKey = (key: KeyDef, alternate?: string, repeat = false): void => {
     if (repeat && swipeWait) return; // a repeat waiting for the word would come after its key's release
     if (afterSwipe(() => onKey(key, alternate, repeat))) return;
+    onOpenChange(); // a field opened since the last check is a new one before this press acts in it
     if (surface && !repeat) tick(surface.win, hand); // one tick per press, not per repeat
     if (!dictates(key)) dictatedTail = null; // typed in between: the next phrase joins what is known now
     if (swiped && key.type !== 'mod') { // Shift or Caps for the next word keeps them
@@ -1009,25 +1089,95 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
     unmountView();
     guard?.setActive(false);
     guard = null;
+    surface?.win.removeEventListener('blur', onBlur);
+    surface?.doc.removeEventListener('visibilitychange', onHidden);
     surface?.destroy();
     surface = null;
   };
 
   const mount = (win: Window): void => {
     surface = mountSurface(win);
+    win.addEventListener('blur', onBlur);
+    surface.doc.addEventListener('visibilitychange', onHidden);
     guard = createStockGuard(win);
     render();
     log(`mounted in keyboard popup (${win.innerWidth}x${win.innerHeight}), keyboard ${ring[current]}`);
   };
 
+  /**
+   * The keyboard is on a new text field, or its caret may have moved: what is before the cursor is
+   * unknown, and we only ever replace letters typed after this.
+   */
+  const newField = (): void => {
+    swiped = null;
+    recent = null;
+    pickSpace = false;
+    lose('a new field'); // what of a composition is in the old field stays there
+    setWord(NO_WORD);
+    desktop = { focus: undefined, asked: false }; // asked again for this one
+  };
+
+  /** Forget what of a composition is in the field (it stays as it is), saying why when there was some: never what. */
+  const lose = (why: string): void => {
+    if (bar.lose()) log(`composing in the field: ${why}; what was composed stays as it is`);
+  };
+
+  /** A send into the field failed: what it holds is unknown, so nothing typed before is replaced or retyped. */
+  const fieldLost = (): void => {
+    warn('a send into the field failed; what was typed there stays as it is');
+    bar.lose();
+    recent = null;
+    setWord(UNKNOWN);
+  };
+
+  /**
+   * Read the open state and target every FIELD_CHECK_MS while polykey may delete what it typed (the
+   * composition in the field, a word a pick replaces), so a close or another field is seen at once.
+   */
+  const watchField = (): void => {
+    if (fieldWatch !== null) return;
+    watchFields(); // a window opened since the last check (the bar's popups)
+    fieldWatch = setInterval(() => {
+      onOpenChange();
+      if (bar.inField() || word.word) return;
+      unwatchField();
+    }, FIELD_CHECK_MS);
+  };
+  const unwatchField = (): void => {
+    if (fieldWatch !== null) clearInterval(fieldWatch);
+    fieldWatch = null;
+  };
+  /** The popup losing focus or hiding: the field may have changed under the composition. */
+  const onBlur = (): void => lose('the keyboard lost focus');
+  const onHidden = (): void => { if (surface?.doc.visibilityState === 'hidden') lose('the keyboard hid'); };
+
+  /**
+   * Follow every Steam UI window's keyboard (windows come and go: the bar, its popups) for a move to
+   * another text field or a click in the same one, the dispatches Steam's own keyboard resets on.
+   */
+  const watchFields = (): void => {
+    const managers = new Set(getKeyboardManagers(g));
+    for (const [manager, stop] of fieldWatches) {
+      if (managers.has(manager)) continue;
+      stop();
+      fieldWatches.delete(manager);
+    }
+    for (const manager of managers) if (!fieldWatches.has(manager)) fieldWatches.set(manager, onFieldChange(manager, newField));
+  };
+  const unwatchFields = (): void => {
+    for (const stop of fieldWatches.values()) stop();
+    fieldWatches.clear();
+  };
+
   const onOpenChange = (): void => {
     const status = readStatus(statusStore);
     const open = status?.bIsOpen === true;
+    const target = targetOf(status);
     if (open !== wasOpen) {
-      swiped = null;
-      recent = null; // a new field: what is before the cursor is unknown
-      pickSpace = false;
-      setWord(NO_WORD); // a new field: we only ever replace letters we typed after this
+      newField();
+      // Whether Desktop Mode has the focus, asked for the window it opened on: until it answers, the paste
+      // route checks for itself and a composition waits in the bar.
+      if (open && classifyTarget(status) === 'local-app' && bridge.available()) askDesktop();
       if (!open) {
         bar.drop(); // the field is gone: an unsent reading is dropped, not typed elsewhere
         showBar();
@@ -1038,8 +1188,12 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         view?.update(mods);
       }
       log(`keyboard ${open ? 'opened' : 'closed'}: ${describeStatus(status)}`);
+    } else if (target !== wasTarget) {
+      newField(); // open on another target (window, mode or app)
+      log(`keyboard moved: ${describeStatus(status)}`);
     }
     wasOpen = open;
+    wasTarget = target;
   };
 
   /** Keep the keyboard in the current popup; runs every CHECK_MS. */
@@ -1062,6 +1216,7 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
       }
       if (!surface && win?.document?.body) mount(win);
       applyBounds();
+      watchFields();
       onOpenChange();
     } catch (error) {
       warn('check failed:', errorKind(error));
@@ -1111,6 +1266,8 @@ export const installPolykey = (g: SteamGlobals = globalThis): PolykeyApi => {
         void bridge.call('emoji.save', { state: emoji }); // a pending save is sent, not dropped
       }
       keys.releaseAll();
+      unwatchFields();
+      unwatchField();
       bridge.close();
       unmount();
       api.state = 'uninstalled';

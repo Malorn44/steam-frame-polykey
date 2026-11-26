@@ -4,7 +4,7 @@
  "kind": "keyboard",
  "id": "ko/korean",
  "name": "두벌식",
- "description": "The 2-set layout, each syllable composed in the bar and sent as it completes, with Korean word suggestions; 한/영 switches to ABC, which types English as on the other keyboards' Latin modes.",
+ "description": "The 2-set layout, each syllable composed in the text field (in Desktop Mode, the word in the bar), with Korean word suggestions; 한/영 switches to ABC, which types English as on the other keyboards' Latin modes.",
  "language": "ko",
  "layout": "ko/dubeolsik",
  "pages": {"latin": "ko/qwerty"},

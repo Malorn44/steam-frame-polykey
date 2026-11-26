@@ -4,13 +4,14 @@ import type { KeyDef } from '../src/core/catalog.js';
 import { NO_EMOJI_STATE, type EmojiState, type PickerSet } from '../src/core/emoji.js';
 import { REPEAT_DELAY_MS, REPEAT_MS } from '../src/core/interaction.js';
 import { CLIPBOARD_CHORDS, MODIFIER } from '../src/core/keycodes.js';
-import { KEYMAP_SETTLE_MS } from '../src/core/output/plan.js';
+import { BUFFERED_GAP_MS, KEYMAP_SETTLE_MS, graphemes } from '../src/core/output/plan.js';
+import type { VRKeyboardStatus } from '../src/host/steam/diag.js';
 import { SURFACE_ID } from '../src/host/steam/popup.js';
-import { BOOT_GLOBAL, CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
+import { BOOT_GLOBAL, CHECK_MS, FIELD_CHECK_MS, GLOBAL, PREREQ_RETRY_MS, PREREQ_TIMEOUT_MS, STEAM_ITEMS_WAIT_MS, installPolykey, type PolykeyApi } from '../src/main.js';
 import { STEAM_LOADING_NOTE } from '../src/ui/emoji.js';
 import { ICONS } from '../src/ui/icons.js';
 import { EMOJI, KAOMOJI, bundledBoot, emojiSet, kaomojiSet } from './boot.js';
-import { MINIMAL, fakeItemStore, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
+import { BUFFERED, MINIMAL, STREAMED, fakeItemStore, fakeManager, fakePopupWindow, fakeSteam, type FakePopupWindow } from './fake-steam.js';
 
 /** A request the page sent the fake sidecar, with the fields these tests look at. */
 type SentRequest = {
@@ -238,6 +239,48 @@ describe('suggestions', () => {
     expect(slots(popup)).toEqual(['', '', '']);
     await tap(popup, '.'); // punctuation closes up to the picked word
     expect(manager.calls.map(([k]) => k).slice(-2)).toEqual(['Backspace', '.']);
+  });
+
+  it('a move to another text field, or a click in this one, starts a new word: a pick never deletes there', async () => {
+    const boot = bundledBoot();
+    boot.catalog.keyboards['en/english']!.lexicon = 'en/words';
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked = withSidecar(steam.g);
+    installed.push(installPolykey(steam.g));
+    await tap(popup, 'h');
+    await tap(popup, 'e');
+    expect(slots(popup)).toEqual(['help', 'hello', 'held']);
+    manager.OnActiveElementChanged.Dispatch({}); // Steam's keyboard moved to another field
+    await vi.advanceTimersByTimeAsync(10);
+    expect(slots(popup)).toEqual(['', '', '']);
+    await tap(popup, 'l');
+    expect(asked.at(-1)).toBe('l');
+    manager.OnActiveElementClicked.Dispatch({}); // the same field clicked: its caret may have moved
+    await tap(popup, 'p');
+    expect(asked.at(-1)).toBe('p');
+    expect(manager.calls.map(([k]) => k)).toEqual(['h', 'e', 'l', 'p']);
+  });
+
+  it('watches each Steam window\'s keyboard as windows come and go, and lets go of every one when uninstalled', async () => {
+    const { manager, g, api } = setup();
+    const windows = (g['SteamUIStore'] as { WindowStore: { SteamUIWindows: unknown[] } }).WindowStore.SteamUIWindows;
+    const watching = (m: ReturnType<typeof fakeManager>) => [m.OnActiveElementChanged.m_vecCallbacks.length, m.OnActiveElementClicked.m_vecCallbacks.length];
+    expect(watching(manager)).toEqual([1, 1]);
+    const later = fakeManager(); // a window opened later (the bar's popup)
+    windows.push({ VirtualKeyboardManager: later });
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(watching(later)).toEqual([1, 1]);
+    windows.pop();
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    expect(watching(later)).toEqual([0, 0]);
+    const bare: Record<string, unknown> = { HandleVirtualKeyDown: () => {} }; // a manager without the lists
+    windows.push({ VirtualKeyboardManager: bare });
+    await vi.advanceTimersByTimeAsync(CHECK_MS);
+    api.uninstall();
+    expect(watching(manager)).toEqual([0, 0]);
   });
 
   it('no lexicon or no sidecar: no suggestions, typing unaffected', async () => {
@@ -1508,11 +1551,12 @@ describe('the mode key', () => {
   });
 });
 
+// Where it cannot compose in the field (here streamed, as through Steam Link), Korean builds the word in the bar.
 describe('Korean', () => {
   const setupKo = () => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
-    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const steam = fakeSteam({ popup, managers: [manager], status: STREAMED, keyState: true });
     const boot = bundledBoot();
     boot.settings.keyboards = ['ko/korean', 'en/english'];
     steam.g[BOOT_GLOBAL] = boot;
@@ -1525,18 +1569,23 @@ describe('Korean', () => {
   /** The mode key's marked half (한 or 영), in this popup. */
   const marked = (popup: FakePopupWindow) => key(popup, 'mode').querySelector('.part.now')?.textContent;
 
-  it('composes each syllable in the bar, in the language\'s fonts, and sends it as the next begins; Space sends the last', async () => {
+  it('builds the word in the bar, in the language\'s fonts; Space sends it and a space, Enter sends it alone', async () => {
     const { popup, sent, pre, typeAll } = setupKo();
     const font = shadowOf(popup)!.querySelector<HTMLElement>('.kb')!.style.getPropertyValue('--language-font');
     expect(font).toBe('"Noto Sans CJK KR", "Noto Sans CJK JP", var(--font)'); // then the theme's
     await typeAll('ㅎㅏㄴ');
     expect([sent(), pre()]).toEqual([[], '한']);
     await typeAll('ㄱㅡㄹ');
-    expect([sent(), pre()]).toEqual([['한'], '글']); // one text per syllable
+    expect([sent(), pre()]).toEqual([[], '한글']); // 한 waits with the word, before 글
     await tap(popup, ' ');
-    expect([sent(), pre()]).toEqual([['한', '글', ' '], null]);
+    expect([sent(), pre()]).toEqual([['한글', ' '], null]); // the word, whole
     await typeAll('ㅇㅓㅂㅅㅇㅓ.');
-    expect(sent().slice(3)).toEqual(['없', '어', '.']); // punctuation sends the syllable first
+    expect(sent().slice(2)).toEqual(['없어', '.']); // punctuation sends the word first
+    await typeAll('ㄴㅔ');
+    await tap(popup, 'Enter');
+    expect(sent().slice(4)).toEqual(['네']); // sent, and Enter not pressed: nothing is searched for yet
+    await tap(popup, 'Enter');
+    expect(sent().slice(5)).toEqual(['Enter']); // with the bar empty, Enter is Enter
   });
 
   it('Shift types the tense consonant once; ⌫ takes jamo off, then deletes in the field', async () => {
@@ -1553,7 +1602,13 @@ describe('Korean', () => {
       expect(pre()).toBe(shown);
     }
     expect(sent()).toEqual([]);
-    await tap(popup, 'Backspace'); // nothing composed: the field's
+    await tap(popup, 'Backspace'); // nothing in the bar: the field's
+    expect(sent()).toEqual(['Backspace']);
+    await typeAll('ㅎㅏㄴㄱㅡㄹ');
+    for (const shown of ['한그', '한ㄱ', '한', null]) { // the composition, then the word's syllables
+      await tap(popup, 'Backspace');
+      expect(pre()).toBe(shown);
+    }
     expect(sent()).toEqual(['Backspace']);
   });
 
@@ -1604,11 +1659,15 @@ describe('Korean', () => {
 });
 
 describe('Korean word suggestions', () => {
-  /** The Korean keyboard with a fake sidecar: suggest answers with `words` for the prefix (the sidecar matches on keys; test_spellers.py). */
+  /**
+   * The Korean keyboard with a fake sidecar: suggest answers with `words` for the prefix (the sidecar
+   * matches on keys; test_spellers.py). Composed in the bar, as where it cannot compose in the field
+   * (streamed).
+   */
   const setupWords = (words: Record<string, string[]>, boot = bundledBoot()) => {
     const popup = fakePopupWindow();
     const manager = fakeManager(true);
-    const steam = fakeSteam({ popup, managers: [manager], status: MINIMAL, keyState: true });
+    const steam = fakeSteam({ popup, managers: [manager], status: STREAMED, keyState: true });
     boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
     steam.g[BOOT_GLOBAL] = boot;
     const asked: SentRequest[] = [];
@@ -1635,25 +1694,25 @@ describe('Korean word suggestions', () => {
   };
   const WORDS = { 학교: ['학교', '학교에서', '학교를'], 학: ['하고', '학교', '학교에서'], 가: ['가장', '가지'] };
 
-  it('suggests for the syllables sent since the boundary and the one composing, on the keys of the keyboard typed on', async () => {
+  it('suggests for the word in the bar and the syllable composing, on the keys of the keyboard typed on', async () => {
     const { popup, asked, sent, pre, cands, typeAll } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
-    expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 sent, then 교 composing
+    expect(asked.map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']); // 학 in the word, then 교 composing
     expect(asked.every((r) => r.lexicon === 'ko/words' && r.keyboard === 'ko/korean')).toBe(true);
-    expect([sent(), pre(), cands()]).toEqual([['학'], '교', ['학교', '학교에서', '학교를']]);
+    expect([sent(), pre(), cands()]).toEqual([[], '학교', ['학교', '학교에서', '학교를']]);
     await tap(popup, ' '); // the word ends: no suggestions until the next
-    expect([sent(), cands()]).toEqual([['학', '교', ' '], []]);
+    expect([sent(), cands()]).toEqual([['학교', ' '], []]);
     await typeAll('ㄱㅏ');
     expect(asked.at(-1)!.prefix).toBe('가');
     expect(cands()).toEqual(['가장', '가지']);
     expect(logged.join('\n')).not.toMatch(/학|교|가장/); // typed text and suggestions: never logged
   });
 
-  it('a pick deletes the syllables sent, drops the one composing, and sends the word and a space', async () => {
+  it('a pick sends the word and a space in place of the bar\'s: nothing of it was sent, so nothing is deleted', async () => {
     const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
     await pick('학교에서');
-    expect(sent()).toEqual(['학', 'Backspace', '학교에서', ' ']); // one Backspace for 학; 교 never sent
+    expect(sent()).toEqual(['학교에서', ' ']);
     expect([pre(), cands()]).toEqual([null, []]);
     await tap(popup, '.'); // punctuation closes up to the picked word, as in English
     expect(sent().slice(-2)).toEqual(['Backspace', '.']);
@@ -1661,14 +1720,14 @@ describe('Korean word suggestions', () => {
     expect(cands()).toEqual(['학교에서', '하고', '학교']);
   });
 
-  it('with nothing composed, the syllables sent keep their suggestions, and a pick deletes them', async () => {
+  it('with nothing composed, the word in the bar keeps its suggestions, and a pick takes its place', async () => {
     const { popup, sent, pre, cands, typeAll, pick } = setupWords(WORDS);
     await typeAll('ㅎㅏㄱㄱㅛ');
     await tap(popup, 'Backspace'); // 교 → ㄱ
-    await tap(popup, 'Backspace'); // nothing composed: 학 is sent
-    expect([sent(), pre(), cands()]).toEqual([['학'], null, ['하고', '학교', '학교에서']]);
+    await tap(popup, 'Backspace'); // nothing composed: 학 waits in the bar
+    expect([sent(), pre(), cands()]).toEqual([[], '학', ['하고', '학교', '학교에서']]);
     await pick('학교');
-    expect(sent()).toEqual(['학', 'Backspace', '학교', ' ']);
+    expect(sent()).toEqual(['학교', ' ']);
   });
 
   it('each draw of a keyboard asks the sidecar once to prepare the list its mode suggests from; typing asks for none', async () => {
@@ -1708,6 +1767,302 @@ describe('Korean word suggestions', () => {
     api.debug.use('ja/romaji');
     await typeAll('ka');
     expect(asked.length).toBe(before);
+  });
+});
+
+describe('Korean composed in the text field', () => {
+  /** What the field holds after these calls: text at its end, a Backspace takes its last character, a named key shows as <Name>. */
+  const fieldOf = (calls: readonly string[], start = '') => calls.reduce((field, k) => (k === 'Backspace' ? graphemes(field).slice(0, -1).join('')
+    : /^[A-Z][A-Za-z]+$/.test(k) ? `${field}<${k}>` : field + k), start);
+  /**
+   * The Korean keyboard in a game (minimal) unless `status` says otherwise. With no `sidecar` there is
+   * no bridge, so no paste route; with one, it answers the requests it knows (an unknown op gets
+   * unknown-op, so desktop.prepare finds no desktop).
+   */
+  const setupField = ({ status = MINIMAL, sidecar }: { status?: VRKeyboardStatus; sidecar?: (req: SentRequest) => Record<string, unknown> | undefined } = {}) => {
+    const popup = fakePopupWindow();
+    const manager = fakeManager(true);
+    const at: number[] = [];
+    let failing = 0;
+    manager.HandleVirtualKeyDown = (k, shift) => {
+      if (failing > 0) {
+        failing -= 1;
+        throw new Error('gone');
+      }
+      manager.calls.push([k, shift]);
+      at.push(Date.now());
+    };
+    const steam = fakeSteam({ popup, managers: [manager], status, keyState: true });
+    const boot = bundledBoot();
+    boot.settings.keyboards = ['ko/korean', 'en/english', 'ja/romaji'];
+    steam.g[BOOT_GLOBAL] = boot;
+    const asked: SentRequest[] = [];
+    if (sidecar) {
+      steam.g['polykeyBridge'] = (payload: string) => {
+        const req = request(payload);
+        asked.push(req);
+        const reply = sidecar(req) ?? { ok: false, error: 'unknown-op' };
+        setTimeout(() => (steam.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply }), 1);
+      };
+    }
+    const api = installPolykey(steam.g);
+    installed.push(api);
+    const sent = () => manager.calls.map((c) => c[0]);
+    const pre = () => shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent || null;
+    const cands = () => [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.comp.on .cand')].map((el) => el.textContent);
+    const typeAll = async (keys: string) => { for (const k of Array.from(keys)) await tap(popup, k); };
+    /** The keyboard opened a moment ago: the sidecar has answered what it was asked then (where the focus is). */
+    const opened = () => vi.advanceTimersByTimeAsync(10);
+    /** Press without waiting: presses as fast as sends can go. */
+    const press = (id: string) => {
+      const el = key(popup, id);
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+    };
+    const pick = async (text: string) => {
+      const el = [...shadowOf(popup)!.querySelectorAll<HTMLElement>('.cand')].find((c) => c.textContent === text)!;
+      el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
+      await vi.advanceTimersByTimeAsync(200);
+    };
+    return { ...steam, popup, manager, api, at, asked, sent, pre, cands, typeAll, press, pick, opened, failNext: (n = 1) => { failing = n; } };
+  };
+  type Field = ReturnType<typeof setupField>;
+  /** A sidecar where Desktop Mode does not have the focus. */
+  const notDesktop = (more: (req: SentRequest) => Record<string, unknown> | undefined = () => undefined) =>
+    (req: SentRequest) => (req.op === 'desktop.focus' ? { ok: true, desktop: false } : more(req));
+
+  it('in a game each jamo retypes the syllable in the field, only what changed; Space adds nothing to it', async () => {
+    const { popup, sent, pre, typeAll } = setupField();
+    await typeAll('ㅎㅏㄴㄱㅡㄹ');
+    expect(sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한', 'ㄱ', 'Backspace', '그', 'Backspace', '글']);
+    expect(fieldOf(sent())).toBe('한글');
+    expect(pre()).toBeNull(); // the syllable is in the field, not the bar
+    await tap(popup, ' ');
+    expect(sent().slice(10)).toEqual([' ']);
+    await typeAll('ㅎㅏㄴㅏ'); // the final moves on: 한 typed again without it, then 나
+    expect(sent().slice(11)).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한', 'Backspace', '하나']);
+    expect(fieldOf(sent())).toBe('한글 하나');
+  });
+
+  it('typed faster than the keymap settles, each Backspace waits for the text before it, and the text follows it', async () => {
+    const { press, sent, at } = setupField();
+    for (const k of ['ㅎ', 'ㅏ', 'ㄴ']) press(k);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한']);
+    expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_MS); // after ㅎ's keymap
+    expect(at[3]! - at[2]!).toBeGreaterThanOrEqual(KEYMAP_SETTLE_MS); // after 하's
+    expect(at[2]! - at[1]!).toBeLessThan(KEYMAP_SETTLE_MS); // a Backspace swaps no keymap
+  });
+
+  it('in Steam\'s own UI the same, one character per call, the buffer\'s gap between a text\'s characters', async () => {
+    const { press, sent, at } = setupField({ status: BUFFERED });
+    for (const k of ['ㅎ', 'ㅏ', 'ㄴ', 'ㅏ']) press(k);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한', 'Backspace', '하', '나']);
+    expect(fieldOf(sent())).toBe('하나');
+    // 하나 is one text, two calls; a Backspace and the text after it are sends of their own, as a pick's are,
+    // and Steam's own keyboard sends them back to back.
+    expect(at[7]! - at[6]!).toBeGreaterThanOrEqual(BUFFERED_GAP_MS);
+  });
+
+  it('⌫ takes jamo off in the field, a compound vowel one part at a time; with nothing composed it is the field\'s own', async () => {
+    const { popup, sent, typeAll } = setupField();
+    await typeAll('ㄱㅗㅐㄴ');
+    expect(fieldOf(sent(), 'ab ')).toBe('ab 괜');
+    const mark = sent().length;
+    for (let i = 0; i < 4; i++) await tap(popup, 'Backspace');
+    expect(sent().slice(mark)).toEqual(['Backspace', '괘', 'Backspace', '고', 'Backspace', 'ㄱ', 'Backspace']);
+    expect(fieldOf(sent(), 'ab ')).toBe('ab ');
+    await tap(popup, 'Backspace'); // the user's own
+    expect(fieldOf(sent(), 'ab ')).toBe('ab');
+  });
+
+  // Each of these ends the syllable where it is, in the field: what comes next never deletes it.
+  const ends: [string, (t: Field) => Promise<void>][] = [
+    ['Space', (t) => tap(t.popup, ' ')],
+    ['punctuation', (t) => tap(t.popup, '.')],
+    ['Enter', (t) => tap(t.popup, 'Enter')],
+    ['an arrow', (t) => tap(t.popup, 'ArrowLeft')],
+    ['Paste', (t) => tap(t.popup, 'paste')],
+    ['Copy', (t) => tap(t.popup, 'copy')],
+    ['한/영 and back', async (t) => { await tap(t.popup, 'mode'); await tap(t.popup, 'mode'); }],
+    ['🌐 to another keyboard and back', async (t) => { await tap(t.popup, 'next-keyboard'); await tap(t.popup, 'next-keyboard'); await tap(t.popup, 'next-keyboard'); }],
+    ['the emoji picker', async (t) => { await tap(t.popup, 'emoji'); await tap(t.popup, 'abc'); }],
+    ['✕ (hide)', (t) => tap(t.popup, 'hide')],
+    ['closing and opening the keyboard', async (t) => {
+      t.state.status = { ...MINIMAL, bIsOpen: false };
+      await vi.advanceTimersByTimeAsync(FIELD_CHECK_MS * 2); // seen at once, not at the next check
+      t.state.status = MINIMAL;
+      await vi.advanceTimersByTimeAsync(FIELD_CHECK_MS * 2);
+    }],
+    ['another window (target)', async (t) => { t.state.status = { ...MINIMAL, sOverlayKey: 'gamescope.gamescope-0.window.80' }; }],
+    ['Steam moving to another text field', async (t) => { t.manager.OnActiveElementChanged.Dispatch({}); }],
+    ['a click in the same field', async (t) => { t.manager.OnActiveElementClicked.Dispatch({}); }],
+    ['the popup losing focus', async (t) => { t.popup.document.dispatchEvent(new Event('blur')); }],
+    ['the popup hiding', async (t) => {
+      Object.defineProperty(t.popup.document, 'visibilityState', { configurable: true, value: 'hidden' });
+      t.popup.document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(t.popup.document, 'visibilityState', { configurable: true, value: 'visible' });
+    }],
+  ];
+  for (const [name, end] of ends) {
+    it(`${name}: the syllable stays in the field as it is, and the next starts afresh, without a Backspace`, async () => {
+      const t = setupField();
+      await t.typeAll('ㅎㅏ');
+      const mark = t.sent().length;
+      await end(t);
+      await t.typeAll('ㄴ');
+      const after = t.sent().slice(mark);
+      expect(after).not.toContain('Backspace');
+      expect(after.at(-1)).toBe('ㄴ');
+      await tap(t.popup, 'Backspace'); // ⌫ takes ㄴ, and only ㄴ, off
+      expect(t.sent().slice(mark).filter((k) => k === 'Backspace')).toHaveLength(1);
+    });
+  }
+
+  it('a send that fails forgets what is in the field; sends planned before it are skipped, and nothing typed is logged', async () => {
+    const { press, sent, failNext, typeAll } = setupField();
+    await typeAll('ㅎ');
+    failNext(); // ⌫ of ㅏ's retype fails
+    press('ㅏ');
+    press('ㄴ'); // planned against 하 before the failure is known
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent()).toEqual(['ㅎ']);
+    expect(logged.join('\n')).toContain('a send into the field failed');
+    await typeAll('ㄱ');
+    expect(sent()).toEqual(['ㅎ', 'ㄱ']); // a new syllable, nothing deleted
+    expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣]/u);
+  });
+
+  it('a picked word deletes the syllables sent and the one in the field, then sends the word and a space', async () => {
+    const WORDS: Record<string, string[]> = { 학교: ['학교', '학교에서', '학교를'] };
+    const t = setupField({ sidecar: notDesktop((req) => (req.op === 'suggest' ? { ok: true, words: WORDS[req.prefix ?? ''] ?? [] } : undefined)) });
+    await t.opened();
+    await t.typeAll('ㅎㅏㄱㄱㅛ');
+    expect(t.asked.filter((r) => r.op === 'suggest' && !r.prepare).map((r) => r.prefix)).toEqual(['ㅎ', '하', '학', '학ㄱ', '학교']);
+    expect([t.sent(), t.pre(), t.cands()]).toEqual([['ㅎ', 'Backspace', '하', 'Backspace', '학', 'ㄱ', 'Backspace', '교'], null, ['학교', '학교에서', '학교를']]);
+    await t.pick('학교에서');
+    expect(t.sent().slice(8)).toEqual(['Backspace', 'Backspace', '학교에서', ' ']); // 학 and 교, both in the field
+    expect(fieldOf(t.sent(), '내 ')).toBe('내 학교에서 ');
+    expect(t.cands()).toEqual([]);
+  });
+
+  it('in Desktop Mode, where text goes by paste, the syllable waits in the bar as before', async () => {
+    const pasted: string[] = [];
+    const { popup, sent, pre, typeAll, asked, opened } = setupField({
+      sidecar: (req) => {
+        if (req.op === 'desktop.focus') return { ok: true, desktop: true };
+        if (req.op === 'desktop.prepare') pasted.push(req.text!);
+        return req.op === 'desktop.prepare' ? { ok: true } : req.op === 'desktop.wait' ? { ok: true, pasted: true } : undefined;
+      },
+    });
+    expect(asked.filter((r) => r.op === 'desktop.focus')).toHaveLength(1); // asked as the keyboard opened
+    await opened();
+    await typeAll('ㅎㅏㄴ');
+    expect([sent(), pre(), pasted]).toEqual([[], '한', []]);
+    await tap(popup, ' ');
+    expect([pasted, sent()]).toEqual([['한'], [' ']]);
+  });
+
+  it('in a game, once the sidecar has said so, Hangul goes straight in: no paste check before each text; a reopen asks again', async () => {
+    const t = setupField({ sidecar: notDesktop() });
+    await t.opened();
+    await t.typeAll('ㅎㅏㄴ');
+    expect(t.sent()).toEqual(['ㅎ', 'Backspace', '하', 'Backspace', '한']);
+    const desktopOps = () => t.asked.map((r) => r.op).filter((op) => op.startsWith('desktop.'));
+    expect(desktopOps()).toEqual(['desktop.focus']);
+    t.state.status = { ...MINIMAL, bIsOpen: false };
+    await t.typeAll('ㄱ'); // sees the close
+    t.state.status = MINIMAL;
+    await t.typeAll('ㄱ'); // and the reopen, which asks where the focus is again
+    expect(desktopOps()).toEqual(['desktop.focus', 'desktop.focus']);
+  });
+
+  it('until the sidecar says where the focus is, the syllable waits in the bar, then moves into the field', async () => {
+    let answer: (() => void) | null = null;
+    const t = setupField({ sidecar: () => undefined });
+    await t.opened(); // the window it opened on: no desktop there
+    // Another window: its answer waits until the test lets it go.
+    t.state.status = { ...MINIMAL, sOverlayKey: 'gamescope.gamescope-0.window.90' };
+    t.g['polykeyBridge'] = (payload: string) => {
+      const req = request(payload);
+      const reply = req.op === 'desktop.focus' ? { ok: true, desktop: false } : { ok: false, error: 'unknown-op' };
+      const send = () => (t.g[GLOBAL] as PolykeyApi).bridgeReply({ id: req.id, ...reply });
+      if (req.op === 'desktop.focus') answer = send;
+      else setTimeout(send, 1);
+    };
+    await t.typeAll('ㅎ');
+    expect([t.sent(), t.pre()]).toEqual([[], 'ㅎ']);
+    answer!();
+    await vi.advanceTimersByTimeAsync(0);
+    await t.typeAll('ㅏ');
+    expect([t.sent(), t.pre()]).toEqual([['하'], null]);
+  });
+
+  it('an answer that does not say where the focus is (unknown, the paste route off) keeps the bar: nothing typed is deleted', async () => {
+    for (const error of ['focus-unknown', 'desktop-paste-off']) {
+      const prepared: string[] = [];
+      const t = setupField({
+        sidecar: (req) => {
+          if (req.op === 'desktop.prepare') prepared.push(req.text!);
+          return req.op === 'desktop.focus' || req.op === 'desktop.prepare' ? { ok: false, error } : undefined;
+        },
+      });
+      await t.opened();
+      await t.typeAll('ㅎㅏㄴ');
+      expect([t.sent(), t.pre()]).toEqual([[], '한']); // in the bar, not retyped
+      await tap(t.popup, ' ');
+      expect(prepared).toEqual(['한']); // the paste route tried, and could not say either
+      await t.typeAll('ㄱㅡ');
+      expect(t.pre()).toBe('그'); // still the bar
+      expect(t.sent()).not.toContain('Backspace');
+      t.api.uninstall();
+    }
+  });
+
+  it('a paste that finds no desktop there lets the field be composed in', async () => {
+    const t = setupField({
+      sidecar: (req) => (req.op === 'desktop.prepare' ? { ok: false, error: 'not-desktop' } : req.op === 'desktop.focus' ? { ok: false, error: 'focus-unknown' } : undefined),
+    });
+    await t.opened();
+    await t.typeAll('ㅎㅏㄴ');
+    await tap(t.popup, ' ');
+    await t.typeAll('ㄱ');
+    expect([t.sent(), t.pre()]).toEqual([['한', ' ', 'ㄱ'], null]); // typed as it is, then into the field
+  });
+
+  it('streamed (Steam Link), the bar as before', async () => {
+    const { sent, pre, typeAll } = setupField({ status: STREAMED });
+    await typeAll('ㅎㅏㄴ');
+    expect([sent(), pre()]).toEqual([[], '한']);
+  });
+
+  it('Japanese keeps its reading in the bar: its composers do not compose in the field', async () => {
+    const { popup, api, sent, typeAll } = setupField();
+    api.debug.use('ja/romaji');
+    await typeAll('ka');
+    expect(sent()).toEqual([]);
+    expect(shadowOf(popup)!.querySelector('.comp.on .pre')?.textContent).toBe('か');
+  });
+
+  it('says why it forgot a syllable in the field, never what it was', async () => {
+    const t = setupField();
+    await t.typeAll('ㅎㅏ');
+    t.popup.document.dispatchEvent(new Event('blur'));
+    await t.typeAll('ㄴ');
+    t.manager.OnActiveElementChanged.Dispatch(null);
+    t.popup.document.dispatchEvent(new Event('blur')); // nothing in the field: nothing to say
+    const said = logged.filter((line) => line.includes('composing in the field'));
+    expect(said).toEqual(['[polykey] composing in the field: the keyboard lost focus; what was composed stays as it is',
+      '[polykey] composing in the field: a new field; what was composed stays as it is']);
+  });
+
+  it('never logs what is typed, the syllable in the field included', async () => {
+    const { popup, typeAll } = setupField();
+    await typeAll('ㅎㅏㄴㄱㅡㄹ');
+    await tap(popup, 'Backspace');
+    expect(logged.join('\n')).not.toMatch(/[ㄱ-ㅣ가-힣]/u);
   });
 });
 
