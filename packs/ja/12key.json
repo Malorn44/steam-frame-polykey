@@ -18,7 +18,7 @@
   "qwertyLatin": true,
   "swipe": false
  },
- "features": {"swipe": {"lexicon": "en/words"}},
+ "features": {"swipe": {}},
  "converter": "anthy",
  "modes": [
   {"id": "kana"},

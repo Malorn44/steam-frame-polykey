@@ -11,7 +11,7 @@
  "composer": "hangul-2set",
  "table": "ko/hangul",
  "converter": "hanja",
- "features": {"swipe": {"lexicon": "en/words"}},
+ "features": {"swipe": {}},
  "options": {"swipe": false},
  "modes": [
   {"id": "hangul", "lexicon": "ko/words"},

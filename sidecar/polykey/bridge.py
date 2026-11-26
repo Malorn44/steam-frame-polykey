@@ -22,7 +22,7 @@ from .packs import (
     write_json,
 )
 from .speech.session import OPS as DICTATION_OPS, Dictation
-from .spellers import LOWERCASE, Spellers
+from .spellers import LOWERCASE, Speller, Spellers
 from .swipe import Swipe
 from .updates import OPS as UPDATE_OPS, Updater
 from .wayland import WaylandError
@@ -104,7 +104,11 @@ class Bridge:
         if op == "suggest":
             return self._suggest(request)
         if op == "swipe":
-            return self._swipe.handle(request) if self._swipe else {"ok": False, "error": "no-lexicon"}
+            return (
+                self._swipe.handle(request, self._speller(request))
+                if self._swipe
+                else {"ok": False, "error": "no-lexicon"}
+            )
         if op == "settings.save":
             result = self._save_settings(request)
             turned = request["settings"].get("dictation") if result["ok"] else None
@@ -210,12 +214,17 @@ class Bridge:
                 self._swipe.forget(lexicon_id)
             self._log.info(f"suggest: {lexicon_id} unloaded after {unused / 60:.0f} min unused")
 
+    def _speller(self, request: dict) -> Speller:
+        """The speller of the keyboard a suggest or swipe request names (while its mode composes), else LOWERCASE."""
+        keyboard = request.get("keyboard")
+        return self._spellers.get(keyboard) if self._spellers and isinstance(keyboard, str) else LOWERCASE
+
     def _suggest(self, request: dict) -> dict:
         """Words for a prefix, from the word list named; with `keyboard` (while its mode composes), matched on
         the keys typed by its composer's speller. With `prepare` (a keyboard drawn), the list is loaded and
         indexed for that speller instead, if it is not yet."""
         prefix, lexicon_id, limit = request.get("prefix"), request.get("lexicon"), request.get("limit", 3)
-        keyboard, prepare = request.get("keyboard"), request.get("prepare") is True
+        prepare = request.get("prepare") is True
         if not prepare and (not isinstance(prefix, str) or not prefix or len(prefix) > 40):
             return {"ok": False, "error": "bad-prefix"}
         if not prepare and (not isinstance(limit, int) or not 1 <= limit <= MAX_SUGGESTIONS):
@@ -224,7 +233,7 @@ class Bridge:
         lexicon = self._lexicons.get(lexicon_id) if self._lexicons and isinstance(lexicon_id, str) else None
         if lexicon is None:
             return {"ok": False, "error": "no-lexicon"}
-        speller = self._spellers.get(keyboard) if self._spellers and isinstance(keyboard, str) else LOWERCASE
+        speller = self._speller(request)
         if prepare:
             if lexicon.prepare(speller):  # the list's id only: never typed text
                 self._log.info(f"suggest: {lexicon_id} ready in {(time.perf_counter() - started) * 1000:.0f} ms")
