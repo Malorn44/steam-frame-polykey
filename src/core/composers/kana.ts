@@ -17,7 +17,8 @@
 // かな while typing (無変換's job on a Windows keyboard) shows the reading as カタカナ, then ﾊﾝｶｸ, then
 // ひらがな again; 確定 sends it in that form. While converting it goes back to the reading, in カタカナ.
 
-import type { FlickKey, KeyDef, Layout } from '../catalog.js';
+import type { KeyDef, Layout } from '../catalog.js';
+import { stepCycle, tapKey, type TapCycle } from '../cycle.js';
 import { inForm, nextForm, toKatakana, type Form } from '../forms.js';
 import { modifyTable } from '../kana.js';
 import { feedRomaji, isRomaji, romajiTable, type RomajiTable } from '../romaji.js';
@@ -32,7 +33,7 @@ export interface Ime {
   readonly chars: readonly string[];
   readonly caret: number;
   /** An open tap cycle (tapCycle on): tapping the same key again replaces the kana before the caret. */
-  readonly cycle: { readonly key: string; readonly chars: readonly string[]; readonly index: number } | null;
+  readonly cycle: TapCycle | null;
   /** While converting: the segments (each with its picked candidate) and the focused one. */
   readonly segments: readonly Segment[] | null;
   readonly focus: number;
@@ -75,18 +76,8 @@ const replaceBefore = (ime: Ime, text: string, cycle: Ime['cycle'] = null): Ime 
   return { ...ime, chars, cycle, form: 'hiragana' };
 };
 const step = (ime: Ime, by: 1 | -1): Result => {
-  const cycle = ime.cycle!;
-  const index = (cycle.index + by + cycle.chars.length) % cycle.chars.length;
-  return { state: replaceBefore(ime, cycle.chars[index]!, { ...cycle, index }), effects: [], request: { kind: 'live' } };
-};
-
-const typeFlick = (ime: Ime, key: FlickKey, flicked: string | undefined, tapCycle: boolean): Result => {
-  if (flicked !== undefined) return { state: insert(ime, flicked), effects: [], request: { kind: 'live' } };
-  const id = key.flick[0];
-  if (tapCycle && ime.cycle?.key === id) return step(ime, 1);
-  const chars = key.cycle ?? key.flick.filter(Boolean);
-  const cycle = tapCycle && chars.length > 1 ? { key: id, chars, index: 0 } : null;
-  return { state: insert(ime, id, cycle), effects: [], request: { kind: 'live' } };
+  const cycle = stepCycle(ime.cycle!, by);
+  return { state: replaceBefore(ime, cycle.chars[cycle.index]!, cycle), effects: [], request: { kind: 'live' } };
 };
 
 /** ゛ and ゜ typed after a kana join it (か゛ → が); otherwise they stay as typed. */
@@ -154,7 +145,7 @@ export const pressIme = (
   const { modify, romaji } = tables;
   const typing = typed !== undefined && key.type === 'char' && !isSpace(key);
   if (ime.segments) {
-    if (key.type === 'flick' || isAction(key, 'modify') || typing) {
+    if (isAction(key, 'modify') || typing) {
       // Typing on after a conversion: send it, then start a new reading.
       const sent = commit(ime);
       const next = pressIme(NO_IME, key, input, options, tables);
@@ -174,7 +165,8 @@ export const pressIme = (
     return null;
   }
 
-  if (key.type === 'flick') return typeFlick(ime, key, flicked, options.tapCycle);
+  const tap = typing && options.tapCycle && !flicked ? tapKey(ime.cycle, key) : null;
+  if (tap) return { state: tap.again ? replaceBefore(ime, tap.char, tap.cycle) : insert(ime, tap.char, tap.cycle), effects: [], request: { kind: 'live' } };
   if (typing) return { state: insertTyped({ ...ime, cycle: null }, typed, romaji), effects: [], request: { kind: 'live' } };
   if (!composing(ime)) {
     if (isAction(key, 'modify')) return { state: ime, effects: [] };

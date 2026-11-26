@@ -3,6 +3,7 @@
 
 import type { ComposerId } from './composers/index.js';
 import type { EmojiState, PickerSet } from './emoji.js';
+import type { Direction } from './kana.js';
 import type { PackName } from './names.js';
 import type { NamedKey } from './keycodes.js';
 
@@ -27,13 +28,17 @@ export type LegendDefs = Partial<Record<LegendSlot, LegendDef>>;
 
 /**
  * A key. On a JIS key, char and shift are its Latin legends (typed in 英数 mode) and kana and kanaShift
- * its kana legends (typed in かな mode).
+ * its kana legends (typed in かな mode). A pack may leave out char, and the loader makes it cycle[0].
  */
 export type CharKey = {
   type: 'char'; char: string; shift?: string; long?: string[]; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; fn?: FnKey;
   kana?: string; kanaShift?: string;
   /** A small legend in the top right corner (what a long press offers, e.g. the digit on q). */
   hint?: string;
+  flick?: Partial<Record<Exclude<Direction, 'tap'>, string>>;
+  cycle?: string[];
+  /** Always show its flicks at the key's edges (whatever the keyboard's flickHints option says). */
+  flickHints?: boolean;
 };
 /**
  * tall: a piece of a key two or three rows high (top, middle, bottom); the pieces are one key. A pack
@@ -45,18 +50,7 @@ export type NamedKeyKey = { type: 'key'; key: NamedKey; label?: string; icon?: s
 export type ModKey = { type: 'mod'; mod: ModName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number };
 export type ActionKey = { type: 'action'; action: ActionName; label?: string; icon?: string | null; legends?: LegendDefs; w?: number; tall?: Tall; span?: number; notch?: number };
 export type GapKey = { type: 'gap'; w: number };
-/**
- * A 12-key flick key: [tap, left, up, right, down]; '' where a direction has nothing. `cycle` is what
- * tapping it again goes through when the keyboard's tapCycle option is on (default: its flicks).
- */
-export type FlickKey = {
-  type: 'flick'; flick: [string, string, string, string, string]; cycle?: string[]; label?: string; legends?: LegendDefs; w?: number;
-  /** Always show the other directions at the key's edges (whatever the flick hints option says). */
-  hints?: boolean;
-  /** A small legend beneath the label (the ABC keys' digit). */
-  sub?: string;
-};
-export type KeyDef = CharKey | NamedKeyKey | ModKey | ActionKey | GapKey | FlickKey;
+export type KeyDef = CharKey | NamedKeyKey | ModKey | ActionKey | GapKey;
 export type FnKey = string | Omit<CharKey, 'w' | 'fn'> | Omit<NamedKeyKey, 'w' | 'fn'>;
 
 export interface Layout {

@@ -1,22 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import type { FlickKey, KeyDef } from '../../src/core/catalog.js';
+import type { KeyDef } from '../../src/core/catalog.js';
 import { NO_IME, composing, pressIme, reading, type Ime } from '../../src/core/composers/kana.js';
 import { flickDirection, modifyTable } from '../../src/core/kana.js';
 import { inForm, toHalfwidth } from '../../src/core/forms.js';
 import { optionsFor } from '../../src/core/options.js';
 
-const ta: FlickKey = { type: 'flick', flick: ['た', 'ち', 'つ', 'て', 'と'], cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'] };
-const ha: FlickKey = { type: 'flick', flick: ['は', 'ひ', 'ふ', 'へ', 'ほ'] };
+const ta: KeyDef = { type: 'char', char: 'た', flick: { left: 'ち', up: 'つ', right: 'て', down: 'と' }, cycle: ['た', 'ち', 'つ', 'て', 'と', 'っ'] };
+const ha: KeyDef = { type: 'char', char: 'は', flick: { left: 'ひ', up: 'ふ', right: 'へ', down: 'ほ' } };
 const modify = modifyTable(['はばぱ', 'つっづ']);
 const action = (a: 'modify' | 'undo'): KeyDef => ({ type: 'action', action: a });
 const named = (key: 'ArrowRight' | 'ArrowLeft' | 'Backspace' | 'Enter'): KeyDef => ({ type: 'key', key });
 
-/** Press keys in turn: the reading left in the buffer, and what was sent to the app. */
+/** Press keys in turn (a char key tapped, or flicked to the given character): the reading left in the buffer, and what was sent to the app. */
 const run = (presses: [KeyDef, string?][], tapCycle: boolean): { buffer: string; sent: string } => {
   let ime: Ime = NO_IME;
   let sent = '';
   for (const [key, flicked] of presses) {
-    const result = pressIme(ime, key, flicked === undefined ? {} : { flicked }, { tapCycle }, { modify });
+    const input = key.type !== 'char' ? {} : flicked === undefined ? { typed: key.char } : { typed: flicked, flicked: true };
+    const result = pressIme(ime, key, input, { tapCycle }, { modify });
     if (!result) {
       sent += `<${(key as { key?: string }).key ?? '?'}>`;
       continue;
@@ -52,6 +53,10 @@ describe('reading buffer', () => {
     expect(run([[ta], [ta], [named('ArrowRight')], [ta]], true).buffer).toBe('ちた');
     expect(run([[ta], [ta], [ta], [ta], [ta], [ta], [ta]], true).buffer).toBe('た'); // past っ it wraps
     expect(run([[ta], [ha], [ha]], true).buffer).toBe('たひ'); // another key starts its own cycle
+    expect(run([[ha], [ha], [ha]], true).buffer).toBe('ふ'); // no cycle of its own: its char, then its flicks (left, up, …)
+    const dots: KeyDef = { type: 'char', char: '.', cycle: ['.', ','] }; // a cycle and no flicks
+    expect(run([[dots], [dots]], true).buffer).toBe(',');
+    expect(run([[ta], [{ type: 'char', char: 'た' }]], true).buffer).toBe('たた'); // a key with one character does not cycle
   });
 
   it('↶ steps back through the cycle; with an empty buffer it undoes in the app', () => {
@@ -74,7 +79,10 @@ describe('keyboard options', () => {
   it('take the keyboard default, then the user choice, and only options the keyboard has', () => {
     expect(optionsFor(keyboard, undefined).tapCycle).toBe(false);
     expect(optionsFor(keyboard, { tapCycle: true }).tapCycle).toBe(true);
-    expect(optionsFor({ ...keyboard, options: {} }, { tapCycle: true }).tapCycle).toBe(false);
+    expect(optionsFor({ ...keyboard, options: {} }, { flickHints: true }).flickHints).toBe(false);
+  });
+  it('cycle on taps on a keyboard that does not offer to stop them', () => {
+    expect(optionsFor({ ...keyboard, options: {} }, { tapCycle: false }).tapCycle).toBe(true);
   });
 });
 
@@ -87,11 +95,11 @@ describe('reading forms', () => {
 
   it('symbols typed in kana mode wait in the reading too (?123, the punctuation key)', () => {
     const at: KeyDef = { type: 'char', char: '@' };
-    const punct: FlickKey = { type: 'flick', flick: ['、', '。', '？', '！', '…'] };
-    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.state;
+    const punct: KeyDef = { type: 'char', char: '、', flick: { left: '。', up: '？', right: '！', down: '…' } };
+    let ime = pressIme(NO_IME, ha, { typed: 'は' }, { tapCycle: false }, { modify })!.state;
     const typed = pressIme(ime, at, { typed: '@' }, { tapCycle: false }, { modify })!;
     expect([reading(typed.state), typed.effects]).toEqual(['は@', []]);
-    ime = pressIme(typed.state, punct, { flicked: '？' }, { tapCycle: false }, { modify })!.state;
+    ime = pressIme(typed.state, punct, { typed: '？', flicked: true }, { tapCycle: false }, { modify })!.state;
     expect(reading(ime)).toBe('は@？');
   });
 
@@ -108,13 +116,13 @@ describe('reading forms', () => {
 
   it('かな cycles the reading; editing goes back to ひらがな; while converting it returns to カタカナ', () => {
     const kana: KeyDef = { type: 'action', action: 'kana' };
-    let ime = pressIme(NO_IME, ha, {}, { tapCycle: false }, { modify })!.state;
+    let ime = pressIme(NO_IME, ha, { typed: 'は' }, { tapCycle: false }, { modify })!.state;
     ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.state;
     expect(ime.form).toBe('katakana');
     ime = pressIme(ime, kana, {}, { tapCycle: false }, { modify })!.state;
     expect(ime.form).toBe('halfwidth');
     expect(pressIme(ime, named('Enter'), {}, { tapCycle: false }, { modify })!.effects).toEqual([{ kind: 'text', text: 'ﾊ' }]);
-    expect(pressIme(ime, ta, {}, { tapCycle: false }, { modify })!.state.form).toBe('hiragana');
+    expect(pressIme(ime, ta, { typed: 'た' }, { tapCycle: false }, { modify })!.state.form).toBe('hiragana');
     const converting: Ime = { ...ime, form: 'hiragana', segments: [{ reading: 'は', candidates: ['葉'], index: 0 }] };
     const back = pressIme(converting, kana, {}, { tapCycle: false }, { modify })!;
     expect([back.state.segments, back.state.form]).toEqual([null, 'katakana']);

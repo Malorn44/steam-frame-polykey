@@ -84,8 +84,9 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
   if (!own || derived === NONE) return derived;
   const slots = { ...derived.slots };
   for (const [slot, def] of Object.entries(own) as [SlotName, LegendDef | undefined][]) {
-    if (def === undefined || (slot === 'c' && ctx.label !== undefined)) continue;
-    const legend = def === null ? undefined : fromDef(def, slot, ctx, key);
+    // While flick hints show, c is the tap character: the rest are at the edges.
+    if (def === undefined || (slot === 'c' && (ctx.label !== undefined || derived.arrangement === 'edges'))) continue;
+    const legend = def === null ? undefined : fromDef(def, slot, ctx, key, slots[slot]);
     if (legend) slots[slot] = legend;
     else delete slots[slot];
   }
@@ -93,7 +94,7 @@ export const keyLegends = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLege
 };
 
 /** A pack's legend: a string is text at the slot's usual size and tone (a label in c, a small legend elsewhere). */
-const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext, key: KeyDef): Legend | undefined => {
+const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendContext, key: KeyDef, shown: Legend | undefined): Legend | undefined => {
   const spec = typeof def === 'string' ? { text: def } : def;
   const small = slot !== 'c';
   const text = (value: string, size: LegendSize, tone: Tone): Legend =>
@@ -105,14 +106,15 @@ const fromDef = (def: Exclude<LegendDef, null>, slot: SlotName, ctx: LegendConte
   // Beneath marks small as a hint (大⇔小); beneath text as the ABC keys' digit.
   if (spec.marks) return { kind: 'marks', marks: spec.marks.map((mark) => text(mark, 'key', 'text')), under: text(spec.under ?? '', 'hint', 'legend') };
   const under = spec.under === undefined ? undefined : text(spec.under, 'sub', 'legend');
-  if (spec.text === undefined) return undefined;
+  // Only under: beneath what the key shows there (the ABC keys' digit).
+  if (spec.text === undefined) return under && shown?.kind === 'text' ? { ...shown, under } : undefined;
   return {
     kind: 'text', text: spec.text, size: spec.size ?? (small ? 'legend' : 'key'), tone: spec.tone ?? (small ? 'legend' : 'text'),
     boxed: spec.boxed ?? ctx.dotted.has(spec.text), ...(under ? { under } : {}),
   };
 };
 
-/** What the key's fields (char, shift, fn, kana, hint, sub, flick) put where. */
+/** What the key's fields (char, shift, fn, kana, hint, flick) put where. */
 const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => {
   const text = (value: string, size: LegendSize, tone: Tone): Legend =>
     ({ kind: 'text', text: value, size, tone, boxed: ctx.dotted.has(value) });
@@ -156,26 +158,19 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     return { arrangement: 'quad', slots };
   }
 
-  const label = ((): Legend => {
-    if (ctx.label !== undefined) return text(ctx.label, 'key', 'text');
-    if (key.type === 'flick' && (ctx.hints || key.hints)) return text(flickText(key.flick[0], mods), 'key', 'text');
-    if (ctx.icon) return { kind: 'icon', icon: ctx.icon };
-    return text(pageLabel(key, { letters: ctx.letters, other: ctx.other, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
-  })();
-  // The ABC keys: the label with its digit small beneath (not with hints, which show the rest).
-  const shown: Legend = key.type === 'flick' && key.sub && !(ctx.hints || key.hints) && label.kind === 'text'
-    ? { ...label, under: text(key.sub, 'sub', 'legend') } : label;
-
-  // Flick hints: each direction's kana small at the key's left, top, right and bottom edge, as Shift and
-  // Caps type it (capitals on the ABC page), like the label without hints and the flick guide.
-  if (key.type === 'flick' && (ctx.hints || key.hints)) {
-    const slots: Partial<Record<SlotName, Legend>> = { c: shown };
-    (['l', 't', 'r', 'b'] as const).forEach((slot, i) => {
-      const value = key.flick[i + 1];
+  // Flick hints, in the case Shift and Caps type (capitals on the ABC page), as the flick guide shows them.
+  if (key.type === 'char' && key.flick && (ctx.hints || key.flickHints)) {
+    const slots: Partial<Record<SlotName, Legend>> = { c: text(ctx.label ?? flickText(key.char, mods), 'key', 'text') };
+    for (const [slot, way] of [['l', 'left'], ['t', 'up'], ['r', 'right'], ['b', 'down']] as const) {
+      const value = key.flick[way];
       if (value) slots[slot] = text(flickText(value, mods), 'hint', 'legend');
-    });
+    }
     return { arrangement: 'edges', slots };
   }
+
+  const label: Legend = ctx.label !== undefined ? text(ctx.label, 'key', 'text')
+    : ctx.icon ? { kind: 'icon', icon: ctx.icon }
+      : text(pageLabel(key, { letters: ctx.letters, other: ctx.other, symbols: ctx.symbols ?? 0 }) ?? keyLabel(key, mods), 'key', 'text');
 
   // With an Fn legend: Shift top left, Fn top right, the label beneath; with only a Shift legend: Shift
   // above the label, like a keycap.
@@ -190,7 +185,7 @@ const fromFields = (key: KeyDef, mods: Mods, ctx: LegendContext): KeyLegends => 
     arrangement = 'stack';
     slots.t = text(small.sh, 'legend', 'legend');
   }
-  slots.c = shown;
+  slots.c = label;
   // A long press's character, small in the top right (the QWERTY page's digits).
   if (key.type === 'char' && key.hint && !slots.tr) slots.tr = text(key.hint, 'legend', 'legend');
   return { arrangement, slots };
