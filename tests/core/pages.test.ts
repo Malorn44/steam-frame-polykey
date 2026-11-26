@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyboardDef } from '../../src/core/catalog.js';
-import { latinPage, latinTarget, modeLetters, pageLabel, pageLayout } from '../../src/core/pages.js';
+import { latinPage, latinTarget, modeLetters, modeOf, pageLabel, pageLayout } from '../../src/core/pages.js';
 
 const twelve: KeyboardDef = {
   id: 'ja/12key', name: '12キー', layout: 'ja/flick',
@@ -30,6 +30,9 @@ describe('pages', () => {
     expect(modeLetters(modes, false)).toBe('あいう');
     expect(modeLetters(modes, true)).toBe('ABC');
     expect(modeLetters(jis, false)).toBeUndefined();
+    expect([modeOf(modes, false)?.id, modeOf(modes, true)?.id, modeOf(jis, false)]).toEqual(['kana', 'latin', undefined]);
+    const latinFirst = { ...twelve, modes: [{ id: 'latin', latin: true }, { id: 'kana' }] };
+    expect([modeOf(latinFirst, false)?.id, modeOf(twelve, true)]).toEqual(['kana', undefined]);
   });
 
   it('labels follow the page and mode: back to あいう or ABC, and to 123 from the second symbols page', () => {

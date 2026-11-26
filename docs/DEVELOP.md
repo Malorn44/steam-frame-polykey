@@ -50,10 +50,11 @@ src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
 src/ui/         the keyboard as DOM
 packs/          bundled layouts, keyboards, themes, tables, picker sets, languages; pack.schema.json, their JSON Schema
 sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation),
-                converters/ (the converters keyboards name, one registry: CONVERTERS in __init__.py)
+                converters/ (the converters keyboards name, one registry: CONVERTERS in __init__.py),
+                spellers/ (words as the keys they are typed with, by composer: SPELLERS in __init__.py)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
-                release.sh, test-layout.sh; make-*.py rebuild the word list, blocklist and emoji data
+                release.sh, test-layout.sh; make-*.py rebuild the word lists, blocklist and emoji data
 contrib/        polykey.service; allowed_signers, the release key
 ```
 
@@ -65,3 +66,16 @@ What a language needs today; each step only if the language uses it.
 2. **A composer**, if typing composes in the bar: a module in `src/core/composers/`, its line in `COMPOSERS` (`index.ts`), and its id in the schema's keyboard `composer` enum. A test holds the enum to the registry.
 3. **A table format**, if its composer reads data no table holds yet: a field in the schema's `table`, with its option in that `oneOf`, and the composer's line in `COMPOSER_TABLES` (`sidecar/polykey/packs.py`).
 4. **A converter**, if what is composed is converted (kana to kanji): a module in `sidecar/polykey/converters/`, its line in `CONVERTERS` (`__init__.py`), and its id in the schema's keyboard `converter` enum. A test holds this enum to the registry too.
+5. **A speller**, if words are typed in keys that are not their letters (Hangul's jamo): a module in `sidecar/polykey/spellers/` and its line in `SPELLERS` (`__init__.py`), by the composer it spells for. It is made with the keyboard's table, as the composer reads it. Suggestions then match what is typed on the keys (하 → 한국).
+6. **A word list**, if the keyboard suggests words: `packs/<code>/words.tsv`, named on the keyboard or its modes ([PACKS.md](PACKS.md)), with its `LICENSE.words`. `scripts/make-lexicon.py leipzig` builds one in any language from the [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/en/download)'s word lists (CC BY 4.0). `packs/ko/words.tsv` is built with this, run from the repo; the corpora are downloaded data, so each goes into an empty folder of its own outside the repo, and the script runs with `-I`:
+
+   ```sh
+   T=$(mktemp -d)
+   for c in kor_news_2022_1M kor-kr_web_2020_1M kor_newscrawl_2016_1M; do
+     mkdir "$T/$c" && curl -fsSL "https://downloads.wortschatz-leipzig.de/corpora/$c.tar.gz" | tar -xz -C "$T/$c" "$c/$c-words.txt"
+   done
+   python3 -I scripts/make-lexicon.py leipzig --name Korean --letters '[가-힣]' --max-length 10 --min-corpora 2 --keep 150000 \
+     "$T/kor_news_2022_1M/kor_news_2022_1M/kor_news_2022_1M-words.txt" \
+     "$T/kor-kr_web_2020_1M/kor-kr_web_2020_1M/kor-kr_web_2020_1M-words.txt" \
+     "$T/kor_newscrawl_2016_1M/kor_newscrawl_2016_1M/kor_newscrawl_2016_1M-words.txt" > packs/ko/words.tsv
+   ```
