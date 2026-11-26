@@ -363,6 +363,19 @@ describe('dictation on the page', () => {
     expect(typed()).toBe('あ今日は晴れ');
   });
 
+  it('Korean: the syllable being composed is sent first, then the phrase, spaced as Korean words are', async () => {
+    const { popup, api, sidecar, typed } = setup({ dictation: true, keyboards: ['ko/korean', 'en/english'] });
+    api.debug.use('ko/korean');
+    await tap(popup, 'ㄴ');
+    await tap(popup, 'ㅔ'); // 네, in the bar
+    await tap(popup, 'dictate');
+    expect(sidecar.asked.find((r) => r.op === 'dictation.start')).toMatchObject({ language: 'ko' });
+    await sidecar.phase({ phase: 'done', text: '좋아요' });
+    await vi.advanceTimersByTimeAsync(500); // each text waits for the keymap to settle
+    expect([pre(popup), typed()]).toEqual([null, '네 좋아요 ']);
+    expect(logged.join('\n')).not.toContain('좋아요');
+  });
+
   it('英数 mode on a Japanese keyboard dictates English after the English word', async () => {
     const { popup, api, sidecar, typed } = setup({ dictation: true });
     api.debug.use('ja/jis');
@@ -498,7 +511,7 @@ describe('settings → Dictation', () => {
     const { popup, sidecar } = setup({ dictation: true });
     await open(popup);
     await vi.advanceTimersByTimeAsync(20);
-    expect(items(popup, 'langs').map((i) => i.textContent)).toEqual(['English✓', '日本語', 'Downloaded1']);
+    expect(items(popup, 'langs').map((i) => i.textContent)).toEqual(['English✓', '日本語', '한국어', 'Downloaded1']);
     expect(items(popup, 'langs')[0]!.classList.contains('sel')).toBe(true); // the keyboard's
     const models = () => items(popup, 'models');
     // The title line, outside the scroller, labels the grid's columns: the graded language, speed and size.
@@ -563,7 +576,7 @@ describe('settings → Dictation', () => {
     const head = [...panel(popup).querySelectorAll('.dm .models .colhead > div')].map((d) => d.textContent);
     expect(head).toEqual(['Downloaded · 999 MB', 'Used for', 'Size']); // the finished ones
     expect(items(popup, 'models').map((i) => ['.nm', '.used', '.mark'].map((c) => i.querySelector(c)!.textContent))).toEqual([
-      ['Whisper small', '日本語', '✓'], ['Parakeet', 'English', '✓'], ['SenseVoice Small', 'not used', '0%']]);
+      ['Whisper small', '日本語, 한국어', '✓'], ['Parakeet', 'English', '✓'], ['SenseVoice Small', 'not used', '0%']]);
     expect(items(popup, 'models').every((i) => i.lastElementChild!.querySelector('svg'))).toBe(true); // ✕ on each
     await touch(items(popup, 'models')[0]!); // a row tap chooses nothing
     expect(sidecar.ops()).not.toContain('settings.save');

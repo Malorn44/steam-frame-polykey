@@ -7,6 +7,18 @@
 import type { KeyDef, KeyboardOptions, Layout, TableDef } from '../catalog.js';
 import type { Effect } from '../keyboard.js';
 
+/**
+ * `build` run once per pack object (a table, a layout) and kept for as long as the object is: what a
+ * composer makes of its keyboard's packs (a romaji table, the ゛゜小 cycles, Hangul's pairs).
+ */
+export const builtOnce = <K extends object, V>(build: (source: K) => V): ((source: K) => V) => {
+  const built = new WeakMap<K, V>();
+  return (source) => {
+    if (!built.has(source)) built.set(source, build(source));
+    return built.get(source) as V;
+  };
+};
+
 /** What a press carries: the character a flick chose, or the text a typed key makes (Shift applied). */
 export interface ComposerInput { readonly flicked?: string; readonly typed?: string }
 
@@ -86,7 +98,7 @@ export interface Composer<S> {
   press(state: S, key: KeyDef, input: ComposerInput, ctx: ComposerContext): ComposerResult<S> | null;
   /** Send everything that waits, as it stands. */
   flush(state: S, ctx: ComposerContext): ComposerResult<S>;
-  show(state: S): Shown;
+  show(state: S, ctx: ComposerContext): Shown;
   /** End anything waiting on the next press (a tap cycle), keeping what is composed. */
   pause?(state: S): S;
   /** Dictated text into the composition, for its candidates; null when it cannot take it (it is then sent at once). */

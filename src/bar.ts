@@ -39,6 +39,8 @@ export interface Bar {
   dictate(text: string): void;
   /** What the bar shows of the composition, its key labels as names (convert, confirm); null when nothing is composed. */
   shown(): { composition: CompositionView; labels: Readonly<Record<string, string>> } | null;
+  /** The text being composed, as the bar shows it ('' when nothing is): the word being typed, for dictation's spacing. */
+  composedText(): string;
 }
 
 const segmentsOf = (reply: BridgeReply): Converted[] =>
@@ -75,7 +77,7 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
     }
   };
 
-  /** Have the converter learn what was sent (anthy keeps it in ~/.anthy). */
+  /** Have the converter learn what was sent, so picked candidates come first next time. */
   const learn = (kb: BarKeyboard, learned: Learned): void => {
     if (available() && kb.converter) void call('learn', { converter: kb.converter, ...learned });
   };
@@ -177,8 +179,14 @@ export const createBar = ({ call, available, enqueue, show, warn, keyboard }: {
     shown: () => {
       const kb = keyboard();
       if (!composing(kb)) return null;
-      const { preedit, labels } = kb.composer.show(stateOf(kb));
+      const { preedit, labels } = kb.composer.show(stateOf(kb), kb.ctx);
       return { composition: 'segments' in preedit ? preedit : { ...preedit, candidates: live, selected: -1 }, labels };
+    },
+    composedText: () => {
+      const kb = keyboard();
+      if (!composing(kb)) return '';
+      const { preedit } = kb.composer.show(stateOf(kb), kb.ctx);
+      return 'segments' in preedit ? preedit.segments.join('') : preedit.before + preedit.after;
     },
   };
 };
