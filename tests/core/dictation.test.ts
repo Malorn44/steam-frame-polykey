@@ -4,7 +4,7 @@ import {
   accuracyGrade, dictationLanguage, dictationLanguages, gradeFor, joinPhrase, micDownload, modelFor, spaceAfter, speedBars, spacedText,
   type SpeechCatalog, type SpeechModel, type SpeechStatus,
 } from '../../src/core/dictation.js';
-import { NO_IME, insertText, reading } from '../../src/core/ime.js';
+import { NO_IME, insertText, reading } from '../../src/core/composers/kana.js';
 
 const keyboard = (language?: string) => ({ id: 'x/y', name: 'Y', layout: 'x/l', ...(language ? { language } : {}) }) as KeyboardDef;
 

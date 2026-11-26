@@ -42,13 +42,15 @@ Each merge to main updates release-please's release PR, which holds the next ver
 
 ```
 src/core/       pure logic: catalog types, key handling, key codes, output planning
+                composers/: how typing composes in the bar (kana, romaji), one registry
 src/host/steam/ the only Steam-facing TypeScript
 src/bridge/     page side of the sidecar bridge
 src/main.ts     wiring (bundle entry: entry.ts; read-only report: probe.ts)
-                dictation.ts, updates.ts: the page side of dictation and of the updater
+                dictation.ts, updates.ts: the page side of dictation and of the updater; bar.ts, the candidate bar
 src/ui/         the keyboard as DOM
-packs/          bundled layouts, keyboards, themes; pack.schema.json, their JSON Schema
-sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation)
+packs/          bundled layouts, keyboards, themes, tables, picker sets, languages; pack.schema.json, their JSON Schema
+sidecar/        Python sidecar: CDP injector, bridge, updater, Desktop Mode clipboard (Wayland), speech/ (dictation),
+                converters/ (the converters keyboards name: anthy)
 tests/          vitest; sidecar/tests: pytest with fake Steam debugger and fake compositor
 scripts/        build.mjs (and css-minify.mjs, its CSS minification; version.mjs, its version), deploy.sh, install.sh,
                 release.sh, test-layout.sh; make-*.py rebuild the word list, blocklist and emoji data
